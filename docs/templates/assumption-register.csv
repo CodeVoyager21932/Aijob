@@ -1,0 +1,2 @@
+id,type,assumption,target_user,evidence_level,cheapest_test,pass_signal,fail_signal,status,owner,review_date,evidence_link,decision
+H-VALUE-001,value,官方来源与证据解释会改善真实投递决策,待验证首要用户,E0,行为访谈与人工礼宾实验,用户依据结果进入官方页并完成或准备真实投递,用户仅浏览或礼貌认可但不改变行动,untested,,YYYY-MM-DD,,
