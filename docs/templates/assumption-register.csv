@@ -1,2 +1,3 @@
-id,type,assumption,target_user,evidence_level,cheapest_test,pass_signal,fail_signal,status,owner,review_date,evidence_link,decision
-H-VALUE-001,value,官方来源与证据解释会改善真实投递决策,待验证首要用户,E0,行为访谈与人工礼宾实验,用户依据结果进入官方页并完成或准备真实投递,用户仅浏览或礼貌认可但不改变行动,untested,,YYYY-MM-DD,,
+id,type,is_current_top_risk,current_phase,next_gate,value_gate,assumption,target_user,evidence_level,cheapest_test,pass_signal,fail_signal,guardrail_signal,status,owner,review_date,evidence_link,decision
+H-PROBLEM-001,problem,true,Phase 0,G0,G1,首轮用户在官方公共服务和分散官方渠道之外仍需要跨来源资格与经历证据决策层,未来30天真实投递产品或运营实习且已有中文简历并近期使用多个官方渠道的中国大陆在校生,E0,2人协议校准中的近期行为访谈与现有流程基线,能形成可执行的正式实验并观察到跨来源重复核验和资格或证据判断成本,现有官方服务已能快速完成资格与证据判断且没有可观察的重复成本,不得把礼貌认可或主观喜欢当作需求证据,untested,,2026-07-22,,pending
+H-VALUE-001,value,true,Phase 0,G0,G1,来源与时效以及资格和经历证据三层信息能改善真实投递决定且不会造成错误劝退,未来30天真实投递产品或运营实习且已有中文简历并近期使用多个官方渠道的中国大陆在校生,E0,6人四层礼宾实验与72小时行为追踪,4/6在20分钟内找到3个愿意认真考虑且无已知硬冲突的岗位并且5/6正确区分四类概念并且3/6在72小时内完成高质量决定且至少2人自报官方投递,信息只提升主观好感但不改善理解效率或行动或者任一产品结果阈值未达到,硬条件漏检或错误劝退或虚构经历或未确认事实参与结论或隐私事件任一大于0,untested,,2026-07-22,,pending

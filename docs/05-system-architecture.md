@@ -1,189 +1,253 @@
 # 系统架构
 
-## 1. 架构原则
+## 1. 已决定的 MVP 架构
 
-- 围绕核心业务链路设计，不围绕现成开源项目设计。
-- 我们自行维护来源注册表、适配器契约、岗位模型和匹配模型。
-- 确定性处理优先，AI 只做需要语言理解的部分。
-- 外部网页、用户文件和模型输出分别隔离。
-- 每一步可重试、可观察、可回放、可人工纠正。
-- MVP 保持少服务、少依赖，但保留清晰模块边界。
+工程 MVP 采用一个模块化单体代码库和三个独立运行进程：
+
+```text
+web-api
+collector-worker
+match-worker
+```
+
+运营动作通过同一代码库中的 `internal ops CLI` 完成，不部署公共管理端。PostgreSQL 是唯一查询、任务和元数据真源，承担业务数据、任务表、版本、审计和 MVP 查询；独立岗位快照 Bucket 只保存原始公开岗位响应正文，绝不保存用户简历或其他用户数据。不部署 Redis/Celery、独立搜索、向量库、Playwright、文件上传链路或其他对象存储用途。
+
+这一形态兼顾两点：领域模块在代码和数据上保持边界，高风险采集与用户匹配在运行时使用不同身份和权限；同时不为尚未出现的规模问题引入微服务和分布式一致性成本。
 
 ## 2. 系统上下文
 
 ```mermaid
 flowchart LR
-    A[管理员审核的企业与高校来源] --> B[采集 Worker]
-    B --> C[(原始快照)]
-    C --> D[解析、标准化与质量校验]
-    D --> E[(可信岗位库)]
-    E --> F[搜索与筛选 API]
-    E --> G[匹配服务]
-    H[用户简历与求职约束] --> I[安全文件解析与用户确认]
-    I --> G
-    G --> J[AI 解释网关]
-    J --> K[可解释推荐]
-    F --> L[Web 产品]
-    K --> L
-    L --> M[企业官方投递页面]
-    L --> N[失效与推荐反馈]
-    N --> D
-    N --> G
+    U["匿名访客 / 邀请测试用户"] --> W["web-api"]
+    W --> P[("PostgreSQL 查询、任务与元数据真源")]
+    O["维护者"] --> C["internal ops CLI"]
+    C --> P
+    P --> CW["collector-worker"]
+    CW --> S["批准的企业/高校公开来源"]
+    CW --> B[("岗位快照 Bucket\n仅公开岗位响应正文")]
+    CW --> P
+    P --> MW["match-worker"]
+    MW --> A["批准的 AI 供应商（默认关闭）"]
+    MW --> P
+    W --> J["企业官方投递页面"]
 ```
 
-## 3. 逻辑模块
+用户反馈只追加到反馈与审计数据，并进入人工复核或后续评估。反馈不能直接修改岗位版本、用户事实、匹配规则、当前三轴结果或用户决定。
 
-### 3.1 Web 产品
+## 3. 领域边界与数据所有权
 
-- 岗位列表和详情。
-- 简历/画像确认。
-- 推荐结果和证据解释。
-- 官方投递跳转。
-- 用户反馈和数据删除入口。
+### 3.1 来源控制 `source-control`
 
-### 3.2 应用 API
+拥有 `SourcePolicy`、来源证明、精确采集/申请目标、适配器版本、审核状态和暂停机制。只有 `internal ops CLI` 能批准或改变政策状态。
 
-- 用户认证和对象级授权。
-- 岗位查询和结构化筛选。
-- 简历解析任务创建与状态查询。
-- 推荐任务和结果读取。
-- 管理端来源与审核接口。
+### 3.2 采集 `ingestion`
 
-### 3.3 来源管理
+拥有 `CrawlTask`、`CrawlRun`、`RawJobSnapshot` 元数据、`SourceJobRecord` 和 `SourceJobRevision`。原始响应正文存入岗位快照 Bucket；该领域只处理公开来源数据，不接触任何 owner 用户数据。
 
-- 来源准入和域名白名单。
-- 适配器配置、频率和解析器版本。
-- 来源健康状态和暂停机制。
+### 3.3 岗位目录 `catalog`
 
-### 3.4 采集 Worker
+拥有稳定岗位身份、不可变 `PublishedJobVersion`、当前活动版本指针、发布/有效状态和 `JobRequirementSet`。用户查询只读取已经发布的版本。
 
-- 只接受内部调度的 `source_id`，不接受任意 URL。
-- 负责发现、列表抓取、详情抓取和原始快照。
-- 运行在无用户数据、无模型密钥的低权限环境。
+### 3.4 用户画像 `profile`
 
-### 3.5 解析与质量
+拥有邀请会话、`owner_id`、`ProfileFact`、`JobPreference`、`ResumeEvidence` 及其不可变修订、保留期限和删除状态。
 
-- 确定性字段提取。
-- Pydantic Schema 校验。
-- 企业和地点标准化。
-- 去重候选、版本检测和有效性更新。
-- 低置信度与异常记录进入人工审核。
+### 3.5 匹配 `matching`
 
-### 3.6 简历解析
+拥有 `MatchRun`、规则/词典/解释模板版本、资格/证据/偏好三轴结果和可选 AI 解释元数据。它不生成全局推荐标签，也不修改来源、岗位版本、用户确认事实或用户决定。
 
-- 文件安全检查和隔离解析。
-- 原文转纯文本。
-- 结构化证据提取。
-- 用户确认和修改。
+### 3.6 决策、反馈与审计 `decision-feedback-audit`
 
-### 3.7 匹配服务
+拥有用户主动更新的 `JobDecision`（未决定、已保存、准备投递、已投递、已放弃）、官方链接点击、自报投递、岗位失效、结果反驳、管理员变更和删除结果。数据以最小、追加方式保存，不把三轴结果或单次反馈自动转成用户决定或生产规则。
 
-- 硬性资格判断。
-- 规则、词典和语义证据召回。
-- 推荐信号计算。
-- 生成交给 AI 的最小结构化上下文。
+## 4. PostgreSQL 与岗位快照 Bucket
 
-### 3.8 AI 网关
+MVP 使用一个受管理的 PostgreSQL 实例，通过 schema 和数据库角色隔离：
 
-- 统一模型供应商接口。
-- 脱敏和最小化输入。
-- 固定系统提示和 JSON Schema。
-- 超时、重试、成本限制和结果缓存。
-- 输出校验和安全降级。
+| Schema | 主要内容 | 写入者 | 读取者 |
+|---|---|---|---|
+| `source_control` | 来源政策和审批版本 | ops CLI | collector、ops CLI |
+| `task_queue` | 任务信封、类型、幂等键、租约、心跳和最小 payload 引用 | web-api、collector/match 定时入口、ops CLI 通过入队函数；Worker 通过状态函数 | 按任务类型隔离的 claim/complete 函数；Worker 不读基表 |
+| `ingestion` | 采集运行、快照对象元数据、来源修订 | collector；ops CLI 仅通过受限人工导入函数写 `import_mode=manual` 修订 | collector、ops CLI |
+| `catalog` | 发布岗位版本和要求集 | collector/受控发布操作 | web-api、match、ops CLI |
+| `profile` | 会话、owner、事实、偏好和证据 | web-api、match | owner 作用域的 web-api/match |
+| `matching` | 匹配运行和三轴岗位结果 | match | owner 作用域的 web-api/match |
+| `decision_feedback_audit` | 用户决定、最小产品事件和安全/管理审计 | owner 作用域的 web-api、各受控主体 | owner 作用域的 web-api、ops CLI/受限审计角色 |
 
-## 4. 数据存储
+数据库约束承担核心一致性：
 
-| 存储 | 内容 | 访问者 |
-|---|---|---|
-| PostgreSQL | 来源、企业、岗位、版本、用户画像、推荐、反馈 | 应用 API 和内部服务 |
-| 原始对象存储 | 安全压缩的抓取快照和隔离简历原文件 | 专用处理服务 |
-| 搜索索引 | 已发布岗位的可搜索字段 | 查询 API |
-| 向量索引 | 岗位要求和用户证据向量 | 匹配服务 |
-| 审计日志 | 来源变更、人工审核、数据删除和管理操作 | 管理员和安全审计 |
+- 来源岗位、快照哈希、版本内容哈希和任务幂等键使用唯一约束。
+- `task_queue.task_type` 只允许 `crawl/resume_analysis/match_run/owner_deletion`；受限函数保证 collector 只能领取 `crawl`，match 只能领取其余三类，并只返回该类型所需字段。
+- 外键固定 `PublishedJobVersion -> JobRequirementSet -> MatchRun` 版本链；每个 `MatchRun` 还必须引用事实/偏好/证据修订、规则、词典和 `template_version`，AI 实际参与时再引用提示词和模型版本。`JobDecision` 关联稳定岗位 ID、自己的修订号及可选 `match_run_id`，不属于系统匹配输出。
+- 用户表均含 `owner_id`，查询通过服务端会话派生 owner，不接受客户端指定。
+- 邀请交换固定 `owner_expires_at`；所有 owner 数据、任务载荷和正常会话的过期时间不得晚于它，新修订不能续期。
+- 用户任务固定领取时的 `owner_epoch`；任何结果写入都在同一事务确认 owner 未删除、未到期且 epoch 未变化。删除事务递增 epoch 并取消待处理用户任务，使已领取旧任务的迟到写入失效。
+- 活动版本用受约束指针切换；历史版本不可修改。
+- 过期时间和删除墓碑是数据模型的一部分，不依赖临时脚本记忆。
 
-原始岗位快照与简历文件使用不同存储前缀、凭据和保留策略。
+岗位快照 Bucket 不是查询真源：PostgreSQL 中的 `RawJobSnapshot` 只保存 `object_key`、`content_hash`、`byte_size`、`content_type` 等元数据。`collector-worker` 依据来源 ID 与内容哈希生成确定性对象键，只能读写其专用前缀；`web-api` 和 `match-worker` 没有 Bucket 凭据或读取权限。
 
-## 5. MVP 部署形态
+采集进程先校验响应大小/类型并将正文上传 Bucket，通过哈希和大小校验后，才在 PostgreSQL 事务中提交快照元数据、来源修订和候选版本。上传成功但事务未提交的无引用对象在满 24 小时后清理；对象缺失、不可读或哈希不一致时禁止发布对应岗位版本。用户粘贴的简历原文仍只在 PostgreSQL 中应用层加密暂存，经历证据确认后立即删除；未完成确认或处理异常时也最长不超过提交后 24 小时，绝不进入岗位快照 Bucket。
 
-MVP 不需要立刻拆成大量微服务，可以用三个独立进程保持边界：
+## 5. 运行主体与能力
 
-```text
-web-api
-collector-worker
-resume-match-worker
-```
+### 5.1 `web-api`
 
-配套基础设施：
+- 提供岗位列表、详情、邀请交换、画像确认、匹配任务、结果、反馈和删除 API。
+- 匿名请求只能读取已发布岗位。
+- 邀请会话请求只能访问当前 `owner_id` 的用户对象。
+- 不跨请求缓存 owner 事实、证据、匹配或决定；每次读取重新校验会话、墓碑和 `owner_expires_at`。
+- 可以向 PostgreSQL 任务表入队，不能自己抓取外部 URL 或调用模型。
+- 无来源审批、岗位快照 Bucket、采集凭据和模型密钥权限。
 
-- PostgreSQL。
-- 私有对象存储或开发期本地隔离目录。
-- 数据库任务表或简单调度器。
-- 可选的外部模型 API。
+### 5.2 `collector-worker`
 
-只有当来源数量、任务并发和重试需求明显增长时，再评估 Redis/Celery、专用搜索引擎或独立向量服务。MVP 不预装这些组件。
+- 从 PostgreSQL 领取 `CrawlTask`，读取已批准 `SourcePolicy`。
+- 只向精确允许的采集目标出站。
+- 只用 collector 专用身份和前缀读写岗位快照 Bucket；先上传并校验正文，再写入运行、快照元数据、来源修订和待发布岗位版本。
+- 无 `profile`、`matching` 和模型权限；不能修改来源审批。
 
-## 6. 技术候选而非最终决定
+### 5.3 `match-worker`
 
-| 层 | 首选候选 | 原因 |
-|---|---|---|
-| 前端 | Next.js + TypeScript | 适合搜索、详情和用户工作台 |
-| API | FastAPI + Pydantic | Python 数据和 AI 生态，强 Schema 契约 |
-| 数据 | PostgreSQL + SQLAlchemy + Alembic | 事务、版本、关系和可迁移性 |
-| HTTP | HTTPX | 超时、连接池、同步和异步支持 |
-| 动态页面 | Playwright，仅必要来源启用 | 处理真正依赖浏览器渲染的官方页面 |
-| 搜索 | MVP 先用结构化 SQL、`ILIKE`、`pg_trgm` | 避免过早增加搜索服务 |
-| 语义召回 | 后续评估 `pgvector` 与中文模型 | 与关系数据共存、容易替换 |
-| 调度 | 数据库任务表 + 单独 Worker | 简单、可观察、无需额外中间件 |
+- 从 PostgreSQL 领取画像解析或匹配任务。
+- 只读取任务指定 owner 的用户修订和已发布岗位版本。
+- 写入新的 `MatchRun` 三轴结果，不覆盖历史；不能代替用户更新 `JobDecision`。
+- 领取已持久化墓碑的 owner 删除任务，通过校验任务 owner、墓碑和 fencing token 的受限幂等数据库函数清理 `profile`、`matching`、owner 决策/事件、任务载荷与持久派生数据；没有有效墓碑时函数拒绝执行。MVP 不建立跨请求 owner 缓存。
+- 定时入口通过受限函数选择已经到达 `owner_expires_at` 的 owner；函数原子写到期墓碑、递增 `owner_epoch`、取消旧任务并入队 `owner_deletion`，不把其他 owner 内容返回给 Worker。
+- 同一定时入口清理达到 `raw_resume_expires_at` 的原文并取消关联解析任务；解析结果提交同时校验原文未删除/未到期与 `owner_epoch` 未变化，Worker 不持久化本地正文缓冲。
+- AI 默认关闭；启用后仅可向批准的模型域名出站并使用独立密钥。
+- 无采集目标、原始网页或岗位快照 Bucket 权限，也无来源管理权限。
 
-所有候选都需要经过 [依赖准入](04-security-threat-model.md) 后才能加入项目。
+### 5.4 `internal ops CLI`
 
-## 7. API 边界草案
+- 通过维护者身份登记、批准、暂停来源和处理岗位复核队列。
+- MVP-0 通过 CLI 接受受控结构化输入，人工导入 20–30 条产品/运营实习岗位；每条保存已批准来源 URL、最后核验时间、复核人和字段级纯文本证据，未抓取原始响应时明确 `import_mode=manual`，不伪造 Bucket 快照。导入必须经过与自动采集相同的字段、`apply_targets`、不可变版本和发布复核，不能直接修改当前已发布行。
+- 查看脱敏运行质量、删除状态和审计记录。
+- 所有写操作记录原因、操作者、时间及前后值。
+- 默认无简历原文读取权限，不在公网监听端口。
 
-### 用户侧
+## 6. PostgreSQL 任务执行契约
 
-- `GET /jobs`
-- `GET /jobs/{job_id}`
-- `POST /resumes`
-- `GET /resumes/{resume_id}/parse-result`
-- `POST /resumes/{resume_id}/confirm`
-- `POST /recommendations`
-- `GET /recommendations/{id}`
-- `POST /jobs/{job_id}/feedback`
-- `DELETE /resumes/{resume_id}`
+任务采用至少一次执行语义，使用数据库任务表，不声称 exactly-once：
 
-### 管理侧
+调度不是额外服务：`collector-worker` 的定时/命令入口（或受控 CLI）依据 `SourceRuntimeState.next_due_at` 入队 `crawl`；`match-worker` 的定时入口只通过受限函数入队到期 owner 的 `owner_deletion`。两者都使用同一任务表与进程身份。
 
-- `POST /admin/sources`
-- `PATCH /admin/sources/{source_id}`
-- `POST /admin/sources/{source_id}/crawl`
-- `GET /admin/crawl-runs`
-- `GET /admin/review-queue`
-- `POST /admin/review-queue/{id}/resolve`
+1. API/调度器通过受限入队函数以唯一 `idempotency_key` 插入任务。
+2. Worker 调用按角色和 `task_type` 固定的 claim 函数；函数内部使用行锁和 `FOR UPDATE SKIP LOCKED` 领取可用任务并写入租约和心跳，Worker 不能查询任务基表。
+3. 外部调用在数据库事务外执行，结果通过输入哈希、唯一约束和版本键幂等落库。
+4. 租约过期后其他 Worker 可以接管；旧 Worker 的过期写入通过租约版本/fencing token 拒绝。
+5. 仅网络超时、限流和临时上游错误重试；Schema、权限和政策错误直接进入人工处理。
+6. 达到 `max_attempts` 后标记 `dead` 并告警，不无限重试。
 
-采集 Worker 不暴露接受任意 URL 的公共 API。
+用户任务载荷不保存简历正文或证据原文，只保存 owner、受控记录 ID、修订和输入哈希；任务重试不能成为被删除正文的副本。
 
-## 8. 可观察性
+采集任务的完整/部分/失败语义见采集设计；匹配任务失败不删除上一可用结果。删除任务重复执行返回同一结果，不得恢复数据或删除无墓碑 owner。每次模型重试都计入成本预算。
 
-每个任务使用 `trace_id` 贯穿调度、抓取、解析和入库，但日志不得包含简历正文。
+## 7. `/v1` API 契约
 
-必须记录：
+所有 HTTP API 使用 `/v1` 前缀。代码实现前先生成并评审 OpenAPI；下列为边界而非完整 Schema。
 
-- 来源和适配器版本。
-- 各阶段数量和耗时。
-- HTTP 状态分类和重试次数。
-- 字段缺失和 Schema 拒绝原因。
-- AI 调用模型、耗时、令牌量和 Schema 失败，不记录敏感正文。
-- 用户删除和管理员修改审计。
+### 7.1 匿名岗位
 
-## 9. 架构决策规则
+- `GET /v1/jobs`：游标分页、结构化筛选，只返回已发布版本。
+- `GET /v1/jobs/{id}`：返回稳定岗位 ID、当前 `published_job_version_id`、来源、状态和最后核验时间。
 
-新增组件前先回答：
+### 7.2 邀请与用户数据
 
-1. 它解决了当前已出现的问题，还是想象中的规模问题？
-2. 标准库或现有组件是否已经足够？
-3. 它会接触哪些敏感数据和权限？
-4. 失败时是否会影响全部来源或全部用户？
-5. 能否通过内部接口替换？
-6. 有什么测试证明它比当前方案更好？
+- `POST /v1/invitations/exchange`：补充接口；同源引导页从 URL fragment 读取一次性令牌并放入 POST body，交换为服务端会话 Cookie，成功或失败后立即从 URL 移除令牌。
+- `GET /v1/profile`：返回当前 owner 的 `owner_expires_at`、事实/偏好/证据修订摘要和五态决策队列，用于复访与数据控制；不返回简历原文，删除状态受限会话无权调用。
+- `PUT /v1/profile/facts`：确认或替换当前 owner 的事实修订，携带期望修订版本。
+- `PUT /v1/profile/preferences`：确认或替换当前 owner 的求职偏好修订，携带期望修订版本。
+- `POST /v1/resume-analyses`：提交已确认脱敏的简历纯文本，异步返回 `202 Accepted`、`analysis_id` 和结果查询地址。
+- `GET /v1/resume-analyses/{analysis_id}`：查询解析状态、稳定错误码和当前 owner 的事实/证据候选，不返回已删除原文。
+- `PUT /v1/profile/evidence`：确认或替换当前 owner 的经历证据修订，携带期望修订版本；当 `confirmation_complete=true` 时，证据修订与原文删除/墓碑在同一事务提交，成功响应后原文不可再读取。
+- `POST /v1/match-runs`：固定岗位版本、要求集、事实/偏好/证据修订、规则、词典和 `template_version`，异步返回 `202 Accepted`；仅在 AI 实际参与时固定提示词和模型版本。
+- `GET /v1/match-runs/{match_run_id}`：读取当前 owner 的不可变运行、三轴结果与引用依据。
+- `PUT /v1/job-decisions/{job_id}`：由用户设置五态决策、结构化原因和独立隐藏状态，携带期望修订版本。
+- `POST /v1/jobs/{id}/feedback`：补充接口；提交岗位失效或结果反驳的最小原因分类，不直接修改岗位或规则。
+- `DELETE /v1/profile`：在同一事务写入删除墓碑、递增 `owner_epoch`、取消待处理用户任务并撤销当前 owner 对所有个人数据的访问，把会话降为最长 24 小时的仅删除状态能力，返回 `202 Accepted`、`deletion_request_id` 和状态查询地址。
+- `GET /v1/deletion-requests/{deletion_request_id}`：仅允许上述删除状态能力查询同一请求的最小状态和稳定错误码；不能借此访问 owner 的事实、证据、匹配或决定。接口首次返回成功终态时撤销该能力；失败态在期限内允许重试，未成功时也最迟在能力创建 24 小时后失效。
 
-无法回答时，不加入架构。
+### 7.3 通用规则
+
+- 所有创建型接口（本草案中的全部 `POST`）必须接受 `Idempotency-Key`；同一 owner、端点和键返回同一资源或操作。会创建异步删除操作的 `DELETE /v1/profile` 同样支持该键；墓碑存在后，即使重试使用新键也返回同一活动或终态删除请求，不能创建第二条相互竞争的清理任务。
+- 异步响应包含对应资源/操作 ID（如 `analysis_id`、`match_run_id` 或 `deletion_request_id`）、状态查询地址和建议轮询间隔，不返回伪完成结果。
+- 所有错误使用稳定的 Problem Details 契约：`application/problem+json`（RFC 9457），至少包含稳定 `type`、`title`、`status`、`code` 和关联 ID；不泄露上游响应、SQL、堆栈或对象归属。
+- 列表使用游标分页和稳定排序，不使用无限 offset。
+- 更新使用版本号或 ETag 做乐观并发；冲突返回明确 `409`。
+- owner 从安全 Cookie 会话派生；对象不存在和越权对外使用相同响应。
+- 所有 owner 级响应使用 `Cache-Control: no-store`，不得进入共享/CDN 缓存；公开岗位响应与 owner 工作区响应不混在同一缓存表示中。
+- 状态变更需要 CSRF 防护、同源策略、请求体上限和速率限制。
+- 官方链接直接使用已审核 `apply_targets`；不提供接收任意 `next/url` 参数的开放跳转端点。
+
+工程 MVP 没有公共 `/admin` API。CLI 若需要复用应用服务，通过内部入口或受限数据库函数调用，不暴露互联网路由。
+
+## 8. 可观察性契约
+
+每个请求、操作、任务和匹配运行使用关联 ID，但日志不包含用户正文：
+
+- `request_id`、`operation_id`、`task_id`、`crawl_run_id`、`match_run_id`。
+- 来源、策略、适配器、岗位、规则和模型版本。
+- 状态、稳定错误码、尝试次数、数量、耗时和成本。
+- 队列最老任务年龄、Worker 心跳、来源新鲜度和连续失败。
+- PostgreSQL 连接、容量、锁等待、备份和迁移状态。
+- 岗位快照 Bucket 的上传/读取失败、完整性校验失败、容量、无引用对象数量和 24 小时清理结果。
+- 删除任务的撤销、实时数据清理和备份墓碑状态。
+
+URL 写日志前移除查询和片段；owner 只使用不可逆内部引用。指标标签保持低基数，不把完整 URL、岗位标题或 owner 放入指标标签。
+
+邀请制 Alpha 至少配置：
+
+- 来源过期、静默零结果和异常批量关闭告警。
+- 任务积压、租约反复过期和死信告警。
+- API 错误率/延迟、PostgreSQL 容量与备份失败告警。
+- Bucket 对象缺失、哈希不一致、权限拒绝和孤儿清理失败告警。
+- AI 启用后的 Schema 失败、成本日预算和熔断告警。
+- 删除超过目标时间或保留任务失败告警。
+
+## 9. 环境、部署和恢复
+
+至少区分：
+
+- Local：固定夹具和合成数据，不访问生产来源或用户数据。
+- Preview/Test：脱敏/合成数据，验证迁移、权限和端到端流程。
+- Production Alpha：邀请用户和批准来源，最小权限运行。
+
+同一构建产物以不同命令启动三个进程。生产使用 TLS 入口、独立服务账号和出站策略；数据库迁移作为受控发布步骤运行，不能由每个实例启动时并发执行。
+
+Alpha 内部恢复测试目标（不是公开服务 SLA）：
+
+- `RPO <= 24 小时`。
+- `RTO <= 8 小时`。
+
+PostgreSQL 至少每日做基础备份，并使用连续 WAL 归档或等效的托管恢复能力覆盖已接受的删除墓碑；岗位快照 Bucket 启用版本保护/生命周期和与保留策略相符的恢复措施。`DELETE /v1/profile` 只有在墓碑进入可恢复持久日志后才返回 `202 Accepted`。Alpha 的 `RPO <= 24 小时`适用于一般业务状态，不允许已接受删除请求在恢复后复活；墓碑恢复链不完整时，恢复出的用户数据保持隔离，直至完成删除确认或达到原 `expires_at`。进入私测前完成一次从基础备份与 WAL 恢复、删除墓碑重放、快照引用完整性检查和核心链路验证。数据库迁移使用 expand -> migrate -> contract；应用回滚不能依赖登录服务器手改代码，数据不适合回退时使用已演练的前向修复。
+
+单 PostgreSQL、单 `web-api`，以及各自只有一个实例的 `collector-worker` 和 `match-worker`，是邀请制 Alpha 的明确单点故障。该风险在无公开可用性承诺下接受，依靠进程自动重启、任务租约、备份和 8 小时恢复目标控制；进入公开 Beta 前重新评估托管高可用数据库和 Web/Worker 冗余。
+
+## 10. 成本与扩展边界
+
+MVP 的固定成本只有 Web 运行时、两个可按需/定时运行的 Worker、一个 PostgreSQL 和一个受限岗位快照 Bucket。控制措施：
+
+- 采集按来源策略调度，限制并发、请求量和响应大小。
+- `collector-worker` 可在无任务时停止；不为三个来源常驻浏览器。
+- AI 默认关闭；启用后设置每次令牌上限、每 owner 并发、日预算和总开关。
+- 快照压缩且有大小与保留限制，监控 Bucket 容量、请求成本和 PostgreSQL 元数据增长。
+- 只有真实队列、查询或容量数据证明必要时，才评估消息代理、独立搜索、向量组件或扩大对象存储用途。
+
+新增组件必须通过 ADR 说明当前证据、权限、故障面、迁移方式和退出方案。
+
+## 11. 工程 MVP 架构验证门
+
+- CLI 人工导入只能引用已批准来源和 `apply_targets`，相同输入哈希不会重复生成修订，且不能绕过人工发布复核；CLI 始终没有岗位快照 Bucket 凭据。
+- 到期扫描只能选择 `owner_expires_at` 已到的 owner，重复扫描不生成竞争删除任务，旧任务不能在墓碑后重新写入数据。
+- 数据库角色与 Bucket 策略测试证明三个进程和 CLI 不能越权读取或写入其他边界；`web-api` 和 `match-worker` 无法读取快照正文。
+- 重复任务、Worker 中断、租约接管和过期 Worker 写入不会产生重复版本。
+- Bucket 上传成功但数据库提交失败时不会产生可发布版本，满 24 小时的无引用对象会被清理；对象缺失或哈希不一致会阻止发布并告警。
+- 部分采集运行不会关闭或清空历史岗位，来源失败不扩散。
+- owner 对象授权、CSRF、邀请重放、会话撤销和删除任务通过测试。
+- `MatchRun` 可以用固定版本重放；修改任一输入会生成新运行并把旧结果标记过期。
+- AI 关闭时端到端链路完整；模型不可用时使用模板结果。
+- 日志无简历正文、令牌和敏感 URL；队列、来源、成本和删除告警可触发。
+- PostgreSQL 备份恢复、岗位快照引用完整性、应用回滚和 `RPO 24h/RTO 8h` 流程已经演练。
+
+没有这些证据时，架构仍是设计，不进入扩大邀请范围或公开 Beta。

@@ -2,14 +2,15 @@
 
 ## 当前阶段
 
-项目当前处于产品发现与设计基线阶段。贡献应优先帮助验证用户问题、来源可行性和最短产品闭环，而不是提前扩展技术栈和功能数量。
+当前阶段、证据进度和 Gate 只以 [MVP 路线与当前决策面板](docs/06-mvp-roadmap.md) 为准，本文件不重复维护。贡献应优先帮助验证用户问题、来源可行性和最短产品闭环，而不是提前扩展技术栈和功能数量。
 
 ## 开始前
 
-1. 阅读 [统一生命周期](docs/08-zero-to-one-lifecycle.md)。
-2. 确认改动对应的用户证据、Feature Spec、缺陷或安全要求。
-3. 大型或难以逆转的决定先提交 ADR。
-4. 新依赖必须经过 [依赖准入](docs/04-security-threat-model.md#7-第三方项目与依赖分级)。
+1. 阅读 [产品定义](docs/00-product-definition.md)和[当前路线](docs/06-mvp-roadmap.md)。
+2. 涉及界面或用户流程时，阅读[体验规范](docs/13-experience-design.md)。
+3. 确认改动对应的用户证据、Feature Spec、缺陷或安全要求。
+4. 大型或难以逆转的决定先提交 ADR。
+5. 新依赖必须经过 [依赖准入](docs/04-security-threat-model.md#7-第三方项目与依赖分级)。
 
 ## 变更原则
 
