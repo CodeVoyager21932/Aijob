@@ -1,0 +1,64 @@
+{
+  "message": "",
+  "status": 0,
+  "data": {
+    "postId": "1212345678901234567",
+    "id": 501,
+    "tid": 4,
+    "tidName": "产品",
+    "fid": 94,
+    "oldId": 1001,
+    "title": "合成产品运营实习生（示例数据）",
+    "desc": "1、协助整理合成业务需求并维护需求清单；\n2、跟踪合成项目进度，记录可验证的用户反馈；\n3、与设计和研发同学协作完成测试任务。",
+    "request": "1、在校生，专业不限；\n2、具备清晰的书面表达和基础数据分析能力；\n3、能够基于事实记录问题，不编造经历。",
+    "workCity": "1,2",
+    "workCityList": ["深圳总部", "北京总部"],
+    "recruitCity": "47",
+    "recruitCityList": ["远程面试"],
+    "ordering": 10,
+    "status": null,
+    "selectedWorks": "0",
+    "withFile": "0",
+    "ideptId": "901",
+    "intentionBGDList": [
+      {
+        "id": 990,
+        "title": "SYN合成事业群",
+        "showTitle": "SYN",
+        "showTxt": "合成事业群",
+        "isLock": null,
+        "status": null,
+        "ordering": 990,
+        "departmentList": [
+          {
+            "id": 901,
+            "name": "合成产品部",
+            "bgid": 990,
+            "comment": "本部门和全部岗位内容均为离线测试使用的合成文本。",
+            "ordering": 1,
+            "enableFlag": 1,
+            "workCity": "1,2",
+            "workCityList": ["深圳总部", "北京总部"]
+          }
+        ]
+      }
+    ],
+    "projectId": 9,
+    "projectName": "应届实习",
+    "recruitType": 2,
+    "recruitLabelName": "应届实习",
+    "introduction": "参与合成产品需求整理、验证和跨团队协作。",
+    "fileUrl": "",
+    "coverUrl": "",
+    "graduateBonus": "有基于事实完成用户研究或项目复盘的经历。",
+    "internBonus": "有基于事实完成用户研究或项目复盘的经历。",
+    "isQingyun": 0,
+    "techTagId": null,
+    "techTagName": null,
+    "topicDetail": null,
+    "topicRequirement": null,
+    "projectInternDirections": null,
+    "subDirectionId": "",
+    "subDirectionDtos": null
+  }
+}

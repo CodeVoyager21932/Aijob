@@ -1,0 +1,28 @@
+{
+  "name": "@aijob/platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "cli": "tsx src/cli.ts",
+    "db:migrate": "tsx src/migrate.ts",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@aijob/config": "workspace:*",
+    "@aijob/contracts": "workspace:*",
+    "@aijob/database": "workspace:*",
+    "commander": "14.0.0",
+    "fastify": "5.8.5",
+    "kysely": "0.28.17",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "tsx": "4.20.3",
+    "vitest": "3.2.6"
+  }
+}
