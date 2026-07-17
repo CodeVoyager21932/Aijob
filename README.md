@@ -20,6 +20,8 @@
 
 以上内容只用于帮助首次阅读者定位本次文档基线。后续动态阶段、样本进度、Gate 状态和下一决策日期只更新到 [MVP 路线与当前决策面板](docs/06-mvp-roadmap.md)；如有差异，以该面板为准。
 
+从新的 Codex 任务继续推进时，必须先读项目根目录的 [协作约束](AGENTS.md) 和 [当前项目交接](docs/handoffs/current.md)，再检查当前分支与工作区。交接文档负责保存最近工程事实和下一项唯一总目标，避免依赖长对话上下文。
+
 ## 当前已经能运行什么
 
 仓库已经具备第一条可执行纵向切片：
@@ -73,15 +75,16 @@ pnpm build
 
 ## 阅读顺序
 
-1. [产品定义](docs/00-product-definition.md)：产品是谁、解决什么决策问题，以及明确不做什么。
-2. [产品发现与实验](docs/09-product-discovery.md)：如何验证问题、四层礼宾实验和证据判定。
-3. [MVP 路线与当前决策面板](docs/06-mvp-roadmap.md)：当前阶段、最高风险假设、进度、Gate 和下一决定。
-4. [当前 PRD](docs/01-prd-v0.1.md)：只描述人工导入岗位的 MVP-0 功能范围。
-5. [集中式体验规范](docs/13-experience-design.md)：P0 旅程、三轴结果、决策队列、异常状态和可访问性。
-6. [来源、岗位数据与采集](docs/02-data-and-ingestion.md)、[匹配设计](docs/03-matching-design.md)、[安全威胁模型](docs/04-security-threat-model.md)、[系统架构](docs/05-system-architecture.md)：数据、判断、安全和运行契约。
-7. [验证与质量策略](docs/12-validation-and-quality-strategy.md)：产品 Gate、金标集和工程质量门。
-8. [工程交付规范](docs/10-engineering-delivery.md)：实现、测试、发布和降级要求。
-9. [合规与公开上线门](docs/11-compliance-and-public-launch.md)：从邀请测试走向公开服务前的边界。
+1. [项目协作约束](AGENTS.md) 与 [当前项目交接](docs/handoffs/current.md)：新任务先恢复意图、工程事实和唯一目标。
+2. [产品定义](docs/00-product-definition.md)：产品是谁、解决什么决策问题，以及明确不做什么。
+3. [产品发现与实验](docs/09-product-discovery.md)：如何验证问题、四层礼宾实验和证据判定。
+4. [MVP 路线与当前决策面板](docs/06-mvp-roadmap.md)：当前阶段、最高风险假设、进度、Gate 和下一决定。
+5. [当前 PRD](docs/01-prd-v0.1.md)：只描述人工导入岗位的 MVP-0 功能范围。
+6. [集中式体验规范](docs/13-experience-design.md)：P0 旅程、三轴结果、决策队列、异常状态和可访问性。
+7. [来源、岗位数据与采集](docs/02-data-and-ingestion.md)、[匹配设计](docs/03-matching-design.md)、[安全威胁模型](docs/04-security-threat-model.md)、[系统架构](docs/05-system-architecture.md)：数据、判断、安全和运行契约。
+8. [验证与质量策略](docs/12-validation-and-quality-strategy.md)：产品 Gate、金标集和工程质量门。
+9. [工程交付规范](docs/10-engineering-delivery.md)：实现、测试、发布和降级要求。
+10. [合规与公开上线门](docs/11-compliance-and-public-launch.md)：从邀请测试走向公开服务前的边界。
 
 稳定流程规范见 [从 0 到 1 的产品工程流程](docs/08-zero-to-one-lifecycle.md)。重要架构决定见 [ADR 索引](docs/decisions/README.md)，执行记录入口见 [项目模板](docs/templates/README.md)。
 
