@@ -51,6 +51,8 @@
 
 技术可访问性和首条工程纵向切片证据见 [腾讯校招 `p_104` 采集记录](evidence/ingestion/tencent-campus-p104-2026-07-16.md)。该记录不提升用户价值证据等级，也不代表来源准入或数据持续性 Gate 已通过。
 
+G0 的 `dev/test` 研究检索交互壳已建立，但[研究目录](evidence/g0/research-search-prototype.md)当前仍为空；它不读取 `pending_review` 候选、不连接公开岗位接口，也不计入上述任何样本、证据等级或 Gate。
+
 ## 4. Gate 状态
 
 | Gate | 通过条件摘要 | 当前状态 | 当前决定 |

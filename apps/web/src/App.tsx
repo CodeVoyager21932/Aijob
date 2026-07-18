@@ -1,18 +1,60 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
+import { shouldEnableLocalSurfaces } from "./environment";
 import { InternalPreviewJobDetailPage } from "./pages/InternalPreviewJobDetailPage";
 import { InternalPreviewJobListPage } from "./pages/InternalPreviewJobListPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
+import { ProductUnavailablePage } from "./pages/ProductUnavailablePage";
+import { ResearchJobDetailPage } from "./research/ResearchJobDetailPage";
+import { ResearchJobListPage } from "./research/ResearchJobListPage";
+import { ResearchShell } from "./research/ResearchShell";
 
 export function App() {
-  return (
-    <AppShell>
+  const localSurfacesEnabled = shouldEnableLocalSurfaces({
+    isDev: import.meta.env.DEV,
+    mode: import.meta.env.MODE,
+  });
+
+  if (!localSurfacesEnabled) {
+    return (
       <Routes>
-        <Route path="/" element={<Navigate to="/internal-preview/jobs" replace />} />
-        <Route path="/internal-preview/jobs" element={<InternalPreviewJobListPage />} />
-        <Route path="/internal-preview/jobs/:jobId" element={<InternalPreviewJobDetailPage />} />
-        <Route path="*" element={<NotFoundPage />} />
+        <Route path="*" element={<ProductUnavailablePage />} />
       </Routes>
-    </AppShell>
+    );
+  }
+
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/research/jobs" replace />} />
+      <Route path="/research" element={<ResearchShell />}>
+        <Route index element={<Navigate to="/research/jobs" replace />} />
+        <Route path="jobs" element={<ResearchJobListPage />} />
+        <Route path="jobs/:jobId" element={<ResearchJobDetailPage />} />
+      </Route>
+      <Route
+        path="/internal-preview/jobs"
+        element={
+          <AppShell>
+            <InternalPreviewJobListPage />
+          </AppShell>
+        }
+      />
+      <Route
+        path="/internal-preview/jobs/:jobId"
+        element={
+          <AppShell>
+            <InternalPreviewJobDetailPage />
+          </AppShell>
+        }
+      />
+      <Route
+        path="*"
+        element={
+          <AppShell>
+            <NotFoundPage />
+          </AppShell>
+        }
+      />
+    </Routes>
   );
 }

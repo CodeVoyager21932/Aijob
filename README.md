@@ -51,7 +51,7 @@ pnpm source:probe
 pnpm dev
 ```
 
-然后打开 <http://127.0.0.1:5173/internal-preview/jobs>。其中 `source:probe` 会低频读取腾讯官方公开岗位接口并写入本地数据库；它不登录、不处理验证码，也不使用浏览器自动化。停止本地数据库可运行 `pnpm infra:down`。
+然后打开 <http://127.0.0.1:5173/research/jobs> 查看 G0 研究检索交互壳，或打开 <http://127.0.0.1:5173/internal-preview/jobs> 继续内部字段复核。研究目录在真人确认样本前保持为空，不会读取 `pending_review` 候选。其中 `source:probe` 会低频读取腾讯官方公开岗位接口并写入本地数据库；它不登录、不处理验证码，也不使用浏览器自动化。停止本地数据库可运行 `pnpm infra:down`。
 
 日常代码检查：
 

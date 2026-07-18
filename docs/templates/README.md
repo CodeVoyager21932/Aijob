@@ -46,7 +46,9 @@ MVP-0 人工样本填写 `import_mode=manual` 和稳定 `import_batch_id`；自�
 5. `graduation_year_raw`：毕业年份。
 6. `recruitment_batch_raw`：招聘批次。
 
-`function_track` 只允许 `product / operations`。岗位状态使用三个独立轴：`ingestion_state` 为 `discovered / parsed / validated / rejected`，`publication_state` 为 `draft / review / published / suppressed / archived`，`activity_state` 为 `active / uncertain / closed`。样本中的未知值是诚实数据，不等于不符合。
+`function_track` 允许 `product / operations / conflict`。`conflict` 仅用于官方标题或正文同时指向产品与运营、且人工尚不能诚实收敛到单一方向的记录；必须在 `unknown_or_conflict_notes` 保留原文依据，不能为了分类方便强行改写。岗位状态使用三个独立轴：`ingestion_state` 为 `discovered / parsed / validated / rejected`，`publication_state` 为 `draft / review / published / suppressed / archived`，`activity_state` 为 `active / uncertain / closed`。样本中的未知值和冲突是诚实数据，不等于不符合。
+
+`manual_review_result` 在复核前写 `pending`；人工打开官方页面并完成逐字段检查后，只允许写 `confirmed / replace / needs_second_review`。`pending` 候选不计入人工样本进度，也不得进入研究目录。
 
 ## 假设登记表
 
