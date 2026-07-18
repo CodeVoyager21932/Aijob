@@ -27,7 +27,7 @@ export function ResearchJobRow({ job }: ResearchJobRowProps) {
       return;
     }
     event.preventDefault();
-    navigate(detailPath, { state: { fromSearch, scrollY: window.scrollY } });
+    navigate(detailPath, { state: { fromSearch, scrollY: window.scrollY, originJobId: job.id } });
   }
   const family = fieldText(
     job.family,
@@ -56,7 +56,7 @@ export function ResearchJobRow({ job }: ResearchJobRowProps) {
       <div className="research-result__identity">
         <p className="research-result__company">{job.organizationName}</p>
         <h2 id={`research-job-${job.id}`}>
-          <Link to={detailPath} onClick={openDetail}>
+          <Link id={`research-job-link-${job.id}`} to={detailPath} onClick={openDetail}>
             {job.title}
           </Link>
         </h2>

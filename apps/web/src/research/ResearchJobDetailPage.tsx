@@ -9,6 +9,12 @@ import type { ResearchField, ResearchJob } from "./types";
 interface DetailNavigationState {
   fromSearch?: unknown;
   scrollY?: unknown;
+  originJobId?: unknown;
+}
+
+interface DetailReturnState {
+  scrollY?: number;
+  originJobId?: string;
 }
 
 function fieldPresentation<T>(
@@ -29,8 +35,17 @@ export function ResearchJobDetailPage() {
   const location = useLocation();
   const navigationState = (location.state as DetailNavigationState | null) ?? null;
   const returnPath = safeResearchSearchPath(navigationState?.fromSearch);
-  const returnState =
-    typeof navigationState?.scrollY === "number" ? { scrollY: navigationState.scrollY } : undefined;
+  const originJobId = navigationState?.originJobId === jobId ? jobId : undefined;
+  const returnState: DetailReturnState | undefined =
+    typeof navigationState?.scrollY === "number" || originJobId
+      ? {
+          ...(typeof navigationState?.scrollY === "number"
+            ? { scrollY: navigationState.scrollY }
+            : {}),
+          ...(originJobId ? { originJobId } : {}),
+        }
+      : undefined;
+  const focusTargetId = `research-detail-focus-${jobId}`;
   const query = useQuery({
     queryKey: ["research", "approved-job", jobId],
     queryFn: ({ signal }) => findApprovedResearchJob(jobId, signal),
@@ -38,7 +53,12 @@ export function ResearchJobDetailPage() {
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
-  }, []);
+    if (query.isPending) return;
+    const focusFrame = window.requestAnimationFrame(() => {
+      document.getElementById(focusTargetId)?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(focusFrame);
+  }, [focusTargetId, query.isPending]);
 
   if (query.isPending) {
     return <DetailState title="正在读取岗位详情" message="只读取已经人工确认的研究样本。" />;
@@ -49,6 +69,7 @@ export function ResearchJobDetailPage() {
       <DetailState
         title="暂时无法读取岗位详情"
         message="研究样本没有被修改。请返回岗位列表后重试。"
+        focusTargetId={focusTargetId}
         returnPath={returnPath}
         returnState={returnState}
       />
@@ -60,23 +81,33 @@ export function ResearchJobDetailPage() {
       <DetailState
         title="这条岗位不在已确认研究目录中"
         message="自动采集候选或待复核岗位不会通过详情地址进入研究原型。"
+        focusTargetId={focusTargetId}
         returnPath={returnPath}
         returnState={returnState}
       />
     );
   }
 
-  return <ResearchJobDetail job={query.data} returnPath={returnPath} returnState={returnState} />;
+  return (
+    <ResearchJobDetail
+      job={query.data}
+      focusTargetId={focusTargetId}
+      returnPath={returnPath}
+      returnState={returnState}
+    />
+  );
 }
 
 function ResearchJobDetail({
   job,
+  focusTargetId,
   returnPath,
   returnState,
 }: {
   job: ResearchJob;
+  focusTargetId: string;
   returnPath: string;
-  returnState?: { scrollY: number } | undefined;
+  returnState?: DetailReturnState | undefined;
 }) {
   const officialUrl = safeOfficialUrl(job.sourceUrl, job.officialTarget);
   const activity = fieldPresentation(job.activityState, (value) =>
@@ -122,7 +153,9 @@ function ResearchJobDetail({
 
       <header className="research-detail__hero">
         <p className="research-detail__company">{job.organizationName}</p>
-        <h1>{job.title}</h1>
+        <h1 id={focusTargetId} tabIndex={-1}>
+          {job.title}
+        </h1>
         <div>
           <span>
             {job.sourceType} · {activity.value}
@@ -195,21 +228,28 @@ function ResearchJobDetail({
 function DetailState({
   title,
   message,
+  focusTargetId,
   returnPath = "/research/jobs",
   returnState,
 }: {
   title: string;
   message: string;
+  focusTargetId?: string;
   returnPath?: string;
-  returnState?: { scrollY: number } | undefined;
+  returnState?: DetailReturnState | undefined;
 }) {
   return (
-    <section className="research-empty" aria-labelledby="research-detail-state-title">
+    <section
+      className="research-empty"
+      aria-labelledby={focusTargetId ?? "research-detail-state-title"}
+    >
       <span className="research-empty__icon" aria-hidden="true">
         ◇
       </span>
       <div>
-        <h1 id="research-detail-state-title">{title}</h1>
+        <h1 id={focusTargetId ?? "research-detail-state-title"} tabIndex={-1}>
+          {title}
+        </h1>
         <p className="research-empty__message">{message}</p>
         <Link className="button button--secondary" to={returnPath} state={returnState} replace>
           返回岗位结果

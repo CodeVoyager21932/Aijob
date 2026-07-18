@@ -25,6 +25,11 @@ const familyOptions: ResearchFacetOption[] = [
 ];
 const loadingRows = ["loading-one", "loading-two", "loading-three", "loading-four", "loading-five"];
 
+interface ListNavigationState {
+  scrollY?: unknown;
+  originJobId?: unknown;
+}
+
 export function ResearchJobListPage() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -48,6 +53,17 @@ export function ResearchJobListPage() {
     if (!mobileFiltersOpen) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    const panel = mobileFilterPanelRef.current;
+    const main = panel?.closest("main");
+    const app = panel?.closest(".research-app");
+    const searchRegion = panel?.closest(".research-search");
+    const inertTargets = [
+      ...Array.from(app?.children ?? []).filter((element) => element !== main),
+      ...Array.from(main?.children ?? []).filter((element) => !element.contains(panel)),
+      ...Array.from(searchRegion?.children ?? []).filter((element) => element !== panel),
+    ].filter((element): element is HTMLElement => element instanceof HTMLElement);
+    const previousInert = inertTargets.map((element) => ({ element, inert: element.inert }));
+    for (const { element } of previousInert) element.inert = true;
     const focusFrame = window.requestAnimationFrame(() => mobileFilterCloseRef.current?.focus());
     const handleDialogKeyboard = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -76,7 +92,9 @@ export function ResearchJobListPage() {
       window.cancelAnimationFrame(focusFrame);
       window.removeEventListener("keydown", handleDialogKeyboard);
       document.body.style.overflow = previousOverflow;
-      mobileFilterToggleRef.current?.focus();
+      for (const { element, inert } of previousInert) element.inert = inert;
+      const toggle = mobileFilterToggleRef.current;
+      if (toggle && toggle.getClientRects().length > 0) toggle.focus();
     };
   }, [mobileFiltersOpen]);
 
@@ -103,31 +121,43 @@ export function ResearchJobListPage() {
     count: result.facets.families.find((candidate) => candidate.key === option.key)?.count ?? 0,
   }));
   const showCompanyFilter = catalogCompanyCount >= 2 || filters.companies.length > 0;
+  const mobileDialogProps = mobileFiltersOpen
+    ? ({ role: "dialog", "aria-modal": true } as const)
+    : {};
 
   useEffect(() => {
     if (!query.isSuccess) return;
-    const state = location.state as { scrollY?: unknown } | null;
+    const state = location.state as ListNavigationState | null;
     const scrollY = state?.scrollY;
-    if (
-      typeof scrollY !== "number" ||
-      !Number.isFinite(scrollY) ||
-      scrollY < 0 ||
-      (scrollY > 0 && result.items.length === 0) ||
-      restoredNavigationStateRef.current === state
-    ) {
+    const originJobId = typeof state?.originJobId === "string" ? state.originJobId : null;
+    const originIsVisible =
+      originJobId !== null && result.items.some((job) => job.id === originJobId);
+    const canRestoreScroll =
+      typeof scrollY === "number" &&
+      Number.isFinite(scrollY) &&
+      scrollY >= 0 &&
+      !(scrollY > 0 && result.items.length === 0);
+    if ((!canRestoreScroll && !originIsVisible) || restoredNavigationStateRef.current === state) {
       return;
     }
 
-    restoredNavigationStateRef.current = state;
     let layoutFrame = 0;
     const renderFrame = window.requestAnimationFrame(() => {
-      layoutFrame = window.requestAnimationFrame(() => window.scrollTo({ top: scrollY }));
+      layoutFrame = window.requestAnimationFrame(() => {
+        if (canRestoreScroll) window.scrollTo({ top: scrollY });
+        if (originIsVisible) {
+          document
+            .getElementById(`research-job-link-${originJobId}`)
+            ?.focus({ preventScroll: true });
+        }
+        restoredNavigationStateRef.current = state;
+      });
     });
     return () => {
       window.cancelAnimationFrame(renderFrame);
       window.cancelAnimationFrame(layoutFrame);
     };
-  }, [location.state, query.isSuccess, result.items.length]);
+  }, [location.state, query.isSuccess, result.items]);
 
   function commitFilters(next: ResearchFilters, replace = false) {
     setSearchParams(serializeResearchFilters(next), { replace });
@@ -264,7 +294,7 @@ export function ResearchJobListPage() {
           ref={mobileFilterPanelRef}
           className={`research-filter-panel${mobileFiltersOpen ? " is-open" : ""}`}
           id="research-filter-panel"
-          role={mobileFiltersOpen ? "dialog" : undefined}
+          {...mobileDialogProps}
           aria-label="岗位筛选条件"
         >
           <div className="research-filter-panel__mobile-heading">
@@ -430,8 +460,8 @@ export function ResearchJobListPage() {
       {query.isSuccess && result.items.length === 0 ? (
         appliedCount === 0 ? (
           <ResearchState
-            title="交互已经就绪，等待人工岗位样本"
-            message="当前 5 条自动采集候选尚未获得 coco 或指定复核者确认，因此不会进入研究目录，也不会计入人工样本进度。"
+            title="当前没有可展示的研究岗位"
+            message="研究目录只显示已人工确认且当前仍在招聘的样本。请先核对样本状态；系统不会用待复核或已关闭候选填充结果。"
           />
         ) : (
           <ResearchState
