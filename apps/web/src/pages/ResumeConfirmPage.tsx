@@ -31,7 +31,6 @@ interface ManualFacts {
   durationMonths: string;
   educationLevel: string;
   majors: string;
-  languages: string;
   skills: string;
 }
 
@@ -44,7 +43,6 @@ const initialManualFacts: ManualFacts = {
   durationMonths: "",
   educationLevel: "",
   majors: "",
-  languages: "",
   skills: "",
 };
 
@@ -56,7 +54,6 @@ export function ResumeConfirmPage() {
   const [manualFacts, setManualFacts] = useState(initialManualFacts);
   const [cities, setCities] = useState("");
   const [jobFamilies, setJobFamilies] = useState<string[]>(["product", "operations"]);
-  const [workModes, setWorkModes] = useState("");
   const [privacyConfirmed, setPrivacyConfirmed] = useState(false);
 
   const analysisQuery = useQuery({
@@ -123,7 +120,7 @@ export function ResumeConfirmPage() {
         cities: splitList(cities),
         jobFamilies: jobFamilies as JobPreference["jobFamilies"],
         companyNames: [],
-        workModes: splitList(workModes),
+        workModes: [],
       };
       const factsRevision = await putProfileFacts({
         expectedRevision: factsQuery.data.revision,
@@ -328,11 +325,6 @@ export function ResumeConfirmPage() {
               onChange={(value) => setManualFacts({ ...manualFacts, majors: value })}
             />
             <Field
-              label="语言（逗号分隔）"
-              value={manualFacts.languages}
-              onChange={(value) => setManualFacts({ ...manualFacts, languages: value })}
-            />
-            <Field
               label="技能（逗号分隔）"
               value={manualFacts.skills}
               onChange={(value) => setManualFacts({ ...manualFacts, skills: value })}
@@ -379,12 +371,6 @@ export function ResumeConfirmPage() {
                 </label>
               ))}
             </fieldset>
-            <Field
-              label="工作方式（逗号分隔）"
-              value={workModes}
-              onChange={setWorkModes}
-              placeholder="例如 现场、混合"
-            />
           </div>
         </section>
 
@@ -511,8 +497,6 @@ function buildFacts(input: ManualFacts): ProfileFact[] {
   }
   const majors = splitList(input.majors);
   if (majors.length > 0) facts.push({ key: "majors", value: majors });
-  const languages = splitList(input.languages);
-  if (languages.length > 0) facts.push({ key: "languages", value: languages });
   const skills = splitList(input.skills);
   if (skills.length > 0) facts.push({ key: "skills", value: skills });
   return facts;
