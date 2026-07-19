@@ -152,6 +152,8 @@ describe("internal capability network boundary", () => {
     const logged = JSON.stringify(toSafeConfigLog(config));
     expect(logged).not.toContain(explicitTestKey);
     expect(logged).not.toContain("provider-secret");
-    expect(logged).toContain("[redacted]");
+    expect(logged).not.toContain("api.example.test");
+    expect(logged).not.toContain("example-model");
+    expect(logged).toContain("providerConfigured");
   });
 });

@@ -35,6 +35,7 @@
 - PDF、DOCX、粘贴文本、5 MiB 限制、MIME/魔数、宏/加密/ZIP bomb/扫描 PDF 失败路径已有自动化覆盖。
 - 三轴、32 个命名金标、确定性推荐、冻结核验时间、五态决定和官方链接交接已实现。
 - AI 只能选择已确认 evidence/requirement ID，最终文本由服务端确定性组装；失败时安全降级为模板。
+- 本地 AI 配置通过 `pnpm ai:configure` 写入 Git 忽略的后端文件；前端没有供应商配置接口，线上配置来源留待部署阶段替换。
 - 逐段决定、复制、冻结后的 DOCX 和全部个人数据删除已跑通。
 - 本地简历加密密钥首次启动时随机生成并保存在 Git 忽略的 `.data/`；`alpha/production` 必须显式配置，不再使用源码固定密钥。
 - 用户任务的开始、成功和失败写入均在同一事务核对 owner、epoch、租约、心跳期限与 fencing token；租约接管和删除撤销后的旧 worker 不能写回业务表。
@@ -42,12 +43,12 @@
 - 固定 owner 保留期到期会并发幂等地创建删除墓碑、撤销会话并清理全部个人数据；DOCX 密文 24 小时、结构化数据 30 天、无正文审计与删除墓碑 90 天的边界均有 PostgreSQL 集成覆盖。
 - 简历确认与 owner 删除后会清理浏览器中的原文、画像、推荐和优化缓存；岗位详情不会展示属于其他岗位版本的旧匹配结果。
 - 语义相同的新来源修订通过关联表复用不可变岗位版本；目录物化使用 PostgreSQL advisory lock 串行提交。
-- 2026-07-19 全量结果：227 项测试、TypeScript、生产构建、190 文件 lint 和生产依赖审计全部通过。
+- 2026-07-19 全量结果：237 项测试、TypeScript、生产构建、196 文件 lint 和生产依赖审计全部通过。
 - 320 px 下目录、详情、推荐、优化和数据控制无全局横向溢出。
 
 ## 3. 当前未完成项
 
-1. 使用 coco 在本机 `.env` 配置的 OpenAI-compatible 密钥做一次真实接口冒烟；不得在聊天、日志、数据库或 Git 中打印密钥。
+1. 使用 coco 通过 `pnpm ai:configure` 写入后端本地配置的 OpenAI-compatible 密钥做一次真实接口冒烟；不得在聊天、日志、数据库或 Git 中打印密钥。
 2. 冒烟通过后复核 G2 清单并决定是否标记 G2 完成；工程完成不能改变 `E0`。
 3. G2 完成后才开始 2 人协议校准；当前不要提前招募或记录用户价值结论。
 
@@ -61,6 +62,7 @@
 - 简历：`apps/platform/src/resume/`、`apps/web/src/pages/ResumePage.tsx`
 - 匹配与推荐：`apps/platform/src/matching/`、`apps/web/src/pages/RecommendationsPage.tsx`
 - 优化与 DOCX：`apps/platform/src/tailoring/`、`apps/platform/src/ai/`、`apps/web/src/pages/ResumeTailoringPage.tsx`
+- 本地 AI 配置：`apps/platform/src/ai/local-provider-config.ts`、`apps/platform/src/config/platform-config.ts`、`pnpm ai:configure`
 - 决定与删除：`apps/platform/src/decisions/`、`apps/web/src/pages/DataControlPage.tsx`
 - 数据迁移：`packages/database/src/migrations/004_local_complete_mvp.ts` 至 `010_enforce_purged_resume_analysis_erasure.ts`
 

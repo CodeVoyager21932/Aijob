@@ -1,7 +1,9 @@
-import { appConfig, toSafeConfigLog } from "@aijob/config";
+import { toSafeConfigLog } from "@aijob/config";
 import { createDatabase } from "@aijob/database";
+import { loadPlatformConfig } from "./config/platform-config.js";
 import { runOwnerTaskWorker } from "./workers/owner-task-worker.js";
 
+const appConfig = loadPlatformConfig();
 const db = createDatabase(appConfig.databaseUrl);
 const controller = new AbortController();
 

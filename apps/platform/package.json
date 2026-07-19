@@ -12,7 +12,7 @@
     "dev:match-worker": "tsx watch src/match-worker.ts",
     "start": "node dist/server.js",
     "start:match-worker": "node dist/match-worker.js",
-    "test": "vitest run",
+    "test": "vitest run --no-file-parallelism",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

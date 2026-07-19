@@ -5,6 +5,7 @@ import {
   JobDetailSchema,
   MatchRunResultSchema,
   ResumeAnalysisSubmissionSchema,
+  ResumeTailoringRunSchema,
   ResumeTailoringSegmentSchema,
 } from "./index.js";
 
@@ -110,5 +111,31 @@ describe("local complete MVP contracts", () => {
         editedText: null,
       }).success,
     ).toBe(false);
+  });
+
+  it("does not expose backend AI provider configuration in the user contract", () => {
+    const result = ResumeTailoringRunSchema.parse({
+      id: "tailoring-1",
+      ownerId: "owner-1",
+      status: "succeeded",
+      resumeAnalysisId: "resume-1",
+      publishedJobVersionId: "job-version-1",
+      requirementSetId: "requirement-set-1",
+      evidenceRevisionId: "evidence-1",
+      providerAdapter: "internal-provider",
+      model: "internal-model",
+      promptVersion: "internal-prompt",
+      schemaVersion: "internal-schema",
+      templateVersion: "internal-template",
+      usedTemplateFallback: false,
+      segments: [],
+      failureCode: null,
+      createdAt: "2026-07-19T00:00:00.000Z",
+      completedAt: "2026-07-19T00:00:01.000Z",
+    });
+
+    expect(result).not.toHaveProperty("providerAdapter");
+    expect(result).not.toHaveProperty("model");
+    expect(result).not.toHaveProperty("promptVersion");
   });
 });

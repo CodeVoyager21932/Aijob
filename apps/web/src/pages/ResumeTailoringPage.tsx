@@ -152,7 +152,7 @@ export function ResumeTailoringPage() {
           </p>
         </div>
         <span className={`product-chip ${run.usedTemplateFallback ? "is-warning" : ""}`}>
-          {run.usedTemplateFallback ? "安全模板降级" : `受控 AI · ${run.model}`}
+          {run.usedTemplateFallback ? "安全模板降级" : "受控 AI"}
         </span>
       </header>
 

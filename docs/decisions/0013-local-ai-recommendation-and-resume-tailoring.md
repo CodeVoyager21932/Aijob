@@ -1,6 +1,6 @@
 # ADR-0013：本地 MVP 实现确定性推荐与受控 AI 简历优化
 
-- 状态：accepted
+- 状态：accepted；本地配置方式由 [ADR-0014](0014-local-backend-ai-config-source.md) 修订
 - 日期：2026-07-18
 - 决策者：coco
 - 修订：[ADR-0009](0009-template-first-ai-feature-gate.md) 的“AI 不属于工程 MVP”边界

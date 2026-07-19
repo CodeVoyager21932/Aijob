@@ -7,6 +7,8 @@
     "node": ">=22.0.0"
   },
   "scripts": {
+    "ai:configure": "pnpm --filter @aijob/platform cli ai-configure",
+    "ai:smoke": "pnpm --filter @aijob/platform cli ai-smoke",
     "build": "pnpm -r build",
     "catalog:materialize": "pnpm --filter @aijob/platform cli catalog-materialize",
     "check": "pnpm lint && pnpm typecheck && pnpm test",

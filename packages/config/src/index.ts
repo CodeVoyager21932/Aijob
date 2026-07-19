@@ -3,7 +3,7 @@ import { linkSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "no
 import { isIP } from "node:net";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { config as loadDotEnv } from "dotenv";
+import { parse as parseDotEnv } from "dotenv";
 import { z } from "zod";
 
 export const AppEnvironmentSchema = z.enum(["local", "test", "alpha", "production"]);
@@ -251,6 +251,7 @@ export interface ParseAppConfigOptions {
 
 export interface LoadAppConfigOptions extends ParseAppConfigOptions {
   envFile?: string;
+  overrideEnvironment?: EnvironmentInput;
 }
 
 export const DEFAULT_WORKSPACE_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -305,10 +306,21 @@ export const parseAppConfig = (
 export const loadAppConfig = (options: LoadAppConfigOptions = {}): AppConfig => {
   const rootDirectory = resolve(options.rootDirectory ?? DEFAULT_WORKSPACE_ROOT);
   const envFile = resolve(rootDirectory, options.envFile ?? ".env");
+  let fileEnvironment: EnvironmentInput = {};
+  try {
+    fileEnvironment = parseDotEnv(readFileSync(envFile));
+  } catch (error) {
+    if (!isFileSystemError(error, "ENOENT")) throw error;
+  }
 
-  loadDotEnv({ path: envFile, override: false });
-
-  return parseAppConfig(process.env, { rootDirectory });
+  return parseAppConfig(
+    {
+      ...fileEnvironment,
+      ...process.env,
+      ...options.overrideEnvironment,
+    },
+    { rootDirectory },
+  );
 };
 
 export const toSafeConfigLog = (
@@ -316,18 +328,20 @@ export const toSafeConfigLog = (
 ): Omit<AppConfig, "databaseUrl" | "resumeEncryptionKey" | "ai"> & {
   databaseUrl: "[redacted]";
   resumeEncryptionKey: "[redacted]";
-  ai: Omit<AppConfig["ai"], "apiKey"> & { apiKey?: "[redacted]" };
+  ai: {
+    enabled: boolean;
+    providerConfigured: boolean;
+    requestTimeoutMs: number;
+  };
 } => {
-  const { apiKey, ...safeAi } = config.ai;
   return {
     ...config,
     databaseUrl: "[redacted]",
     resumeEncryptionKey: "[redacted]",
     ai: {
-      ...safeAi,
-      ...(apiKey ? { apiKey: "[redacted]" as const } : {}),
+      enabled: config.ai.enabled,
+      providerConfigured: Boolean(config.ai.baseUrl && config.ai.model && config.ai.apiKey),
+      requestTimeoutMs: config.ai.requestTimeoutMs,
     },
   };
 };
-
-export const appConfig = loadAppConfig();

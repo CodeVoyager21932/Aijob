@@ -34,9 +34,9 @@ pnpm lint
 
 结果：
 
-- 227 项测试通过：platform 150、web 51、config 16、contracts 5、database 5。
+- 237 项测试通过：platform 159、web 51、config 16、contracts 6、database 5。
 - TypeScript 全工作区通过。
-- Web 与 platform 生产构建通过；lint 190 个文件，无错误或警告。
+- Web 与 platform 生产构建通过；lint 196 个文件，无错误或警告。
 - `pnpm audit --prod` 未发现已知生产依赖漏洞。
 - PostgreSQL 集成覆盖匿名 owner、CSRF、PDF/文本路由、加密原文、不可变修订、三轴、推荐、模板降级、DOCX、决定、TTL、删除、owner 撤销和 worker 租约接管。
 - owner task 的业务提交会在同一事务锁定任务与 owner，核对任务类型、epoch、租约持有者、fencing token 和过期时间；旧 worker 在供应商响应返回后被接管时不能写入成功或失败结果，新 worker 可从 `processing` 恢复。
@@ -79,6 +79,7 @@ pnpm lint
 ## 5. 未完成与边界
 
 - `ENABLE_AI=false` 下模板降级已通过；OpenAI-compatible 适配器、HTTPS 端点约束、超时、响应大小、无工具调用和 Schema 校验已有模拟测试。
-- 仓库和本机环境没有真实供应商密钥，因此尚未做一次真实兼容接口冒烟。密钥不得提交或写入本记录。
+- 本地后端以 `pnpm ai:configure` 作为唯一配置入口，`ai:smoke` 只用于验收；配置来源可在上线时替换，前端契约不返回供应商地址、模型或密钥状态。
+- 仓库和本机环境没有真实供应商密钥，因此尚未做一次真实兼容接口冒烟。Git 忽略的本地配置不得提交或写入本记录。
 - 三个来源均未取得长期复制或公开聚合授权，G3 仍为 0/3；本记录不改变其 `pending_review` 状态。
 - 尚无目标学生行为证据，H-PROBLEM-001、H-VALUE-001、G0 和 G1 状态均不改变。

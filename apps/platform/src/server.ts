@@ -1,7 +1,9 @@
-import { appConfig, toSafeConfigLog } from "@aijob/config";
+import { toSafeConfigLog } from "@aijob/config";
 import { createDatabase } from "@aijob/database";
 import { buildApp } from "./app.js";
+import { loadPlatformConfig } from "./config/platform-config.js";
 
+const appConfig = loadPlatformConfig();
 const db = createDatabase(appConfig.databaseUrl);
 const app = buildApp({ config: appConfig, db });
 
