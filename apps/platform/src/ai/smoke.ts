@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { OpenAiCompatibleProvider, type OpenAiCompatibleProviderConfig } from "./provider.js";
+import { STRUCTURED_SELECTION_OUTPUT_INSTRUCTION } from "./selection-contract.js";
 
 const REQUIREMENT_ID = "synthetic-requirement-product-research";
 const EVIDENCE_ID = "synthetic-evidence-course-project";
@@ -28,7 +29,7 @@ export async function runAiProviderSmoke(
   const output = await provider.completeStructured({
     systemInstruction:
       "你是简历证据编排器。只能从输入中选择证据 ID、岗位要求 ID 和强调维度，" +
-      "不得补写经历、数字、技能或结果。返回 JSON 对象。",
+      `不得补写经历、数字、技能或结果。${STRUCTURED_SELECTION_OUTPUT_INSTRUCTION}`,
     untrustedPayload: {
       requirements: [
         {

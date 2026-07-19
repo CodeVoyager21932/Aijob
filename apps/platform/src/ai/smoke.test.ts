@@ -39,7 +39,15 @@ it("uses only fixed synthetic references for the provider smoke", async () => {
   });
   const requestBody = String(fetchImpl.mock.calls[0]?.[1]?.body);
   expect(requestBody).not.toContain(config.apiKey);
-  expect(JSON.parse(requestBody)).not.toHaveProperty("tools");
+  const request = JSON.parse(requestBody) as {
+    messages: Array<{ role: string; content: string }>;
+  };
+  expect(request).not.toHaveProperty("tools");
+  expect(request.messages[0]?.content).toContain(
+    '{"selections":[{"evidenceId":"<confirmedEvidence 中的 id>"',
+  );
+  expect(request.messages[0]?.content).toContain('"requirementIds"');
+  expect(request.messages[0]?.content).toContain('"emphasis"');
 });
 
 it("rejects provider references outside the synthetic allowlist", async () => {

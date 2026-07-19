@@ -13,6 +13,7 @@ import type { Database, JsonValue } from "@aijob/database";
 import type { Kysely, Selectable, Transaction } from "kysely";
 import { z } from "zod";
 import { AiProviderError, OpenAiCompatibleProvider } from "../ai/provider.js";
+import { STRUCTURED_SELECTION_OUTPUT_INSTRUCTION } from "../ai/selection-contract.js";
 import { assertActiveOwnerEpoch } from "../identity/session-repository.js";
 import { hashCanonicalJson } from "../lib/canonical-json.js";
 import { lockOwnerIdempotencyKey } from "../lib/idempotency.js";
@@ -31,7 +32,7 @@ import { purgeExpiredResumeExport } from "./export-retention.js";
 
 const PROVIDER_ADAPTER = "openai-compatible-v1";
 const TEMPLATE_PROVIDER = "deterministic-template";
-const PROMPT_VERSION = "resume-tailoring-selection-v1";
+const PROMPT_VERSION = "resume-tailoring-selection-v2";
 const SCHEMA_VERSION = "resume-tailoring-selection-v1";
 const TEMPLATE_VERSION = "resume-tailoring-safe-fallback-v1";
 const EXPORT_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -430,7 +431,8 @@ async function generateSegments(input: {
       const output = await provider.completeStructured({
         systemInstruction:
           "你是简历证据编排器。只能选择证据 ID、岗位要求 ID、突出 claim/skills/outcomes 并排序。" +
-          "不得输出或改写简历文本，不得新增事实，也不要修改资格结论。",
+          "不得输出或改写简历文本，不得新增事实，也不要修改资格结论。" +
+          STRUCTURED_SELECTION_OUTPUT_INSTRUCTION,
         untrustedPayload: providerInput,
         schema: ProviderOutputSchema,
         ...(input.signal ? { signal: input.signal } : {}),

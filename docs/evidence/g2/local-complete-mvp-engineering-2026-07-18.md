@@ -1,10 +1,10 @@
 # G2 本地完整 MVP 工程验收记录
 
-> 日期：2026-07-18；补充安全复核：2026-07-19
+> 日期：2026-07-18；补充安全复核与真实 AI 冒烟：2026-07-19
 >
 > 分支：`codex/g0-research-prototype`
 >
-> 结论：本地完整闭环已形成工程候选；产品证据仍为 `E0`。真实 OpenAI-compatible 供应商冒烟尚未执行，因此本记录不把 G2 标记为最终通过。
+> 结论：`G2 Local Complete MVP` 已通过，本地完整闭环达到工程完成定义；产品证据仍为 `E0`，不代表用户价值已验证或允许公开上线。
 
 ## 1. 岗位目录
 
@@ -36,7 +36,7 @@ pnpm lint
 
 - 237 项测试通过：platform 159、web 51、config 16、contracts 6、database 5。
 - TypeScript 全工作区通过。
-- Web 与 platform 生产构建通过；lint 196 个文件，无错误或警告。
+- Web 与 platform 生产构建通过；lint 197 个文件，无错误或警告。
 - `pnpm audit --prod` 未发现已知生产依赖漏洞。
 - PostgreSQL 集成覆盖匿名 owner、CSRF、PDF/文本路由、加密原文、不可变修订、三轴、推荐、模板降级、DOCX、决定、TTL、删除、owner 撤销和 worker 租约接管。
 - owner task 的业务提交会在同一事务锁定任务与 owner，核对任务类型、epoch、租约持有者、fencing token 和过期时间；旧 worker 在供应商响应返回后被接管时不能写入成功或失败结果，新 worker 可从 `processing` 恢复。
@@ -76,10 +76,12 @@ pnpm lint
 - 推荐页可见主要按钮高度均不低于 43 px 的测量阈值。
 - 浏览器检查发现并修复重复解释使用相同 React key 的问题；相同通用解释现在合并显示数量。
 
-## 5. 未完成与边界
+## 5. 真实 AI 冒烟与剩余边界
 
 - `ENABLE_AI=false` 下模板降级已通过；OpenAI-compatible 适配器、HTTPS 端点约束、超时、响应大小、无工具调用和 Schema 校验已有模拟测试。
 - 本地后端以 `pnpm ai:configure` 作为唯一配置入口，`ai:smoke` 只用于验收；配置来源可在上线时替换，前端契约不返回供应商地址、模型或密钥状态。
-- 仓库和本机环境没有真实供应商密钥，因此尚未做一次真实兼容接口冒烟。Git 忽略的本地配置不得提交或写入本记录。
+- `pnpm ai:smoke` 使用固定合成、去标识化、已确认的 requirement/evidence ID 调用真实兼容接口，最终返回 `status=passed`、`selectionCount=1`；没有发送用户简历或个人数据。
+- 首次响应语义可用但字段名偏离固定 Schema，系统按失败关闭并拒绝结果；随后复用共享的精确输出契约，将提示词版本提升为 `resume-tailoring-selection-v2`，真实冒烟和 237 项回归均通过。Schema 没有为供应商输出而放宽。
+- 真实密钥只存在于 Git 忽略的本地后端配置，未写入仓库、本记录、前端响应或启动日志。
 - 三个来源均未取得长期复制或公开聚合授权，G3 仍为 0/3；本记录不改变其 `pending_review` 状态。
 - 尚无目标学生行为证据，H-PROBLEM-001、H-VALUE-001、G0 和 G1 状态均不改变。
