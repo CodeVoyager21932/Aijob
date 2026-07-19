@@ -123,7 +123,7 @@ path_prefix=/tenant/acme/
 每次内容变化生成不可变 `SourceJobRevision`，并记录 `import_mode=collector/manual`、原始值、标准化值、字段置信度和字段来源。两种导入证据不能混淆：
 
 - `collector`：必须引用已完成完整性校验的 `RawJobSnapshot`；重复处理相同 `content_hash` 不产生新修订。
-- `manual`：仅供 MVP-0 的 `internal ops CLI` 使用，可以不创建快照，但必须引用已批准 `SourcePolicy`，保存原始来源 URL、核验时间、复核人、导入批次，以及支持每个关键字段的最小纯文本摘录或“来源未说明”。人工导入不保存原始 HTML，也不得标记为“可回放快照”。
+- `manual`：仅作为完整本地 MVP 的采集失败回退，由 `internal ops CLI` 使用；可以不创建快照，但必须引用已批准 `SourcePolicy`，保存原始来源 URL、核验时间、复核人、导入批次，以及支持每个关键字段的最小纯文本摘录或“来源未说明”。人工导入不保存原始 HTML，也不得标记为“可回放快照”。
 
 两种模式都计算覆盖规范字段与证据引用的 `revision_content_hash`；同一 `SourceJobRecord` 的相同哈希不得重复生成修订。人工导入和自动采集都必须通过同一字段 Schema、URL/申请目标校验、不可变版本和发布复核。后续自动采集到同一岗位时创建新的快照支持修订，不在原有人工修订上补写快照。
 
@@ -243,7 +243,7 @@ SourcePolicy
 
 所有用户查询只读取已发布版本。新解析结果先进入候选或复核状态，不直接覆盖当前可见版本；发现错误时将活动指针切回上一已验证版本，不修改历史。
 
-MVP-0 的人工路径不伪造网络快照：
+人工回退路径不伪造网络快照：
 
 ```text
 已批准 SourcePolicy

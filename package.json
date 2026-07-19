@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "pnpm -r build",
+    "catalog:materialize": "pnpm --filter @aijob/platform cli catalog-materialize",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
     "db:migrate": "pnpm --filter @aijob/platform db:migrate",
     "dev": "pnpm --parallel --stream --filter @aijob/platform --filter @aijob/web dev",

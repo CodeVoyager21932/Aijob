@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "meituan-official",
+  "sourceType": "organization_career_site",
+  "organization": {
+    "slug": "meituan",
+    "name": "美团",
+    "officialDomain": "zhaopin.meituan.com"
+  },
+  "candidate": {
+    "name": "美团官方招聘产品实习",
+    "entrypointUrl": "https://zhaopin.meituan.com/web/position?hiringType=4_2%2C4_6&jfJgList=11002_1100206",
+    "provenanceLevel": "organization_owned",
+    "acquisitionMode": "public_api",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-local-probe",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "招聘入口、公开岗位接口和岗位详情均位于美团自有招聘域名 zhaopin.meituan.com。"
+      },
+      "targetSupply": {
+        "status": "pending",
+        "note": "接口提供产品职能的转正实习和日常实习候选；真实数量仍以每次显式探测结果为准。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "技术探测只读取页面自身调用的公开接口，无登录、验证码或访问控制绕过。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "交接链接限定为 zhaopin.meituan.com/web/position/detail 的岗位详情页。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "尚无允许第三方长期复制和公开聚合岗位正文的明确授权，只能进入本机 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "jobUnionId 可作为来源内身份，但仍缺少连续运行和结构稳定性证据。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 22,
+        "status": "provisional",
+        "note": "产品实习筛选有候选供给，尚待每次真实探测和人工范围复核。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过，技术可读性不能覆盖该失败。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 18,
+        "status": "provisional",
+        "note": "列表和详情均为结构化公开 JSON，身份字段稳定。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 5,
+        "status": "provisional",
+        "note": "尚无连续运行、新鲜度和关闭岗位判定证据。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 4,
+        "status": "provisional",
+        "note": "补充不同城市和业务组，但仍是单一大型企业来源。"
+      }
+    },
+    "evidenceNotes": [
+      "只探测产品职能下的转正实习和日常实习，单次最多 20 条。",
+      "列表后只为被选中的候选读取详情，不抓取个人中心或申请接口。",
+      "未由官方响应明确提供的出勤、时长、毕业年份和截止时间保持 unknown。",
+      "本配置只证明受限技术可读取性，不构成来源批准或公开发布授权。"
+    ]
+  },
+  "policy": {
+    "version": "2",
+    "status": "pending_review",
+    "adapterKey": "meituan-official",
+    "adapterVersion": "0.1.1",
+    "entrypoints": [
+      "https://zhaopin.meituan.com/web/position?hiringType=4_2%2C4_6&jfJgList=11002_1100206"
+    ],
+    "crawlInterval": {
+      "enabled": false,
+      "minimumHours": 24
+    },
+    "reviewedAt": "2026-07-18",
+    "policyNotes": [
+      "accessPolicyAccepted 未通过，仅允许维护者显式执行本地技术探测。",
+      "禁止定时全量采集、生产调度、自动发布和公开展示。",
+      "禁止登录、验证码绕过、浏览器自动化和未登记网络目标。",
+      "列表每页最多 10 条，单次规范化最多 20 条，并在请求间限速。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "POST",
+        "scheme": "https",
+        "host": "zhaopin.meituan.com",
+        "port": 443,
+        "pathPrefix": "/api/official/job/getJobList",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      },
+      {
+        "method": "POST",
+        "scheme": "https",
+        "host": "zhaopin.meituan.com",
+        "port": 443,
+        "pathPrefix": "/api/official/job/getJobDetail",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "zhaopin.meituan.com",
+        "port": 443,
+        "pathPrefix": "/web/position/detail",
+        "allowRedirects": false,
+        "allowedQueryParameters": ["jobUnionId", "jobShareType"]
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "maxItems": 20,
+    "requestIntervalMs": 1500,
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {},
+    "queryStreams": [
+      {
+        "key": "product-internships",
+        "label": "产品转正/日常实习",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 20
+      }
+    ]
+  }
+}

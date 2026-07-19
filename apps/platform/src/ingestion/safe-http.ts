@@ -28,7 +28,14 @@ export interface SafeHttpResult {
   responseHeaders: Record<string, string>;
   requestFingerprint: string;
   body: Uint8Array;
+}
+
+export interface SafeJsonHttpResult extends SafeHttpResult {
   json: unknown;
+}
+
+export interface SafeHtmlHttpResult extends SafeHttpResult {
+  text: string;
 }
 
 interface RequestSpec {
@@ -102,6 +109,7 @@ function validateRequestTarget(
   rawUrl: string,
   method: "GET" | "POST",
   targets: SourceTarget[],
+  allowFragment = false,
 ): { url: URL; target: SourceTarget } {
   let url: URL;
   try {
@@ -110,7 +118,7 @@ function validateRequestTarget(
     throw new NetworkPolicyError("INVALID_URL", `Invalid URL: ${rawUrl}`);
   }
 
-  if (url.username || url.password || url.hash) {
+  if (url.username || url.password || (!allowFragment && url.hash)) {
     throw new NetworkPolicyError(
       "URL_CREDENTIALS_OR_FRAGMENT",
       "URL credentials and fragments are forbidden",
@@ -140,6 +148,20 @@ function validateRequestTarget(
 
 export function validateUrl(rawUrl: string, method: "GET" | "POST", targets: SourceTarget[]): URL {
   return validateRequestTarget(rawUrl, method, targets).url;
+}
+
+/**
+ * Validates an outbound user-navigation URL without issuing a request. The
+ * fragment is allowed because it is interpreted only by the destination page
+ * and is never part of an HTTP request. Scheme, host, port, path and query
+ * parameters remain subject to the exact source policy allowlist.
+ */
+export function validateNavigationUrl(
+  rawUrl: string,
+  method: "GET" | "POST",
+  targets: SourceTarget[],
+): URL {
+  return validateRequestTarget(rawUrl, method, targets, true).url;
 }
 
 export function assertRedirectAllowed(target: SourceTarget): void {
@@ -196,8 +218,9 @@ function safeHeaders(headers: IncomingHttpHeaders): Record<string, string> {
 async function requestOnce(
   spec: RequestSpec,
   targets: SourceTarget[],
+  responseKind: "json" | "html",
   redirectCount = 0,
-): Promise<Omit<SafeHttpResult, "json">> {
+): Promise<SafeHttpResult> {
   const { url, target } = validateRequestTarget(spec.url, spec.method, targets);
   const selectedAddress = await selectPublicAddress(url.hostname);
   const requestBody =
@@ -219,12 +242,17 @@ async function requestOnce(
         path: `${url.pathname}${url.search}`,
         method: spec.method,
         headers: {
-          Accept: "application/json",
+          Accept:
+            responseKind === "json" ? "application/json" : "text/html,application/xhtml+xml;q=0.9",
           "Accept-Encoding": "identity",
-          "Content-Type": "application/json;charset=UTF-8",
           Host: url.host,
           "User-Agent": "AijobLocalProbe/0.1 (+official-source-review)",
-          ...(requestBody ? { "Content-Length": requestBody.byteLength } : {}),
+          ...(requestBody
+            ? {
+                "Content-Length": requestBody.byteLength,
+                "Content-Type": "application/json;charset=UTF-8",
+              }
+            : {}),
         },
         servername: url.hostname,
       },
@@ -279,15 +307,22 @@ async function requestOnce(
         ...(redirectedMethod === "POST" ? { jsonBody: spec.jsonBody } : {}),
       },
       targets,
+      responseKind,
       redirectCount + 1,
     );
   }
 
   const contentType = response.headers["content-type"] ?? "";
-  if (!contentType.toLowerCase().includes("application/json")) {
+  const normalizedContentType = contentType.toLowerCase();
+  const expectedContentType =
+    responseKind === "json"
+      ? normalizedContentType.includes("application/json")
+      : normalizedContentType.includes("text/html") ||
+        normalizedContentType.includes("application/xhtml+xml");
+  if (!expectedContentType) {
     throw new NetworkPolicyError(
       "UNEXPECTED_CONTENT_TYPE",
-      `Expected JSON but received ${contentType || "unknown"}`,
+      `Expected ${responseKind.toUpperCase()} but received ${contentType || "unknown"}`,
     );
   }
 
@@ -303,6 +338,7 @@ async function requestOnce(
         method: spec.method,
         url: spec.url,
         body: spec.method === "POST" ? spec.jsonBody : null,
+        responseKind,
       }),
     ),
     body: response.body,
@@ -324,13 +360,13 @@ function delay(milliseconds: number): Promise<void> {
 export async function safeRequestJson(
   spec: RequestSpec,
   targets: SourceTarget[],
-): Promise<SafeHttpResult> {
-  let lastResult: Omit<SafeHttpResult, "json"> | undefined;
+): Promise<SafeJsonHttpResult> {
+  let lastResult: SafeHttpResult | undefined;
   let lastError: unknown;
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      const result = await requestOnce(spec, targets);
+      const result = await requestOnce(spec, targets, "json");
       lastResult = result;
       if ((result.status === 429 || result.status >= 500) && attempt < 2) {
         await delay(retryDelayMs(result.responseHeaders, attempt));
@@ -350,6 +386,56 @@ export async function safeRequestJson(
         throw new NetworkPolicyError("INVALID_JSON", "Upstream response is not valid UTF-8 JSON");
       }
       return { ...result, json };
+    } catch (error) {
+      lastError = error;
+      const retryable =
+        !(error instanceof NetworkPolicyError) ||
+        ["UPSTREAM_TIMEOUT", "ECONNRESET", "ETIMEDOUT"].includes(error.code);
+      if (!retryable || attempt >= 2) {
+        throw error;
+      }
+      await delay(500 * 2 ** attempt);
+    }
+  }
+
+  if (lastResult) {
+    throw new NetworkPolicyError(
+      `UPSTREAM_HTTP_${lastResult.status}`,
+      `Upstream returned HTTP ${lastResult.status}`,
+    );
+  }
+  throw lastError;
+}
+
+export async function safeRequestHtml(
+  spec: RequestSpec,
+  targets: SourceTarget[],
+): Promise<SafeHtmlHttpResult> {
+  let lastResult: SafeHttpResult | undefined;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const result = await requestOnce(spec, targets, "html");
+      lastResult = result;
+      if ((result.status === 429 || result.status >= 500) && attempt < 2) {
+        await delay(retryDelayMs(result.responseHeaders, attempt));
+        continue;
+      }
+      if (result.status < 200 || result.status >= 300) {
+        throw new NetworkPolicyError(
+          `UPSTREAM_HTTP_${result.status}`,
+          `Upstream returned HTTP ${result.status}`,
+        );
+      }
+
+      let text: string;
+      try {
+        text = new TextDecoder("utf-8", { fatal: true }).decode(result.body);
+      } catch {
+        throw new NetworkPolicyError("INVALID_HTML", "Upstream response is not valid UTF-8 HTML");
+      }
+      return { ...result, text };
     } catch (error) {
       lastError = error;
       const retryable =

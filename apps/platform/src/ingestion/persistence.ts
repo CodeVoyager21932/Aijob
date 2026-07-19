@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Database } from "@aijob/database";
 import { type Kysely, sql } from "kysely";
 import { canonicalJson } from "../lib/canonical-json.js";
+import type { NormalizedOfficialJob } from "../sources/normalized-official-job.js";
 import {
   type NormalizedTencentJob,
   TENCENT_ADAPTER_VERSION,
@@ -130,15 +131,21 @@ export async function markFetchSchemaError(
   });
 }
 
-export async function persistNormalizedTencentJob(input: {
+export interface PersistNormalizedOfficialJobInput {
   db: Kysely<Database>;
   sourceId: string;
-  normalized: NormalizedTencentJob;
+  normalized: NormalizedOfficialJob;
   listFetchId: string;
   detailFetchId: string;
   observedAt: Date;
   lease: TaskLease;
-}): Promise<{ recordId: string; revisionId: string; createdRevision: boolean }> {
+  adapterVersion: string;
+  normalizerVersion: string;
+}
+
+export async function persistNormalizedOfficialJob(
+  input: PersistNormalizedOfficialJobInput,
+): Promise<{ recordId: string; revisionId: string; createdRevision: boolean }> {
   const { db, sourceId, normalized, listFetchId, detailFetchId, observedAt, lease } = input;
   return db.transaction().execute(async (transaction) => {
     await assertActiveTaskLease(transaction, lease);
@@ -169,8 +176,8 @@ export async function persistNormalizedTencentJob(input: {
         source_job_record_id: record.id,
         revision_content_hash: normalized.revisionContentHash,
         import_mode: "collector",
-        adapter_version: TENCENT_ADAPTER_VERSION,
-        normalizer_version: TENCENT_NORMALIZER_VERSION,
+        adapter_version: input.adapterVersion,
+        normalizer_version: input.normalizerVersion,
         company_name: normalized.companyName,
         title: normalized.title,
         job_family: canonicalJson(normalized.jobFamily),
@@ -251,5 +258,21 @@ export async function persistNormalizedTencentJob(input: {
       revisionId: revision.id,
       createdRevision,
     };
+  });
+}
+
+export async function persistNormalizedTencentJob(input: {
+  db: Kysely<Database>;
+  sourceId: string;
+  normalized: NormalizedTencentJob;
+  listFetchId: string;
+  detailFetchId: string;
+  observedAt: Date;
+  lease: TaskLease;
+}): Promise<{ recordId: string; revisionId: string; createdRevision: boolean }> {
+  return persistNormalizedOfficialJob({
+    ...input,
+    adapterVersion: TENCENT_ADAPTER_VERSION,
+    normalizerVersion: TENCENT_NORMALIZER_VERSION,
   });
 }

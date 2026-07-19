@@ -165,25 +165,14 @@ const rawSourceConfigSchema = z.object({
     requestIntervalMs: z.number().int().min(250).max(10_000),
     completion: z.literal("partial"),
     publicationAllowed: z.literal(false),
-    requestDefaults: z
-      .object({
-        projectIdList: z.array(z.never()),
-        projectMappingIdList: z.array(z.number().int().positive()).min(1),
-        bgList: z.array(z.never()),
-        workCountryType: z.literal(0),
-        workCityList: z.array(z.never()),
-        recruitCityList: z.array(z.never()),
-        pageIndex: z.literal(1),
-        pageSize: z.number().int().min(1).max(20),
-      })
-      .passthrough(),
+    requestDefaults: z.record(z.unknown()).default({}),
     queryStreams: z
       .array(
         z.object({
           key: z.string().regex(/^[a-z0-9-]+$/),
           label: z.string().min(1),
           keyword: z.string().max(30),
-          positionFamilyIds: z.array(z.string().regex(/^\d+$/)),
+          positionFamilyIds: z.array(z.string().regex(/^\d+$/)).default([]),
           targetItems: z.number().int().min(1).max(20),
         }),
       )

@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import {
+  controlledLocalSourceKeys,
+  officialSourceAdapterVersions,
+} from "./official-source-adapters.js";
 import { assessSource, loadSourceConfig } from "./source-config.js";
 import { TENCENT_ADAPTER_VERSION } from "./tencent-campus-adapter.js";
 
@@ -40,5 +44,41 @@ describe("Tencent source configuration", () => {
 
     expect(productStream?.positionFamilyIds).toEqual([79, 80, 83, 94, 219, 253]);
     expect(productStream?.positionFamilyIds.every(Number.isSafeInteger)).toBe(true);
+  });
+});
+
+describe("controlled local source configurations", () => {
+  it.each(controlledLocalSourceKeys)("keeps %s pending and local-only", async (sourceKey) => {
+    const config = await loadSourceConfig(sourceKey);
+    const assessment = assessSource(config);
+
+    expect(config.sourceKey).toBe(sourceKey);
+    expect(config.policy.status).toBe("pending_review");
+    expect(config.policy.adapterKey).toBe(sourceKey);
+    expect(config.policy.adapterVersion).toBe(officialSourceAdapterVersions[sourceKey]);
+    expect(config.localProbe.enabled).toBe(true);
+    expect(config.policy.fetchTargets.every((target) => !target.allowRedirects)).toBe(true);
+    expect(config.policy.applyTargets.every((target) => !target.allowRedirects)).toBe(true);
+    expect(assessment.hardGatesPassed).toBe(false);
+    expect(assessment.decision).toBe("ineligible");
+  });
+
+  it("limits the university source to one exact page and the verified Moka tenant", async () => {
+    const config = await loadSourceConfig("nankai-tal-2027");
+    expect(config.policy.fetchTargets).toEqual([
+      expect.objectContaining({
+        method: "GET",
+        host: "career.nankai.edu.cn",
+        pathPrefix: "/correcruit/content/id/115842.html",
+        allowedQueryParameters: [],
+      }),
+    ]);
+    expect(config.policy.applyTargets).toEqual([
+      expect.objectContaining({
+        host: "app.mokahr.com",
+        pathPrefix: "/campus-recruitment/tal/95443",
+        allowedQueryParameters: ["locale"],
+      }),
+    ]);
   });
 });

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { SourceTarget } from "../sources/source-config.js";
-import { assertRedirectAllowed, isPublicIp, validateUrl } from "./safe-http.js";
+import {
+  assertRedirectAllowed,
+  isPublicIp,
+  validateNavigationUrl,
+  validateUrl,
+} from "./safe-http.js";
 
 const targets: SourceTarget[] = [
   {
@@ -59,6 +64,45 @@ describe("collector network policy", () => {
 
     expect(() => assertRedirectAllowed(target)).toThrowError(/redirect is forbidden/i);
     expect(() => assertRedirectAllowed({ ...target, allowRedirects: true })).not.toThrow();
+  });
+
+  it("allows fragments only for local navigation validation", () => {
+    const navigationTargets: SourceTarget[] = [
+      {
+        method: "GET",
+        scheme: "https",
+        host: "app.mokahr.com",
+        port: 443,
+        pathPrefix: "/campus-recruitment/tal/95443",
+        allowRedirects: false,
+        allowedQueryParameters: ["locale"],
+      },
+    ];
+    const officialUrl = "https://app.mokahr.com/campus-recruitment/tal/95443?locale=zh-CN#/jobs";
+
+    expect(validateNavigationUrl(officialUrl, "GET", navigationTargets).hash).toBe("#/jobs");
+    expect(() => validateUrl(officialUrl, "GET", navigationTargets)).toThrowError(/fragments/i);
+    expect(() =>
+      validateNavigationUrl(
+        "https://app.mokahr.com/campus-recruitment/tal/95443?locale=zh-CN&next=evil#/jobs",
+        "GET",
+        navigationTargets,
+      ),
+    ).toThrowError(/Query parameter next is not allowlisted/);
+    expect(() =>
+      validateNavigationUrl(
+        "https://evil.example/campus-recruitment/tal/95443?locale=zh-CN#/jobs",
+        "GET",
+        navigationTargets,
+      ),
+    ).toThrowError(/not allowlisted/);
+    expect(() =>
+      validateNavigationUrl(
+        "https://app.mokahr.com/campus-recruitment/tal/95443/extra?locale=zh-CN#/jobs",
+        "GET",
+        navigationTargets,
+      ),
+    ).toThrowError(/not allowlisted/);
   });
 
   it("rejects private, loopback, link-local and special-use addresses", () => {

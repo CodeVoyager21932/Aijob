@@ -12,6 +12,8 @@
 - `JobPreference`：用户主动选择的方向和排除项。
 - `ResumeEvidence`：用户确认的经历证据。
 - `MatchRun`：固定全部输入版本的一次匹配运行。
+- `RecommendationRun`：固定候选岗位、匹配运行与排序策略的一次推荐运行。
+- `ResumeTailoringRun`：固定目标岗位、用户证据、提示词和模型的一次简历对照修改。
 - `JobDecision`：用户对岗位作出的保存、准备、投递或放弃状态，不是系统推荐标签。
 
 PostgreSQL 是这些对象的唯一持久化真源。工程 MVP 不部署向量数据库或独立搜索索引。
@@ -149,6 +151,19 @@ PostgreSQL 是这些对象的唯一持久化真源。工程 MVP 不部署向量�
 
 每个岗位结果归属于一个 `MatchRun` 和一个岗位版本，保存三个轴、支持关系、缺口、未知项、规则命中和解释版本。它只陈述系统依据，不代表用户已经作出决定。
 
+### 5.1 `RecommendationRun`
+
+一次推荐运行固定：
+
+- `recommendation_run_id`、`owner_id`、创建时间和输入哈希。
+- 候选 `published_job_version_id[]` 及其对应 `match_run_id[]`。
+- `profile_revision`、`preference_revision`、`evidence_revision`。
+- `ranking_policy_version` 和稳定的 tie-break 规则。
+
+排序使用确定性元组：资格状态、偏好满足情况、证据覆盖、新鲜度和稳定岗位 ID。数字只用于内部稳定排序，不展示为“匹配度”“推荐指数”或录用概率。每个结果必须分别列出支持理由、明确冲突、未知项、来源和核验时间；资格冲突岗位仍可查看和纠正。
+
+任何候选岗位版本、匹配运行、用户修订或排序策略变化都创建新的 `RecommendationRun`。旧运行不原地重排。
+
 ## 6. `JobDecision` 用户决策队列
 
 `JobDecision` 由用户主动改变，系统不能根据三轴结果代替用户写入：
@@ -167,28 +182,43 @@ PostgreSQL 是这些对象的唯一持久化真源。工程 MVP 不部署向量�
 
 ## 7. 处理顺序
 
-1. 用户通过邀请会话提交主动去标识化的简历文本和求职约束。
+1. 用户通过匿名 owner 会话提交 PDF、DOCX 或文本和求职约束；文件按 ADR-0012 隔离解析。
 2. 系统产生 `ProfileFact` 与 `ResumeEvidence` 候选。
 3. 用户确认、修改或删除事实、偏好和证据，形成不可变修订。
 4. 对 `JobRequirementSet` 运行确定性资格判断。
 5. 用规则和词典建立 `requirement_id -> evidence_id[]` 的候选关系。
 6. 计算资格、证据和偏好三个轴。
-7. 规则模板分别解释三个轴；AI 开启后只能润色受约束解释。
-8. 用户自行更新 `JobDecision`，前往官方申请页；点击与自报投递记录为不同事件。
+7. 创建不可变 `RecommendationRun`，使用确定性元组排序并展示理由与未知项。
+8. 用户选择一个岗位后，可显式启用 AI 创建 `ResumeTailoringRun`；模型只生成有证据引用的修改候选。
+9. 用户逐段接受、拒绝或编辑并可导出 DOCX。
+10. 用户自行更新 `JobDecision`，前往官方申请页；点击与自报投递记录为不同事件。
 
 ## 8. AI 边界与模板降级
 
-AI 特性默认关闭。未完成供应商的数据保留、训练使用、存储地区、跨境和退出评审前，工程 MVP 使用确定性解析、用户确认和固定解释模板。
+本地完整 MVP 必须实现一个 OpenAI-compatible 适配器，但只有环境配置允许且用户对当前简历优化任务显式选择后才调用。岗位浏览、三轴和推荐始终使用确定性解析、用户确认、规则和模板；公开或远程环境在供应商与增量价值 Gate 前保持关闭。
 
 启用后遵守：
 
-- 简历解析只发送完成任务所需、经过 PII 过滤的最小片段。
-- 结果解释只接收 `JobRequirement`、已确认 `ProfileFact`/`ResumeEvidence` 和三轴结果。
+- 原文件不发送给模型；只发送完成目标岗位优化所需、经过 PII 过滤并由用户同意的最小片段。
+- 输入只包含 `JobRequirement`、已确认 `ProfileFact`/`ResumeEvidence` 和三轴结果。
 - 模型无网络工具、数据库、文件、采集或密钥权限。
 - 输出使用固定 JSON Schema，引用真实 `requirement_id` 和 `evidence_id`。
 - 输出不能修改三轴状态、虚构经历或生成可执行 HTML、URL、SQL、Shell。
 - Schema、引用或安全校验失败时有限重试，随后降级到规则模板。
 - 不跨用户共享含简历信息的缓存；MVP 可以完全关闭 AI 结果缓存。
+
+### 8.1 `ResumeTailoringRun`
+
+一次优化运行固定：
+
+- `resume_tailoring_run_id`、`owner_id`、创建时间和输入哈希。
+- 输入简历版本或确认后的段落集合、`evidence_revision`。
+- 目标 `published_job_version_id`、`requirement_set_id` 和可选 `match_run_id`。
+- `template_version`、`prompt_version`、供应商别名、模型版本、参数版本和安全策略版本。
+
+每个 `TailoringSegment` 包含原文、建议、原因、`requirement_id[]`、`evidence_id[]`、校验状态和用户状态 `pending/accepted/rejected/edited`。任何新增数字、公司、项目、技能或结果都必须能回指用户确认的证据；不能回指或 Schema/ID 校验失败的段落不得展示。
+
+用户状态不修改 `ResumeEvidence` 或原运行输出。最终 DOCX 由接受段落与用户编辑段落确定性组装，使用统一单栏 ATS 友好模板；导出记录固定所用段落修订和模板版本，不承诺复刻原文件版式。
 
 ## 9. 输出契约
 
@@ -244,8 +274,8 @@ AI 特性默认关闭。未完成供应商的数据保留、训练使用、存�
 ## 10. 所有权、保留和删除
 
 - 所有用户侧对象都带服务端确定的 `owner_id`，API 不接受客户端指定所有者。
-- 原始粘贴文本在用户完成证据确认后立即删除；未完成确认、异常中断或用户离开的记录也必须在提交后 24 小时内删除。
-- 邀请会话建立时固定 `owner_expires_at`，最长不超过 30 天；`ProfileFact`、`JobPreference`、`ResumeEvidence`、`MatchRun`、`JobDecision` 和 owner 产品事件都不得晚于该时间。普通访问、新修订和再次确认均不能续期，用户可以提前删除。
+- 原文件和原始文本在用户完成证据确认后立即删除；未完成确认、异常中断或用户离开的记录也必须在提交后 24 小时内删除。
+- owner 建立时固定 `owner_expires_at`，最长不超过 30 天；`ProfileFact`、`JobPreference`、`ResumeEvidence`、`MatchRun`、`RecommendationRun`、`ResumeTailoringRun`、导出、`JobDecision` 和 owner 产品事件都不得晚于该时间。普通访问、新修订和再次确认均不能续期，用户可以提前删除。
 - 删除请求立即撤销读取能力，并清理原文、结构化对象、任务载荷和缓存；审计记录只保留不含正文的结果。
 - 安全审计记录保留 90 天，不保存简历正文、岗位全文、提示词或可复用邀请令牌。
 

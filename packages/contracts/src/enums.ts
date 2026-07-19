@@ -66,8 +66,65 @@ export type CrawlCompletion = z.infer<typeof CrawlCompletionSchema>;
 export const TaskStatusSchema = z.enum(["queued", "running", "succeeded", "failed", "dead"]);
 export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 
-export const TaskTypeSchema = z.enum(["crawl", "resume_analysis", "match_run", "owner_deletion"]);
+export const TaskTypeSchema = z.enum([
+  "crawl",
+  "resume_analysis",
+  "match_run",
+  "recommendation_run",
+  "resume_tailoring",
+  "resume_export",
+  "owner_deletion",
+]);
 export type TaskType = z.infer<typeof TaskTypeSchema>;
 
 export const JobFamilySchema = z.enum(["product", "operations", "other"]);
 export type JobFamily = z.infer<typeof JobFamilySchema>;
+
+export const OwnerStatusSchema = z.enum(["active", "deletion_pending", "deleted"]);
+export type OwnerStatus = z.infer<typeof OwnerStatusSchema>;
+
+export const AsyncRunStatusSchema = z.enum([
+  "queued",
+  "processing",
+  "needs_input",
+  "succeeded",
+  "failed",
+  "deleted",
+]);
+export type AsyncRunStatus = z.infer<typeof AsyncRunStatusSchema>;
+
+export const ResumeInputKindSchema = z.enum(["pdf", "docx", "pasted_text"]);
+export type ResumeInputKind = z.infer<typeof ResumeInputKindSchema>;
+
+export const EligibilityStatusSchema = z.enum([
+  "no_explicit_conflict",
+  "explicit_conflict",
+  "needs_information",
+]);
+export type EligibilityStatus = z.infer<typeof EligibilityStatusSchema>;
+
+export const EvidenceMatchStatusSchema = z.enum([
+  "explicit_evidence",
+  "partial_evidence",
+  "not_in_resume",
+  "insufficient_information",
+]);
+export type EvidenceMatchStatus = z.infer<typeof EvidenceMatchStatusSchema>;
+
+export const PreferenceMatchStatusSchema = z.enum(["fits", "does_not_fit", "not_set"]);
+export type PreferenceMatchStatus = z.infer<typeof PreferenceMatchStatusSchema>;
+
+export const JobDecisionStatusSchema = z.enum([
+  "undecided",
+  "saved",
+  "preparing_to_apply",
+  "applied",
+  "abandoned",
+]);
+export type JobDecisionStatus = z.infer<typeof JobDecisionStatusSchema>;
+
+export const TailoringSegmentDecisionSchema = z.enum(["pending", "accepted", "rejected", "edited"]);
+export type TailoringSegmentDecision = z.infer<typeof TailoringSegmentDecisionSchema>;
+
+export const DeletionStatusSchema = z.enum(["queued", "processing", "succeeded", "failed"]);
+export type DeletionStatus = z.infer<typeof DeletionStatusSchema>;

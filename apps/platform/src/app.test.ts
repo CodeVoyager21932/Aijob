@@ -15,6 +15,13 @@ function config(overrides: Partial<AppConfig> = {}): AppConfig {
     logLevel: "silent",
     enableInternalPreview: true,
     enableSourceProbe: true,
+    enableLocalMvp: true,
+    resumeEncryptionKey: "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    resumeMaxBytes: 5 * 1024 * 1024,
+    ai: {
+      enabled: false,
+      requestTimeoutMs: 30_000,
+    },
     workspaceRoot: ".",
     ...overrides,
   };

@@ -4,6 +4,26 @@ import type { Kysely } from "kysely";
 import { ZodError, z } from "zod";
 import { canonicalJson, hashCanonicalJson } from "../lib/canonical-json.js";
 import {
+  buildMeituanDetailRequest,
+  buildMeituanSearchRequest,
+  MEITUAN_ADAPTER_VERSION,
+  MEITUAN_NORMALIZER_VERSION,
+  type MeituanListItem,
+  meituanDetailPayload,
+  meituanDetailResponseSchema,
+  meituanListPayload,
+  meituanSearchResponseSchema,
+  normalizeMeituanJob,
+} from "../sources/meituan-official-adapter.js";
+import {
+  NANKAI_TAL_ADAPTER_VERSION,
+  NANKAI_TAL_NORMALIZER_VERSION,
+  NANKAI_TAL_SOURCE_URL,
+  normalizeNankaiTalRole,
+  parseNankaiTalPage,
+} from "../sources/nankai-tal-2027-adapter.js";
+import { assertConfiguredAdapterVersion } from "../sources/official-source-adapters.js";
+import {
   assessSource,
   loadSourceConfig,
   type ProbeQueryStream,
@@ -15,7 +35,6 @@ import {
   buildTencentSearchRequest,
   isTencentStablePostId,
   normalizeTencentJob,
-  TENCENT_ADAPTER_VERSION,
   type TencentListItem,
   tencentDetailResponseSchema,
   tencentSearchResponseSchema,
@@ -23,11 +42,19 @@ import {
 import {
   assertActiveTaskLease,
   markFetchSchemaError,
+  persistNormalizedOfficialJob,
   persistNormalizedTencentJob,
   recordFetchedResponse,
   type TaskLease,
 } from "./persistence.js";
-import { NetworkPolicyError, safeRequestJson, validateUrl } from "./safe-http.js";
+import {
+  NetworkPolicyError,
+  type SafeHttpResult,
+  safeRequestHtml,
+  safeRequestJson,
+  validateNavigationUrl,
+  validateUrl,
+} from "./safe-http.js";
 import { storeSnapshot } from "./snapshot-store.js";
 
 export interface ProbeRuntimeConfig {
@@ -141,7 +168,7 @@ async function persistHttpResponse(input: {
   sourceConfig: SourceConfig;
   sourceId: string;
   crawlRunId: string;
-  response: Awaited<ReturnType<typeof safeRequestJson>>;
+  response: SafeHttpResult;
   lease: TaskLease;
 }): Promise<string> {
   const snapshot = await storeSnapshot(
@@ -522,6 +549,269 @@ async function discoverCandidates(input: {
   return discovered;
 }
 
+interface AdapterProbeInput {
+  db: Kysely<Database>;
+  runtime: ProbeRuntimeConfig;
+  sourceConfig: SourceConfig;
+  sourceId: string;
+  crawlRunId: string;
+  taskId: string;
+  leaseOwner: string;
+  fencingToken: number;
+  limit: number;
+  errors: ProbeResult["errors"];
+}
+
+interface AdapterProbeOutput {
+  discoveredCount: number;
+  normalizedCount: number;
+  rejectedCount: number;
+  requestCount: number;
+  reportedTotals: Record<string, number>;
+  failureErrorCodes: string[];
+}
+
+function probeLease(input: AdapterProbeInput): TaskLease {
+  return {
+    taskId: input.taskId,
+    leaseOwner: input.leaseOwner,
+    fencingToken: input.fencingToken,
+  };
+}
+
+function requestInterval(input: AdapterProbeInput): number {
+  return Math.max(
+    input.runtime.probeRequestIntervalMs,
+    input.sourceConfig.localProbe.requestIntervalMs,
+  );
+}
+
+async function fetchMeituanListPage(
+  input: AdapterProbeInput & {
+    pageNo: number;
+    pageSize: number;
+  },
+): Promise<{
+  parsed: ReturnType<typeof meituanSearchResponseSchema.parse>;
+  fetchId: string;
+}> {
+  const response = await safeRequestJson(
+    {
+      method: "POST",
+      url: "https://zhaopin.meituan.com/api/official/job/getJobList",
+      jsonBody: buildMeituanSearchRequest(input.pageNo, input.pageSize),
+    },
+    input.sourceConfig.policy.fetchTargets,
+  );
+  const fetchId = await persistHttpResponse({
+    ...input,
+    crawlRunId: input.crawlRunId,
+    response,
+    lease: probeLease(input),
+  });
+  try {
+    return { parsed: meituanSearchResponseSchema.parse(response.json), fetchId };
+  } catch (error) {
+    await markFetchSchemaError(input.db, fetchId, "UPSTREAM_SCHEMA_CHANGED", probeLease(input));
+    throw error;
+  }
+}
+
+async function fetchMeituanDetail(
+  input: AdapterProbeInput & {
+    jobUnionId: string;
+  },
+): Promise<{
+  parsed: ReturnType<typeof meituanDetailResponseSchema.parse>;
+  fetchId: string;
+}> {
+  const response = await safeRequestJson(
+    {
+      method: "POST",
+      url: "https://zhaopin.meituan.com/api/official/job/getJobDetail",
+      jsonBody: buildMeituanDetailRequest(input.jobUnionId),
+    },
+    input.sourceConfig.policy.fetchTargets,
+  );
+  const fetchId = await persistHttpResponse({
+    ...input,
+    crawlRunId: input.crawlRunId,
+    response,
+    lease: probeLease(input),
+  });
+  try {
+    return { parsed: meituanDetailResponseSchema.parse(response.json), fetchId };
+  } catch (error) {
+    await markFetchSchemaError(input.db, fetchId, "UPSTREAM_SCHEMA_CHANGED", probeLease(input));
+    throw error;
+  }
+}
+
+async function runMeituanAdapterProbe(input: AdapterProbeInput): Promise<AdapterProbeOutput> {
+  const candidates = new Map<
+    string,
+    { item: MeituanListItem; listFetchId: string; listItemIndex: number }
+  >();
+  const failureErrorCodes: string[] = [];
+  const reportedTotals: Record<string, number> = {};
+  let requestCount = 0;
+  let rejectedCount = 0;
+  let pageNo = 1;
+  let expectedTotal: number | undefined;
+
+  while (candidates.size < input.limit) {
+    const listResult = await fetchMeituanListPage({
+      ...input,
+      pageNo,
+      pageSize: Math.min(10, input.limit - candidates.size),
+    });
+    requestCount += 1;
+    const payload = meituanListPayload(listResult.parsed);
+    reportedTotals["product-internships"] = payload.page.totalCount;
+    expectedTotal ??= payload.page.totalCount;
+    if (payload.page.totalCount !== expectedTotal) {
+      input.errors.push({
+        code: "UPSTREAM_TOTAL_CHANGED",
+        message: `product-internships total changed from ${expectedTotal} to ${payload.page.totalCount}`,
+      });
+      break;
+    }
+    if (payload.list.length === 0) break;
+
+    for (const [listItemIndex, item] of payload.list.entries()) {
+      if (candidates.has(item.jobUnionId)) {
+        rejectedCount += 1;
+        input.errors.push({
+          code: "UPSTREAM_DUPLICATE_JOB_ID",
+          message: `Meituan repeated jobUnionId ${item.jobUnionId}`,
+        });
+        continue;
+      }
+      candidates.set(item.jobUnionId, {
+        item,
+        listFetchId: listResult.fetchId,
+        listItemIndex,
+      });
+      if (candidates.size >= input.limit) break;
+    }
+
+    if (pageNo >= payload.page.totalPage || candidates.size >= payload.page.totalCount) break;
+    pageNo += 1;
+    await updateHeartbeat(input.db, input.taskId, input.leaseOwner, input.fencingToken);
+    await delay(requestInterval(input));
+  }
+
+  let normalizedCount = 0;
+  for (const candidate of candidates.values()) {
+    try {
+      await updateHeartbeat(input.db, input.taskId, input.leaseOwner, input.fencingToken);
+      await delay(requestInterval(input));
+      const detailResult = await fetchMeituanDetail({
+        ...input,
+        jobUnionId: candidate.item.jobUnionId,
+      });
+      requestCount += 1;
+      const normalized = normalizeMeituanJob({
+        list: candidate.item,
+        detail: meituanDetailPayload(detailResult.parsed),
+        listItemIndex: candidate.listItemIndex,
+        listEvidenceRef: candidate.listFetchId,
+        detailEvidenceRef: detailResult.fetchId,
+      });
+      validateNavigationUrl(normalized.applyUrl, "GET", input.sourceConfig.policy.applyTargets);
+      await persistNormalizedOfficialJob({
+        db: input.db,
+        sourceId: input.sourceId,
+        normalized,
+        listFetchId: candidate.listFetchId,
+        detailFetchId: detailResult.fetchId,
+        observedAt: new Date(),
+        lease: probeLease(input),
+        adapterVersion: MEITUAN_ADAPTER_VERSION,
+        normalizerVersion: MEITUAN_NORMALIZER_VERSION,
+      });
+      normalizedCount += 1;
+    } catch (error) {
+      const code = errorCode(error);
+      if (code === "TASK_LEASE_LOST") throw error;
+      rejectedCount += 1;
+      failureErrorCodes.push(code);
+      input.errors.push({ code, message: errorMessage(error) });
+    }
+  }
+
+  return {
+    discoveredCount: candidates.size,
+    normalizedCount,
+    rejectedCount,
+    requestCount,
+    reportedTotals,
+    failureErrorCodes,
+  };
+}
+
+async function runNankaiTalAdapterProbe(input: AdapterProbeInput): Promise<AdapterProbeOutput> {
+  const response = await safeRequestHtml(
+    { method: "GET", url: NANKAI_TAL_SOURCE_URL },
+    input.sourceConfig.policy.fetchTargets,
+  );
+  const fetchId = await persistHttpResponse({
+    ...input,
+    crawlRunId: input.crawlRunId,
+    response,
+    lease: probeLease(input),
+  });
+  let page: ReturnType<typeof parseNankaiTalPage>;
+  try {
+    page = parseNankaiTalPage(response.text);
+  } catch (error) {
+    await markFetchSchemaError(input.db, fetchId, "UPSTREAM_SCHEMA_CHANGED", probeLease(input));
+    throw error;
+  }
+
+  const roles = page.roles.slice(0, input.limit);
+  const failureErrorCodes: string[] = [];
+  let normalizedCount = 0;
+  let rejectedCount = 0;
+  for (const role of roles) {
+    try {
+      const normalized = normalizeNankaiTalRole({
+        role,
+        page,
+        pageEvidenceRef: fetchId,
+      });
+      validateNavigationUrl(normalized.applyUrl, "GET", input.sourceConfig.policy.applyTargets);
+      await persistNormalizedOfficialJob({
+        db: input.db,
+        sourceId: input.sourceId,
+        normalized,
+        listFetchId: fetchId,
+        detailFetchId: fetchId,
+        observedAt: new Date(),
+        lease: probeLease(input),
+        adapterVersion: NANKAI_TAL_ADAPTER_VERSION,
+        normalizerVersion: NANKAI_TAL_NORMALIZER_VERSION,
+      });
+      normalizedCount += 1;
+    } catch (error) {
+      const code = errorCode(error);
+      if (code === "TASK_LEASE_LOST") throw error;
+      rejectedCount += 1;
+      failureErrorCodes.push(code);
+      input.errors.push({ code, message: errorMessage(error) });
+    }
+  }
+
+  return {
+    discoveredCount: roles.length,
+    normalizedCount,
+    rejectedCount,
+    requestCount: 1,
+    reportedTotals: { "operations-roles": page.roles.length },
+    failureErrorCodes,
+  };
+}
+
 export async function runSourceProbe(input: {
   db: Kysely<Database>;
   runtime: ProbeRuntimeConfig;
@@ -544,12 +834,11 @@ export async function runSourceProbe(input: {
   if (input.limit < 1 || input.limit > Math.min(20, sourceConfig.localProbe.maxItems)) {
     throw new Error("PROBE_LIMIT_OUT_OF_RANGE");
   }
-  if (sourceConfig.policy.adapterKey !== "tencent-campus") {
-    throw new Error("ADAPTER_NOT_IMPLEMENTED");
-  }
-  if (sourceConfig.policy.adapterVersion !== TENCENT_ADAPTER_VERSION) {
-    throw new Error("ADAPTER_VERSION_MISMATCH");
-  }
+  assertConfiguredAdapterVersion(
+    sourceConfig.sourceKey,
+    sourceConfig.policy.adapterKey,
+    sourceConfig.policy.adapterVersion,
+  );
 
   for (const target of sourceConfig.policy.fetchTargets) {
     validateUrl(
@@ -624,9 +913,7 @@ export async function runSourceProbe(input: {
   let completion: "partial" | "failed" = "failed";
 
   try {
-    const requestCounter = { value: 0 };
-    const discoveryRejectedCounter = { value: 0 };
-    const candidates = await discoverCandidates({
+    const adapterInput: AdapterProbeInput = {
       db: input.db,
       runtime: input.runtime,
       sourceConfig,
@@ -637,58 +924,73 @@ export async function runSourceProbe(input: {
       fencingToken: claimed.fencingToken,
       limit: input.limit,
       errors,
-      reportedTotals,
-      requestCounter,
-      rejectedCounter: discoveryRejectedCounter,
-    });
-    discoveredCount = candidates.size;
-    requestCount += requestCounter.value;
-    rejectedCount += discoveryRejectedCounter.value;
+    };
 
-    for (const candidate of candidates.values()) {
-      try {
-        await updateHeartbeat(input.db, claimed.taskId, claimed.leaseOwner, claimed.fencingToken);
-        await delay(
-          Math.max(input.runtime.probeRequestIntervalMs, sourceConfig.localProbe.requestIntervalMs),
-        );
-        const detail = await fetchDetail({
-          db: input.db,
-          runtime: input.runtime,
-          sourceConfig,
-          sourceId: registered.sourceId,
-          crawlRunId: runId,
-          postId: candidate.item.postId,
-          lease,
-        });
-        requestCount += 1;
-        const normalized = normalizeTencentJob({
-          list: candidate.item,
-          detail: detail.parsed.data,
-          listItemIndex: candidate.listItemIndex,
-          entryScope: "日常实习",
-          listEvidenceRef: candidate.listFetchId,
-          detailEvidenceRef: detail.fetchId,
-        });
-        validateUrl(normalized.applyUrl, "GET", sourceConfig.policy.applyTargets);
-        await persistNormalizedTencentJob({
-          db: input.db,
-          sourceId: registered.sourceId,
-          normalized,
-          listFetchId: candidate.listFetchId,
-          detailFetchId: detail.fetchId,
-          observedAt: new Date(),
-          lease,
-        });
-        normalizedCount += 1;
-      } catch (error) {
-        const code = errorCode(error);
-        if (code === "TASK_LEASE_LOST") {
-          throw error;
+    if (sourceConfig.sourceKey === "tencent-campus") {
+      const requestCounter = { value: 0 };
+      const discoveryRejectedCounter = { value: 0 };
+      const candidates = await discoverCandidates({
+        ...adapterInput,
+        reportedTotals,
+        requestCounter,
+        rejectedCounter: discoveryRejectedCounter,
+      });
+      discoveredCount = candidates.size;
+      requestCount += requestCounter.value;
+      rejectedCount += discoveryRejectedCounter.value;
+
+      for (const candidate of candidates.values()) {
+        try {
+          await updateHeartbeat(input.db, claimed.taskId, claimed.leaseOwner, claimed.fencingToken);
+          await delay(requestInterval(adapterInput));
+          const detail = await fetchDetail({
+            db: input.db,
+            runtime: input.runtime,
+            sourceConfig,
+            sourceId: registered.sourceId,
+            crawlRunId: runId,
+            postId: candidate.item.postId,
+            lease,
+          });
+          requestCount += 1;
+          const normalized = normalizeTencentJob({
+            list: candidate.item,
+            detail: detail.parsed.data,
+            listItemIndex: candidate.listItemIndex,
+            entryScope: "日常实习",
+            listEvidenceRef: candidate.listFetchId,
+            detailEvidenceRef: detail.fetchId,
+          });
+          validateNavigationUrl(normalized.applyUrl, "GET", sourceConfig.policy.applyTargets);
+          await persistNormalizedTencentJob({
+            db: input.db,
+            sourceId: registered.sourceId,
+            normalized,
+            listFetchId: candidate.listFetchId,
+            detailFetchId: detail.fetchId,
+            observedAt: new Date(),
+            lease,
+          });
+          normalizedCount += 1;
+        } catch (error) {
+          const code = errorCode(error);
+          if (code === "TASK_LEASE_LOST") throw error;
+          rejectedCount += 1;
+          failureErrorCodes.push(code);
+          errors.push({ code, message: errorMessage(error) });
         }
-        rejectedCount += 1;
-        failureErrorCodes.push(code);
-        errors.push({ code, message: errorMessage(error) });
       }
+    } else {
+      const output =
+        sourceConfig.sourceKey === "meituan-official"
+          ? await runMeituanAdapterProbe(adapterInput)
+          : await runNankaiTalAdapterProbe(adapterInput);
+      discoveredCount = output.discoveredCount;
+      normalizedCount = output.normalizedCount;
+      rejectedCount = output.rejectedCount;
+      requestCount = output.requestCount;
+      Object.assign(reportedTotals, output.reportedTotals);
+      failureErrorCodes.push(...output.failureErrorCodes);
     }
     completion = normalizedCount > 0 ? "partial" : "failed";
   } catch (error) {

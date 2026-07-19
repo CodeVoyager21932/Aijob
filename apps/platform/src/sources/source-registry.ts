@@ -269,7 +269,7 @@ export async function registerSourceConfig(
           entrypoints: canonicalJson(config.policy.entrypoints),
           crawl_interval: config.policy.crawlInterval,
           policy_notes: config.policy.policyNotes,
-          reviewed_at: config.policy.reviewedAt,
+          reviewed_at: config.policy.reviewedAt ? new Date(config.policy.reviewedAt) : null,
         })
         .execute();
     }

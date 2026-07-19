@@ -1,5 +1,12 @@
 import { z } from "zod";
 import { hashCanonicalJson, sha256 } from "../lib/canonical-json.js";
+import {
+  type EvidenceField,
+  known,
+  type NormalizedOfficialJob,
+  semanticRevisionValue,
+  unknown,
+} from "./normalized-official-job.js";
 import type { ProbeQueryStream } from "./source-config.js";
 
 export const TENCENT_ADAPTER_VERSION = "0.1.2";
@@ -107,65 +114,7 @@ export interface TencentSearchRequest {
   pageSize: number;
 }
 
-type EvidenceField<T> =
-  | { state: "known"; value: T; evidenceRefs: string[] }
-  | {
-      state: "unknown";
-      reason: "source_not_stated" | "parse_failed" | "not_yet_verified";
-    }
-  | { state: "conflict"; rawValues: string[]; evidenceRefs: string[] };
-
-export interface NormalizedTencentJob {
-  sourceJobId: string;
-  companyName: string;
-  title: string;
-  jobFamily: EvidenceField<"product" | "operations" | "other">;
-  locations: EvidenceField<string[]>;
-  businessGroups: string[];
-  entryScope: string;
-  sourceProjectName: string | null;
-  recruitLabelName: string | null;
-  recruitmentType: EvidenceField<string>;
-  responsibilities: string;
-  requirements: string;
-  structuredFields: {
-    arrivalTime: EvidenceField<string>;
-    weeklyAttendanceDays: EvidenceField<number>;
-    durationMonths: EvidenceField<number>;
-    graduationYears: EvidenceField<string[]>;
-    recruitmentBatch: EvidenceField<string>;
-    publishedAt: EvidenceField<string>;
-    deadline: EvidenceField<string>;
-  };
-  ingestionState: "validated";
-  publicationState: "review";
-  activityState: "active";
-  sourceUrl: string;
-  applyUrl: string;
-  qualityFlags: Array<{ code: string; detail: string }>;
-  reviewReasons: Array<{ code: string; details: Record<string, unknown> }>;
-  revisionContentHash: string;
-  evidence: Array<{
-    role: "list" | "detail";
-    fieldName: string;
-    jsonPointer: string;
-    rawValueHash: string;
-  }>;
-}
-
-function semanticRevisionValue(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(semanticRevisionValue);
-  }
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value)
-        .filter(([key]) => key !== "evidenceRefs")
-        .map(([key, nestedValue]) => [key, semanticRevisionValue(nestedValue)]),
-    );
-  }
-  return value;
-}
+export interface NormalizedTencentJob extends NormalizedOfficialJob {}
 
 export function buildTencentSearchRequest(
   stream: ProbeQueryStream,
@@ -202,19 +151,6 @@ export function buildTencentOfficialJobUrl(postId: string): string {
   const url = new URL("https://join.qq.com/post_detail.html");
   url.searchParams.set("postid", postId);
   return url.toString();
-}
-
-function known<T>(value: T, evidenceRefs: string[]): EvidenceField<T> {
-  return { state: "known", value, evidenceRefs };
-}
-
-function unknown<T>(
-  reason: "source_not_stated" | "parse_failed" | "needs_manual_review" = "source_not_stated",
-): EvidenceField<T> {
-  return {
-    state: "unknown",
-    reason: reason === "needs_manual_review" ? "not_yet_verified" : reason,
-  };
 }
 
 function recruitmentType(
@@ -367,7 +303,7 @@ export function normalizeTencentJob(input: {
       arrivalTime: unknown<string>(),
       weeklyAttendanceDays: unknown<number>(),
       durationMonths: unknown<number>(),
-      graduationYears: unknown<string[]>(),
+      graduationYears: unknown<number[]>(),
       recruitmentBatch: detail.recruitLabelName
         ? known(detail.recruitLabelName, [detailEvidenceRef])
         : unknown<string>(),

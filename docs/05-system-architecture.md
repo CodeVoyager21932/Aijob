@@ -10,7 +10,7 @@ collector-worker
 match-worker
 ```
 
-运营动作通过同一代码库中的 `internal ops CLI` 完成，不部署公共管理端。PostgreSQL 是唯一查询、任务和元数据真源，承担业务数据、任务表、版本、审计和 MVP 查询；独立岗位快照 Bucket 只保存原始公开岗位响应正文，绝不保存用户简历或其他用户数据。不部署 Redis/Celery、独立搜索、向量库、Playwright、文件上传链路或其他对象存储用途。
+运营动作通过同一代码库中的 `internal ops CLI` 完成，不部署公共管理端。PostgreSQL 是唯一查询、任务和元数据真源，承担业务数据、任务表、版本、审计和 MVP 查询；独立岗位快照 Bucket 只保存原始公开岗位响应正文，绝不保存用户简历或其他用户数据。不部署 Redis/Celery、独立搜索、向量库、Playwright 或其他对象存储用途。PDF/DOCX 只按 ADR-0012 应用层加密暂存在 PostgreSQL 并由 `match-worker` 隔离解析。
 
 这一形态兼顾两点：领域模块在代码和数据上保持边界，高风险采集与用户匹配在运行时使用不同身份和权限；同时不为尚未出现的规模问题引入微服务和分布式一致性成本。
 
@@ -27,7 +27,7 @@ flowchart LR
     CW --> B[("岗位快照 Bucket\n仅公开岗位响应正文")]
     CW --> P
     P --> MW["match-worker"]
-    MW --> A["批准的 AI 供应商（默认关闭）"]
+    MW --> A["允许列表中的 OpenAI-compatible 端点\n本地由用户显式启用"]
     MW --> P
     W --> J["企业官方投递页面"]
 ```
@@ -50,11 +50,11 @@ flowchart LR
 
 ### 3.4 用户画像 `profile`
 
-拥有邀请会话、`owner_id`、`ProfileFact`、`JobPreference`、`ResumeEvidence` 及其不可变修订、保留期限和删除状态。
+拥有邀请会话、`owner_id`、加密临时简历文档、`ProfileFact`、`JobPreference`、`ResumeEvidence` 及其不可变修订、保留期限和删除状态。
 
 ### 3.5 匹配 `matching`
 
-拥有 `MatchRun`、规则/词典/解释模板版本、资格/证据/偏好三轴结果和可选 AI 解释元数据。它不生成全局推荐标签，也不修改来源、岗位版本、用户确认事实或用户决定。
+拥有 `MatchRun`、`RecommendationRun`、`ResumeTailoringRun`、导出记录、规则/词典/解释模板版本、资格/证据/偏好三轴结果和 AI 元数据。它不生成匹配度百分比，也不修改来源、岗位版本、用户确认事实或用户决定。
 
 ### 3.6 决策、反馈与审计 `decision-feedback-audit`
 
@@ -62,7 +62,7 @@ flowchart LR
 
 ## 4. PostgreSQL 与岗位快照 Bucket
 
-MVP 使用一个受管理的 PostgreSQL 实例，通过 schema 和数据库角色隔离：
+MVP 使用一个 PostgreSQL 16 实例（本地由 Docker Desktop 运行，后续 Alpha 才评估托管实例），通过 schema 和数据库角色隔离：
 
 | Schema | 主要内容 | 写入者 | 读取者 |
 |---|---|---|---|
@@ -71,14 +71,15 @@ MVP 使用一个受管理的 PostgreSQL 实例，通过 schema 和数据库角�
 | `ingestion` | 采集运行、快照对象元数据、来源修订 | collector；ops CLI 仅通过受限人工导入函数写 `import_mode=manual` 修订 | collector、ops CLI |
 | `catalog` | 发布岗位版本和要求集 | collector/受控发布操作 | web-api、match、ops CLI |
 | `profile` | 会话、owner、事实、偏好和证据 | web-api、match | owner 作用域的 web-api/match |
-| `matching` | 匹配运行和三轴岗位结果 | match | owner 作用域的 web-api/match |
+| `matching` | 匹配运行、推荐运行、简历优化和导出结果 | match | owner 作用域的 web-api/match |
 | `decision_feedback_audit` | 用户决定、最小产品事件和安全/管理审计 | owner 作用域的 web-api、各受控主体 | owner 作用域的 web-api、ops CLI/受限审计角色 |
 
 数据库约束承担核心一致性：
 
 - 来源岗位、快照哈希、版本内容哈希和任务幂等键使用唯一约束。
-- `task_queue.task_type` 只允许 `crawl/resume_analysis/match_run/owner_deletion`；受限函数保证 collector 只能领取 `crawl`，match 只能领取其余三类，并只返回该类型所需字段。
-- 外键固定 `PublishedJobVersion -> JobRequirementSet -> MatchRun` 版本链；每个 `MatchRun` 还必须引用事实/偏好/证据修订、规则、词典和 `template_version`，AI 实际参与时再引用提示词和模型版本。`JobDecision` 关联稳定岗位 ID、自己的修订号及可选 `match_run_id`，不属于系统匹配输出。
+- `task_queue.task_type` 只允许 `crawl/resume_analysis/match_run/recommendation_run/resume_tailoring/resume_export/owner_deletion`；受限函数保证 collector 只能领取 `crawl`，match 只能领取用户任务，并只返回该类型所需字段。
+- `crawl` 任务必须含 `source_id` 且禁止含 `owner_id/owner_epoch`；所有用户任务必须含 `owner_id + owner_epoch` 且禁止含 `source_id`。数据库 CHECK/触发器与受限入队函数共同执行该互斥约束。
+- 外键固定 `PublishedJobVersion -> JobRequirementSet -> MatchRun -> RecommendationRun/ResumeTailoringRun` 版本链。`MatchRun` 必须引用事实/偏好/证据修订、规则、词典和模板；AI 实际参与时固定提示词和模型版本。`JobDecision` 关联稳定岗位 ID、自己的修订号及可选 `match_run_id`，不属于系统匹配输出。
 - 用户表均含 `owner_id`，查询通过服务端会话派生 owner，不接受客户端指定。
 - 邀请交换固定 `owner_expires_at`；所有 owner 数据、任务载荷和正常会话的过期时间不得晚于它，新修订不能续期。
 - 用户任务固定领取时的 `owner_epoch`；任何结果写入都在同一事务确认 owner 未删除、未到期且 epoch 未变化。删除事务递增 epoch 并取消待处理用户任务，使已领取旧任务的迟到写入失效。
@@ -87,7 +88,7 @@ MVP 使用一个受管理的 PostgreSQL 实例，通过 schema 和数据库角�
 
 岗位快照 Bucket 不是查询真源：PostgreSQL 中的 `RawJobSnapshot` 只保存 `object_key`、`content_hash`、`byte_size`、`content_type` 等元数据。`collector-worker` 依据来源 ID 与内容哈希生成确定性对象键，只能读写其专用前缀；`web-api` 和 `match-worker` 没有 Bucket 凭据或读取权限。
 
-采集进程先校验响应大小/类型并将正文上传 Bucket，通过哈希和大小校验后，才在 PostgreSQL 事务中提交快照元数据、来源修订和候选版本。上传成功但事务未提交的无引用对象在满 24 小时后清理；对象缺失、不可读或哈希不一致时禁止发布对应岗位版本。用户粘贴的简历原文仍只在 PostgreSQL 中应用层加密暂存，经历证据确认后立即删除；未完成确认或处理异常时也最长不超过提交后 24 小时，绝不进入岗位快照 Bucket。
+采集进程先校验响应大小/类型并将正文上传 Bucket，通过哈希和大小校验后，才在 PostgreSQL 事务中提交快照元数据、来源修订和候选版本。上传成功但事务未提交的无引用对象在满 24 小时后清理；对象缺失、不可读或哈希不一致时禁止发布对应岗位版本。用户 PDF/DOCX/文本只在 PostgreSQL 中应用层加密暂存，由无网络、有限资源的解析子进程处理；经历证据确认后立即删除，未完成或异常时也最长不超过 24 小时，绝不进入岗位快照 Bucket。
 
 ## 5. 运行主体与能力
 
@@ -109,19 +110,19 @@ MVP 使用一个受管理的 PostgreSQL 实例，通过 schema 和数据库角�
 
 ### 5.3 `match-worker`
 
-- 从 PostgreSQL 领取画像解析或匹配任务。
+- 从 PostgreSQL 领取简历解析、匹配、推荐、简历优化、DOCX 导出或删除任务。
 - 只读取任务指定 owner 的用户修订和已发布岗位版本。
-- 写入新的 `MatchRun` 三轴结果，不覆盖历史；不能代替用户更新 `JobDecision`。
+- 写入新的 `MatchRun`、`RecommendationRun`、`ResumeTailoringRun` 和导出结果，不覆盖历史；不能代替用户更新 `JobDecision`。
 - 领取已持久化墓碑的 owner 删除任务，通过校验任务 owner、墓碑和 fencing token 的受限幂等数据库函数清理 `profile`、`matching`、owner 决策/事件、任务载荷与持久派生数据；没有有效墓碑时函数拒绝执行。MVP 不建立跨请求 owner 缓存。
 - 定时入口通过受限函数选择已经到达 `owner_expires_at` 的 owner；函数原子写到期墓碑、递增 `owner_epoch`、取消旧任务并入队 `owner_deletion`，不把其他 owner 内容返回给 Worker。
 - 同一定时入口清理达到 `raw_resume_expires_at` 的原文并取消关联解析任务；解析结果提交同时校验原文未删除/未到期与 `owner_epoch` 未变化，Worker 不持久化本地正文缓冲。
-- AI 默认关闭；启用后仅可向批准的模型域名出站并使用独立密钥。
+- 本地 AI 仅在环境允许且用户逐次显式选择后向精确批准的模型端点出站并使用独立密钥；公开环境默认关闭。
 - 无采集目标、原始网页或岗位快照 Bucket 权限，也无来源管理权限。
 
 ### 5.4 `internal ops CLI`
 
 - 通过维护者身份登记、批准、暂停来源和处理岗位复核队列。
-- MVP-0 通过 CLI 接受受控结构化输入，人工导入 20–30 条产品/运营实习岗位；每条保存已批准来源 URL、最后核验时间、复核人和字段级纯文本证据，未抓取原始响应时明确 `import_mode=manual`，不伪造 Bucket 快照。导入必须经过与自动采集相同的字段、`apply_targets`、不可变版本和发布复核，不能直接修改当前已发布行。
+- CLI 保留受控结构化人工导入作为采集失败回退；完整 MVP 的主目录来自三个官方来源、总计 30–100 条岗位。人工记录必须保存来源 URL、最后核验时间、复核人和字段级证据，且经过与自动采集相同的字段、`apply_targets`、不可变版本和发布复核。
 - 查看脱敏运行质量、删除状态和审计记录。
 - 所有写操作记录原因、操作者、时间及前后值。
 - 默认无简历原文读取权限，不在公网监听端口。
@@ -149,7 +150,7 @@ MVP 使用一个受管理的 PostgreSQL 实例，通过 schema 和数据库角�
 
 ### 7.1 匿名岗位
 
-- `GET /v1/jobs`：游标分页、结构化筛选，只返回已发布版本。
+- `GET /v1/jobs`：游标分页、结构化筛选。公开/Alpha 环境只返回已发布版本；本机 `dev/test` 由服务器固定 `catalog_scope=local_mvp`，可返回明确标识的 `pending_review` 数据，客户端不能用查询参数切换范围。
 - `GET /v1/jobs/{id}`：返回稳定岗位 ID、当前 `published_job_version_id`、来源、状态和最后核验时间。
 
 ### 7.2 邀请与用户数据
@@ -158,15 +159,21 @@ MVP 使用一个受管理的 PostgreSQL 实例，通过 schema 和数据库角�
 - `GET /v1/profile`：返回当前 owner 的 `owner_expires_at`、事实/偏好/证据修订摘要和五态决策队列，用于复访与数据控制；不返回简历原文，删除状态受限会话无权调用。
 - `PUT /v1/profile/facts`：确认或替换当前 owner 的事实修订，携带期望修订版本。
 - `PUT /v1/profile/preferences`：确认或替换当前 owner 的求职偏好修订，携带期望修订版本。
-- `POST /v1/resume-analyses`：提交已确认脱敏的简历纯文本，异步返回 `202 Accepted`、`analysis_id` 和结果查询地址。
+- `POST /v1/resume-analyses`：使用 `multipart/form-data` 提交一个 PDF/DOCX，或使用 JSON 提交文本；异步返回 `202 Accepted`、`analysis_id` 和结果查询地址。
 - `GET /v1/resume-analyses/{analysis_id}`：查询解析状态、稳定错误码和当前 owner 的事实/证据候选，不返回已删除原文。
 - `PUT /v1/profile/evidence`：确认或替换当前 owner 的经历证据修订，携带期望修订版本；当 `confirmation_complete=true` 时，证据修订与原文删除/墓碑在同一事务提交，成功响应后原文不可再读取。
 - `POST /v1/match-runs`：固定岗位版本、要求集、事实/偏好/证据修订、规则、词典和 `template_version`，异步返回 `202 Accepted`；仅在 AI 实际参与时固定提示词和模型版本。
 - `GET /v1/match-runs/{match_run_id}`：读取当前 owner 的不可变运行、三轴结果与引用依据。
+- `POST /v1/recommendation-runs`：固定候选岗位版本、对应匹配运行和排序策略，异步返回 `202 Accepted`。
+- `GET /v1/recommendation-runs/{recommendation_run_id}`：返回确定性顺序、逐岗位理由、冲突、未知项和来源。
+- `POST /v1/resume-tailorings`：为一个目标岗位创建受控 AI 或模板简历对照修改，异步返回 `202 Accepted`。
+- `GET /v1/resume-tailorings/{tailoring_run_id}`：返回不可变运行、分段建议、引用和当前用户选择。
+- `PUT /v1/resume-tailorings/{tailoring_run_id}/segments/{segment_id}`：接受、拒绝或编辑一个建议段，携带期望修订版本。
+- `POST /v1/resume-tailorings/{tailoring_run_id}/exports`：基于用户最终选择异步生成 ATS 友好 DOCX。
 - `PUT /v1/job-decisions/{job_id}`：由用户设置五态决策、结构化原因和独立隐藏状态，携带期望修订版本。
 - `POST /v1/jobs/{id}/feedback`：补充接口；提交岗位失效或结果反驳的最小原因分类，不直接修改岗位或规则。
 - `DELETE /v1/profile`：在同一事务写入删除墓碑、递增 `owner_epoch`、取消待处理用户任务并撤销当前 owner 对所有个人数据的访问，把会话降为最长 24 小时的仅删除状态能力，返回 `202 Accepted`、`deletion_request_id` 和状态查询地址。
-- `GET /v1/deletion-requests/{deletion_request_id}`：仅允许上述删除状态能力查询同一请求的最小状态和稳定错误码；不能借此访问 owner 的事实、证据、匹配或决定。接口首次返回成功终态时撤销该能力；失败态在期限内允许重试，未成功时也最迟在能力创建 24 小时后失效。
+- `GET /v1/profile/deletion`：仅允许删除状态能力查询当前 owner 的最小状态和稳定错误码；不能借此访问事实、证据、匹配、推荐、优化或决定。接口首次返回成功终态时撤销该能力；失败态在期限内允许重试，未成功时也最迟在能力创建 24 小时后失效。
 
 ### 7.3 通用规则
 
@@ -209,8 +216,9 @@ URL 写日志前移除查询和片段；owner 只使用不可逆内部引用。�
 
 至少区分：
 
-- Local：固定夹具和合成数据，不访问生产来源或用户数据。
-- Preview/Test：脱敏/合成数据，验证迁移、权限和端到端流程。
+- Local Fixture/Test：固定夹具和合成数据，不访问真实来源或个人简历。
+- Local MVP：只在 coco 电脑运行；真实来源探测由维护者明确启动，用户只处理自己主动提交的材料，允许 `local_mvp` 目录和本地显式 AI。
+- Preview/Test：脱敏/合成数据，验证迁移、权限和端到端流程，不访问真实招聘站。
 - Production Alpha：邀请用户和批准来源，最小权限运行。
 
 同一构建产物以不同命令启动三个进程。生产使用 TLS 入口、独立服务账号和出站策略；数据库迁移作为受控发布步骤运行，不能由每个实例启动时并发执行。
@@ -230,7 +238,7 @@ MVP 的固定成本只有 Web 运行时、两个可按需/定时运行的 Worker
 
 - 采集按来源策略调度，限制并发、请求量和响应大小。
 - `collector-worker` 可在无任务时停止；不为三个来源常驻浏览器。
-- AI 默认关闭；启用后设置每次令牌上限、每 owner 并发、日预算和总开关。
+- 本地 AI 仅在用户显式选择后调用，设置每次令牌上限、每 owner 并发、日预算和总开关；公开环境保持关闭。
 - 快照压缩且有大小与保留限制，监控 Bucket 容量、请求成本和 PostgreSQL 元数据增长。
 - 只有真实队列、查询或容量数据证明必要时，才评估消息代理、独立搜索、向量组件或扩大对象存储用途。
 
@@ -245,8 +253,9 @@ MVP 的固定成本只有 Web 运行时、两个可按需/定时运行的 Worker
 - Bucket 上传成功但数据库提交失败时不会产生可发布版本，满 24 小时的无引用对象会被清理；对象缺失或哈希不一致会阻止发布并告警。
 - 部分采集运行不会关闭或清空历史岗位，来源失败不扩散。
 - owner 对象授权、CSRF、邀请重放、会话撤销和删除任务通过测试。
-- `MatchRun` 可以用固定版本重放；修改任一输入会生成新运行并把旧结果标记过期。
-- AI 关闭时端到端链路完整；模型不可用时使用模板结果。
+- `MatchRun`、`RecommendationRun` 和 `ResumeTailoringRun` 可以用固定版本复查；修改任一输入会生成新运行并把旧结果标记过期。
+- PDF/DOCX 结构、资源和隔离测试通过；文件/原文不进入 Bucket、普通日志或模型请求。
+- AI 关闭时岗位、三轴和推荐链路完整；模型不可用时简历优化使用模板结果。
 - 日志无简历正文、令牌和敏感 URL；队列、来源、成本和删除告警可触发。
 - PostgreSQL 备份恢复、岗位快照引用完整性、应用回滚和 `RPO 24h/RTO 8h` 流程已经演练。
 

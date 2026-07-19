@@ -8,7 +8,7 @@ import type {
 import { JobDetailSchema, JobListResponseSchema } from "@aijob/contracts";
 import type { Database, InternalJobPreviewView, JsonValue } from "@aijob/database";
 import type { Kysely, Selectable } from "kysely";
-import { validateUrl } from "../ingestion/safe-http.js";
+import { validateNavigationUrl } from "../ingestion/safe-http.js";
 
 type PreviewRow = Selectable<InternalJobPreviewView>;
 
@@ -123,7 +123,7 @@ async function approvedOfficialLink(db: Kysely<Database>, row: PreviewRow): Prom
     .execute();
 
   try {
-    validateUrl(
+    validateNavigationUrl(
       row.apply_url,
       "GET",
       targets.map((target) => ({
