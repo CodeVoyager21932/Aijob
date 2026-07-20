@@ -167,6 +167,8 @@ export function RecommendationsPage() {
     "id" in preferencesQuery.data &&
     evidenceQuery.data &&
     "id" in evidenceQuery.data;
+  const currentEvidenceCount =
+    evidenceQuery.data && "evidence" in evidenceQuery.data ? evidenceQuery.data.evidence.length : 0;
 
   return (
     <>
@@ -190,6 +192,33 @@ export function RecommendationsPage() {
           </button>
         ) : null}
       </header>
+
+      <details className="product-panel algorithm-explainer">
+        <summary>证据支持和推荐顺序是怎样判断的？</summary>
+        <ol>
+          <li>
+            <strong>资格：</strong>
+            只核对在校、学历、毕业年份、出勤和时长等明确硬条件；未知不会当作符合，也不会隐藏岗位。
+          </li>
+          <li>
+            <strong>经历证据：</strong>
+            先找岗位原词，再用固定能力词典识别同类行为，例如“用户调研—用户访谈”“数据分析—SQL/指标看板”。明确工具要求不会被相近工具替代。
+          </li>
+          <li>
+            <strong>偏好：</strong>城市、方向等单独判断，不会改变资格和证据结论。
+          </li>
+          <li>
+            <strong>排序：</strong>
+            先按资格分组，组内再依据完整度、偏好、证据、阻塞缺口、新鲜度和稳定岗位编号确定顺序；不输出匹配百分比。
+          </li>
+        </ol>
+        <p>
+          本次只会使用你主动确认的 {currentEvidenceCount} 段经历证据。
+          <Link className="text-link" to="/resume">
+            查看或调整证据
+          </Link>
+        </p>
+      </details>
 
       {!profileReady ? (
         <ProductEmpty
@@ -262,6 +291,12 @@ export function partitionCurrentRecommendations(
   return { current, staleCount: items.length - current.length };
 }
 
+const recommendationGroups = [
+  { key: "no_explicit_conflict", title: "未发现明确冲突" },
+  { key: "needs_information", title: "需补充信息" },
+  { key: "explicit_conflict", title: "存在明确冲突" },
+] as const;
+
 export function RecommendationResult({
   run,
   jobsByVersion,
@@ -322,29 +357,36 @@ export function RecommendationResult({
           <p className="eyebrow">本次推荐集合</p>
           <h2 id="recommendation-heading">{current.length} 个当前岗位</h2>
         </div>
-        <p>数字仅表示展示顺序，不是匹配分数或录用概率。</p>
+        <p>先按资格分组，组内依据完整度、偏好、证据、阻塞缺口、新鲜度和稳定岗位编号排序。</p>
       </div>
       {staleCount > 0 ? (
         <output className="product-callout is-warning">
           {staleCount} 个旧岗位版本已不在当前目录，本页已统一移除；重新生成可获得完整的当前推荐。
         </output>
       ) : null}
-      <ol className="recommendation-list">
-        {current.map(({ item, job }, displayIndex) => {
-          return (
-            <li key={item.publishedJobVersionId}>
-              <span className="recommendation-order" aria-hidden="true">
-                {displayIndex + 1}
-              </span>
-              <ProductJobCard
-                job={job}
-                matchRunId={item.matchRunId}
-                axes={<CompactAxes item={item} />}
-              />
-            </li>
-          );
-        })}
-      </ol>
+      {recommendationGroups.map((group) => {
+        const groupItems = current.filter(({ item }) => item.eligibility === group.key);
+        if (groupItems.length === 0) return null;
+        return (
+          <section className="recommendation-group" key={group.key}>
+            <header>
+              <h3>{group.title}</h3>
+              <span>{groupItems.length} 个岗位</span>
+            </header>
+            <ul className="recommendation-list">
+              {groupItems.map(({ item, job }) => (
+                <li key={item.publishedJobVersionId}>
+                  <ProductJobCard
+                    job={job}
+                    matchRunId={item.matchRunId}
+                    axes={<CompactAxes item={item} />}
+                  />
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
     </section>
   );
 }
@@ -386,6 +428,25 @@ function CompactAxes({ item }: { item: RecommendationItem }) {
       </dl>
       {item.unknownRequirementIds.length > 0 ? (
         <p className="recommendation-unknown">{item.unknownRequirementIds.length} 项要求仍待确认</p>
+      ) : null}
+      <p className="recommendation-basis">
+        依据完整度：
+        {item.basisState === "complete"
+          ? "完整"
+          : item.basisState === "partial"
+            ? "部分完整"
+            : "信息不足"}
+        ；资格条件已核对 {item.coverage.eligibility.evaluated}/{item.coverage.eligibility.required}
+        ；证据支持 {item.coverage.evidence.supported}/{item.coverage.evidence.applicable}。
+      </p>
+      {item.gaps.length > 0 ? (
+        <ul className="recommendation-gaps">
+          {item.gaps.slice(0, 3).map((gap, index) => (
+            <li key={`${gap.type}-${gap.requirementId ?? "preference"}-${index}`}>
+              {gap.explanation}
+            </li>
+          ))}
+        </ul>
       ) : null}
     </>
   );

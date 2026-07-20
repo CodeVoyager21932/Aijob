@@ -13,7 +13,7 @@
 Aijob 的本地完整 MVP 必须在 coco 的电脑上跑通以下闭环：
 
 ```text
-3 个官方来源、30–100 个产品/运营实习岗位
+3 个以上官方来源、100–200 个全部职能实习岗位
   -> 自动采集、清洗、去重、结构化和来源追溯
   -> 上传 PDF/DOCX 或粘贴简历文本
   -> 隐私检测、解析以及事实/偏好/经历证据确认
@@ -31,7 +31,7 @@ Aijob 的本地完整 MVP 必须在 coco 的电脑上跑通以下闭环：
 
 ### 2.1 P0
 
-- 三个经过准入评估的企业官方招聘来源，总计 30–100 条产品/运营实习岗位。
+- 三个以上经过准入评估的企业官方招聘来源，总计 100–200 条全部职能实习岗位；该扩展仍处于 E0 本地假设。
 - 腾讯现有适配器；字节跳动校园招聘；一个企业主体可证明的 Moka 官方 ATS 租户。候选不满足访问政策或目标岗位要求时，按来源评分表更换，不绕过限制。
 - 岗位快照、规范化、来源内幂等、跨来源疑似重复、字段证据、要求拆解、不可变岗位版本和复核状态。
 - 正式 `/jobs` 列表、详情、筛选、未知字段覆盖率、来源与官方投递入口。
@@ -182,6 +182,7 @@ Aijob 的本地完整 MVP 必须在 coco 的电脑上跑通以下闭环：
 - `GET /jobs`、`GET /jobs/{id}`。
 - `POST /resume-analyses`、`GET /resume-analyses/{id}`。
 - `PUT /profile/facts`、`PUT /profile/preferences`、`PUT /profile/evidence`。
+- `GET /profile/document`、`PUT /profile/evidence-selection`：复用确认后保留 30 天的结构化简历区块并重选证据，不恢复已删除原文。
 - `POST /match-runs`、`GET /match-runs/{id}`。
 - `POST /recommendation-runs`、`GET /recommendation-runs/{id}`。
 - `POST /resume-tailorings`、`GET /resume-tailorings/{id}`。
@@ -196,7 +197,7 @@ Aijob 的本地完整 MVP 必须在 coco 的电脑上跑通以下闭环：
 
 完整 MVP 必须同时满足：
 
-- 三个来源各至少 5 条目标岗位，总目录 30–100 条；每条都有来源、核验时间、官方链接和重点字段的值或 `unknown`。
+- 每个已接入来源至少人工抽检 5 条，总目录 100–200 条；每条都有来源、核验时间、官方链接和重点字段的值或 `unknown`。
 - PDF、DOCX 和文本均能完成解析；扫描 PDF、伪造 MIME、超限、宏、加密文件和 DOCX 解压炸弹有安全失败路径。
 - 至少 20 个高风险金标覆盖资格、未知字段、证据缺失、偏好冲突和跨来源疑似重复。
 - 金标中明确硬条件漏检、错误劝退、未确认事实参与结论和虚构经历均为 0。

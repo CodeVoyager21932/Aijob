@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   deleteProfile,
   getJobDecisions,
+  getProfileDocument,
   getProfileEvidence,
   getProfileFacts,
   getProfilePreferences,
@@ -17,7 +18,7 @@ export function DataControlPage() {
   const queryClient = useQueryClient();
   const [confirmation, setConfirmation] = useState("");
   const [understood, setUnderstood] = useState(false);
-  const [facts, preferences, evidence, decisions] = useQueries({
+  const [facts, preferences, evidence, document, decisions] = useQueries({
     queries: [
       {
         queryKey: ["product", "profile", "facts"],
@@ -30,6 +31,10 @@ export function DataControlPage() {
       {
         queryKey: ["product", "profile", "evidence"],
         queryFn: ({ signal }: { signal: AbortSignal }) => getProfileEvidence(signal),
+      },
+      {
+        queryKey: ["product", "profile", "document"],
+        queryFn: ({ signal }: { signal: AbortSignal }) => getProfileDocument(signal),
       },
       {
         queryKey: ["product", "decisions"],
@@ -46,7 +51,18 @@ export function DataControlPage() {
     },
   });
   const isLoading =
-    facts.isPending || preferences.isPending || evidence.isPending || decisions.isPending;
+    facts.isPending ||
+    preferences.isPending ||
+    evidence.isPending ||
+    document.isPending ||
+    decisions.isPending;
+  const evidenceCount =
+    evidence.data && "evidence" in evidence.data ? evidence.data.evidence.length : 0;
+  const documentBlockCount =
+    document.data?.document?.sections.reduce(
+      (total, section) => total + section.blocks.length,
+      0,
+    ) ?? 0;
 
   return (
     <>
@@ -76,16 +92,51 @@ export function DataControlPage() {
           </article>
           <article>
             <span>经历证据</span>
-            <strong>
-              {evidence.data && "evidence" in evidence.data ? evidence.data.evidence.length : 0}
-            </strong>
-            <small>原文确认后已删除</small>
+            <strong>{evidenceCount}</strong>
+            <small>{documentBlockCount} 个已保存结构化区块</small>
           </article>
           <article>
             <span>岗位决定</span>
             <strong>{decisions.data?.length ?? 0}</strong>
             <small>仅当前匿名会话可访问</small>
           </article>
+        </section>
+      ) : null}
+
+      {!isLoading && document.data?.document ? (
+        <section className="product-panel saved-data-actions" aria-labelledby="saved-data-heading">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">继续使用，而不只是删除</p>
+              <h2 id="saved-data-heading">已保存资料仍可用于下一次投递决定</h2>
+            </div>
+          </div>
+          <p>
+            你不需要重新上传原文件。资格事实、偏好和 {documentBlockCount} 个已确认结构化简历区块可在
+            30 天内继续使用；也可以重新选择哪些区块算作经历证据。
+          </p>
+          {evidenceCount === 0 ? (
+            <div className="product-callout is-warning">
+              当前经历证据为
+              0，这正是推荐页所有岗位都显示“简历暂未体现”的直接原因。资料没有丢失，你可以回到简历页重新勾选。
+            </div>
+          ) : null}
+          <div className="saved-resume-actions">
+            <button
+              className="button button--primary"
+              type="button"
+              onClick={() => navigate("/resume")}
+            >
+              查看并调整已保存简历
+            </button>
+            <button
+              className="button button--secondary"
+              type="button"
+              onClick={() => navigate("/recommendations?start=1")}
+            >
+              沿用当前资料生成推荐
+            </button>
+          </div>
         </section>
       ) : null}
 
@@ -104,6 +155,10 @@ export function DataControlPage() {
           <li>
             <strong>确认后的事实、偏好与经历证据</strong>
             <span>最长 30 天，用于可复现的匹配和简历修改依据。</span>
+          </li>
+          <li>
+            <strong>确认后的结构化简历区块</strong>
+            <span>最长 30 天，可查看、复用并重新选择证据；不会恢复已删除的原文件。</span>
           </li>
           <li>
             <strong>匹配、推荐、优化和投递决定</strong>

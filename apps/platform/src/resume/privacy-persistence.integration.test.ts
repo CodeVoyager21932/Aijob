@@ -110,6 +110,10 @@ describeWithDatabase("resume plaintext minimization", () => {
         .deleteFrom("profile.resume_evidence_revisions")
         .where("owner_id", "in", ownerIds)
         .execute();
+      await db
+        .deleteFrom("profile.resume_document_revisions")
+        .where("owner_id", "in", ownerIds)
+        .execute();
       await db.deleteFrom("task_queue.tasks").where("owner_id", "in", ownerIds).execute();
       await db.deleteFrom("profile.resume_analyses").where("owner_id", "in", ownerIds).execute();
       await db.deleteFrom("identity.owner_sessions").where("owner_id", "in", ownerIds).execute();
@@ -151,7 +155,10 @@ describeWithDatabase("resume plaintext minimization", () => {
       lease: mainLease,
     });
     await finishTask(db, mainLease, "succeeded");
-    expect(processed.version).toBe("resume-analysis-v1");
+    if (processed.version !== "resume-analysis-v2") {
+      throw new Error("new resume analysis unexpectedly used the legacy schema");
+    }
+    expect(processed.version).toBe("resume-analysis-v2");
 
     const persisted = await db
       .selectFrom("profile.resume_analyses")
@@ -159,8 +166,9 @@ describeWithDatabase("resume plaintext minimization", () => {
       .where("id", "=", main.analysis.id)
       .executeTakeFirstOrThrow();
     expect(persisted.analysis_result).toEqual({
-      version: "resume-analysis-storage-v1",
+      version: "resume-analysis-storage-v2",
       candidateEvidenceCount: processed.candidateEvidence.length,
+      documentBlockCount: processed.document.sections.flatMap((section) => section.blocks).length,
     });
     const persistedJson = JSON.stringify(persisted.analysis_result);
     expect(persistedJson).not.toContain(bodyMarker);
@@ -183,6 +191,10 @@ describeWithDatabase("resume plaintext minimization", () => {
       analysisId: main.analysis.id,
       encryptionKey,
     });
+    if (firstRead?.result?.version !== "resume-analysis-v2") {
+      throw new Error("new resume analysis did not hydrate as v2");
+    }
+    const firstResult = firstRead.result;
     expect(firstRead?.result?.redactedText).toContain(bodyMarker);
     expect(firstRead?.result?.redactedText).toContain("[手机号已隐藏]");
     expect(firstRead?.result?.candidateEvidence.map((item) => item.id)).toEqual(
@@ -207,7 +219,7 @@ describeWithDatabase("resume plaintext minimization", () => {
     await finishTask(db, reentryLease, "succeeded");
     expect(reentered).toEqual(firstRead?.result);
 
-    const candidate = firstRead?.result?.candidateEvidence[0];
+    const candidate = firstResult.candidateEvidence[0];
     if (!candidate) throw new Error("candidate evidence fixture missing");
     const confirmedEvidence: ResumeEvidence = {
       ...candidate,
@@ -220,6 +232,7 @@ describeWithDatabase("resume plaintext minimization", () => {
         owner,
         expectedRevision: 0,
         resumeAnalysisId: main.analysis.id,
+        document: firstResult.document,
         evidence: [{ ...confirmedEvidence, id: randomUUID() }],
       }),
     ).rejects.toMatchObject({ code: "EVIDENCE_CANDIDATE_UNKNOWN" });
@@ -228,6 +241,7 @@ describeWithDatabase("resume plaintext minimization", () => {
       owner,
       expectedRevision: 0,
       resumeAnalysisId: main.analysis.id,
+      document: firstResult.document,
       evidence: [confirmedEvidence],
     });
     const confirmedRow = await db
@@ -276,7 +290,11 @@ describeWithDatabase("resume plaintext minimization", () => {
       analysisId: ttl.analysis.id,
       encryptionKey,
     });
-    const ttlCandidate = ttlRead?.result?.candidateEvidence[0];
+    if (ttlRead?.result?.version !== "resume-analysis-v2") {
+      throw new Error("new TTL resume analysis did not hydrate as v2");
+    }
+    const ttlResult = ttlRead.result;
+    const ttlCandidate = ttlResult.candidateEvidence[0];
     if (!ttlCandidate) throw new Error("TTL candidate evidence fixture missing");
     const cachedTtlEvidence: ResumeEvidence = {
       ...ttlCandidate,
@@ -299,6 +317,7 @@ describeWithDatabase("resume plaintext minimization", () => {
         owner,
         expectedRevision: 1,
         resumeAnalysisId: ttl.analysis.id,
+        document: ttlResult.document,
         evidence: [cachedTtlEvidence],
       }),
     ).rejects.toMatchObject({ code: "RESUME_ANALYSIS_NOT_CONFIRMABLE" });
@@ -324,6 +343,7 @@ describeWithDatabase("resume plaintext minimization", () => {
         owner,
         expectedRevision: 1,
         resumeAnalysisId: ttl.analysis.id,
+        document: ttlResult.document,
         evidence: [cachedTtlEvidence],
         now: expiredAt,
       }),

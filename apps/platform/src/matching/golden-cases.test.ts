@@ -34,7 +34,8 @@ function requirement(
     operator: "equals",
     sourceText: "岗位原文中的明确要求",
     evidenceRefs: [sourceRef],
-    required: true,
+    necessity: "required",
+    sourceSpan: null,
     ...input,
   };
 }
@@ -46,9 +47,10 @@ function evidence(
   return {
     id,
     resumeAnalysisId: null,
+    sourceBlockId: "00000000-0000-4000-8000-000000000003",
     section: "项目经历",
-    originalText: "负责用户研究并使用 SQL 分析转化漏斗",
-    claim: "分析用户行为与转化漏斗",
+    evidenceType: "project",
+    statement: "负责用户研究并使用 SQL 分析转化漏斗",
     skills: ["用户研究", "SQL"],
     outcomes: ["输出研究报告"],
     confirmed: true,
@@ -331,7 +333,7 @@ const goldenCases: GoldenCase[] = [
         kind: "language",
         operator: "contains",
         expectedValue: ["英语"],
-        required: false,
+        necessity: "preferred",
       }),
     ],
     confirmedFacts: [{ key: "languages", value: ["日语"] }],

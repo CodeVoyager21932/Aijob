@@ -4,6 +4,8 @@ import type {
   JobPreferenceRevision,
   ProfileFact,
   ProfileFactRevision,
+  ResumeDocumentInput,
+  ResumeDocumentRevision,
   ResumeEvidence,
   ResumeEvidenceRevision,
 } from "@aijob/contracts";
@@ -12,7 +14,11 @@ import { type Kysely, sql } from "kysely";
 import { ApiProblem } from "../identity/http.js";
 import { assertActiveOwnerEpoch, type OwnerContext } from "../identity/session-repository.js";
 import { hashCanonicalJson } from "../lib/canonical-json.js";
-import { resumeAnalysisCandidateIds } from "../resume/analysis-service.js";
+import {
+  deriveResumeEvidenceContent,
+  resumeAnalysisCandidateIds,
+  resumeAnalysisDocumentBlockIds,
+} from "../resume/analysis-service.js";
 
 export class ProfileRevisionConflict extends ApiProblem {
   constructor(readonly currentRevision: number) {
@@ -206,14 +212,59 @@ export async function getCurrentResumeEvidence(input: {
     confirmedAt: iso(row.confirmed_at),
     createdAt: iso(row.created_at),
     resumeAnalysisId: row.resume_analysis_id,
+    schemaVersion: row.schema_version as "resume-evidence-v1" | "resume-evidence-v2",
+    documentRevisionId: row.document_revision_id,
     evidence: json<ResumeEvidence[]>(row.evidence),
   };
+}
+
+function resumeDocumentRevisionFromRow(row: {
+  id: string;
+  owner_id: string;
+  resume_analysis_id: string | null;
+  revision: number;
+  base_revision: number | null;
+  schema_version: string;
+  sections: JsonValue;
+  content_hash: string;
+  confirmed_at: Date | string;
+  created_at: Date | string;
+}): ResumeDocumentRevision {
+  return {
+    id: row.id,
+    ownerId: row.owner_id,
+    resumeAnalysisId: row.resume_analysis_id,
+    revision: row.revision,
+    baseRevision: row.base_revision,
+    schemaVersion: "resume-document-v1",
+    sections: json<ResumeDocumentInput["sections"]>(row.sections),
+    contentHash: row.content_hash,
+    confirmedAt: iso(row.confirmed_at),
+    createdAt: iso(row.created_at),
+  };
+}
+
+export async function getCurrentResumeDocument(input: {
+  db: Kysely<Database>;
+  ownerId: string;
+}): Promise<ResumeDocumentRevision | null> {
+  const row = await input.db
+    .selectFrom("profile.resume_document_revisions")
+    .selectAll()
+    .where("owner_id", "=", input.ownerId)
+    .orderBy("revision", "desc")
+    .executeTakeFirst();
+  return row ? resumeDocumentRevisionFromRow(row) : null;
 }
 
 function validateEvidenceReferences(
   resumeAnalysisId: string | null,
   evidence: ResumeEvidence[],
+  document: ResumeDocumentInput | null,
 ): void {
+  const documentBlockIds = new Set(
+    document?.sections.flatMap((section) => section.blocks.map(({ id }) => id)) ?? [],
+  );
   const ids = new Set<string>();
   for (const item of evidence) {
     if (ids.has(item.id)) {
@@ -233,6 +284,14 @@ function validateEvidenceReferences(
         "同一次确认中的证据必须来自所选简历解析记录。",
       );
     }
+    if (!documentBlockIds.has(item.sourceBlockId)) {
+      throw new ApiProblem(
+        400,
+        "EVIDENCE_SOURCE_BLOCK_UNKNOWN",
+        "经历证据没有对应的简历区块",
+        "请刷新解析结果，只确认当前文档区块中的原子证据。",
+      );
+    }
   }
 }
 
@@ -241,10 +300,11 @@ export async function putResumeEvidence(input: {
   owner: OwnerContext;
   expectedRevision: number;
   resumeAnalysisId: string | null;
+  document: ResumeDocumentInput | null;
   evidence: ResumeEvidence[];
   now?: Date;
 }): Promise<ResumeEvidenceRevision> {
-  validateEvidenceReferences(input.resumeAnalysisId, input.evidence);
+  validateEvidenceReferences(input.resumeAnalysisId, input.evidence, input.document);
   const now = input.now ?? new Date();
   return input.db.transaction().execute(async (transaction) => {
     await lockOwnerRevision(transaction, input.owner, "resume-evidence");
@@ -281,8 +341,13 @@ export async function putResumeEvidence(input: {
       }
 
       let candidateIds: ReadonlySet<string>;
+      let candidateBlockIds: ReadonlySet<string>;
       try {
         candidateIds = resumeAnalysisCandidateIds({
+          analysisId: input.resumeAnalysisId,
+          storageMetadata: analysis.analysis_result,
+        });
+        candidateBlockIds = resumeAnalysisDocumentBlockIds({
           analysisId: input.resumeAnalysisId,
           storageMetadata: analysis.analysis_result,
         });
@@ -302,12 +367,53 @@ export async function putResumeEvidence(input: {
           "请刷新解析结果，只确认当前页面提供的候选证据。",
         );
       }
+      const submittedBlockIds =
+        input.document?.sections.flatMap((section) => section.blocks.map(({ id }) => id)) ?? [];
+      if (
+        !input.document ||
+        submittedBlockIds.length !== candidateBlockIds.size ||
+        submittedBlockIds.some((id) => !candidateBlockIds.has(id))
+      ) {
+        throw new ApiProblem(
+          400,
+          "RESUME_DOCUMENT_BLOCK_UNKNOWN",
+          "简历区块不属于当前解析结果",
+          "请刷新解析结果后重新确认有序简历区块。",
+        );
+      }
     }
 
     const revision = currentRevision + 1;
     const id = randomUUID();
+    let documentRevisionId: string | null = null;
+    if (input.document) {
+      const currentDocument = await transaction
+        .selectFrom("profile.resume_document_revisions")
+        .select(["id", "revision"])
+        .where("owner_id", "=", input.owner.ownerId)
+        .orderBy("revision", "desc")
+        .executeTakeFirst();
+      documentRevisionId = randomUUID();
+      await transaction
+        .insertInto("profile.resume_document_revisions")
+        .values({
+          id: documentRevisionId,
+          owner_id: input.owner.ownerId,
+          owner_epoch: input.owner.ownerEpoch,
+          resume_analysis_id: input.resumeAnalysisId,
+          revision: (currentDocument?.revision ?? 0) + 1,
+          base_revision: currentDocument?.revision ?? null,
+          schema_version: input.document.schemaVersion,
+          sections: JSON.stringify(input.document.sections) as unknown as JsonValue,
+          content_hash: hashCanonicalJson(input.document),
+          confirmed_at: now,
+          created_at: now,
+        })
+        .execute();
+    }
     const contentHash = hashCanonicalJson({
       resumeAnalysisId: input.resumeAnalysisId,
+      documentRevisionId,
       evidence: input.evidence,
     });
     await transaction
@@ -317,6 +423,8 @@ export async function putResumeEvidence(input: {
         owner_id: input.owner.ownerId,
         owner_epoch: input.owner.ownerEpoch,
         resume_analysis_id: input.resumeAnalysisId,
+        schema_version: "resume-evidence-v2",
+        document_revision_id: documentRevisionId,
         revision,
         base_revision: current?.revision ?? null,
         evidence: JSON.stringify(input.evidence) as unknown as JsonValue,
@@ -357,7 +465,110 @@ export async function putResumeEvidence(input: {
       confirmedAt: now.toISOString(),
       createdAt: now.toISOString(),
       resumeAnalysisId: input.resumeAnalysisId,
+      schemaVersion: "resume-evidence-v2",
+      documentRevisionId,
       evidence: input.evidence,
+    };
+  });
+}
+
+export async function putSavedResumeEvidenceSelection(input: {
+  db: Kysely<Database>;
+  owner: OwnerContext;
+  expectedRevision: number;
+  documentRevisionId: string;
+  sourceBlockIds: string[];
+  now?: Date;
+}): Promise<ResumeEvidenceRevision> {
+  const now = input.now ?? new Date();
+  return input.db.transaction().execute(async (transaction) => {
+    await lockOwnerRevision(transaction, input.owner, "resume-evidence");
+    const current = await getCurrentResumeEvidence({
+      db: transaction,
+      ownerId: input.owner.ownerId,
+    });
+    const currentRevision = current?.revision ?? 0;
+    if (currentRevision !== input.expectedRevision) {
+      throw new ProfileRevisionConflict(currentRevision);
+    }
+
+    const document = await getCurrentResumeDocument({
+      db: transaction,
+      ownerId: input.owner.ownerId,
+    });
+    if (!document || document.id !== input.documentRevisionId) {
+      throw new ApiProblem(
+        409,
+        "RESUME_DOCUMENT_REVISION_STALE",
+        "已保存简历资料已经更新",
+        "请刷新页面后，基于最新保存的简历区块重新选择经历证据。",
+      );
+    }
+
+    const blocks = new Map(
+      document.sections.flatMap((section) =>
+        section.blocks.map((block) => [block.id, { section: section.title, block }] as const),
+      ),
+    );
+    const unknownBlockId = input.sourceBlockIds.find((id) => !blocks.has(id));
+    if (unknownBlockId) {
+      throw new ApiProblem(
+        400,
+        "EVIDENCE_SOURCE_BLOCK_UNKNOWN",
+        "经历证据没有对应的简历区块",
+        "请刷新页面，只选择当前已保存简历中的区块。",
+      );
+    }
+
+    const evidence: ResumeEvidence[] = input.sourceBlockIds.map((sourceBlockId) => {
+      const source = blocks.get(sourceBlockId);
+      if (!source) throw new Error("RESUME_DOCUMENT_BLOCK_LOOKUP_FAILED");
+      return {
+        id: randomUUID(),
+        resumeAnalysisId: document.resumeAnalysisId,
+        sourceBlockId,
+        section: source.section,
+        ...deriveResumeEvidenceContent(source.section, source.block.text),
+        confirmed: true,
+      };
+    });
+    const revision = currentRevision + 1;
+    const id = randomUUID();
+    const contentHash = hashCanonicalJson({
+      resumeAnalysisId: document.resumeAnalysisId,
+      documentRevisionId: document.id,
+      evidence,
+    });
+    await transaction
+      .insertInto("profile.resume_evidence_revisions")
+      .values({
+        id,
+        owner_id: input.owner.ownerId,
+        owner_epoch: input.owner.ownerEpoch,
+        resume_analysis_id: document.resumeAnalysisId,
+        schema_version: "resume-evidence-v2",
+        document_revision_id: document.id,
+        revision,
+        base_revision: current?.revision ?? null,
+        evidence: JSON.stringify(evidence) as unknown as JsonValue,
+        content_hash: contentHash,
+        confirmed_at: now,
+        created_at: now,
+      })
+      .execute();
+
+    return {
+      id,
+      ownerId: input.owner.ownerId,
+      revision,
+      baseRevision: current?.revision ?? null,
+      contentHash,
+      confirmedAt: now.toISOString(),
+      createdAt: now.toISOString(),
+      resumeAnalysisId: document.resumeAnalysisId,
+      schemaVersion: "resume-evidence-v2",
+      documentRevisionId: document.id,
+      evidence,
     };
   });
 }

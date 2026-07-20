@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { ProfileFact } from "@aijob/contracts";
+import type { ProfileFact, ResumeDocumentInput, ResumeEvidenceType } from "@aijob/contracts";
 import type { Database, JsonValue, ResumeAnalysisStorageMetadata } from "@aijob/database";
 import type { Kysely } from "kysely";
 import type { OwnerTaskLease } from "../workers/owner-task-lease.js";
@@ -14,9 +14,10 @@ import {
 
 interface CandidateEvidence {
   id: string;
+  sourceBlockId: string;
   section: string;
-  originalText: string;
-  claim: string;
+  evidenceType: ResumeEvidenceType;
+  statement: string;
   skills: string[];
   outcomes: string[];
   confirmed: false;
@@ -24,14 +25,33 @@ interface CandidateEvidence {
 
 // Bump this storage version whenever candidate paragraph selection or ordering changes.
 // The temporary encrypted text can only be hydrated by the parser version that produced it.
-const RESUME_ANALYSIS_STORAGE_VERSION = "resume-analysis-storage-v1" as const;
+const RESUME_ANALYSIS_STORAGE_VERSION = "resume-analysis-storage-v2" as const;
+const LEGACY_RESUME_ANALYSIS_STORAGE_VERSION = "resume-analysis-storage-v1" as const;
 
 export interface ResumeAnalysisResult {
-  version: "resume-analysis-v1";
+  version: "resume-analysis-v2";
   redactedText: string;
+  document: ResumeDocumentInput;
   candidateFacts: Array<ProfileFact & { confirmed: false }>;
   candidateEvidence: CandidateEvidence[];
 }
+
+export interface LegacyResumeAnalysisResult {
+  version: "resume-analysis-v1";
+  redactedText: string;
+  candidateFacts: Array<ProfileFact & { confirmed: false }>;
+  candidateEvidence: Array<{
+    id: string;
+    section: string;
+    originalText: string;
+    claim: string;
+    skills: string[];
+    outcomes: string[];
+    confirmed: false;
+  }>;
+}
+
+export type HydratedResumeAnalysisResult = ResumeAnalysisResult | LegacyResumeAnalysisResult;
 
 const SKILL_TERMS = [
   "Axure",
@@ -65,14 +85,49 @@ function piiSummary(findings: PersonalInformationFinding[]): JsonValue {
 
 function candidateFacts(text: string): ResumeAnalysisResult["candidateFacts"] {
   const facts: ResumeAnalysisResult["candidateFacts"] = [];
-  const graduationMatch = text.match(/(?:毕业(?:时间|年份)?|应届)[^\d]{0,8}(20\d{2})/);
-  if (graduationMatch?.[1]) {
+  const graduationMatch = text.match(
+    /(?:毕业(?:时间|年份)?|应届)[^\d]{0,12}(20\d{2})|(20\d{2})[^\r\n。；;]{0,12}(?:毕业|应届)/,
+  );
+  const graduationYear = graduationMatch?.[1] ?? graduationMatch?.[2];
+  if (graduationYear) {
     facts.push({
       key: "graduation_year",
-      value: Number(graduationMatch[1]),
+      value: Number(graduationYear),
       confirmed: false,
     });
   }
+
+  if (/(?:在校生|在读学生|本科在读|硕士在读|博士在读|学历在读)/.test(text)) {
+    facts.push({ key: "current_student", value: true, confirmed: false });
+  }
+
+  const educationLevels = ["大专", "本科", "硕士", "博士"].filter((level) => text.includes(level));
+  const highestEducation = educationLevels.at(-1);
+  if (highestEducation) {
+    facts.push({ key: "education_level", value: highestEducation, confirmed: false });
+  }
+
+  const majorCandidates = new Set<string>();
+  const prefixedMajorMatch = text.match(
+    /(?:^|[\s，,。；;])(?:专业|主修)\s*[：:]?\s*([^\r\n。；;]{2,60})/,
+  );
+  if (prefixedMajorMatch?.[1]) {
+    const majorText = prefixedMajorMatch[1].replace(
+      /\s+(?:(?:大专|本科|硕士|博士)(?:学历)?|20\d{2}\s*年|预计|应届|在校|在读).*$/,
+      "",
+    );
+    for (const value of majorText.split(/[、,，/]/)) {
+      const candidate = value.trim();
+      if (candidate.length >= 2 && candidate.length <= 30) majorCandidates.add(candidate);
+    }
+  }
+  for (const match of text.matchAll(
+    /([\u3400-\u9fffA-Za-z][\u3400-\u9fffA-Za-z0-9&+·（）()/-]{1,29})\s*专业/g,
+  )) {
+    if (match[1]) majorCandidates.add(match[1]);
+  }
+  const majors = [...majorCandidates].slice(0, 20);
+  if (majors.length > 0) facts.push({ key: "majors", value: majors, confirmed: false });
 
   const skills = SKILL_TERMS.filter((term) =>
     text.toLocaleLowerCase().includes(term.toLocaleLowerCase()),
@@ -91,6 +146,122 @@ function evidenceSection(line: string, currentSection: string): string {
   return currentSection;
 }
 
+function splitAtomicStatements(text: string): string[] {
+  const sentences = text
+    .split(/(?<=[。；;！？!?])|\r?\n+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const atoms: string[] = [];
+  for (const sentence of sentences) {
+    if (sentence.length <= 400) {
+      atoms.push(sentence);
+      continue;
+    }
+    const pieces = sentence
+      .split(/(?<=[，,])/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+    let buffer = "";
+    for (const piece of pieces) {
+      if (buffer && buffer.length + piece.length > 400) {
+        atoms.push(buffer);
+        buffer = piece;
+      } else {
+        buffer += piece;
+      }
+    }
+    if (buffer) atoms.push(buffer);
+  }
+  return atoms.flatMap((atom) => {
+    if (atom.length <= 500) return [atom];
+    const chunks: string[] = [];
+    for (let offset = 0; offset < atom.length; offset += 500) {
+      chunks.push(atom.slice(offset, offset + 500));
+    }
+    return chunks;
+  });
+}
+
+function candidateDocument(text: string, analysisId: string): ResumeDocumentInput {
+  const sectionRows: Array<{ title: string; blocks: string[] }> = [];
+  let current = { title: "简历内容", blocks: [] as string[] };
+  const flush = () => {
+    if (current.blocks.length > 0) sectionRows.push(current);
+  };
+  for (const rawLine of text
+    .split(/\r?\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)) {
+    const section = evidenceSection(rawLine, current.title);
+    if (section !== current.title) {
+      flush();
+      current = { title: section, blocks: [] };
+      continue;
+    }
+    current.blocks.push(...splitAtomicStatements(rawLine));
+  }
+  flush();
+  if (sectionRows.length === 0) {
+    sectionRows.push({ title: "简历内容", blocks: splitAtomicStatements(text) });
+  }
+  let globalBlockOrdinal = 0;
+  return {
+    schemaVersion: "resume-document-v1",
+    sections: sectionRows.map((section, sectionOrdinal) => ({
+      id: uuidV5(analysisId, `document-section:${sectionOrdinal}:${section.title}`),
+      ordinal: sectionOrdinal,
+      title: section.title,
+      blocks: section.blocks.map((block, blockOrdinal) => {
+        const blockId = uuidV5(analysisId, `document-block-v1:${globalBlockOrdinal}`);
+        globalBlockOrdinal += 1;
+        return {
+          id: blockId,
+          ordinal: blockOrdinal,
+          text: block.slice(0, 10_000),
+        };
+      }),
+    })),
+  };
+}
+
+export function evidenceType(section: string, text: string): ResumeEvidenceType {
+  const source = `${section} ${text}`;
+  if (/(?:教育|学历|学校|专业)/.test(source)) return "education";
+  if (/(?:实习|工作)/.test(source)) return "internship";
+  if (/(?:项目|作品)/.test(source)) return "project";
+  if (/(?:校园|学生会|社团)/.test(source)) return "campus";
+  if (/(?:竞赛|比赛|获奖)/.test(source)) return "competition";
+  if (/(?:志愿|公益)/.test(source)) return "volunteer";
+  if (/(?:证书|资格)/.test(source)) return "certificate";
+  if (/(?:技能|工具)/.test(source)) return "skill";
+  return "other";
+}
+
+export function deriveResumeEvidenceContent(
+  section: string,
+  text: string,
+): {
+  evidenceType: ResumeEvidenceType;
+  statement: string;
+  skills: string[];
+  outcomes: string[];
+} {
+  const skills = SKILL_TERMS.filter((term) =>
+    text.toLocaleLowerCase().includes(term.toLocaleLowerCase()),
+  );
+  const outcomes =
+    text.match(/[^。；;\n]*(?:\d+(?:\.\d+)?%|\d+\s*(?:人|次|个|万|千|元))[^。；;\n]*/g) ?? [];
+  return {
+    evidenceType: evidenceType(section, text),
+    statement: text.slice(0, 2_000),
+    skills: [...skills],
+    outcomes: outcomes
+      .map((outcome) => outcome.trim())
+      .filter(Boolean)
+      .slice(0, 20),
+  };
+}
+
 function uuidV5(namespace: string, name: string): string {
   const namespaceBytes = Buffer.from(namespace.replaceAll("-", ""), "hex");
   if (namespaceBytes.length !== 16) throw new Error("RESUME_ANALYSIS_ID_INVALID");
@@ -104,14 +275,35 @@ function uuidV5(namespace: string, name: string): string {
   )}-${hex.slice(20)}`;
 }
 
-function candidateEvidence(text: string, analysisId: string): CandidateEvidence[] {
+function candidateEvidence(document: ResumeDocumentInput, analysisId: string): CandidateEvidence[] {
   const evidence: CandidateEvidence[] = [];
+  for (const section of document.sections) {
+    for (const block of section.blocks) {
+      const paragraph = block.text;
+      if (paragraph.length < 8) continue;
+      const derived = deriveResumeEvidenceContent(section.title, paragraph);
+      evidence.push({
+        id: uuidV5(analysisId, `candidate-evidence-v2:${evidence.length}`),
+        sourceBlockId: block.id,
+        section: section.title,
+        ...derived,
+        confirmed: false,
+      });
+    }
+  }
+  return evidence.slice(0, 100);
+}
+
+function legacyCandidateEvidence(
+  text: string,
+  analysisId: string,
+): LegacyResumeAnalysisResult["candidateEvidence"] {
+  const evidence: LegacyResumeAnalysisResult["candidateEvidence"] = [];
   let section = "简历内容";
   const paragraphs = text
     .split(/\n+/)
     .map((part) => part.trim())
     .filter((part) => part.length >= 12);
-
   for (const paragraph of paragraphs.slice(0, 100)) {
     const nextSection = evidenceSection(paragraph, section);
     if (nextSection !== section) {
@@ -148,13 +340,15 @@ function buildAnalysisResult(
   findings: PersonalInformationFinding[];
 } {
   const { redactedText, findings } = redactPersonalInformation(text);
+  const document = candidateDocument(redactedText, analysisId);
   return {
     findings,
     result: {
-      version: "resume-analysis-v1",
+      version: "resume-analysis-v2",
       redactedText,
+      document,
       candidateFacts: candidateFacts(redactedText),
-      candidateEvidence: candidateEvidence(redactedText, analysisId),
+      candidateEvidence: candidateEvidence(document, analysisId),
     },
   };
 }
@@ -165,17 +359,26 @@ function parseStorageMetadata(value: JsonValue | string): ResumeAnalysisStorageM
     !parsed ||
     Array.isArray(parsed) ||
     typeof parsed !== "object" ||
-    parsed.version !== RESUME_ANALYSIS_STORAGE_VERSION ||
+    (parsed.version !== RESUME_ANALYSIS_STORAGE_VERSION &&
+      parsed.version !== LEGACY_RESUME_ANALYSIS_STORAGE_VERSION) ||
     typeof parsed.candidateEvidenceCount !== "number" ||
     !Number.isInteger(parsed.candidateEvidenceCount) ||
     parsed.candidateEvidenceCount < 0 ||
-    parsed.candidateEvidenceCount > 100
+    parsed.candidateEvidenceCount > 100 ||
+    (parsed.version === RESUME_ANALYSIS_STORAGE_VERSION &&
+      (typeof parsed.documentBlockCount !== "number" ||
+        !Number.isInteger(parsed.documentBlockCount) ||
+        parsed.documentBlockCount < 1 ||
+        parsed.documentBlockCount > 50_000))
   ) {
     throw new Error("RESUME_ANALYSIS_STORAGE_INVALID");
   }
   return {
-    version: RESUME_ANALYSIS_STORAGE_VERSION,
+    version: parsed.version,
     candidateEvidenceCount: parsed.candidateEvidenceCount,
+    ...(typeof parsed.documentBlockCount === "number"
+      ? { documentBlockCount: parsed.documentBlockCount }
+      : {}),
   };
 }
 
@@ -183,6 +386,10 @@ function storageMetadata(result: ResumeAnalysisResult): ResumeAnalysisStorageMet
   return {
     version: RESUME_ANALYSIS_STORAGE_VERSION,
     candidateEvidenceCount: result.candidateEvidence.length,
+    documentBlockCount: result.document.sections.reduce(
+      (total, section) => total + section.blocks.length,
+      0,
+    ),
   };
 }
 
@@ -190,10 +397,30 @@ export function rebuildResumeAnalysisResult(input: {
   analysisId: string;
   extractedText: string;
   storageMetadata: JsonValue | string;
-}): ResumeAnalysisResult {
+}): HydratedResumeAnalysisResult {
   const metadata = parseStorageMetadata(input.storageMetadata);
+  if (metadata.version === LEGACY_RESUME_ANALYSIS_STORAGE_VERSION) {
+    const { redactedText } = redactPersonalInformation(input.extractedText);
+    const candidateEvidence = legacyCandidateEvidence(redactedText, input.analysisId);
+    if (candidateEvidence.length !== metadata.candidateEvidenceCount) {
+      throw new Error("RESUME_ANALYSIS_PARSER_VERSION_MISMATCH");
+    }
+    return {
+      version: "resume-analysis-v1",
+      redactedText,
+      candidateFacts: candidateFacts(redactedText),
+      candidateEvidence,
+    };
+  }
   const { result } = buildAnalysisResult(input.extractedText, input.analysisId);
-  if (result.candidateEvidence.length !== metadata.candidateEvidenceCount) {
+  const blockCount = result.document.sections.reduce(
+    (total, section) => total + section.blocks.length,
+    0,
+  );
+  if (
+    result.candidateEvidence.length !== metadata.candidateEvidenceCount ||
+    blockCount !== metadata.documentBlockCount
+  ) {
     throw new Error("RESUME_ANALYSIS_PARSER_VERSION_MISMATCH");
   }
   return result;
@@ -204,9 +431,28 @@ export function resumeAnalysisCandidateIds(input: {
   storageMetadata: JsonValue | string;
 }): ReadonlySet<string> {
   const metadata = parseStorageMetadata(input.storageMetadata);
+  if (metadata.version !== RESUME_ANALYSIS_STORAGE_VERSION) return new Set();
   return new Set(
     Array.from({ length: metadata.candidateEvidenceCount }, (_item, ordinal) =>
-      uuidV5(input.analysisId, `candidate-evidence:${ordinal}`),
+      uuidV5(input.analysisId, `candidate-evidence-v2:${ordinal}`),
+    ),
+  );
+}
+
+export function resumeAnalysisDocumentBlockIds(input: {
+  analysisId: string;
+  storageMetadata: JsonValue | string;
+}): ReadonlySet<string> {
+  const metadata = parseStorageMetadata(input.storageMetadata);
+  if (
+    metadata.version !== RESUME_ANALYSIS_STORAGE_VERSION ||
+    metadata.documentBlockCount === undefined
+  ) {
+    return new Set();
+  }
+  return new Set(
+    Array.from({ length: metadata.documentBlockCount }, (_item, ordinal) =>
+      uuidV5(input.analysisId, `document-block-v1:${ordinal}`),
     ),
   );
 }
@@ -224,7 +470,7 @@ export async function processResumeAnalysis(input: {
   encryptionKey: string;
   lease: OwnerTaskLease;
   now?: Date;
-}): Promise<ResumeAnalysisResult> {
+}): Promise<HydratedResumeAnalysisResult> {
   const now = input.now ?? new Date();
   const claimed = await withOwnerTaskLease(input.db, input.lease, async (transaction) => {
     const current = await transaction

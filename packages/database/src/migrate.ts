@@ -10,6 +10,9 @@ import { freezeRecommendationCandidateFreshnessMigration } from "./migrations/00
 import { linkSourceRevisionsToPublishedVersionsMigration } from "./migrations/008_link_source_revisions_to_published_versions.js";
 import { minimizeResumeAnalysisStorageMigration } from "./migrations/009_minimize_resume_analysis_storage.js";
 import { enforcePurgedResumeAnalysisErasureMigration } from "./migrations/010_enforce_purged_resume_analysis_erasure.js";
+import { g2CorrectnessFoundationsMigration } from "./migrations/011_g2_correctness_foundations.js";
+import { allowResumeAnalysisV2MetadataMigration } from "./migrations/012_allow_resume_analysis_v2_metadata.js";
+import { enforceCorrectnessProjectionOwnershipMigration } from "./migrations/013_enforce_correctness_projection_ownership.js";
 import type { Database } from "./types.js";
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -27,6 +30,10 @@ class StaticMigrationProvider implements MigrationProvider {
         linkSourceRevisionsToPublishedVersionsMigration,
       "009_minimize_resume_analysis_storage": minimizeResumeAnalysisStorageMigration,
       "010_enforce_purged_resume_analysis_erasure": enforcePurgedResumeAnalysisErasureMigration,
+      "011_g2_correctness_foundations": g2CorrectnessFoundationsMigration,
+      "012_allow_resume_analysis_v2_metadata": allowResumeAnalysisV2MetadataMigration,
+      "013_enforce_correctness_projection_ownership":
+        enforceCorrectnessProjectionOwnershipMigration,
     };
   }
 }

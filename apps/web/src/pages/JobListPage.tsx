@@ -101,6 +101,7 @@ export function JobListPage() {
               onChange={(event) => setDraft({ ...draft, keyword: event.target.value })}
               placeholder="岗位、公司、职责或要求"
             />
+            <small>可搜索岗位名称、公司、职责与要求</small>
           </label>
           <FacetSelect
             label="城市"
@@ -115,6 +116,10 @@ export function JobListPage() {
             facet={facet(query.data, "jobFamily")}
             labels={jobFamilyLabels}
           />
+        </div>
+
+        <div className="filter-primary-actions">
+          <p>关键词与条件可以组合使用；官方未说明的条件不会被当作符合。</p>
           <button className="button button--primary" type="submit">
             查看岗位
           </button>

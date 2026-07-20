@@ -82,6 +82,27 @@ interface DiscoveredCandidate {
   discoveryStreams: string[];
 }
 
+export interface ProbeBudgetUsage {
+  requests: number;
+  pages: number;
+}
+
+export function claimProbeRequest(
+  sourceConfig: SourceConfig,
+  usage: ProbeBudgetUsage,
+  kind: "page" | "detail",
+): void {
+  const budget = sourceConfig.localProbe.requestBudget;
+  if (usage.requests >= budget.maxRequests) {
+    throw new Error("PROBE_REQUEST_BUDGET_EXCEEDED");
+  }
+  if (kind === "page" && usage.pages >= budget.maxPages) {
+    throw new Error("PROBE_PAGE_BUDGET_EXCEEDED");
+  }
+  usage.requests += 1;
+  if (kind === "page") usage.pages += 1;
+}
+
 const taskBackoffPolicySchema = z.object({
   baseMilliseconds: z.number().int().nonnegative(),
   maximumMilliseconds: z.number().int().nonnegative(),
@@ -214,6 +235,7 @@ async function createOrClaimProbeTask(input: {
     runMode: "probe",
     window,
     queryStreams: config.localProbe.queryStreams,
+    requestBudget: config.localProbe.requestBudget,
     limit,
   });
 
@@ -372,10 +394,12 @@ async function fetchSearchPage(input: {
   pageIndex: number;
   pageSize: number;
   lease: TaskLease;
+  budgetUsage: ProbeBudgetUsage;
 }): Promise<{
   parsed: ReturnType<typeof tencentSearchResponseSchema.parse>;
   fetchId: string;
 }> {
+  claimProbeRequest(input.sourceConfig, input.budgetUsage, "page");
   const requestBody = buildTencentSearchRequest(input.stream, input.pageIndex, input.pageSize);
   const response = await safeRequestJson(
     {
@@ -405,10 +429,12 @@ async function fetchDetail(input: {
   crawlRunId: string;
   postId: string;
   lease: TaskLease;
+  budgetUsage: ProbeBudgetUsage;
 }): Promise<{
   parsed: ReturnType<typeof tencentDetailResponseSchema.parse>;
   fetchId: string;
 }> {
+  claimProbeRequest(input.sourceConfig, input.budgetUsage, "detail");
   const response = await safeRequestJson(
     {
       method: "GET",
@@ -440,8 +466,8 @@ async function discoverCandidates(input: {
   limit: number;
   errors: ProbeResult["errors"];
   reportedTotals: Record<string, number>;
-  requestCounter: { value: number };
   rejectedCounter: { value: number };
+  budgetUsage: ProbeBudgetUsage;
 }): Promise<Map<string, DiscoveredCandidate>> {
   const discovered = new Map<string, DiscoveredCandidate>();
 
@@ -465,14 +491,13 @@ async function discoverCandidates(input: {
         stream,
         pageIndex,
         pageSize,
+        budgetUsage: input.budgetUsage,
         lease: {
           taskId: input.taskId,
           leaseOwner: input.leaseOwner,
           fencingToken: input.fencingToken,
         },
       });
-      input.requestCounter.value += 1;
-
       input.reportedTotals[stream.key] = parsed.data.count;
       expectedTotal ??= parsed.data.count;
       if (parsed.data.count !== expectedTotal) {
@@ -540,7 +565,7 @@ async function discoverCandidates(input: {
       await delay(
         Math.max(
           input.runtime.probeRequestIntervalMs,
-          input.sourceConfig.localProbe.requestIntervalMs,
+          input.sourceConfig.localProbe.requestBudget.minimumIntervalMs,
         ),
       );
     }
@@ -560,6 +585,7 @@ interface AdapterProbeInput {
   fencingToken: number;
   limit: number;
   errors: ProbeResult["errors"];
+  budgetUsage: ProbeBudgetUsage;
 }
 
 interface AdapterProbeOutput {
@@ -582,7 +608,7 @@ function probeLease(input: AdapterProbeInput): TaskLease {
 function requestInterval(input: AdapterProbeInput): number {
   return Math.max(
     input.runtime.probeRequestIntervalMs,
-    input.sourceConfig.localProbe.requestIntervalMs,
+    input.sourceConfig.localProbe.requestBudget.minimumIntervalMs,
   );
 }
 
@@ -595,6 +621,7 @@ async function fetchMeituanListPage(
   parsed: ReturnType<typeof meituanSearchResponseSchema.parse>;
   fetchId: string;
 }> {
+  claimProbeRequest(input.sourceConfig, input.budgetUsage, "page");
   const response = await safeRequestJson(
     {
       method: "POST",
@@ -625,6 +652,7 @@ async function fetchMeituanDetail(
   parsed: ReturnType<typeof meituanDetailResponseSchema.parse>;
   fetchId: string;
 }> {
+  claimProbeRequest(input.sourceConfig, input.budgetUsage, "detail");
   const response = await safeRequestJson(
     {
       method: "POST",
@@ -654,7 +682,6 @@ async function runMeituanAdapterProbe(input: AdapterProbeInput): Promise<Adapter
   >();
   const failureErrorCodes: string[] = [];
   const reportedTotals: Record<string, number> = {};
-  let requestCount = 0;
   let rejectedCount = 0;
   let pageNo = 1;
   let expectedTotal: number | undefined;
@@ -665,7 +692,6 @@ async function runMeituanAdapterProbe(input: AdapterProbeInput): Promise<Adapter
       pageNo,
       pageSize: Math.min(10, input.limit - candidates.size),
     });
-    requestCount += 1;
     const payload = meituanListPayload(listResult.parsed);
     reportedTotals["product-internships"] = payload.page.totalCount;
     expectedTotal ??= payload.page.totalCount;
@@ -710,7 +736,6 @@ async function runMeituanAdapterProbe(input: AdapterProbeInput): Promise<Adapter
         ...input,
         jobUnionId: candidate.item.jobUnionId,
       });
-      requestCount += 1;
       const normalized = normalizeMeituanJob({
         list: candidate.item,
         detail: meituanDetailPayload(detailResult.parsed),
@@ -744,13 +769,14 @@ async function runMeituanAdapterProbe(input: AdapterProbeInput): Promise<Adapter
     discoveredCount: candidates.size,
     normalizedCount,
     rejectedCount,
-    requestCount,
+    requestCount: input.budgetUsage.requests,
     reportedTotals,
     failureErrorCodes,
   };
 }
 
 async function runNankaiTalAdapterProbe(input: AdapterProbeInput): Promise<AdapterProbeOutput> {
+  claimProbeRequest(input.sourceConfig, input.budgetUsage, "page");
   const response = await safeRequestHtml(
     { method: "GET", url: NANKAI_TAL_SOURCE_URL },
     input.sourceConfig.policy.fetchTargets,
@@ -806,7 +832,7 @@ async function runNankaiTalAdapterProbe(input: AdapterProbeInput): Promise<Adapt
     discoveredCount: roles.length,
     normalizedCount,
     rejectedCount,
-    requestCount: 1,
+    requestCount: input.budgetUsage.requests,
     reportedTotals: { "operations-roles": page.roles.length },
     failureErrorCodes,
   };
@@ -831,11 +857,10 @@ export async function runSourceProbe(input: {
   ) {
     throw new Error("INVALID_LOCAL_PROBE_EXCEPTION");
   }
-  if (input.limit < 1 || input.limit > Math.min(20, sourceConfig.localProbe.maxItems)) {
+  if (input.limit < 1 || input.limit > sourceConfig.localProbe.requestBudget.maxItems) {
     throw new Error("PROBE_LIMIT_OUT_OF_RANGE");
   }
   assertConfiguredAdapterVersion(
-    sourceConfig.sourceKey,
     sourceConfig.policy.adapterKey,
     sourceConfig.policy.adapterVersion,
   );
@@ -911,6 +936,7 @@ export async function runSourceProbe(input: {
   let rejectedCount = 0;
   let requestCount = 0;
   let completion: "partial" | "failed" = "failed";
+  const budgetUsage: ProbeBudgetUsage = { requests: 0, pages: 0 };
 
   try {
     const adapterInput: AdapterProbeInput = {
@@ -924,19 +950,17 @@ export async function runSourceProbe(input: {
       fencingToken: claimed.fencingToken,
       limit: input.limit,
       errors,
+      budgetUsage,
     };
 
-    if (sourceConfig.sourceKey === "tencent-campus") {
-      const requestCounter = { value: 0 };
+    if (sourceConfig.policy.adapterKey === "tencent-public-api") {
       const discoveryRejectedCounter = { value: 0 };
       const candidates = await discoverCandidates({
         ...adapterInput,
         reportedTotals,
-        requestCounter,
         rejectedCounter: discoveryRejectedCounter,
       });
       discoveredCount = candidates.size;
-      requestCount += requestCounter.value;
       rejectedCount += discoveryRejectedCounter.value;
 
       for (const candidate of candidates.values()) {
@@ -951,8 +975,8 @@ export async function runSourceProbe(input: {
             crawlRunId: runId,
             postId: candidate.item.postId,
             lease,
+            budgetUsage,
           });
-          requestCount += 1;
           const normalized = normalizeTencentJob({
             list: candidate.item,
             detail: detail.parsed.data,
@@ -982,9 +1006,13 @@ export async function runSourceProbe(input: {
       }
     } else {
       const output =
-        sourceConfig.sourceKey === "meituan-official"
+        sourceConfig.policy.adapterKey === "meituan-public-api"
           ? await runMeituanAdapterProbe(adapterInput)
-          : await runNankaiTalAdapterProbe(adapterInput);
+          : sourceConfig.policy.adapterKey === "nankai-tal-deterministic-html"
+            ? await runNankaiTalAdapterProbe(adapterInput)
+            : (() => {
+                throw new Error("ADAPTER_NOT_IMPLEMENTED");
+              })();
       discoveredCount = output.discoveredCount;
       normalizedCount = output.normalizedCount;
       rejectedCount = output.rejectedCount;
@@ -993,11 +1021,13 @@ export async function runSourceProbe(input: {
       failureErrorCodes.push(...output.failureErrorCodes);
     }
     completion = normalizedCount > 0 ? "partial" : "failed";
+    requestCount = budgetUsage.requests;
   } catch (error) {
     const code = errorCode(error);
     failureErrorCodes.push(code);
     errors.push({ code, message: errorMessage(error) });
     completion = normalizedCount > 0 ? "partial" : "failed";
+    requestCount = budgetUsage.requests;
   }
 
   const now = new Date();

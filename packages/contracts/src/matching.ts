@@ -24,7 +24,17 @@ export const RequirementKindSchema = z.enum([
 ]);
 export type RequirementKind = z.infer<typeof RequirementKindSchema>;
 
-export const JobRequirementSchema = z.object({
+export const RequirementNecessitySchema = z.enum(["required", "preferred", "optional", "unknown"]);
+export type RequirementNecessity = z.infer<typeof RequirementNecessitySchema>;
+
+export const RequirementSourceSpanSchema = z.object({
+  start: z.number().int().nonnegative(),
+  end: z.number().int().positive(),
+  excerptHash: Sha256Schema,
+});
+export type RequirementSourceSpan = z.infer<typeof RequirementSourceSpanSchema>;
+
+const JobRequirementInputSchema = z.object({
   id: IdentifierSchema,
   kind: RequirementKindSchema,
   operator: z.enum([
@@ -40,8 +50,24 @@ export const JobRequirementSchema = z.object({
   expectedValue: z.unknown(),
   sourceText: z.string().trim().min(1),
   evidenceRefs: z.array(IdentifierSchema).min(1),
-  required: z.boolean(),
+  sourceSpan: RequirementSourceSpanSchema.nullable().optional(),
+  necessity: RequirementNecessitySchema.optional(),
+  required: z.boolean().optional(),
 });
+
+export const JobRequirementSchema = JobRequirementInputSchema.superRefine((value, context) => {
+  if (value.necessity === undefined && value.required === undefined) {
+    context.addIssue({
+      code: "custom",
+      message: "requirement necessity is missing",
+      path: ["necessity"],
+    });
+  }
+}).transform(({ required, necessity, sourceSpan, ...value }) => ({
+  ...value,
+  necessity: necessity ?? (required ? "required" : "preferred"),
+  sourceSpan: sourceSpan ?? null,
+}));
 export type JobRequirement = z.infer<typeof JobRequirementSchema>;
 
 export const JobRequirementSetSchema = z.object({
@@ -60,6 +86,49 @@ const MatchAxisReasonSchema = z.object({
   evidenceIds: z.array(IdentifierSchema),
   explanation: z.string().trim().min(1),
 });
+
+export const MatchBasisStateSchema = z.enum(["complete", "partial", "insufficient"]);
+export type MatchBasisState = z.infer<typeof MatchBasisStateSchema>;
+
+export const MatchGapSchema = z.object({
+  axis: z.enum(["eligibility", "evidence", "preference"]),
+  type: z.enum([
+    "explicit_conflict",
+    "missing_user_fact",
+    "missing_job_value",
+    "unstructured_job_requirement",
+    "missing_resume_evidence",
+    "partial_resume_evidence",
+    "preference_not_comparable",
+  ]),
+  requirementId: IdentifierSchema.nullable(),
+  explanation: z.string().trim().min(1),
+});
+export type MatchGap = z.infer<typeof MatchGapSchema>;
+
+export const MatchCoverageSchema = z.object({
+  eligibility: z.object({
+    required: z.number().int().nonnegative(),
+    evaluated: z.number().int().nonnegative(),
+    met: z.number().int().nonnegative(),
+    conflicts: z.number().int().nonnegative(),
+    unknown: z.number().int().nonnegative(),
+  }),
+  evidence: z.object({
+    applicable: z.number().int().nonnegative(),
+    supported: z.number().int().nonnegative(),
+    partial: z.number().int().nonnegative(),
+    missing: z.number().int().nonnegative(),
+    unknown: z.number().int().nonnegative(),
+  }),
+  preference: z.object({
+    configured: z.number().int().nonnegative(),
+    compared: z.number().int().nonnegative(),
+    conflicts: z.number().int().nonnegative(),
+    unknown: z.number().int().nonnegative(),
+  }),
+});
+export type MatchCoverage = z.infer<typeof MatchCoverageSchema>;
 
 export const EligibilityResultSchema = z.object({
   status: EligibilityStatusSchema,
@@ -83,6 +152,9 @@ export const MatchRunResultSchema = z.object({
   eligibility: EligibilityResultSchema,
   evidence: EvidenceMatchResultSchema,
   preference: PreferenceMatchResultSchema,
+  basisState: MatchBasisStateSchema,
+  coverage: MatchCoverageSchema,
+  gaps: z.array(MatchGapSchema),
   unknownRequirementIds: z.array(IdentifierSchema),
 });
 export type MatchRunResult = z.infer<typeof MatchRunResultSchema>;
@@ -133,6 +205,9 @@ export const RecommendationItemSchema = z.object({
   evidence: EvidenceMatchStatusSchema,
   preference: PreferenceMatchStatusSchema,
   reasonCodes: z.array(z.string().trim().min(1)),
+  basisState: MatchBasisStateSchema,
+  coverage: MatchCoverageSchema,
+  gaps: z.array(MatchGapSchema),
   unknownRequirementIds: z.array(IdentifierSchema),
   lastVerifiedAt: TimestampSchema.nullable(),
   catalogState: RecommendationCatalogStateSchema,

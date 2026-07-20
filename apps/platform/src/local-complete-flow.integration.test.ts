@@ -225,7 +225,8 @@ describeWithDatabase("complete local MVP service journey", () => {
         expectedValue: [2027],
         sourceText: "2027 年毕业",
         evidenceRefs: [`${ids.sourceRevision}#requirements`],
-        required: true,
+        necessity: "required",
+        sourceSpan: null,
       },
       {
         id: ids.skillRequirement,
@@ -234,7 +235,8 @@ describeWithDatabase("complete local MVP service journey", () => {
         expectedValue: ["SQL"],
         sourceText: "具备 SQL 数据分析能力",
         evidenceRefs: [`${ids.sourceRevision}#requirements`],
-        required: true,
+        necessity: "required",
+        sourceSpan: null,
       },
     ];
     await db
@@ -246,6 +248,27 @@ describeWithDatabase("complete local MVP service journey", () => {
         requirements: JSON.stringify(requirements),
         content_hash: "c".repeat(64),
       })
+      .execute();
+    await db
+      .insertInto("catalog.job_condition_projections")
+      .values({
+        published_job_version_id: ids.publishedVersion,
+        requirement_set_id: ids.requirementSet,
+        locations: known(["深圳"], `${ids.requirementSet}#city`),
+        weekly_attendance_days: known(4, `${ids.requirementSet}#attendance`),
+        duration_months: known(3, `${ids.requirementSet}#duration`),
+        earliest_start_date: unknown,
+        graduation_years: known([2027], `${ids.requirementSet}#graduation`),
+        student_status: known(true, `${ids.requirementSet}#student`),
+        education_levels: unknown,
+        majors: unknown,
+        languages: unknown,
+      })
+      .execute();
+    await db
+      .updateTable("catalog.published_job_versions")
+      .set({ active_requirement_set_id: ids.requirementSet })
+      .where("id", "=", ids.publishedVersion)
       .execute();
   });
 
@@ -265,6 +288,10 @@ describeWithDatabase("complete local MVP service journey", () => {
       await db.deleteFrom("decision.job_decisions").where("owner_id", "=", ownerId).execute();
       await db
         .deleteFrom("profile.resume_evidence_revisions")
+        .where("owner_id", "=", ownerId)
+        .execute();
+      await db
+        .deleteFrom("profile.resume_document_revisions")
         .where("owner_id", "=", ownerId)
         .execute();
       await db
@@ -288,6 +315,15 @@ describeWithDatabase("complete local MVP service journey", () => {
         .where("published_job_id", "=", ids.publishedJob)
         .execute();
       if (fixtureVersions.length > 0) {
+        await transaction
+          .updateTable("catalog.published_job_versions")
+          .set({ active_requirement_set_id: null })
+          .where(
+            "id",
+            "in",
+            fixtureVersions.map((version) => version.id),
+          )
+          .execute();
         await transaction
           .deleteFrom("catalog.job_requirement_sets")
           .where(
@@ -352,7 +388,15 @@ describeWithDatabase("complete local MVP service journey", () => {
         workerId: `integration-worker-${ids.organization}`,
       });
     }
-    throw new Error("OWNER_TASK_DID_NOT_COMPLETE");
+    const taskFailures = ownerId
+      ? await db
+          .selectFrom("task_queue.tasks")
+          .select(["task_type", "status", "last_error_code", "last_error_summary"])
+          .where("owner_id", "=", ownerId)
+          .orderBy("created_at", "desc")
+          .execute()
+      : [];
+    throw new Error(`OWNER_TASK_DID_NOT_COMPLETE:${JSON.stringify(taskFailures)}`);
   }
 
   it("runs resume, matching, recommendation, tailoring, DOCX and decision end to end", async () => {
@@ -401,12 +445,22 @@ describeWithDatabase("complete local MVP service journey", () => {
           | {
               candidateEvidence?: Array<{
                 id: string;
+                sourceBlockId: string;
                 section: string;
-                originalText: string;
-                claim: string;
+                evidenceType: "project" | "other";
+                statement: string;
                 skills: string[];
                 outcomes: string[];
               }>;
+              document: {
+                schemaVersion: "resume-document-v1";
+                sections: Array<{
+                  id: string;
+                  ordinal: number;
+                  title: string;
+                  blocks: Array<{ id: string; ordinal: number; text: string }>;
+                }>;
+              };
             }
           | undefined;
         const candidate = result?.candidateEvidence?.[0];
@@ -437,9 +491,10 @@ describeWithDatabase("complete local MVP service journey", () => {
         const evidenceItem: ResumeEvidence = {
           id: candidate?.id ?? randomUUID(),
           resumeAnalysisId: submission.analysis.id,
+          sourceBlockId: candidate?.sourceBlockId ?? randomUUID(),
           section: candidate?.section ?? "项目经历",
-          originalText: candidate?.originalText ?? "使用 SQL 分析用户反馈",
-          claim: candidate?.claim ?? "使用 SQL 分析用户反馈",
+          evidenceType: candidate?.evidenceType ?? "project",
+          statement: candidate?.statement ?? "使用 SQL 分析用户反馈",
           skills: candidate?.skills ?? ["SQL"],
           outcomes: candidate?.outcomes ?? [],
           confirmed: true,
@@ -449,6 +504,7 @@ describeWithDatabase("complete local MVP service journey", () => {
           owner,
           expectedRevision: 0,
           resumeAnalysisId: submission.analysis.id,
+          document: result?.document ?? null,
           evidence: [evidenceItem],
         });
 
@@ -673,11 +729,14 @@ describeWithDatabase("complete local MVP service journey", () => {
                 {
                   message: {
                     content: JSON.stringify({
-                      selections: [
+                      rewrites: [
                         {
-                          evidenceId: evidenceItem.id,
+                          sourceBlockId: evidenceItem.sourceBlockId,
+                          suggestedText:
+                            "使用 SQL 分析用户反馈，完成 3 次用户访谈并输出结论，负责产品需求分析。",
+                          reason: "将岗位相关技能与用户研究动作前置",
                           requirementIds: [ids.skillRequirement],
-                          emphasis: ["claim"],
+                          evidenceIds: [evidenceItem.id],
                         },
                       ],
                     }),
@@ -734,10 +793,21 @@ describeWithDatabase("complete local MVP service journey", () => {
           recoveredLease,
           async () => providerResponse(),
         );
-        expect(await getTailoringRun(db, owner, fencedTailoring.id)).toMatchObject({
+        const completedAiTailoring = await getTailoringRun(db, owner, fencedTailoring.id);
+        expect(completedAiTailoring).toMatchObject({
           status: "succeeded",
           usedTemplateFallback: false,
-          segments: [{ evidenceIds: [evidenceItem.id] }],
+        });
+        expect(completedAiTailoring?.segments[0]).toMatchObject({
+          sourceBlockId: evidenceItem.sourceBlockId,
+          suggestedText: "使用 SQL 分析用户反馈，完成 3 次用户访谈并输出结论，负责产品需求分析。",
+          evidenceIds: [evidenceItem.id],
+        });
+        expect(completedAiTailoring?.segments[1]).toMatchObject({
+          originalText: "毕业年份 2027",
+          suggestedText: "毕业年份 2027",
+          requirementIds: [],
+          evidenceIds: [],
         });
         await updateTailoringSegment(db, owner, tailoring.id, segment?.id ?? "", {
           decision: "accepted",

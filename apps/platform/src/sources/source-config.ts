@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
@@ -30,8 +31,19 @@ const normalizedQueryStreamSchema = z.object({
   label: z.string().min(1),
   keyword: z.string().max(30),
   positionFamilyIds: z.array(z.number().int().positive()),
-  targetItems: z.number().int().min(1).max(20),
+  targetItems: z.number().int().min(1).max(1_000),
 });
+
+const requestBudgetSchema = z
+  .object({
+    maxItems: z.number().int().min(1).max(1_000),
+    maxPages: z.number().int().min(1).max(100),
+    maxRequests: z.number().int().min(1).max(2_000),
+    minimumIntervalMs: z.number().int().min(250).max(60_000),
+  })
+  .refine((budget) => budget.maxRequests >= budget.maxPages, {
+    message: "maxRequests must be greater than or equal to maxPages",
+  });
 
 const normalizedSourceConfigSchema = z.object({
   schemaVersion: z.literal(1),
@@ -86,9 +98,8 @@ const normalizedSourceConfigSchema = z.object({
   }),
   localProbe: z.object({
     enabled: z.boolean(),
-    maxItems: z.number().int().min(1).max(20),
-    requestIntervalMs: z.number().int().min(250).max(10_000),
-    queryStreams: z.array(normalizedQueryStreamSchema).min(1).max(4),
+    requestBudget: requestBudgetSchema,
+    queryStreams: z.array(normalizedQueryStreamSchema).min(1).max(50),
   }),
 });
 
@@ -161,8 +172,7 @@ const rawSourceConfigSchema = z.object({
   localProbe: z.object({
     enabled: z.boolean(),
     environment: z.literal("local"),
-    maxItems: z.number().int().min(1).max(20),
-    requestIntervalMs: z.number().int().min(250).max(10_000),
+    requestBudget: requestBudgetSchema,
     completion: z.literal("partial"),
     publicationAllowed: z.literal(false),
     requestDefaults: z.record(z.unknown()).default({}),
@@ -173,11 +183,11 @@ const rawSourceConfigSchema = z.object({
           label: z.string().min(1),
           keyword: z.string().max(30),
           positionFamilyIds: z.array(z.string().regex(/^\d+$/)).default([]),
-          targetItems: z.number().int().min(1).max(20),
+          targetItems: z.number().int().min(1).max(1_000),
         }),
       )
       .min(1)
-      .max(4),
+      .max(50),
   }),
 });
 
@@ -186,9 +196,18 @@ export type SourceTarget = z.infer<typeof targetSchema>;
 export type ProbeQueryStream = z.infer<typeof normalizedQueryStreamSchema>;
 
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
+const sourceConfigDirectory = path.join(repositoryRoot, "config", "sources");
 
 export function getRepositoryRoot(): string {
   return repositoryRoot;
+}
+
+export async function listSourceKeys(): Promise<string[]> {
+  const entries = await readdir(sourceConfigDirectory, { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isFile() && /^[a-z0-9-]+\.json$/.test(entry.name))
+    .map((entry) => entry.name.slice(0, -".json".length))
+    .sort((left, right) => left.localeCompare(right));
 }
 
 export async function loadSourceConfig(sourceKey: string): Promise<SourceConfig> {
@@ -196,9 +215,12 @@ export async function loadSourceConfig(sourceKey: string): Promise<SourceConfig>
     throw new Error("INVALID_SOURCE_KEY");
   }
 
-  const url = new URL(`../../../../config/sources/${sourceKey}.json`, import.meta.url);
-  const contents = await readFile(url, "utf8");
+  const configPath = path.join(sourceConfigDirectory, `${sourceKey}.json`);
+  const contents = await readFile(configPath, "utf8");
   const raw = rawSourceConfigSchema.parse(JSON.parse(contents));
+  if (raw.sourceKey !== sourceKey) {
+    throw new Error("SOURCE_KEY_FILENAME_MISMATCH");
+  }
   return normalizedSourceConfigSchema.parse({
     schemaVersion: 1,
     sourceKey: raw.sourceKey,
@@ -246,8 +268,7 @@ export async function loadSourceConfig(sourceKey: string): Promise<SourceConfig>
     },
     localProbe: {
       enabled: raw.localProbe.enabled,
-      maxItems: raw.localProbe.maxItems,
-      requestIntervalMs: raw.localProbe.requestIntervalMs,
+      requestBudget: raw.localProbe.requestBudget,
       queryStreams: raw.localProbe.queryStreams.map((stream) => ({
         ...stream,
         positionFamilyIds: stream.positionFamilyIds.map(Number),

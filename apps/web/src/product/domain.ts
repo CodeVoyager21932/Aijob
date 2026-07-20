@@ -3,6 +3,7 @@ import type {
   EvidenceMatchStatus,
   FieldValue,
   JobDecisionStatus,
+  JobFamily,
   PreferenceMatchStatus,
 } from "@aijob/contracts";
 
@@ -124,9 +125,18 @@ export const salaryPeriodLabels: Record<string, string> = {
   other: "其他周期",
 };
 
-export const jobFamilyLabels: Record<string, string> = {
+export const jobFamilyLabels: Record<JobFamily, string> = {
   product: "产品",
   operations: "运营",
+  engineering: "工程技术",
+  data_ai: "数据与 AI",
+  design: "设计",
+  marketing: "市场营销",
+  sales_business: "销售与商务",
+  finance: "财务",
+  people_admin_legal: "人力、行政与法务",
+  research_consulting: "研究与咨询",
+  supply_chain_manufacturing: "供应链与制造",
   other: "其他",
 };
 

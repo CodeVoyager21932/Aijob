@@ -32,6 +32,7 @@ type UnknownReason = "source_not_stated" | "parse_failed" | "not_yet_verified";
 interface CatalogDatabaseRow {
   job_id: string;
   published_job_version_id: string | null;
+  active_requirement_set_id: string | null;
   revision_id: string;
   source_job_id: string;
   source_id: string;
@@ -51,6 +52,7 @@ interface CatalogDatabaseRow {
   recruitment_batch: JsonValue;
   weekly_attendance_days: JsonValue;
   duration_months: JsonValue;
+  student_status: JsonValue;
   earliest_start_date: JsonValue;
   graduation_years: JsonValue;
   education_levels: JsonValue;
@@ -183,23 +185,19 @@ function mapRow(row: CatalogDatabaseRow): CatalogSearchRecord {
   const detail = JobDetailSchema.parse({
     id: row.job_id,
     publishedJobVersionId: row.published_job_version_id,
+    activeRequirementSetId: row.active_requirement_set_id,
     companyName: row.company_name,
     title: row.title,
     jobFamily: parseField<JobFamily>(row.job_family, JobFamilySchema),
     locations: parseField(row.locations, z.array(z.string().trim().min(1)).min(1)),
-    weeklyAttendanceDays: parseField(
-      chooseField(row.weekly_attendance_days, structured.weeklyAttendanceDays),
-      z.number().int().min(1).max(7),
-    ),
-    durationMonths: parseField(
-      chooseField(row.duration_months, structured.durationMonths),
-      z.number().int().positive(),
-    ),
+    weeklyAttendanceDays: parseField(row.weekly_attendance_days, z.number().int().min(1).max(7)),
+    durationMonths: parseField(row.duration_months, z.number().int().positive()),
+    studentStatus: parseField(row.student_status, z.boolean()),
     recruitmentBatch: parseField(
       chooseField(row.recruitment_batch, structured.recruitmentBatch),
       z.string().trim().min(1),
     ),
-    graduationYears: normalizedYears(chooseField(row.graduation_years, structured.graduationYears)),
+    graduationYears: normalizedYears(row.graduation_years),
     educationLevels: parseField(row.education_levels, z.array(z.string().trim().min(1)).min(1)),
     majors: parseField(row.majors, z.array(z.string().trim().min(1)).min(1)),
     workMode: parseField(row.work_mode, z.string().trim().min(1)),
@@ -235,7 +233,7 @@ function mapRow(row: CatalogDatabaseRow): CatalogSearchRecord {
     jobCode: parseField(row.job_code, z.string().trim().min(1)),
     recruitmentType: parseField(row.recruitment_type, z.string().trim().min(1)),
     employmentType: parseField(row.employment_type, z.string().trim().min(1)),
-    earliestStartDate: normalizedDate(chooseField(row.earliest_start_date, structured.arrivalTime)),
+    earliestStartDate: normalizedDate(row.earliest_start_date),
     languages: parseField(row.languages, z.array(z.string().trim().min(1)).min(1)),
     responsibilitiesText: safeText(row.responsibilities, row.revision_id, "responsibilities"),
     requirementsText: safeText(row.requirements, row.revision_id, "requirements"),
@@ -253,6 +251,7 @@ async function loadLocalRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[]
     SELECT
       COALESCE(published.published_job_id, preview.job_id) AS job_id,
       published.published_job_version_id,
+      published.active_requirement_set_id,
       preview.revision_id,
       preview.source_job_id,
       preview.source_id,
@@ -264,19 +263,20 @@ async function loadLocalRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[]
       preview.company_name,
       preview.title,
       preview.job_family,
-      preview.locations,
+      COALESCE(projection.locations, '{"state":"unknown","reason":"source_not_stated"}'::jsonb) AS locations,
       revision.department,
       revision.job_code,
       preview.recruitment_type,
       revision.employment_type,
       revision.recruitment_batch,
-      revision.weekly_attendance_days,
-      revision.duration_months,
-      revision.earliest_start_date,
-      revision.graduation_years,
-      revision.education_levels,
-      revision.majors,
-      revision.languages,
+      COALESCE(projection.weekly_attendance_days, '{"state":"unknown","reason":"source_not_stated"}'::jsonb) AS weekly_attendance_days,
+      COALESCE(projection.duration_months, '{"state":"unknown","reason":"source_not_stated"}'::jsonb) AS duration_months,
+      COALESCE(projection.student_status, '{"state":"unknown","reason":"source_not_stated"}'::jsonb) AS student_status,
+      COALESCE(projection.earliest_start_date, '{"state":"unknown","reason":"source_not_stated"}'::jsonb) AS earliest_start_date,
+      COALESCE(projection.graduation_years, '{"state":"unknown","reason":"source_not_stated"}'::jsonb) AS graduation_years,
+      COALESCE(projection.education_levels, '{"state":"unknown","reason":"source_not_stated"}'::jsonb) AS education_levels,
+      COALESCE(projection.majors, '{"state":"unknown","reason":"source_not_stated"}'::jsonb) AS majors,
+      COALESCE(projection.languages, '{"state":"unknown","reason":"source_not_stated"}'::jsonb) AS languages,
       revision.salary,
       revision.work_mode,
       revision.posted_at,
@@ -302,6 +302,7 @@ async function loadLocalRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[]
       SELECT
         job.id AS published_job_id,
         version.id AS published_job_version_id,
+        version.active_requirement_set_id,
         version.source_job_revision_id
       FROM catalog.published_jobs AS job
       JOIN catalog.published_job_versions AS version
@@ -311,6 +312,9 @@ async function loadLocalRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[]
         AND materialization.source_job_revision_id = preview.revision_id
       LIMIT 1
     ) AS published ON true
+    LEFT JOIN catalog.job_condition_projections AS projection
+      ON projection.published_job_version_id = published.published_job_version_id
+      AND projection.requirement_set_id = published.active_requirement_set_id
     WHERE preview.ingestion_state = 'validated'
       AND preview.publication_state IN ('review', 'published')
       AND preview.policy_status IN ('pending_review', 'approved')
@@ -323,6 +327,7 @@ async function loadPublicRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[
     SELECT
       job.id AS job_id,
       version.id AS published_job_version_id,
+      version.active_requirement_set_id,
       revision.id AS revision_id,
       record.source_job_id,
       source.id AS source_id,
@@ -334,19 +339,20 @@ async function loadPublicRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[
       version.company_name,
       version.title,
       version.job_family,
-      version.locations,
+      COALESCE(projection.locations, '{"state":"unknown","reason":"source_not_stated"}'::jsonb) AS locations,
       version.department,
       version.job_code,
       version.recruitment_type,
       version.employment_type,
       version.recruitment_batch,
-      version.weekly_attendance_days,
-      version.duration_months,
-      version.earliest_start_date,
-      version.graduation_years,
-      version.education_levels,
-      version.majors,
-      version.languages,
+      COALESCE(projection.weekly_attendance_days, '{"state":"unknown","reason":"source_not_stated"}'::jsonb) AS weekly_attendance_days,
+      COALESCE(projection.duration_months, '{"state":"unknown","reason":"source_not_stated"}'::jsonb) AS duration_months,
+      COALESCE(projection.student_status, '{"state":"unknown","reason":"source_not_stated"}'::jsonb) AS student_status,
+      COALESCE(projection.earliest_start_date, '{"state":"unknown","reason":"source_not_stated"}'::jsonb) AS earliest_start_date,
+      COALESCE(projection.graduation_years, '{"state":"unknown","reason":"source_not_stated"}'::jsonb) AS graduation_years,
+      COALESCE(projection.education_levels, '{"state":"unknown","reason":"source_not_stated"}'::jsonb) AS education_levels,
+      COALESCE(projection.majors, '{"state":"unknown","reason":"source_not_stated"}'::jsonb) AS majors,
+      COALESCE(projection.languages, '{"state":"unknown","reason":"source_not_stated"}'::jsonb) AS languages,
       version.salary,
       version.work_mode,
       version.posted_at,
@@ -366,6 +372,9 @@ async function loadPublicRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[
     FROM catalog.published_jobs AS job
     JOIN catalog.published_job_versions AS version
       ON version.id = job.current_version_id
+    JOIN catalog.job_condition_projections AS projection
+      ON projection.published_job_version_id = version.id
+      AND projection.requirement_set_id = version.active_requirement_set_id
     JOIN ingestion.source_job_revisions AS revision
       ON revision.id = version.source_job_revision_id
     JOIN ingestion.source_job_records AS record

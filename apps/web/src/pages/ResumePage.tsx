@@ -1,7 +1,13 @@
-import { useMutation } from "@tanstack/react-query";
-import { type FormEvent, useMemo, useReducer } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type FormEvent, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { submitResumeFile, submitResumeText } from "../api/product";
+import {
+  getProfileDocument,
+  getProfileEvidence,
+  putSavedResumeEvidenceSelection,
+  submitResumeFile,
+  submitResumeText,
+} from "../api/product";
 import { JourneySteps, ProductError } from "../components/ProductStates";
 import { detectBrowserPii, piiLabel } from "../product/domain";
 import { writeJourneyId } from "../product/session-state";
@@ -58,12 +64,61 @@ export function browserPrivacyState(
 
 export function ResumePage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [{ mode, text, file, privacyChecked }, dispatch] = useReducer(
     resumeFormReducer,
     initialResumeFormState,
   );
   const browserFindings = useMemo(() => detectBrowserPii(text), [text]);
   const privacyState = browserPrivacyState(mode, browserFindings.length);
+  const savedDocumentQuery = useQuery({
+    queryKey: ["product", "profile", "document"],
+    queryFn: ({ signal }) => getProfileDocument(signal),
+  });
+  const savedEvidenceQuery = useQuery({
+    queryKey: ["product", "profile", "evidence"],
+    queryFn: ({ signal }) => getProfileEvidence(signal),
+  });
+  const [selectedSavedBlocks, setSelectedSavedBlocks] = useState<Set<string>>(new Set());
+  const initializedSavedSelection = useRef(false);
+  const savedDocument = savedDocumentQuery.data?.document ?? null;
+  const savedBlocks = useMemo(
+    () =>
+      savedDocument?.sections.flatMap((section) =>
+        section.blocks.map((block) => ({ ...block, section: section.title })),
+      ) ?? [],
+    [savedDocument],
+  );
+  useEffect(() => {
+    if (!savedEvidenceQuery.data || initializedSavedSelection.current) return;
+    initializedSavedSelection.current = true;
+    setSelectedSavedBlocks(
+      new Set(
+        ("evidence" in savedEvidenceQuery.data ? savedEvidenceQuery.data.evidence : []).flatMap(
+          (item) => ("sourceBlockId" in item ? [item.sourceBlockId] : []),
+        ),
+      ),
+    );
+  }, [savedEvidenceQuery.data]);
+
+  const reuseMutation = useMutation({
+    mutationFn: async () => {
+      if (!savedDocument || !savedEvidenceQuery.data) {
+        throw new Error("已保存的简历资料尚未加载完成。");
+      }
+      return putSavedResumeEvidenceSelection({
+        expectedRevision: savedEvidenceQuery.data.revision,
+        documentRevisionId: savedDocument.id,
+        sourceBlockIds: savedBlocks
+          .filter((block) => selectedSavedBlocks.has(block.id))
+          .map((block) => block.id),
+      });
+    },
+    onSuccess: (revision) => {
+      queryClient.setQueryData(["product", "profile", "evidence"], revision);
+      navigate("/recommendations?start=1");
+    },
+  });
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -100,7 +155,116 @@ export function ResumePage() {
         </div>
       </header>
 
-      <form className="resume-layout" onSubmit={submit}>
+      {savedDocumentQuery.isPending || savedEvidenceQuery.isPending ? (
+        <section className="product-panel saved-resume-panel">
+          <p>正在读取已保存的简历资料…</p>
+        </section>
+      ) : savedDocument ? (
+        <section
+          className="product-panel saved-resume-panel"
+          aria-labelledby="saved-resume-heading"
+        >
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">已保存，可继续使用</p>
+              <h2 id="saved-resume-heading">不用重复上传昨天的简历</h2>
+            </div>
+            <div className="saved-selection-summary">
+              <span>
+                已选择 {selectedSavedBlocks.size} / {savedBlocks.length} 段
+              </span>
+              <fieldset className="saved-selection-tools">
+                <legend className="sr-only">批量选择简历内容</legend>
+                <button
+                  className="button button--secondary saved-selection-button"
+                  type="button"
+                  disabled={
+                    savedBlocks.length === 0 || selectedSavedBlocks.size === savedBlocks.length
+                  }
+                  onClick={() =>
+                    setSelectedSavedBlocks(new Set(savedBlocks.map((block) => block.id)))
+                  }
+                >
+                  全选全部
+                </button>
+                <button
+                  className="button button--secondary saved-selection-button"
+                  type="button"
+                  disabled={selectedSavedBlocks.size === 0}
+                  onClick={() => setSelectedSavedBlocks(new Set())}
+                >
+                  清空选择
+                </button>
+              </fieldset>
+            </div>
+          </div>
+          <p>
+            原文件和原文已经按约定删除；下方是你确认后保留的结构化简历区块。它们最长保留 30
+            天，可以继续用于匹配、推荐和逐条优化。
+          </p>
+          {selectedSavedBlocks.size === 0 ? (
+            <div className="product-callout is-warning">
+              当前没有选择任何经历证据，所以推荐页只能显示“简历暂未体现”。请在下方勾选真实经历。
+            </div>
+          ) : null}
+          <p className="saved-selection-note">
+            可以一键全选，再取消个人信息、求职意向等不属于经历证据的区块；只有保存后才会生成新推荐。
+          </p>
+          <div className="saved-document-sections">
+            {savedDocument.sections.map((section) => (
+              <section key={section.id}>
+                <h3>{section.title}</h3>
+                <ul className="evidence-confirm-list">
+                  {section.blocks.map((block) => (
+                    <li key={block.id}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={selectedSavedBlocks.has(block.id)}
+                          onChange={(event) =>
+                            setSelectedSavedBlocks((current) => {
+                              const next = new Set(current);
+                              if (event.target.checked) next.add(block.id);
+                              else next.delete(block.id);
+                              return next;
+                            })
+                          }
+                        />
+                        <span>{block.text}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+          <div className="saved-resume-actions">
+            <button
+              className="button button--primary"
+              type="button"
+              disabled={reuseMutation.isPending}
+              onClick={() => reuseMutation.mutate()}
+            >
+              {reuseMutation.isPending ? "正在保存并重新匹配…" : "保存证据选择并生成最新推荐"}
+            </button>
+            <button
+              className="button button--secondary"
+              type="button"
+              onClick={() => navigate("/recommendations?start=1")}
+            >
+              不修改，直接沿用当前资料
+            </button>
+            <a className="text-link" href="#new-resume">
+              上传新版简历
+            </a>
+          </div>
+          {reuseMutation.isError ? (
+            <ProductError title="已保存证据没有更新成功" error={reuseMutation.error} />
+          ) : null}
+        </section>
+      ) : null}
+
+      <form id="new-resume" className="resume-layout" onSubmit={submit}>
         <section className="product-panel" aria-labelledby="resume-input-heading">
           <div className="panel-heading">
             <div>

@@ -4,6 +4,7 @@ import {
   CreateResumeTailoringRequestSchema,
   JobDetailSchema,
   MatchRunResultSchema,
+  normalizeCityPreferences,
   ResumeAnalysisSubmissionSchema,
   ResumeTailoringRunSchema,
   ResumeTailoringSegmentSchema,
@@ -84,11 +85,42 @@ describe("local complete MVP contracts", () => {
     ).toBe(false);
   });
 
+  it.each(["都可以", "不限", "无所谓", "不限城市"])(
+    "normalizes the unlimited-city alias %s to no city preference",
+    (alias) => {
+      expect(normalizeCityPreferences([alias])).toEqual({
+        cities: [],
+        mixedUnlimitedValue: false,
+      });
+    },
+  );
+
+  it("flags unlimited-city aliases mixed with concrete cities", () => {
+    expect(normalizeCityPreferences(["不限", "上海"])).toEqual({
+      cities: [],
+      mixedUnlimitedValue: true,
+    });
+  });
+
   it("keeps eligibility, evidence and preference as separate axes", () => {
     const result = MatchRunResultSchema.parse({
       eligibility: { status: "needs_information", reasons: [] },
       evidence: { status: "not_in_resume", reasons: [] },
       preference: { status: "fits", reasons: [] },
+      basisState: "partial",
+      coverage: {
+        eligibility: { required: 1, evaluated: 0, met: 0, conflicts: 0, unknown: 1 },
+        evidence: { applicable: 1, supported: 0, partial: 0, missing: 1, unknown: 0 },
+        preference: { configured: 1, compared: 1, conflicts: 0, unknown: 0 },
+      },
+      gaps: [
+        {
+          axis: "eligibility",
+          type: "missing_job_value",
+          requirementId: "requirement-1",
+          explanation: "岗位未说明该项资格条件",
+        },
+      ],
       unknownRequirementIds: ["requirement-1"],
     });
 

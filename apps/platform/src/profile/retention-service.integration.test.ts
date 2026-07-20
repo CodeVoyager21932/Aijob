@@ -232,6 +232,10 @@ describeWithDatabase("owner, export and tombstone retention", () => {
       .where("owner_id", "=", ownerId)
       .execute();
     await db
+      .deleteFrom("profile.resume_document_revisions")
+      .where("owner_id", "=", ownerId)
+      .execute();
+    await db
       .deleteFrom("profile.job_preference_revisions")
       .where("owner_id", "=", ownerId)
       .execute();
@@ -294,6 +298,9 @@ describeWithDatabase("owner, export and tombstone retention", () => {
       analysis: randomUUID(),
       facts: randomUUID(),
       preferences: randomUUID(),
+      document: randomUUID(),
+      documentSection: randomUUID(),
+      documentBlock: randomUUID(),
       evidence: randomUUID(),
       match: randomUUID(),
       recommendation: randomUUID(),
@@ -356,12 +363,36 @@ describeWithDatabase("owner, export and tombstone retention", () => {
       })
       .execute();
     await db
+      .insertInto("profile.resume_document_revisions")
+      .values({
+        id: ids.document,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        resume_analysis_id: ids.analysis,
+        revision: 1,
+        base_revision: null,
+        schema_version: "resume-document-v1",
+        sections: JSON.stringify([
+          {
+            id: ids.documentSection,
+            ordinal: 0,
+            title: "项目经历",
+            blocks: [{ id: ids.documentBlock, ordinal: 0, text: "confirmed original" }],
+          },
+        ]),
+        content_hash: "0".repeat(64),
+        confirmed_at: now,
+      })
+      .execute();
+    await db
       .insertInto("profile.resume_evidence_revisions")
       .values({
         id: ids.evidence,
         owner_id: owner.ownerId,
         owner_epoch: owner.ownerEpoch,
         resume_analysis_id: ids.analysis,
+        schema_version: "resume-evidence-v2",
+        document_revision_id: ids.document,
         revision: 1,
         base_revision: null,
         evidence: JSON.stringify([]),
@@ -404,6 +435,13 @@ describeWithDatabase("owner, export and tombstone retention", () => {
         candidate_freshness_snapshots: JSON.stringify([
           { publishedJobVersionId: fixture.publishedVersionId, lastVerifiedAt: now.toISOString() },
         ]),
+        candidate_requirement_set_ids: JSON.stringify([
+          {
+            publishedJobVersionId: fixture.publishedVersionId,
+            requirementSetId: fixture.requirementSetId,
+          },
+        ]),
+        resume_document_revision_id: ids.document,
         candidate_set_hash: "3".repeat(64),
         strategy_version: "retention-v1",
         status: "succeeded",
@@ -435,6 +473,7 @@ describeWithDatabase("owner, export and tombstone retention", () => {
         published_job_version_id: fixture.publishedVersionId,
         requirement_set_id: fixture.requirementSetId,
         evidence_revision_id: ids.evidence,
+        resume_document_revision_id: ids.document,
         provider_adapter: "template",
         model: "template",
         prompt_version: "retention-v1",
@@ -455,6 +494,9 @@ describeWithDatabase("owner, export and tombstone retention", () => {
         id: ids.segment,
         tailoring_run_id: ids.tailoring,
         ordinal: 0,
+        source_block_id: ids.documentBlock,
+        section_id: ids.documentSection,
+        section_title: "项目经历",
         original_text: "confirmed original",
         suggested_text: "confirmed suggestion",
         reason: "fixture",
@@ -795,8 +837,14 @@ describeWithDatabase("owner, export and tombstone retention", () => {
     const frozenInput = encryptResumePayload(
       Buffer.from(
         JSON.stringify({
-          version: "resume-export-input-v1",
-          paragraphs: ["confirmed paragraph"],
+          version: "resume-export-input-v2",
+          sections: [
+            {
+              id: "retention-section",
+              heading: "Confirmed resume",
+              paragraphs: ["confirmed paragraph"],
+            },
+          ],
         }),
         "utf8",
       ),
@@ -1039,6 +1087,7 @@ describeWithDatabase("owner, export and tombstone retention", () => {
       "matching.match_runs",
       "decision.job_decisions",
       "profile.resume_evidence_revisions",
+      "profile.resume_document_revisions",
       "profile.job_preference_revisions",
       "profile.profile_fact_revisions",
       "profile.resume_analyses",

@@ -1,8 +1,10 @@
 import type { AppEnvironment } from "@aijob/config";
 import {
+  normalizeCityPreferences,
   PutJobPreferencesRequestSchema,
   PutProfileFactsRequestSchema,
   PutResumeEvidenceRequestSchema,
+  PutSavedResumeEvidenceSelectionRequestSchema,
 } from "@aijob/contracts";
 import type { Database } from "@aijob/database";
 import type { FastifyInstance } from "fastify";
@@ -18,10 +20,12 @@ import {
 import {
   getCurrentJobPreferences,
   getCurrentProfileFacts,
+  getCurrentResumeDocument,
   getCurrentResumeEvidence,
   putJobPreferences,
   putProfileFacts,
   putResumeEvidence,
+  putSavedResumeEvidenceSelection,
 } from "./revision-repository.js";
 
 export const DELETION_RECEIPT_COOKIE_NAME = "aijob_deletion_receipt";
@@ -98,7 +102,23 @@ export function registerProfileRoutes(app: FastifyInstance, options: ProfileRout
     try {
       const owner = requireOwnerContext(request);
       const body = PutJobPreferencesRequestSchema.parse(request.body);
-      return reply.send(await putJobPreferences({ db: options.db, owner, ...body }));
+      const normalizedCities = normalizeCityPreferences(body.preferences.cities);
+      if (normalizedCities.mixedUnlimitedValue) {
+        throw new ApiProblem(
+          422,
+          "CITY_PREFERENCE_AMBIGUOUS",
+          "不限城市不能和具体城市同时选择",
+          "请选择“不限城市”，或只保留希望优先考虑的具体城市。",
+        );
+      }
+      return reply.send(
+        await putJobPreferences({
+          db: options.db,
+          owner,
+          ...body,
+          preferences: { ...body.preferences, cities: normalizedCities.cities },
+        }),
+      );
     } catch (error) {
       return handleMutationError(error, request, reply);
     }
@@ -111,6 +131,8 @@ export function registerProfileRoutes(app: FastifyInstance, options: ProfileRout
         (await getCurrentResumeEvidence({ db: options.db, ownerId: owner.ownerId })) ?? {
           revision: 0,
           resumeAnalysisId: null,
+          schemaVersion: "resume-evidence-v2",
+          documentRevisionId: null,
           evidence: [],
         },
       );
@@ -118,6 +140,28 @@ export function registerProfileRoutes(app: FastifyInstance, options: ProfileRout
       return handleMutationError(error, request, reply);
     }
   });
+
+  app.get("/v1/profile/document", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      return reply.send({
+        document: await getCurrentResumeDocument({ db: options.db, ownerId: owner.ownerId }),
+      });
+    } catch (error) {
+      return handleMutationError(error, request, reply);
+    }
+  });
+
+  app.put("/v1/profile/evidence-selection", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const body = PutSavedResumeEvidenceSelectionRequestSchema.parse(request.body);
+      return reply.send(await putSavedResumeEvidenceSelection({ db: options.db, owner, ...body }));
+    } catch (error) {
+      return handleMutationError(error, request, reply);
+    }
+  });
+
   app.put("/v1/profile/evidence", async (request, reply) => {
     try {
       const owner = requireOwnerContext(request);

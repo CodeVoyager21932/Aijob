@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { type FieldValue, fieldValueSchema, JobFamilySchema } from "@aijob/contracts";
+import {
+  type FieldValue,
+  fieldValueSchema,
+  JobFamilySchema,
+  type JobRequirement,
+  type RequirementKind,
+  type RequirementNecessity,
+} from "@aijob/contracts";
 import type { Database, JsonValue } from "@aijob/database";
 import { type Kysely, type Selectable, sql, type Transaction } from "kysely";
 import { z } from "zod";
@@ -15,7 +22,7 @@ import {
 type RevisionRow = Selectable<Database["ingestion.source_job_revisions"]>;
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
-const REQUIREMENT_SCHEMA_VERSION = "deterministic-requirements-v3";
+const REQUIREMENT_SCHEMA_VERSION = "deterministic-requirements-v4";
 const LOCAL_CATALOG_MATERIALIZATION_LOCK_KEY = "aijob:local-catalog-materialization:v1";
 
 const NumberFieldSchema = fieldValueSchema(z.number());
@@ -44,13 +51,49 @@ function chooseField(explicit: JsonValue, fallback: JsonValue | undefined): Json
 function requirementField<T>(
   value: FieldValue<T>,
   sourceText: string,
-  required = true,
-): { value: FieldValue<T>; sourceText?: string; required: boolean } {
+  necessity: RequirementNecessity = "required",
+): { value: FieldValue<T>; sourceText?: string; necessity: RequirementNecessity } {
   return {
     value,
     ...(sourceText.trim() ? { sourceText: sourceText.trim() } : {}),
-    required,
+    necessity,
   };
+}
+
+const unknownProjection = { state: "unknown", reason: "source_not_stated" } as const;
+
+function projectedField(requirements: JobRequirement[], kind: RequirementKind): JsonValue {
+  const candidates = requirements.filter(
+    (requirement) =>
+      requirement.kind === kind &&
+      requirement.operator !== "unknown" &&
+      requirement.necessity !== "optional",
+  );
+  if (candidates.length === 0) return unknownProjection;
+
+  const values = candidates.map(({ expectedValue }) => expectedValue);
+  const canonical = new Set(values.map((value) => JSON.stringify(value)));
+  if (canonical.size !== 1) {
+    return {
+      state: "conflict",
+      rawValues: values.map((value) => JSON.stringify(value)),
+      evidenceRefs: candidates.map(({ id }) => id),
+    };
+  }
+  const candidate = candidates[0];
+  if (!candidate) return unknownProjection;
+  const supportsProjection =
+    candidate.operator === "equals" ||
+    candidate.operator === "one_of" ||
+    candidate.operator === "at_least" ||
+    candidate.operator === "before_or_on" ||
+    candidate.operator === "contains";
+  if (!supportsProjection) return { state: "unknown", reason: "parse_failed" };
+  return {
+    state: "known",
+    value: candidate.expectedValue,
+    evidenceRefs: candidates.map(({ id }) => id),
+  } as JsonValue;
 }
 
 function exactRequirementExcerpt(sourceText: string, pattern: RegExp): string {
@@ -204,6 +247,15 @@ async function materializeRevision(
   const sourceText = revision.requirements;
   const structuredRequirements = decomposeKnownJobRequirements({
     publishedJobVersionId: version.id,
+    locations: requirementField(
+      parseField(revision.locations, StringListFieldSchema),
+      parseField(revision.locations, StringListFieldSchema).state === "known"
+        ? (parseField(revision.locations, StringListFieldSchema) as { value: string[] }).value.join(
+            "、",
+          )
+        : "",
+      "preferred",
+    ),
     earliestStartDate: requirementField(
       parseField(
         chooseField(revision.earliest_start_date, structured.arrivalTime),
@@ -264,8 +316,8 @@ async function materializeRevision(
     const existing = requirementsBySource.get(key);
     if (!existing) {
       requirementsBySource.set(key, requirement);
-    } else if (!requirement.required && existing.required) {
-      requirementsBySource.set(key, { ...existing, required: false });
+    } else if (requirement.necessity === "preferred" && existing.necessity === "required") {
+      requirementsBySource.set(key, { ...existing, necessity: "preferred" });
     }
   }
   const requirements = [...requirementsBySource.values()];
@@ -287,6 +339,47 @@ async function materializeRevision(
     )
     .returning("id")
     .executeTakeFirst();
+  const requirementSetId =
+    insertedRequirementSet?.id ??
+    (
+      await transaction
+        .selectFrom("catalog.job_requirement_sets")
+        .select("id")
+        .where("published_job_version_id", "=", version.id)
+        .where("content_hash", "=", requirementHash)
+        .executeTakeFirstOrThrow()
+    ).id;
+  const projection = {
+    locations: projectedField(requirements, "city"),
+    weekly_attendance_days: projectedField(requirements, "weekly_attendance"),
+    duration_months: projectedField(requirements, "duration"),
+    earliest_start_date: projectedField(requirements, "arrival_date"),
+    graduation_years: projectedField(requirements, "graduation_year"),
+    student_status: projectedField(requirements, "student_status"),
+    education_levels: projectedField(requirements, "education"),
+    majors: projectedField(requirements, "major"),
+    languages: projectedField(requirements, "language"),
+  };
+  await transaction
+    .insertInto("catalog.job_condition_projections")
+    .values({
+      published_job_version_id: version.id,
+      requirement_set_id: requirementSetId,
+      ...projection,
+    })
+    .onConflict((conflict) =>
+      conflict.column("published_job_version_id").doUpdateSet({
+        requirement_set_id: requirementSetId,
+        ...projection,
+        updated_at: new Date(),
+      }),
+    )
+    .execute();
+  await transaction
+    .updateTable("catalog.published_job_versions")
+    .set({ active_requirement_set_id: requirementSetId })
+    .where("id", "=", version.id)
+    .execute();
   return {
     createdVersion,
     createdRequirementSet: insertedRequirementSet !== undefined,

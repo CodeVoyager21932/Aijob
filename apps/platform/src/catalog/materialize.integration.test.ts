@@ -39,6 +39,11 @@ describeWithDatabase("catalog materialization revision links", () => {
       const jobIds = [...new Set(materialized.map(({ jobId }) => jobId))];
       if (versionIds.length > 0) {
         await transaction
+          .updateTable("catalog.published_job_versions")
+          .set({ active_requirement_set_id: null })
+          .where("id", "in", versionIds)
+          .execute();
+        await transaction
           .deleteFrom("catalog.job_requirement_sets")
           .where("published_job_version_id", "in", versionIds)
           .execute();

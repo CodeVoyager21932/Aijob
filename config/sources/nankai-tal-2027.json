@@ -80,9 +80,9 @@
     ]
   },
   "policy": {
-    "version": "1",
+    "version": "2",
     "status": "pending_review",
-    "adapterKey": "nankai-tal-2027",
+    "adapterKey": "nankai-tal-deterministic-html",
     "adapterVersion": "0.1.0",
     "entrypoints": ["https://career.nankai.edu.cn/correcruit/content/id/115842.html"],
     "crawlInterval": {
@@ -94,7 +94,8 @@
       "accessPolicyAccepted 未通过，仅允许维护者显式执行单页本地技术探测。",
       "禁止跟随页面其他链接、递归抓取高校网站、定时调度或自动公开。",
       "Moka 链接只作为用户导航目标校验，不由采集进程请求。",
-      "页面结构变化、招聘过期或申请链接变化时必须进入复核。"
+      "页面结构变化、招聘过期或申请链接变化时必须进入复核。",
+      "v2 将 sourceKey 与可复用 adapterKey 解耦，并将单页、单请求和最小间隔写成显式请求预算；访问范围不变。"
     ],
     "fetchTargets": [
       {
@@ -122,8 +123,12 @@
   "localProbe": {
     "enabled": true,
     "environment": "local",
-    "maxItems": 7,
-    "requestIntervalMs": 1500,
+    "requestBudget": {
+      "maxItems": 7,
+      "maxPages": 1,
+      "maxRequests": 1,
+      "minimumIntervalMs": 1500
+    },
     "completion": "partial",
     "publicationAllowed": false,
     "requestDefaults": {},

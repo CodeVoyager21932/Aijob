@@ -2,6 +2,7 @@ import type {
   CreateMatchRunRequest,
   CreateRecommendationRunRequest,
   CreateResumeTailoringRequest,
+  CurrentResumeDocument,
   JobDecision,
   JobDetail,
   JobPreferenceRevision,
@@ -13,6 +14,7 @@ import type {
   PutJobPreferencesRequest,
   PutProfileFactsRequest,
   PutResumeEvidenceRequest,
+  PutSavedResumeEvidenceSelectionRequest,
   PutTailoringSegmentRequest,
   RecommendationRun,
   ResumeEvidenceRevision,
@@ -22,6 +24,40 @@ import type {
 import { apiRequest, createIdempotencyKey } from "./client";
 
 export interface ResumeAnalysisResultPayload {
+  version: "resume-analysis-v2";
+  redactedText: string;
+  document: {
+    schemaVersion: "resume-document-v1";
+    sections: Array<{
+      id: string;
+      ordinal: number;
+      title: string;
+      blocks: Array<{ id: string; ordinal: number; text: string }>;
+    }>;
+  };
+  candidateFacts: Array<Record<string, unknown> & { key: string; confirmed: false }>;
+  candidateEvidence: Array<{
+    id: string;
+    sourceBlockId: string;
+    section: string;
+    evidenceType:
+      | "education"
+      | "internship"
+      | "project"
+      | "campus"
+      | "competition"
+      | "volunteer"
+      | "skill"
+      | "certificate"
+      | "other";
+    statement: string;
+    skills: string[];
+    outcomes: string[];
+    confirmed: false;
+  }>;
+}
+
+export interface LegacyResumeAnalysisResultPayload {
   version: "resume-analysis-v1";
   redactedText: string;
   candidateFacts: Array<Record<string, unknown> & { key: string; confirmed: false }>;
@@ -52,7 +88,7 @@ export interface ResumeAnalysisView {
   failureCode: string | null;
   createdAt: string;
   updatedAt: string;
-  result: ResumeAnalysisResultPayload | null;
+  result: ResumeAnalysisResultPayload | LegacyResumeAnalysisResultPayload | null;
 }
 
 export interface EmptyProfileFacts {
@@ -68,6 +104,8 @@ export interface EmptyProfilePreferences {
 export interface EmptyProfileEvidence {
   revision: 0;
   resumeAnalysisId: null;
+  schemaVersion: "resume-evidence-v2";
+  documentRevisionId: null;
   evidence: [];
 }
 
@@ -192,6 +230,17 @@ export function getProfileEvidence(signal?: AbortSignal) {
 
 export function putProfileEvidence(body: PutResumeEvidenceRequest) {
   return apiRequest<ResumeEvidenceRevision>("/v1/profile/evidence", {
+    method: "PUT",
+    body,
+  });
+}
+
+export function getProfileDocument(signal?: AbortSignal) {
+  return apiRequest<CurrentResumeDocument>("/v1/profile/document", { signal });
+}
+
+export function putSavedResumeEvidenceSelection(body: PutSavedResumeEvidenceSelectionRequest) {
+  return apiRequest<ResumeEvidenceRevision>("/v1/profile/evidence-selection", {
     method: "PUT",
     body,
   });

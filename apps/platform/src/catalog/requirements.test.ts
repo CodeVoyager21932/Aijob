@@ -17,17 +17,17 @@ describe("deterministic job requirement decomposition", () => {
       weeklyAttendanceDays: {
         value: known(4, "weeklyAttendanceDays"),
         sourceText: "每周至少实习 4 天",
-        required: true,
+        necessity: "required" as const,
       },
       educationLevels: {
         value: known(["本科"], "educationLevels"),
         sourceText: "本科及以上学历",
-        required: false,
+        necessity: "preferred" as const,
       },
       locations: {
         value: known(["深圳"], "locations"),
         sourceText: "工作地点：深圳",
-        required: false,
+        necessity: "preferred" as const,
       },
     };
     const first = decomposeKnownJobRequirements(input);
@@ -41,10 +41,10 @@ describe("deterministic job requirement decomposition", () => {
       expectedValue: 4,
       sourceText: "每周至少实习 4 天",
       evidenceRefs: ["revision#weeklyAttendanceDays"],
-      required: true,
+      necessity: "required",
     });
     expect(first.find(({ kind }) => kind === "city")).toMatchObject({
-      required: false,
+      necessity: "preferred",
       expectedValue: ["深圳"],
     });
   });
@@ -55,7 +55,7 @@ describe("deterministic job requirement decomposition", () => {
       graduationYears: {
         value: { state: "unknown", reason: "source_not_stated" },
         sourceText: "未说明",
-        required: true,
+        necessity: "required",
       },
       majors: {
         value: {
@@ -64,11 +64,11 @@ describe("deterministic job requirement decomposition", () => {
           evidenceRefs: ["revision#major-a", "revision#major-b"],
         },
         sourceText: "来源中存在冲突",
-        required: true,
+        necessity: "required",
       },
       languages: {
         value: known(["英语"], "languages"),
-        required: true,
+        necessity: "required",
       },
     });
     expect(requirements).toEqual([
@@ -77,7 +77,7 @@ describe("deterministic job requirement decomposition", () => {
         operator: "unknown",
         expectedValue: ["不限", "计算机"],
         evidenceRefs: ["revision#major-a", "revision#major-b"],
-        required: true,
+        necessity: "required",
       }),
     ]);
   });
@@ -88,7 +88,7 @@ describe("deterministic job requirement decomposition", () => {
       graduationYears: {
         value: known([2026, 2028], "graduationYears"),
         sourceText: "2026-2028 届毕业生",
-        required: true,
+        necessity: "required",
       },
     });
 
@@ -122,7 +122,7 @@ describe("deterministic job requirement decomposition", () => {
       kind: "education",
       operator: "one_of",
       expectedValue: ["本科", "硕士", "博士"],
-      required: true,
+      necessity: "required",
       evidenceRefs: ["source-job-revision:revision-1:requirements:1"],
     });
     expect(requirements[1]).toMatchObject({
@@ -142,7 +142,7 @@ describe("deterministic job requirement decomposition", () => {
     });
     expect(requirements[4]).toMatchObject({
       kind: "experience",
-      required: false,
+      necessity: "preferred",
       operator: "unknown",
       expectedValue: [],
     });
@@ -151,6 +151,32 @@ describe("deterministic job requirement decomposition", () => {
       operator: "unknown",
       expectedValue: [],
     });
+  });
+
+  it("keeps hard facts atomic when a later comma-delimited clause is preferred", () => {
+    const requirements = decomposeTextualJobRequirements({
+      publishedJobVersionId: "version-meituan-target",
+      evidenceRefPrefix: "source-job-revision:meituan:requirements",
+      sourceText: "本科及以上学历在读，至少实习 3 个月，每周不少于 4 天，有互联网产品经验优先。",
+    });
+
+    expect(requirements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "education", necessity: "required" }),
+        expect.objectContaining({ kind: "student_status", necessity: "required" }),
+        expect.objectContaining({
+          kind: "duration",
+          expectedValue: 3,
+          necessity: "required",
+        }),
+        expect.objectContaining({
+          kind: "weekly_attendance",
+          expectedValue: 4,
+          necessity: "required",
+        }),
+        expect.objectContaining({ kind: "experience", necessity: "preferred" }),
+      ]),
+    );
   });
 
   it("keeps ambiguous majors as unknown instead of treating alternatives as cumulative", () => {

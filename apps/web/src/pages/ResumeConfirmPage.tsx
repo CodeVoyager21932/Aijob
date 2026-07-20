@@ -1,6 +1,6 @@
-import type { JobPreference, ProfileFact } from "@aijob/contracts";
+import { type JobPreference, normalizeCityPreferences, type ProfileFact } from "@aijob/contracts";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   getProfileEvidence,
@@ -17,7 +17,7 @@ import {
   ProductError,
   ProductLoading,
 } from "../components/ProductStates";
-import { piiLabel, splitList } from "../product/domain";
+import { jobFamilyLabels, piiLabel, splitList } from "../product/domain";
 import { removeConfirmedResumeAnalysisCache } from "../product/privacy-cache";
 import { buildConfirmedEvidence, profileConfirmationError } from "../product/resume-confirmation";
 import { writeJourneyId } from "../product/session-state";
@@ -53,7 +53,8 @@ export function ResumeConfirmPage() {
   const [selectedEvidence, setSelectedEvidence] = useState<Set<string>>(new Set());
   const [manualFacts, setManualFacts] = useState(initialManualFacts);
   const [cities, setCities] = useState("");
-  const [jobFamilies, setJobFamilies] = useState<string[]>(["product", "operations"]);
+  const [cityPreferenceMode, setCityPreferenceMode] = useState<"any" | "specified">("any");
+  const [jobFamilies, setJobFamilies] = useState<string[]>([]);
   const [privacyConfirmed, setPrivacyConfirmed] = useState(false);
 
   const analysisQuery = useQuery({
@@ -80,25 +81,55 @@ export function ResumeConfirmPage() {
     ],
   });
 
-  const result = analysisQuery.data?.result;
+  const rawResult = analysisQuery.data?.result;
+  const result = rawResult?.version === "resume-analysis-v2" ? rawResult : undefined;
+  const initializedFromCurrentProfile = useRef(false);
   useEffect(() => {
-    if (!result) return;
-    for (const candidate of result.candidateFacts) {
-      if (candidate.key === "graduation_year" && typeof candidate.value === "number") {
-        setManualFacts((current) =>
-          current.graduationYear
-            ? current
-            : { ...current, graduationYear: String(candidate.value) },
-        );
+    if (!result || !factsQuery.data || !preferencesQuery.data) return;
+    if (initializedFromCurrentProfile.current) return;
+    initializedFromCurrentProfile.current = true;
+    const currentFacts = "facts" in factsQuery.data ? factsQuery.data.facts : [];
+    const currentPreferences = preferencesQuery.data.preferences;
+    setManualFacts((current) => {
+      const next = { ...current };
+      for (const fact of currentFacts) {
+        if (fact.key === "current_student") next.currentStudent = fact.value ? "yes" : "no";
+        if (fact.key === "graduation_year") next.graduationYear = String(fact.value);
+        if (fact.key === "current_city") next.currentCity = fact.value;
+        if (fact.key === "available_from") next.availableFrom = fact.value;
+        if (fact.key === "weekly_attendance_days") next.attendanceDays = String(fact.value);
+        if (fact.key === "duration_months") next.durationMonths = String(fact.value);
+        if (fact.key === "education_level") next.educationLevel = fact.value;
+        if (fact.key === "majors") next.majors = fact.value.join("、");
+        if (fact.key === "skills") next.skills = fact.value.join("、");
       }
-      if (candidate.key === "skills" && Array.isArray(candidate.value)) {
-        const parsedSkills = candidate.value.map(String).join("、");
-        setManualFacts((current) =>
-          current.skills ? current : { ...current, skills: parsedSkills },
-        );
+      for (const candidate of result.candidateFacts) {
+        if (candidate.key === "graduation_year" && typeof candidate.value === "number") {
+          if (!next.graduationYear) next.graduationYear = String(candidate.value);
+        }
+        if (candidate.key === "skills" && Array.isArray(candidate.value)) {
+          const parsedSkills = candidate.value.map(String).join("、");
+          if (!next.skills) next.skills = parsedSkills;
+        }
+        if (candidate.key === "current_student" && typeof candidate.value === "boolean") {
+          if (!next.currentStudent) next.currentStudent = candidate.value ? "yes" : "no";
+        }
+        if (candidate.key === "education_level" && typeof candidate.value === "string") {
+          if (!next.educationLevel) next.educationLevel = candidate.value;
+        }
+        if (candidate.key === "majors" && Array.isArray(candidate.value)) {
+          if (!next.majors) next.majors = candidate.value.map(String).join("、");
+        }
       }
+      return next;
+    });
+    if (currentPreferences) {
+      const normalizedCities = normalizeCityPreferences(currentPreferences.cities).cities;
+      setJobFamilies(currentPreferences.jobFamilies);
+      setCities(normalizedCities.join("、"));
+      setCityPreferenceMode(normalizedCities.length === 0 ? "any" : "specified");
     }
-  }, [result]);
+  }, [factsQuery.data, preferencesQuery.data, result]);
 
   const confirmedFacts = useMemo(() => buildFacts(manualFacts), [manualFacts]);
   const confirmedEvidence = useMemo(
@@ -117,7 +148,7 @@ export function ResumeConfirmPage() {
         throw new Error("当前资料修订尚未加载完成。");
       }
       const preferences: JobPreference = {
-        cities: splitList(cities),
+        cities: cityPreferenceMode === "any" ? [] : splitList(cities),
         jobFamilies: jobFamilies as JobPreference["jobFamilies"],
         companyNames: [],
         workModes: [],
@@ -135,6 +166,7 @@ export function ResumeConfirmPage() {
       const evidenceRevision = await putProfileEvidence({
         expectedRevision: evidenceQuery.data.revision,
         resumeAnalysisId: analysisId,
+        document: result?.document ?? null,
         evidence: confirmedEvidence,
       });
       queryClient.setQueryData(["product", "profile", "evidence"], evidenceRevision);
@@ -189,6 +221,20 @@ export function ResumeConfirmPage() {
           </Link>
         }
       />
+    );
+  }
+  if (rawResult?.version === "resume-analysis-v1") {
+    return (
+      <ProductEmpty
+        title="这次旧版解析仅保留只读查看"
+        action={
+          <Link className="button button--primary" to="/resume">
+            重新解析为原子证据
+          </Link>
+        }
+      >
+        <p>旧版候选不会被反向重建为新的文档区块，避免在原文已删除后制造来源关系。</p>
+      </ProductEmpty>
     );
   }
   if (!result) {
@@ -340,20 +386,38 @@ export function ResumeConfirmPage() {
             </div>
           </div>
           <div className="form-grid">
+            <fieldset className="segmented-control">
+              <legend>城市范围</legend>
+              <button
+                type="button"
+                className={cityPreferenceMode === "any" ? "is-selected" : ""}
+                aria-pressed={cityPreferenceMode === "any"}
+                onClick={() => setCityPreferenceMode("any")}
+              >
+                不限城市
+              </button>
+              <button
+                type="button"
+                className={cityPreferenceMode === "specified" ? "is-selected" : ""}
+                aria-pressed={cityPreferenceMode === "specified"}
+                onClick={() => setCityPreferenceMode("specified")}
+              >
+                指定城市
+              </button>
+            </fieldset>
             <Field
               label="偏好城市（逗号分隔）"
               value={cities}
               onChange={setCities}
               placeholder="例如 深圳、广州"
+              disabled={cityPreferenceMode === "any"}
             />
             <fieldset className="inline-options">
               <legend>岗位方向</legend>
               {(
-                [
-                  ["product", "产品"],
-                  ["operations", "运营"],
-                  ["other", "其他"],
-                ] as const
+                Object.entries(jobFamilyLabels) as Array<
+                  [JobPreference["jobFamilies"][number], string]
+                >
               ).map(([value, label]) => (
                 <label key={value}>
                   <input
@@ -405,7 +469,7 @@ export function ResumeConfirmPage() {
                     />
                     <span>
                       <strong>{item.section}</strong>
-                      <span>{item.originalText}</span>
+                      <span>{item.statement}</span>
                       {item.skills.length > 0 ? (
                         <small>识别技能：{item.skills.join("、")}</small>
                       ) : null}
@@ -449,12 +513,14 @@ function Field({
   onChange,
   type = "text",
   placeholder,
+  disabled = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: "text" | "number" | "date";
   placeholder?: string;
+  disabled?: boolean;
 }) {
   return (
     <label>
@@ -463,6 +529,7 @@ function Field({
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
         {...(placeholder ? { placeholder } : {})}
       />
     </label>

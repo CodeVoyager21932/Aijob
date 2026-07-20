@@ -1,4 +1,4 @@
-import type { JobDetail, JobListResponse } from "@aijob/contracts";
+import type { JobDetail, JobFamily, JobListResponse } from "@aijob/contracts";
 
 type JobSummary = JobListResponse["items"][number];
 type FieldState = "known" | "unknown" | "conflict";
@@ -156,11 +156,21 @@ function displayText(field: unknown) {
 }
 
 function jobFamily(field: unknown): DisplayField {
-  return displayField<"product" | "operations" | "other">(field, (value) => {
-    if (value === "product") return "产品";
-    if (value === "operations") return "运营";
-    return "其他";
-  });
+  const labels: Record<JobFamily, string> = {
+    product: "产品",
+    operations: "运营",
+    engineering: "工程技术",
+    data_ai: "数据与 AI",
+    design: "设计",
+    marketing: "市场营销",
+    sales_business: "销售与商务",
+    finance: "财务",
+    people_admin_legal: "人力、行政与法务",
+    research_consulting: "研究与咨询",
+    supply_chain_manufacturing: "供应链与制造",
+    other: "其他",
+  };
+  return displayField<JobFamily>(field, (value) => labels[value]);
 }
 
 function sourceTypeLabel(value: string) {

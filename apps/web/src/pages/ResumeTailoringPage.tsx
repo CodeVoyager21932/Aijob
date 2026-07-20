@@ -1,6 +1,6 @@
 import type { ResumeTailoringSegment } from "@aijob/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { fileDownloadUrl } from "../api/client";
 import {
@@ -17,6 +17,11 @@ import {
 } from "../components/ProductStates";
 import { formatDateTime } from "../product/domain";
 import { readJourneyId, scopedJourneyId, writeJourneyId } from "../product/session-state";
+
+function growTextarea(event: FormEvent<HTMLTextAreaElement>): void {
+  event.currentTarget.style.height = "auto";
+  event.currentTarget.style.height = `${event.currentTarget.scrollHeight}px`;
+}
 
 const segmentDecisionLabels: Record<ResumeTailoringSegment["decision"], string> = {
   pending: "待决定",
@@ -98,17 +103,24 @@ export function ResumeTailoringPage() {
     writeJourneyId("exportId", null);
   }, [exportQuery.data, runId]);
 
-  const finalText = useMemo(
-    () =>
-      (runQuery.data?.segments ?? [])
-        .map((segment) => {
-          if (segment.decision === "accepted") return segment.suggestedText;
-          if (segment.decision === "edited") return segment.editedText || segment.originalText;
-          return segment.originalText;
-        })
-        .join("\n\n"),
-    [runQuery.data],
-  );
+  const finalText = useMemo(() => {
+    const output: string[] = [];
+    let previousSection = "";
+    for (const segment of runQuery.data?.segments ?? []) {
+      if (segment.sectionId !== previousSection) {
+        output.push(segment.sectionTitle);
+        previousSection = segment.sectionId;
+      }
+      const text =
+        segment.decision === "accepted"
+          ? segment.suggestedText
+          : segment.decision === "edited"
+            ? segment.editedText || segment.originalText
+            : segment.originalText;
+      output.push(text);
+    }
+    return output.join("\n\n");
+  }, [runQuery.data]);
 
   async function copyFinalText() {
     try {
@@ -174,7 +186,7 @@ export function ResumeTailoringPage() {
               <article className="tailoring-segment">
                 <header>
                   <div>
-                    <span>片段 {index + 1}</span>
+                    <span>{segment.sectionTitle}</span>
                     <strong>
                       {segment.decision === "pending"
                         ? "待决定"
@@ -197,8 +209,16 @@ export function ResumeTailoringPage() {
                   <section>
                     <h2>建议稿</h2>
                     <textarea
-                      rows={6}
+                      rows={Math.min(
+                        16,
+                        Math.max(
+                          3,
+                          (drafts[segment.id] ?? segment.suggestedText).split("\n").length +
+                            Math.ceil((drafts[segment.id] ?? segment.suggestedText).length / 48),
+                        ),
+                      )}
                       value={drafts[segment.id] ?? segment.suggestedText}
+                      onInput={growTextarea}
                       onChange={(event) =>
                         setDrafts({ ...drafts, [segment.id]: event.target.value })
                       }
@@ -209,10 +229,28 @@ export function ResumeTailoringPage() {
                 <div className="segment-evidence">
                   <strong>为什么修改</strong>
                   <p>{segment.reason}</p>
-                  <small>
-                    岗位要求：{segment.requirementIds.join("、")} · 简历证据：
-                    {segment.evidenceIds.join("、")}
-                  </small>
+                  {segment.requirementCitations?.length ? (
+                    <div>
+                      <strong>岗位原句</strong>
+                      <ul>
+                        {segment.requirementCitations.map((citation) => (
+                          <li key={citation.id}>{citation.sourceText}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {segment.evidenceCitations?.length ? (
+                    <div>
+                      <strong>证据摘要</strong>
+                      <ul>
+                        {segment.evidenceCitations.map((citation) => (
+                          <li key={citation.id}>{citation.statement}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <small>该区块未被改写，按原章节和原顺序保留。</small>
+                  )}
                 </div>
                 <div className="segment-actions">
                   <button
@@ -248,6 +286,16 @@ export function ResumeTailoringPage() {
       {segmentMutation.isError ? (
         <ProductError title="片段决定没有保存成功" error={segmentMutation.error} />
       ) : null}
+
+      <section className="product-panel final-resume-preview" aria-labelledby="preview-heading">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">最终完整预览</p>
+            <h2 id="preview-heading">按真实章节组合的简历文本</h2>
+          </div>
+        </div>
+        <pre>{finalText}</pre>
+      </section>
 
       <section className="product-panel export-panel" aria-labelledby="export-heading">
         <div>

@@ -25,6 +25,7 @@ describe("job detail match explanations", () => {
 
   it("only treats a match run for the current immutable job version as displayable", () => {
     expect(matchRunVersionState(undefined, "job-version-current")).toBe("missing");
+    expect(matchRunVersionState("job-version-current", undefined)).toBe("missing");
     expect(matchRunVersionState("job-version-current", "job-version-current")).toBe("current");
     expect(matchRunVersionState("job-version-old", "job-version-current")).toBe("stale");
     expect(matchRunVersionState("job-version-old", null)).toBe("stale");

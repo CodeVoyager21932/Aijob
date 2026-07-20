@@ -57,12 +57,14 @@ export type JobSourceDetail = z.infer<typeof JobSourceDetailSchema>;
 export const JobSummarySchema = z.object({
   id: IdentifierSchema,
   publishedJobVersionId: IdentifierSchema.nullable(),
+  activeRequirementSetId: IdentifierSchema.nullable().optional(),
   companyName: z.string().trim().min(1),
   title: z.string().trim().min(1),
   jobFamily: fieldValueSchema(JobFamilySchema),
   locations: fieldValueSchema(z.array(z.string().trim().min(1)).min(1)),
   weeklyAttendanceDays: fieldValueSchema(z.number().int().min(1).max(7)),
   durationMonths: fieldValueSchema(z.number().int().positive()),
+  studentStatus: fieldValueSchema(z.boolean()).optional(),
   recruitmentBatch: OptionalTextFieldSchema.optional(),
   graduationYears: fieldValueSchema(
     z.array(z.number().int().min(1900).max(2200)).min(1),
@@ -113,7 +115,7 @@ export const JobSearchQuerySchema = z.object({
   keyword: z.string().trim().max(200).optional(),
   companies: z.array(z.string().trim().min(1)).max(50).optional(),
   cities: z.array(z.string().trim().min(1)).max(50).optional(),
-  jobFamilies: z.array(JobFamilySchema).max(10).optional(),
+  jobFamilies: z.array(JobFamilySchema).max(20).optional(),
   recruitmentBatches: z.array(z.string().trim().min(1)).max(20).optional(),
   availableWeeklyAttendanceDays: z.number().int().min(1).max(7).optional(),
   availableDurationMonths: z.number().int().min(1).max(36).optional(),

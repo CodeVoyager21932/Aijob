@@ -19,6 +19,18 @@ const EVIDENCE_ORDER: Record<MatchRunResult["evidence"]["status"], number> = {
   insufficient_information: 3,
 };
 
+const BASIS_ORDER: Record<MatchRunResult["basisState"], number> = {
+  complete: 0,
+  partial: 1,
+  insufficient: 2,
+};
+
+function blockingGapCount(result: MatchRunResult): number {
+  return result.gaps.filter(({ type }) =>
+    ["explicit_conflict", "missing_user_fact", "missing_job_value"].includes(type),
+  ).length;
+}
+
 export interface RankableRecommendation {
   publishedJobVersionId: string;
   result: MatchRunResult;
@@ -32,9 +44,11 @@ export function compareRecommendations(
   const tupleComparisons = [
     ELIGIBILITY_ORDER[left.result.eligibility.status] -
       ELIGIBILITY_ORDER[right.result.eligibility.status],
+    BASIS_ORDER[left.result.basisState] - BASIS_ORDER[right.result.basisState],
     PREFERENCE_ORDER[left.result.preference.status] -
       PREFERENCE_ORDER[right.result.preference.status],
     EVIDENCE_ORDER[left.result.evidence.status] - EVIDENCE_ORDER[right.result.evidence.status],
+    blockingGapCount(left.result) - blockingGapCount(right.result),
     right.lastVerifiedAt.getTime() - left.lastVerifiedAt.getTime(),
   ];
 
@@ -52,6 +66,8 @@ export function recommendationReasonCodes(result: MatchRunResult): string[] {
   if (result.preference.status === "fits") codes.add("PREFERENCES_FIT");
   if (result.evidence.status === "explicit_evidence") codes.add("EXPLICIT_RESUME_EVIDENCE");
   if (result.evidence.status === "partial_evidence") codes.add("PARTIAL_RESUME_EVIDENCE");
+  codes.add(`BASIS_${result.basisState.toUpperCase()}`);
+  if (blockingGapCount(result) > 0) codes.add("HAS_BLOCKING_GAPS");
   for (const reason of [
     ...result.eligibility.reasons,
     ...result.evidence.reasons,

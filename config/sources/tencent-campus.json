@@ -81,10 +81,10 @@
     ]
   },
   "policy": {
-    "version": "4",
+    "version": "5",
     "status": "pending_review",
-    "adapterKey": "tencent-campus",
-    "adapterVersion": "0.1.2",
+    "adapterKey": "tencent-public-api",
+    "adapterVersion": "0.2.0",
     "entrypoints": ["https://join.qq.com/post.html?query=p_104"],
     "crawlInterval": {
       "enabled": false,
@@ -98,7 +98,8 @@
       "若条款、授权、展示范围或接口边界变化，必须创建新的不可变 policy version。",
       "v2 修正双查询流去重后的分页补足语义；访问与发布边界不变。",
       "v3 仅新增细粒度网络目标策略持久化：默认禁止重定向，并固定允许的查询参数；适配器与采集范围不变。",
-      "v4 将适配器与规范化版本升至 0.1.2，修订哈希排除每次抓取都会变化的证据引用；岗位业务内容和采集范围不变。"
+      "v4 将适配器与规范化版本升至 0.1.2，修订哈希排除每次抓取都会变化的证据引用；岗位业务内容和采集范围不变。",
+      "v5 将岗位职能分类升级为全部职能 v1，将 sourceKey 与 adapterKey 解耦，并显式限制 maxItems、maxPages、maxRequests 和 minimumIntervalMs；冲突与无法归一的岗位继续进入人工复核。"
     ],
     "fetchTargets": [
       {
@@ -135,8 +136,12 @@
   "localProbe": {
     "enabled": true,
     "environment": "local",
-    "maxItems": 20,
-    "requestIntervalMs": 1500,
+    "requestBudget": {
+      "maxItems": 20,
+      "maxPages": 4,
+      "maxRequests": 24,
+      "minimumIntervalMs": 1500
+    },
     "completion": "partial",
     "publicationAllowed": false,
     "requestDefaults": {

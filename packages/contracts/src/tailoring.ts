@@ -14,11 +14,26 @@ export type CreateResumeTailoringRequest = z.infer<typeof CreateResumeTailoringR
 export const ResumeTailoringSegmentSchema = z.object({
   id: IdentifierSchema,
   ordinal: z.number().int().nonnegative(),
+  sourceBlockId: IdentifierSchema,
+  sectionId: IdentifierSchema,
+  sectionTitle: z.string().trim().min(1).max(100),
   originalText: z.string().max(10_000),
   suggestedText: z.string().trim().min(1).max(10_000),
   reason: z.string().trim().min(1).max(2_000),
-  requirementIds: z.array(IdentifierSchema).min(1),
-  evidenceIds: z.array(IdentifierSchema).min(1),
+  requirementIds: z.array(IdentifierSchema),
+  evidenceIds: z.array(IdentifierSchema),
+  requirementCitations: z
+    .array(
+      z.object({
+        id: IdentifierSchema,
+        sourceText: z.string().trim().min(1),
+        necessity: z.enum(["required", "preferred", "optional", "unknown"]),
+      }),
+    )
+    .optional(),
+  evidenceCitations: z
+    .array(z.object({ id: IdentifierSchema, statement: z.string().trim().min(1) }))
+    .optional(),
   decision: TailoringSegmentDecisionSchema,
   editedText: z.string().trim().min(1).max(10_000).nullable(),
 });
@@ -28,7 +43,7 @@ export const ResumeTailoringRunSchema = z.object({
   id: IdentifierSchema,
   ownerId: IdentifierSchema,
   status: AsyncRunStatusSchema,
-  resumeAnalysisId: IdentifierSchema,
+  resumeAnalysisId: IdentifierSchema.nullable(),
   publishedJobVersionId: IdentifierSchema,
   requirementSetId: IdentifierSchema,
   evidenceRevisionId: IdentifierSchema,

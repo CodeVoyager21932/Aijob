@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { AppConfig } from "@aijob/config";
 import {
   JobRequirementSchema,
+  ResumeDocumentSectionSchema,
   ResumeEvidenceSchema,
   type ResumeExport,
   ResumeExportSchema,
@@ -13,7 +14,7 @@ import type { Database, JsonValue } from "@aijob/database";
 import type { Kysely, Selectable, Transaction } from "kysely";
 import { z } from "zod";
 import { AiProviderError, OpenAiCompatibleProvider } from "../ai/provider.js";
-import { STRUCTURED_SELECTION_OUTPUT_INSTRUCTION } from "../ai/selection-contract.js";
+import { STRUCTURED_BLOCK_REWRITE_OUTPUT_INSTRUCTION } from "../ai/selection-contract.js";
 import { assertActiveOwnerEpoch } from "../identity/session-repository.js";
 import { hashCanonicalJson } from "../lib/canonical-json.js";
 import { lockOwnerIdempotencyKey } from "../lib/idempotency.js";
@@ -32,13 +33,22 @@ import { purgeExpiredResumeExport } from "./export-retention.js";
 
 const PROVIDER_ADAPTER = "openai-compatible-v1";
 const TEMPLATE_PROVIDER = "deterministic-template";
-const PROMPT_VERSION = "resume-tailoring-selection-v2";
-const SCHEMA_VERSION = "resume-tailoring-selection-v1";
-const TEMPLATE_VERSION = "resume-tailoring-safe-fallback-v1";
+const PROMPT_VERSION = "resume-tailoring-block-rewrite-v3";
+const SCHEMA_VERSION = "resume-tailoring-block-rewrite-v1";
+const TEMPLATE_VERSION = "resume-tailoring-safe-fallback-v2";
 const EXPORT_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const FrozenExportInputSchema = z.object({
-  version: z.literal("resume-export-input-v1"),
-  paragraphs: z.array(z.string().trim().min(1).max(10_000)).min(1).max(100),
+  version: z.literal("resume-export-input-v2"),
+  sections: z
+    .array(
+      z.object({
+        id: z.string().trim().min(1),
+        heading: z.string().trim().min(1).max(100),
+        paragraphs: z.array(z.string().trim().min(1).max(10_000)).min(1).max(500),
+      }),
+    )
+    .min(1)
+    .max(100),
 });
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
@@ -70,25 +80,26 @@ function tailoringRequestHash(config: AppConfig, request: TailoringRequestIdenti
 }
 
 const ProviderSegmentSchema = z.object({
+  sourceBlockId: z.string().uuid(),
+  sectionId: z.string().uuid(),
+  sectionTitle: z.string().trim().min(1).max(100),
   originalText: z.string().trim().min(1).max(10_000),
+  suggestedText: z.string().trim().min(1).max(10_000),
+  reason: z.string().trim().min(1).max(2_000),
+  requirementIds: z.array(z.string().trim().min(1)),
+  evidenceIds: z.array(z.string().trim().min(1)),
+});
+
+const ProviderRewriteSchema = z.object({
+  sourceBlockId: z.string().uuid(),
   suggestedText: z.string().trim().min(1).max(10_000),
   reason: z.string().trim().min(1).max(2_000),
   requirementIds: z.array(z.string().trim().min(1)).min(1),
   evidenceIds: z.array(z.string().trim().min(1)).min(1),
 });
 
-const ProviderSelectionSchema = z.object({
-  evidenceId: z.string().trim().min(1),
-  requirementIds: z.array(z.string().trim().min(1)).min(1),
-  emphasis: z
-    .array(z.enum(["claim", "skills", "outcomes"]))
-    .min(1)
-    .max(3)
-    .refine((values) => new Set(values).size === values.length),
-});
-
 const ProviderOutputSchema = z.object({
-  selections: z.array(ProviderSelectionSchema).min(1).max(100),
+  rewrites: z.array(ProviderRewriteSchema).min(1).max(100),
 });
 
 export type ProviderTailoringSegment = z.infer<typeof ProviderSegmentSchema>;
@@ -185,16 +196,30 @@ export function validateTailoringSegments(input: {
   requirementIds: Set<string>;
   evidence: Array<{
     id: string;
-    originalText: string;
-    claim?: string;
+    sourceBlockId: string;
+    statement: string;
     skills?: string[];
     outcomes?: string[];
   }>;
 }): ProviderTailoringSegment[] {
   const evidenceById = new Map(input.evidence.map((item) => [item.id, item]));
-  const seenEvidence = new Set<string>();
+  const seenBlocks = new Set<string>();
 
   for (const segment of input.segments) {
+    if (seenBlocks.has(segment.sourceBlockId)) {
+      throw new ServiceError(422, "AI_SOURCE_BLOCK_DUPLICATE", "模型重复改写了同一个简历区块。");
+    }
+    seenBlocks.add(segment.sourceBlockId);
+    const unchanged = segment.suggestedText.trim() === segment.originalText.trim();
+    if (unchanged && segment.requirementIds.length === 0 && segment.evidenceIds.length === 0) {
+      continue;
+    }
+    if (unchanged) {
+      throw new ServiceError(422, "AI_REWRITE_UNCHANGED", "模型没有为所选区块返回真实修改稿。");
+    }
+    if (segment.requirementIds.length === 0 || segment.evidenceIds.length === 0) {
+      throw new ServiceError(422, "AI_REWRITE_UNCITED", "模型修改稿缺少岗位要求或经历证据引用。");
+    }
     if (segment.requirementIds.some((id) => !input.requirementIds.has(id))) {
       throw new ServiceError(
         422,
@@ -213,22 +238,15 @@ export function validateTailoringSegments(input: {
       }
       return {
         id,
-        originalText: item.originalText,
-        factualText: [
-          item.originalText,
-          item.claim ?? "",
-          ...(item.skills ?? []),
-          ...(item.outcomes ?? []),
-        ].join(" "),
+        sourceBlockId: item.sourceBlockId,
+        factualText: [item.statement, ...(item.skills ?? []), ...(item.outcomes ?? [])].join(" "),
       };
     });
-    if (
-      !referencedEvidence.some((item) => item.originalText.trim() === segment.originalText.trim())
-    ) {
+    if (!referencedEvidence.some((item) => item.sourceBlockId === segment.sourceBlockId)) {
       throw new ServiceError(
         422,
-        "AI_ORIGINAL_TEXT_UNTRACEABLE",
-        "模型返回的原文片段无法回指已确认简历证据。",
+        "AI_SOURCE_BLOCK_UNTRACEABLE",
+        "模型修改稿无法回指该区块内的已确认原子证据。",
       );
     }
     const evidenceText = referencedEvidence.map((item) => item.factualText).join(" ");
@@ -249,11 +267,6 @@ export function validateTailoringSegments(input: {
         "模型建议加入了简历证据中不存在的技能、主体、项目或结果，已拒绝展示。",
       );
     }
-    for (const item of referencedEvidence) seenEvidence.add(item.id);
-  }
-
-  if (seenEvidence.size === 0) {
-    throw new ServiceError(422, "AI_OUTPUT_EMPTY", "模型没有返回可追溯的简历建议。");
   }
   return input.segments;
 }
@@ -261,95 +274,94 @@ export function validateTailoringSegments(input: {
 export function createTemplateTailoringSegments(input: {
   requirements: Array<z.infer<typeof JobRequirementSchema>>;
   evidence: Array<z.infer<typeof ResumeEvidenceSchema>>;
+  sections: Array<z.infer<typeof ResumeDocumentSectionSchema>>;
 }): ProviderTailoringSegment[] {
   const expressiveRequirements = input.requirements.filter(({ kind }) =>
     ["skill", "experience", "other"].includes(kind),
   );
   const firstExpressiveRequirement =
-    expressiveRequirements.find(({ required }) => required) ?? expressiveRequirements[0];
-  if (!firstExpressiveRequirement || input.evidence.length === 0) {
-    throw new ServiceError(
-      422,
-      "TAILORING_NEEDS_CONFIRMED_EVIDENCE",
-      "请先确认至少一段简历证据，并选择已拆解经历或能力要求的岗位。",
-    );
+    expressiveRequirements.find(({ necessity }) => necessity === "required") ??
+    expressiveRequirements[0];
+  if (input.sections.length === 0) {
+    throw new ServiceError(422, "TAILORING_NEEDS_DOCUMENT", "请先确认包含有序区块的简历文档。");
   }
-
-  return input.evidence.map((item) => {
-    const normalizedEvidence = [item.originalText, item.claim, ...item.skills, ...item.outcomes]
-      .join(" ")
-      .toLocaleLowerCase("zh-CN");
-    const directlyMatchedRequirement = expressiveRequirements.find((requirement) => {
-      const expected = Array.isArray(requirement.expectedValue)
-        ? requirement.expectedValue
-        : [requirement.expectedValue];
-      return expected.some(
-        (value) =>
-          typeof value === "string" &&
-          normalizedEvidence.includes(value.toLocaleLowerCase("zh-CN")),
-      );
-    });
-    const referencedRequirement = directlyMatchedRequirement ?? firstExpressiveRequirement;
-    const { redactedText } = redactPersonalInformation(item.originalText);
-    return {
-      originalText: redactedText,
-      suggestedText: redactedText,
-      reason: directlyMatchedRequirement
-        ? "安全模板仅保留已确认事实；当前证据与所引用岗位要求存在直接词项重合。"
-        : "安全模板未发现可可靠自动改写的直接词项，因此保留已确认原文；请对照所引用岗位要求人工调整。",
-      requirementIds: [referencedRequirement.id],
-      evidenceIds: [item.id],
-    };
-  });
+  const evidenceByBlock = new Map(
+    input.evidence.map((item) => [item.sourceBlockId, item] as const),
+  );
+  return input.sections.flatMap((section) =>
+    section.blocks.map((block) => {
+      const evidence = evidenceByBlock.get(block.id);
+      const requirement = evidence
+        ? (expressiveRequirements.find((candidate) => {
+            const terms = Array.isArray(candidate.expectedValue)
+              ? candidate.expectedValue
+              : [candidate.expectedValue];
+            return terms.some(
+              (value) => typeof value === "string" && evidence.statement.includes(value),
+            );
+          }) ?? firstExpressiveRequirement)
+        : undefined;
+      return {
+        sourceBlockId: block.id,
+        sectionId: section.id,
+        sectionTitle: section.title,
+        originalText: block.text,
+        suggestedText: block.text,
+        reason: evidence
+          ? "固定模板不改写事实，只保留已确认区块供你对照岗位原句人工编辑。"
+          : "该区块没有被选为经历证据，按原章节与原顺序保留。",
+        requirementIds: requirement ? [requirement.id] : [],
+        evidenceIds: evidence ? [evidence.id] : [],
+      };
+    }),
+  );
 }
 
-export function renderStructuredTailoringSelections(input: {
-  selections: Array<z.infer<typeof ProviderSelectionSchema>>;
+export function renderStructuredTailoringRewrites(input: {
+  rewrites: Array<z.infer<typeof ProviderRewriteSchema>>;
   requirements: Array<z.infer<typeof JobRequirementSchema>>;
   evidence: Array<z.infer<typeof ResumeEvidenceSchema>>;
+  sections: Array<z.infer<typeof ResumeDocumentSectionSchema>>;
 }): ProviderTailoringSegment[] {
   const requirementIds = new Set(input.requirements.map(({ id }) => id));
   const evidenceById = new Map(input.evidence.map((item) => [item.id, item]));
-  const usedEvidenceIds = new Set<string>();
-  const segments = input.selections.map((selection) => {
-    if (selection.requirementIds.some((id) => !requirementIds.has(id))) {
+  const blocks = input.sections.flatMap((section) =>
+    section.blocks.map((block) => ({
+      ...block,
+      sectionId: section.id,
+      sectionTitle: section.title,
+    })),
+  );
+  const blockById = new Map(blocks.map((block) => [block.id, block]));
+  const rewriteByBlock = new Map<string, z.infer<typeof ProviderRewriteSchema>>();
+  for (const rewrite of input.rewrites) {
+    if (rewriteByBlock.has(rewrite.sourceBlockId) || !blockById.has(rewrite.sourceBlockId)) {
+      throw new ServiceError(422, "AI_SOURCE_BLOCK_INVALID", "模型选择了不存在或重复的简历区块。");
+    }
+    if (rewrite.requirementIds.some((id) => !requirementIds.has(id))) {
       throw new ServiceError(
         422,
         "AI_REQUIREMENT_REFERENCE_INVALID",
         "模型选择了不存在的岗位要求。",
       );
     }
-    const evidence = evidenceById.get(selection.evidenceId);
-    if (!evidence || usedEvidenceIds.has(evidence.id)) {
-      throw new ServiceError(
-        422,
-        "AI_EVIDENCE_REFERENCE_INVALID",
-        "模型选择了不存在、未确认或重复的简历证据。",
-      );
+    if (rewrite.evidenceIds.some((id) => !evidenceById.has(id))) {
+      throw new ServiceError(422, "AI_EVIDENCE_REFERENCE_INVALID", "模型引用了不存在的经历证据。");
     }
-    usedEvidenceIds.add(evidence.id);
+    rewriteByBlock.set(rewrite.sourceBlockId, rewrite);
+  }
 
-    const originalText = redactPersonalInformation(evidence.originalText).redactedText;
-    const pieces: string[] = [];
-    if (selection.emphasis.includes("claim") && evidence.claim.trim()) {
-      pieces.push(redactPersonalInformation(evidence.claim).redactedText);
-    }
-    if (selection.emphasis.includes("skills") && evidence.skills.length > 0) {
-      const skills = evidence.skills.map((skill) => redactPersonalInformation(skill).redactedText);
-      pieces.push(`相关能力：${skills.join("、")}`);
-    }
-    if (selection.emphasis.includes("outcomes") && evidence.outcomes.length > 0) {
-      const outcomes = evidence.outcomes.map(
-        (outcome) => redactPersonalInformation(outcome).redactedText,
-      );
-      pieces.push(`已确认结果：${outcomes.join("、")}`);
-    }
+  const segments = blocks.map((block) => {
+    const rewrite = rewriteByBlock.get(block.id);
     return {
-      originalText,
-      suggestedText: pieces.length > 0 ? pieces.join("；") : originalText,
-      reason: "根据所选岗位要求重新组织已确认的经历、技能或结果；服务端未加入新事实。",
-      requirementIds: selection.requirementIds,
-      evidenceIds: [evidence.id],
+      sourceBlockId: block.id,
+      sectionId: block.sectionId,
+      sectionTitle: block.sectionTitle,
+      originalText: block.text,
+      suggestedText: rewrite?.suggestedText ?? block.text,
+      reason: rewrite?.reason ?? "该区块未被模型选择，按原章节与原顺序保留。",
+      requirementIds: rewrite?.requirementIds ?? [],
+      evidenceIds: rewrite?.evidenceIds ?? [],
     };
   });
 
@@ -361,7 +373,14 @@ export function renderStructuredTailoringSelections(input: {
 }
 
 async function tailoringInputs(db: DbExecutor, run: TailoringRunRow) {
-  const [requirementSet, evidenceRevision] = await Promise.all([
+  if (!run.resume_document_revision_id) {
+    throw new ServiceError(
+      409,
+      "LEGACY_TAILORING_READ_ONLY",
+      "旧版简历优化只保留历史读取，不能重新生成。",
+    );
+  }
+  const [requirementSet, evidenceRevision, documentRevision] = await Promise.all([
     db
       .selectFrom("catalog.job_requirement_sets")
       .selectAll()
@@ -374,16 +393,31 @@ async function tailoringInputs(db: DbExecutor, run: TailoringRunRow) {
       .where("owner_id", "=", run.owner_id)
       .where("owner_epoch", "=", run.owner_epoch)
       .executeTakeFirstOrThrow(),
+    db
+      .selectFrom("profile.resume_document_revisions")
+      .selectAll()
+      .where("id", "=", run.resume_document_revision_id)
+      .where("owner_id", "=", run.owner_id)
+      .where("owner_epoch", "=", run.owner_epoch)
+      .executeTakeFirstOrThrow(),
   ]);
+  if (
+    evidenceRevision.schema_version !== "resume-evidence-v2" ||
+    evidenceRevision.document_revision_id !== documentRevision.id
+  ) {
+    throw new ServiceError(409, "TAILORING_DOCUMENT_MISMATCH", "简历文档与原子证据修订不一致。");
+  }
   const requirements = JobRequirementSchema.array().parse(requirementSet.requirements);
   const evidence = ResumeEvidenceSchema.array().parse(evidenceRevision.evidence);
-  return { requirements, evidence };
+  const sections = ResumeDocumentSectionSchema.array().parse(documentRevision.sections);
+  return { requirements, evidence, sections };
 }
 
 async function generateSegments(input: {
   config: AppConfig;
   requirements: Array<z.infer<typeof JobRequirementSchema>>;
   evidence: Array<z.infer<typeof ResumeEvidenceSchema>>;
+  sections: Array<z.infer<typeof ResumeDocumentSectionSchema>>;
   fetchImpl?: typeof fetch;
   signal?: AbortSignal;
 }): Promise<{ segments: ProviderTailoringSegment[]; usedTemplateFallback: boolean }> {
@@ -391,6 +425,7 @@ async function generateSegments(input: {
     segments: createTemplateTailoringSegments({
       requirements: input.requirements,
       evidence: input.evidence,
+      sections: input.sections,
     }),
     usedTemplateFallback: true,
   });
@@ -400,8 +435,9 @@ async function generateSegments(input: {
     id: item.id,
     resumeAnalysisId: item.resumeAnalysisId,
     section: redactPersonalInformation(item.section).redactedText,
-    originalText: redactPersonalInformation(item.originalText).redactedText,
-    claim: redactPersonalInformation(item.claim).redactedText,
+    sourceBlockId: item.sourceBlockId,
+    evidenceType: item.evidenceType,
+    statement: redactPersonalInformation(item.statement).redactedText,
     skills: item.skills.map((skill) => redactPersonalInformation(skill).redactedText),
     outcomes: item.outcomes.map((outcome) => redactPersonalInformation(outcome).redactedText),
     confirmed: true as const,
@@ -422,26 +458,36 @@ async function generateSegments(input: {
       sourceText: requirement.sourceText,
       kind: requirement.kind,
       expectedValue: requirement.expectedValue,
+      necessity: requirement.necessity,
     })),
     confirmedEvidence: redactedEvidence,
+    sourceBlocks: input.sections.flatMap((section) =>
+      section.blocks.map((block) => ({
+        sourceBlockId: block.id,
+        section: section.title,
+        text: redactPersonalInformation(block.text).redactedText,
+      })),
+    ),
   };
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const output = await provider.completeStructured({
         systemInstruction:
-          "你是简历证据编排器。只能选择证据 ID、岗位要求 ID、突出 claim/skills/outcomes 并排序。" +
-          "不得输出或改写简历文本，不得新增事实，也不要修改资格结论。" +
-          STRUCTURED_SELECTION_OUTPUT_INSTRUCTION,
+          "你是简历区块改写器。每条输出只能针对一个 sourceBlockId 返回真实 suggestedText、reason、岗位要求 ID 和证据 ID。" +
+          "只能重组该区块及其已确认证据中的事实，不得新增数字、技能、主体、项目或结果；不需要修改的区块不要输出。" +
+          "不得修改资格结论，也不得输出未提供的 ID。" +
+          STRUCTURED_BLOCK_REWRITE_OUTPUT_INSTRUCTION,
         untrustedPayload: providerInput,
         schema: ProviderOutputSchema,
         ...(input.signal ? { signal: input.signal } : {}),
       });
       return {
-        segments: renderStructuredTailoringSelections({
-          selections: output.selections,
+        segments: renderStructuredTailoringRewrites({
+          rewrites: output.rewrites,
           requirements: input.requirements,
           evidence: redactedEvidence,
+          sections: input.sections,
         }),
         usedTemplateFallback: false,
       };
@@ -461,6 +507,9 @@ function mapSegment(row: TailoringSegmentRow): ResumeTailoringSegment {
   return {
     id: row.id,
     ordinal: row.ordinal,
+    sourceBlockId: row.source_block_id ?? row.id,
+    sectionId: row.section_id ?? row.id,
+    sectionTitle: row.section_title ?? "旧版简历内容",
     originalText: row.original_text,
     suggestedText: row.suggested_text,
     reason: row.reason,
@@ -482,6 +531,27 @@ async function segmentsForRun(db: DbExecutor, runId: string): Promise<ResumeTail
 }
 
 async function mapRun(db: DbExecutor, row: TailoringRunRow): Promise<ResumeTailoringRun> {
+  let segments = await segmentsForRun(db, row.id);
+  if (row.resume_document_revision_id) {
+    try {
+      const inputs = await tailoringInputs(db, row);
+      const requirements = new Map(inputs.requirements.map((item) => [item.id, item]));
+      const evidence = new Map(inputs.evidence.map((item) => [item.id, item]));
+      segments = segments.map((segment) => ({
+        ...segment,
+        requirementCitations: segment.requirementIds.flatMap((id) => {
+          const item = requirements.get(id);
+          return item ? [{ id, sourceText: item.sourceText, necessity: item.necessity }] : [];
+        }),
+        evidenceCitations: segment.evidenceIds.flatMap((id) => {
+          const item = evidence.get(id);
+          return item ? [{ id, statement: item.statement }] : [];
+        }),
+      }));
+    } catch {
+      // Historical runs remain readable even when their source revisions are legacy-only.
+    }
+  }
   return ResumeTailoringRunSchema.parse({
     id: row.id,
     ownerId: row.owner_id,
@@ -491,7 +561,7 @@ async function mapRun(db: DbExecutor, row: TailoringRunRow): Promise<ResumeTailo
     requirementSetId: row.requirement_set_id,
     evidenceRevisionId: row.evidence_revision_id,
     usedTemplateFallback: row.used_template_fallback,
-    segments: await segmentsForRun(db, row.id),
+    segments,
     failureCode: row.failure_code,
     createdAt: toIso(row.created_at),
     completedAt: toIso(row.completed_at),
@@ -543,23 +613,31 @@ export async function enqueueTailoringRun(
         .executeTakeFirst(),
       transaction
         .selectFrom("profile.resume_evidence_revisions")
-        .select(["id", "resume_analysis_id"])
+        .select(["id", "resume_analysis_id", "schema_version", "document_revision_id"])
         .where("id", "=", request.evidenceRevisionId)
         .where("owner_id", "=", owner.ownerId)
         .where("owner_epoch", "=", owner.ownerEpoch)
         .executeTakeFirst(),
       transaction
-        .selectFrom("catalog.job_requirement_sets")
-        .selectAll()
-        .where("published_job_version_id", "=", request.publishedJobVersionId)
-        .orderBy("created_at", "desc")
-        .orderBy("id", "desc")
+        .selectFrom("catalog.published_job_versions as version")
+        .innerJoin(
+          "catalog.job_requirement_sets as requirements",
+          "requirements.id",
+          "version.active_requirement_set_id",
+        )
+        .selectAll("requirements")
+        .where("version.id", "=", request.publishedJobVersionId)
         .executeTakeFirst(),
     ]);
     if (!analysis || analysis.status !== "succeeded") {
       throw new ServiceError(422, "RESUME_ANALYSIS_NOT_READY", "简历尚未完成解析和确认。");
     }
-    if (!evidenceRevision || evidenceRevision.resume_analysis_id !== analysis.id) {
+    if (
+      !evidenceRevision ||
+      evidenceRevision.resume_analysis_id !== analysis.id ||
+      evidenceRevision.schema_version !== "resume-evidence-v2" ||
+      !evidenceRevision.document_revision_id
+    ) {
       throw new ServiceError(
         422,
         "EVIDENCE_REVISION_MISMATCH",
@@ -578,6 +656,7 @@ export async function enqueueTailoringRun(
         owner_id: owner.ownerId,
         owner_epoch: owner.ownerEpoch,
         resume_analysis_id: request.resumeAnalysisId,
+        resume_document_revision_id: evidenceRevision.document_revision_id,
         published_job_version_id: request.publishedJobVersionId,
         requirement_set_id: requirementSet.id,
         evidence_revision_id: request.evidenceRevisionId,
@@ -669,6 +748,9 @@ export async function processTailoringRun(
   if (!run || run.status === "deleted" || run.status === "succeeded") return;
   try {
     const inputs = await tailoringInputs(db, run);
+    if (!run.resume_analysis_id) {
+      throw new ServiceError(409, "LEGACY_TAILORING_READ_ONLY", "旧版简历优化不能重新生成。");
+    }
     if (signal?.aborted) throw new Error("OWNER_TASK_ABORTED");
     await withOwnerTaskLease(db, lease, async () => undefined);
     if (signal?.aborted) throw new Error("OWNER_TASK_ABORTED");
@@ -701,6 +783,9 @@ export async function processTailoringRun(
             tailoring_run_id: run.id,
             ordinal,
             original_text: segment.originalText,
+            source_block_id: segment.sourceBlockId,
+            section_id: segment.sectionId,
+            section_title: segment.sectionTitle,
             suggested_text: segment.suggestedText,
             reason: segment.reason,
             requirement_ids: json(segment.requirementIds),
@@ -835,14 +920,25 @@ export async function enqueueResumeExport(
         .executeTakeFirstOrThrow();
     }
     const segments = await segmentsForRun(transaction, runId);
-    const paragraphs = segments.map((segment) => {
-      if (segment.decision === "edited") return segment.editedText as string;
-      if (segment.decision === "accepted") return segment.suggestedText;
-      return segment.originalText;
-    });
+    const sectionMap = new Map<string, { id: string; heading: string; paragraphs: string[] }>();
+    for (const segment of segments) {
+      const section = sectionMap.get(segment.sectionId) ?? {
+        id: segment.sectionId,
+        heading: segment.sectionTitle,
+        paragraphs: [],
+      };
+      section.paragraphs.push(
+        segment.decision === "edited"
+          ? (segment.editedText as string)
+          : segment.decision === "accepted"
+            ? segment.suggestedText
+            : segment.originalText,
+      );
+      sectionMap.set(segment.sectionId, section);
+    }
     const frozenInput = FrozenExportInputSchema.parse({
-      version: "resume-export-input-v1",
-      paragraphs,
+      version: "resume-export-input-v2",
+      sections: [...sectionMap.values()],
     });
     const encryptedInput = encryptResumePayload(
       Buffer.from(JSON.stringify(frozenInput), "utf8"),
@@ -1011,13 +1107,7 @@ export async function processResumeExport(
     );
     const buffer = await createAtsResumeDocx({
       title: "岗位定向简历",
-      sections: [
-        {
-          id: "targeted-experience",
-          heading: "岗位定向经历表述",
-          paragraphs: frozenInput.paragraphs,
-        },
-      ],
+      sections: frozenInput.sections,
     });
     const encrypted = encryptResumePayload(buffer, config.resumeEncryptionKey);
     const completedAt = clock();

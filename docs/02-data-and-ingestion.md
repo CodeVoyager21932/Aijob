@@ -65,10 +65,11 @@
 | `entrypoints` | 审核后的列表页、站点地图或公开接口入口 |
 | `fetch_targets` | 允许采集的协议、主机、端口和路径前缀集合 |
 | `apply_targets` | 允许展示为官方申请入口的独立目标集合 |
-| `adapter_key` | 本项目维护的适配器标识 |
+| `adapter_key` | 本项目维护的可复用适配器标识；与企业或租户级 `source_key` 独立 |
 | `adapter_version` | 当前适配器版本 |
 | `crawl_interval` | 最小采集间隔和允许时间窗 |
 | `rate_policy` | 并发、请求速率、响应上限和退避策略 |
+| `request_budget` | 单次运行的 `maxItems`、`maxPages`、`maxRequests` 和 `minimumIntervalMs` 硬上限 |
 | `absence_policy` | 只有完整运行才能累计的未见次数、最短观察时间和关闭阈值 |
 | `policy_notes` | 条款、robots、展示和退出说明 |
 | `reviewed_at` | 最近人工复核时间 |

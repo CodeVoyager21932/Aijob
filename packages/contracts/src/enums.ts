@@ -77,7 +77,20 @@ export const TaskTypeSchema = z.enum([
 ]);
 export type TaskType = z.infer<typeof TaskTypeSchema>;
 
-export const JobFamilySchema = z.enum(["product", "operations", "other"]);
+export const JobFamilySchema = z.enum([
+  "product",
+  "operations",
+  "engineering",
+  "data_ai",
+  "design",
+  "marketing",
+  "sales_business",
+  "finance",
+  "people_admin_legal",
+  "research_consulting",
+  "supply_chain_manufacturing",
+  "other",
+]);
 export type JobFamily = z.infer<typeof JobFamilySchema>;
 
 export const OwnerStatusSchema = z.enum(["active", "deletion_pending", "deleted"]);

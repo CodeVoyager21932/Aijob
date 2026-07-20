@@ -1,3 +1,5 @@
+import type { JobFamily } from "@aijob/contracts";
+
 export type EvidenceField<T> =
   | { state: "known"; value: T; evidenceRefs: string[] }
   | {
@@ -10,7 +12,7 @@ export interface NormalizedOfficialJob {
   sourceJobId: string;
   companyName: string;
   title: string;
-  jobFamily: EvidenceField<"product" | "operations" | "other">;
+  jobFamily: EvidenceField<JobFamily>;
   locations: EvidenceField<string[]>;
   businessGroups: string[];
   entryScope: string;

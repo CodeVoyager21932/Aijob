@@ -55,7 +55,7 @@ export function matchRunVersionState(
   runVersionId: string | undefined,
   jobVersionId: string | null | undefined,
 ): "missing" | "current" | "stale" {
-  if (!runVersionId) return "missing";
+  if (!runVersionId || jobVersionId === undefined) return "missing";
   return jobVersionId && runVersionId === jobVersionId ? "current" : "stale";
 }
 
@@ -269,6 +269,13 @@ export function JobDetailPage() {
               value={job.educationLevels}
               format={(value) => value.join("、")}
             />
+            {job.studentStatus ? (
+              <Condition
+                label="在校状态"
+                value={job.studentStatus}
+                format={(value) => (value ? "要求在校 / 在读" : "未要求在校")}
+              />
+            ) : null}
             <Condition label="专业" value={job.majors} format={(value) => value.join("、")} />
             <Condition label="语言" value={job.languages} format={(value) => value.join("、")} />
             <Condition label="薪资" value={job.salary} format={(value) => value.rawText} />

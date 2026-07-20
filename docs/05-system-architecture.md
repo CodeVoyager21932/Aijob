@@ -122,7 +122,7 @@ MVP 使用一个 PostgreSQL 16 实例（本地由 Docker Desktop 运行，后续
 ### 5.4 `internal ops CLI`
 
 - 通过维护者身份登记、批准、暂停来源和处理岗位复核队列。
-- CLI 保留受控结构化人工导入作为采集失败回退；完整 MVP 的主目录来自三个官方来源、总计 30–100 条岗位。人工记录必须保存来源 URL、最后核验时间、复核人和字段级证据，且经过与自动采集相同的字段、`apply_targets`、不可变版本和发布复核。
+- CLI 保留受控结构化人工导入作为采集失败回退；扩容后的完整 MVP 主目录来自三个以上官方来源、总计 100–200 条全部职能实习岗位。人工记录必须保存来源 URL、最后核验时间、复核人和字段级证据，且经过与自动采集相同的字段、`apply_targets`、不可变版本和发布复核。
 - 查看脱敏运行质量、删除状态和审计记录。
 - 所有写操作记录原因、操作者、时间及前后值。
 - 默认无简历原文读取权限，不在公网监听端口。
@@ -162,6 +162,8 @@ MVP 使用一个 PostgreSQL 16 实例（本地由 Docker Desktop 运行，后续
 - `POST /v1/resume-analyses`：使用 `multipart/form-data` 提交一个 PDF/DOCX，或使用 JSON 提交文本；异步返回 `202 Accepted`、`analysis_id` 和结果查询地址。
 - `GET /v1/resume-analyses/{analysis_id}`：查询解析状态、稳定错误码和当前 owner 的事实/证据候选，不返回已删除原文。
 - `PUT /v1/profile/evidence`：确认或替换当前 owner 的经历证据修订，携带期望修订版本；当 `confirmation_complete=true` 时，证据修订与原文删除/墓碑在同一事务提交，成功响应后原文不可再读取。
+- `GET /v1/profile/document`：读取当前 owner 确认后保留的最新有序 `ResumeDocumentRevision`；不恢复已删除的原文件、临时原文或旧版 v1 内容。
+- `PUT /v1/profile/evidence-selection`：只接受当前文档修订中的 `sourceBlockId` 集合，由服务端派生并写入新的不可变 `ResumeEvidence v2` 修订，用于跨日复用或调整证据。
 - `POST /v1/match-runs`：固定岗位版本、要求集、事实/偏好/证据修订、规则、词典和 `template_version`，异步返回 `202 Accepted`；仅在 AI 实际参与时固定提示词和模型版本。
 - `GET /v1/match-runs/{match_run_id}`：读取当前 owner 的不可变运行、三轴结果与引用依据。
 - `POST /v1/recommendation-runs`：固定候选岗位版本、对应匹配运行和排序策略，异步返回 `202 Accepted`。
@@ -241,6 +243,12 @@ MVP 的固定成本只有 Web 运行时、两个可按需/定时运行的 Worker
 - 本地 AI 仅在用户显式选择后调用，设置每次令牌上限、每 owner 并发、日预算和总开关；公开环境保持关闭。
 - 快照压缩且有大小与保留限制，监控 Bucket 容量、请求成本和 PostgreSQL 元数据增长。
 - 只有真实队列、查询或容量数据证明必要时，才评估消息代理、独立搜索、向量组件或扩大对象存储用途。
+
+ADR-0015 阶段不购买服务器、数据库或域名，固定云成本为 0。产品价值 Gate 通过后，邀请制网页优先采用一台大陆 4 核 8 GB、约 180 GB SSD 主机，同机以独立容器或系统身份运行反向代理、Web/API、按需 Worker 和 PostgreSQL；数据库逻辑预算先设 50 GB，每日加密备份与公开岗位快照进入对象存储。按 2026-07-20 的公开价格记录，邀请制固定预算约 250–400 元/月；购买时必须重新核价，促销价不作为长期预算。50 家、1000+ 岗位和 1000–3000 元/月的高可用公开架构只有真实业务需求出现后再评估。
+
+预算参考：[腾讯云轻量应用服务器价格](https://cloud.tencent.com/document/product/1207/119345)、[对象存储价格](https://cloud.tencent.com/product/cos)、[备案资源要求](https://cloud.tencent.com/document/product/243/19631)。
+
+容量判断以运行证据为准：当前整库约 16 MB（扩容前实测约 15 MB），1000 条合成岗位已经在单 PostgreSQL 上完成目录筛选和确定性推荐排序回归。岗位正文不是近期容量瓶颈；用户数量、历史匹配运行和备份保留才是后续主要变量。
 
 新增组件必须通过 ADR 说明当前证据、权限、故障面、迁移方式和退出方案。
 

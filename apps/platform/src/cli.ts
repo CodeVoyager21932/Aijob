@@ -13,11 +13,8 @@ import { runAiProviderSmoke } from "./ai/smoke.js";
 import { materializeLocalCatalog } from "./catalog/materialize.js";
 import { loadPlatformConfig } from "./config/platform-config.js";
 import { runSourceProbe } from "./ingestion/probe.js";
-import {
-  controlledLocalSourceKeys,
-  isControlledLocalSourceKey,
-} from "./sources/official-source-adapters.js";
-import { assessSource, loadSourceConfig } from "./sources/source-config.js";
+import { loadSourceCandidateRegistry } from "./sources/source-candidates.js";
+import { assessSource, listSourceKeys, loadSourceConfig } from "./sources/source-config.js";
 import { registerSourceConfig } from "./sources/source-registry.js";
 
 const program = new Command();
@@ -96,9 +93,9 @@ async function providerMetadata(options: {
   };
 }
 
-function selectedSourceKeys(sourceKey: string | undefined): string[] {
-  if (!sourceKey) return [...controlledLocalSourceKeys];
-  if (!isControlledLocalSourceKey(sourceKey)) throw new Error("ADAPTER_NOT_IMPLEMENTED");
+async function selectedSourceKeys(sourceKey: string | undefined): Promise<string[]> {
+  if (!sourceKey) return listSourceKeys();
+  await loadSourceConfig(sourceKey);
   return [sourceKey];
 }
 
@@ -119,15 +116,22 @@ program
   });
 
 program
+  .command("source-candidates")
+  .description("只读列出扩容候选批次；不会访问招聘站或登记来源")
+  .action(async () => {
+    console.info(JSON.stringify(await loadSourceCandidateRegistry(), null, 2));
+  });
+
+program
   .command("source-assess")
   .description("登记并计算来源候选评分；评分不会自动批准来源")
-  .argument("[source-key]", "来源配置键；省略时处理全部三条本地来源")
+  .argument("[source-key]", "来源配置键；省略时处理 config/sources 中的全部来源")
   .action(async (sourceKey: string | undefined) => {
     const appConfig = loadAppConfig();
     const db = createDatabase(appConfig.databaseUrl);
     try {
       const results = [];
-      for (const selectedSourceKey of selectedSourceKeys(sourceKey)) {
+      for (const selectedSourceKey of await selectedSourceKeys(sourceKey)) {
         const config = await loadSourceConfig(selectedSourceKey);
         const registered = await registerSourceConfig(db, config);
         const assessment = assessSource(config);
@@ -148,16 +152,18 @@ program
 program
   .command("source-probe")
   .description("执行受限本地来源探测；不发布岗位")
-  .argument("[source-key]", "来源配置键；省略时依次探测全部三条本地来源")
-  .option("--limit <number>", "最多处理岗位数（上限 20）", "20")
-  .action(async (sourceKey: string | undefined, options: { limit: string }) => {
+  .argument("[source-key]", "来源配置键；省略时依次探测 config/sources 中的全部来源")
+  .option("--limit <number>", "最多处理岗位数（不得超过来源配置预算）")
+  .action(async (sourceKey: string | undefined, options: { limit?: string }) => {
     const appConfig = loadAppConfig();
-    const limit = Number(options.limit);
-    if (!Number.isInteger(limit)) throw new Error("PROBE_LIMIT_MUST_BE_INTEGER");
+    const requestedLimit = options.limit === undefined ? undefined : Number(options.limit);
+    if (requestedLimit !== undefined && !Number.isInteger(requestedLimit)) {
+      throw new Error("PROBE_LIMIT_MUST_BE_INTEGER");
+    }
     const db = createDatabase(appConfig.databaseUrl);
     try {
       const results = [];
-      for (const selectedSourceKey of selectedSourceKeys(sourceKey)) {
+      for (const selectedSourceKey of await selectedSourceKeys(sourceKey)) {
         try {
           const selectedConfig = await loadSourceConfig(selectedSourceKey);
           const result = await runSourceProbe({
@@ -169,7 +175,7 @@ program
               probeRequestIntervalMs: appConfig.probeRequestIntervalMs,
             },
             sourceKey: selectedSourceKey,
-            limit: Math.min(limit, selectedConfig.localProbe.maxItems),
+            limit: requestedLimit ?? selectedConfig.localProbe.requestBudget.maxItems,
           });
           results.push({ sourceKey: selectedSourceKey, ...result });
           if (result.completion === "failed") process.exitCode = 1;

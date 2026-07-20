@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  controlledLocalSourceKeys,
-  officialSourceAdapterVersions,
-} from "./official-source-adapters.js";
-import { assessSource, loadSourceConfig } from "./source-config.js";
+import { officialSourceAdapterVersions } from "./official-source-adapters.js";
+import { assessSource, listSourceKeys, loadSourceConfig } from "./source-config.js";
 import { TENCENT_ADAPTER_VERSION } from "./tencent-campus-adapter.js";
 
 describe("Tencent source configuration", () => {
@@ -15,7 +12,12 @@ describe("Tencent source configuration", () => {
     expect(config.policy.status).toBe("pending_review");
     expect(config.policy.adapterVersion).toBe(TENCENT_ADAPTER_VERSION);
     expect(config.candidate.hardGates.accessPolicyAccepted).toBe(false);
-    expect(config.localProbe.maxItems).toBe(20);
+    expect(config.localProbe.requestBudget).toEqual({
+      maxItems: 20,
+      maxPages: 4,
+      maxRequests: 24,
+      minimumIntervalMs: 1500,
+    });
     expect(config.localProbe.queryStreams.map((stream) => stream.targetItems)).toEqual([10, 10]);
     expect(config.policy.fetchTargets).toEqual(
       expect.arrayContaining([
@@ -48,15 +50,30 @@ describe("Tencent source configuration", () => {
 });
 
 describe("controlled local source configurations", () => {
-  it.each(controlledLocalSourceKeys)("keeps %s pending and local-only", async (sourceKey) => {
+  it("discovers source configuration files instead of relying on a source-key allowlist", async () => {
+    await expect(listSourceKeys()).resolves.toEqual([
+      "meituan-official",
+      "nankai-tal-2027",
+      "tencent-campus",
+    ]);
+  });
+
+  it.each([
+    ["tencent-campus", "tencent-public-api"],
+    ["meituan-official", "meituan-public-api"],
+    ["nankai-tal-2027", "nankai-tal-deterministic-html"],
+  ] as const)("keeps %s pending and local-only", async (sourceKey, adapterKey) => {
     const config = await loadSourceConfig(sourceKey);
     const assessment = assessSource(config);
 
     expect(config.sourceKey).toBe(sourceKey);
     expect(config.policy.status).toBe("pending_review");
-    expect(config.policy.adapterKey).toBe(sourceKey);
-    expect(config.policy.adapterVersion).toBe(officialSourceAdapterVersions[sourceKey]);
+    expect(config.policy.adapterKey).toBe(adapterKey);
+    expect(config.policy.adapterVersion).toBe(officialSourceAdapterVersions[adapterKey]);
     expect(config.localProbe.enabled).toBe(true);
+    expect(config.localProbe.requestBudget.maxRequests).toBeGreaterThanOrEqual(
+      config.localProbe.requestBudget.maxPages,
+    );
     expect(config.policy.fetchTargets.every((target) => !target.allowRedirects)).toBe(true);
     expect(config.policy.applyTargets.every((target) => !target.allowRedirects)).toBe(true);
     expect(assessment.hardGatesPassed).toBe(false);

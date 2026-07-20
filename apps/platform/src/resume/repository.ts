@@ -5,7 +5,10 @@ import { type Kysely, sql } from "kysely";
 import { ApiProblem } from "../identity/http.js";
 import { assertActiveOwnerEpoch, type OwnerContext } from "../identity/session-repository.js";
 import { hashCanonicalJson, sha256 } from "../lib/canonical-json.js";
-import { type ResumeAnalysisResult, rebuildResumeAnalysisResult } from "./analysis-service.js";
+import {
+  type HydratedResumeAnalysisResult,
+  rebuildResumeAnalysisResult,
+} from "./analysis-service.js";
 import { decryptResumePayload, encryptResumePayload } from "./crypto.js";
 
 const BACKOFF_POLICY = {
@@ -30,7 +33,7 @@ export interface StoredResumeAnalysis {
   failureCode: string | null;
   createdAt: string;
   updatedAt: string;
-  result: ResumeAnalysisResult | null;
+  result: HydratedResumeAnalysisResult | null;
 }
 
 export interface SubmitResumeAnalysisInput {
@@ -94,7 +97,7 @@ export function mapResumeAnalysisRow(
     created_at: Date | string;
     updated_at: Date | string;
   },
-  result: ResumeAnalysisResult | null,
+  result: HydratedResumeAnalysisResult | null,
 ): StoredResumeAnalysis {
   const piiFindings = parsePiiSummary(row.pii_summary);
   return {
@@ -175,7 +178,7 @@ export async function getResumeAnalysis(input: {
     .executeTakeFirst();
   if (!row) return null;
 
-  let result: ResumeAnalysisResult | null = null;
+  let result: HydratedResumeAnalysisResult | null = null;
   if (row.analysis_result && !row.purged_at && asDate(row.purge_after).getTime() > now.getTime()) {
     const extractedText = decryptResumePayload(
       {

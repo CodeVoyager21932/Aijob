@@ -80,9 +80,9 @@
     ]
   },
   "policy": {
-    "version": "2",
+    "version": "3",
     "status": "pending_review",
-    "adapterKey": "meituan-official",
+    "adapterKey": "meituan-public-api",
     "adapterVersion": "0.1.1",
     "entrypoints": [
       "https://zhaopin.meituan.com/web/position?hiringType=4_2%2C4_6&jfJgList=11002_1100206"
@@ -96,7 +96,8 @@
       "accessPolicyAccepted 未通过，仅允许维护者显式执行本地技术探测。",
       "禁止定时全量采集、生产调度、自动发布和公开展示。",
       "禁止登录、验证码绕过、浏览器自动化和未登记网络目标。",
-      "列表每页最多 10 条，单次规范化最多 20 条，并在请求间限速。"
+      "列表每页最多 10 条，单次规范化最多 20 条，并在请求间限速。",
+      "v3 将 sourceKey 与可复用 adapterKey 解耦，并显式限制 maxItems、maxPages、maxRequests 和 minimumIntervalMs；访问范围不变。"
     ],
     "fetchTargets": [
       {
@@ -133,8 +134,12 @@
   "localProbe": {
     "enabled": true,
     "environment": "local",
-    "maxItems": 20,
-    "requestIntervalMs": 1500,
+    "requestBudget": {
+      "maxItems": 20,
+      "maxPages": 2,
+      "maxRequests": 22,
+      "minimumIntervalMs": 1500
+    },
     "completion": "partial",
     "publicationAllowed": false,
     "requestDefaults": {},

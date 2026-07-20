@@ -1,11 +1,16 @@
 import { createHash } from "node:crypto";
-import type { FieldValue, JobRequirement, RequirementKind } from "@aijob/contracts";
+import type {
+  FieldValue,
+  JobRequirement,
+  RequirementKind,
+  RequirementNecessity,
+} from "@aijob/contracts";
 import { JobRequirementSchema } from "@aijob/contracts";
 
 export interface RequirementField<T> {
   value: FieldValue<T>;
   sourceText?: string;
-  required: boolean;
+  necessity: RequirementNecessity;
 }
 
 export interface DeterministicRequirementInput {
@@ -30,6 +35,12 @@ interface RequirementDescriptor<T> {
   kind: RequirementKind;
   operator: JobRequirement["operator"];
   field: RequirementField<T> | undefined;
+}
+
+export interface RequirementClause {
+  text: string;
+  start: number;
+  end: number;
 }
 
 function stableId(
@@ -64,7 +75,8 @@ function createRequirement<T>(
       expectedValue: field.value.rawValues,
       sourceText,
       evidenceRefs: field.value.evidenceRefs,
-      required: field.required,
+      sourceSpan: null,
+      necessity: field.necessity,
     });
   }
 
@@ -84,7 +96,8 @@ function createRequirement<T>(
     expectedValue,
     sourceText,
     evidenceRefs: field.value.evidenceRefs,
-    required: field.required,
+    sourceSpan: null,
+    necessity: field.necessity,
   });
 }
 
@@ -178,12 +191,24 @@ function uniqueTerms(values: readonly string[]): string[] {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }
 
+export function splitRequirementAtoms(sourceText: string): RequirementClause[] {
+  const atoms: RequirementClause[] = [];
+  const matcher = /[^\r\n；;，,。！？!?]+/g;
+  for (const match of sourceText.matchAll(matcher)) {
+    const raw = match[0];
+    const rawStart = match.index ?? 0;
+    const withoutMarker = raw.replace(/^\s*(?:[（(]?\d{1,2}[）)、.．:]|[-•])\s*/, "");
+    const text = withoutMarker.trim();
+    if (text.length < 2) continue;
+    const textOffset = raw.indexOf(text);
+    const start = rawStart + Math.max(0, textOffset);
+    atoms.push({ text, start, end: start + text.length });
+  }
+  return atoms;
+}
+
 export function splitRequirementClauses(sourceText: string): string[] {
-  return sourceText
-    .replace(/(?:^|[\s；;])(?:[（(]?\d{1,2}[）)、.．:]|[-•])\s*/g, "\n")
-    .split(/(?:\r?\n)+|[；;]/)
-    .map((clause) => clause.trim().replace(/^[,，。\s]+|[,，。\s]+$/g, ""))
-    .filter((clause) => clause.length >= 2);
+  return splitRequirementAtoms(sourceText).map(({ text }) => text);
 }
 
 function textualKinds(clause: string): RequirementKind[] {
@@ -194,7 +219,7 @@ function textualKinds(clause: string): RequirementKind[] {
   if (/(?:20\d{2}).{0,8}(?:届|毕业)|(?:届|毕业).{0,8}(?:20\d{2})/.test(clause)) {
     kinds.push("graduation_year");
   }
-  if (/(?:在校生|在读学生|在读本科|在读硕士)/.test(clause)) {
+  if (/(?:在校生|在读学生|在读本科|在读硕士|学历在读|本科[^，,；;。]{0,8}在读)/.test(clause)) {
     kinds.push("student_status");
   }
   if (/(?:每周|一周).{0,12}(?:[1-7]|一|二|三|四|五|六|七).{0,2}(?:天|工作日)/.test(clause)) {
@@ -399,10 +424,15 @@ function textualExpectation(
  * `unknown` requirement with its exact source excerpt instead of being guessed.
  */
 export function decomposeTextualJobRequirements(input: TextualRequirementInput): JobRequirement[] {
-  return splitRequirementClauses(input.sourceText).flatMap((sourceText, index) =>
-    textualKinds(sourceText).map((kind) => {
+  return splitRequirementAtoms(input.sourceText).flatMap((clause, index) =>
+    textualKinds(clause.text).map((kind) => {
+      const sourceText = clause.text;
       const expectation = textualExpectation(sourceText, kind);
-      const required = !/(?:优先|加分|更佳|为佳|preferred)/i.test(sourceText);
+      const necessity: RequirementNecessity = /(?:优先|加分|更佳|为佳|preferred)/i.test(sourceText)
+        ? "preferred"
+        : /(?:可选|非必须|不作要求|无需)/.test(sourceText)
+          ? "optional"
+          : "required";
       return JobRequirementSchema.parse({
         id: stableId(input.publishedJobVersionId, kind, sourceText, expectation.expectedValue),
         kind,
@@ -410,7 +440,12 @@ export function decomposeTextualJobRequirements(input: TextualRequirementInput):
         expectedValue: expectation.expectedValue,
         sourceText,
         evidenceRefs: [`${input.evidenceRefPrefix}:${index + 1}`],
-        required,
+        sourceSpan: {
+          start: clause.start,
+          end: clause.end,
+          excerptHash: createHash("sha256").update(sourceText).digest("hex"),
+        },
+        necessity,
       });
     }),
   );

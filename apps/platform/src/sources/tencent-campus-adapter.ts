@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { hashCanonicalJson, sha256 } from "../lib/canonical-json.js";
+import { classifyOfficialJobFamily } from "./job-family-classifier.js";
 import {
   type EvidenceField,
   known,
@@ -9,8 +10,8 @@ import {
 } from "./normalized-official-job.js";
 import type { ProbeQueryStream } from "./source-config.js";
 
-export const TENCENT_ADAPTER_VERSION = "0.1.2";
-export const TENCENT_NORMALIZER_VERSION = "0.1.2";
+export const TENCENT_ADAPTER_VERSION = "0.2.0";
+export const TENCENT_NORMALIZER_VERSION = "0.2.0";
 
 const sourceIdentifier = z.string().min(1);
 
@@ -180,50 +181,6 @@ function recruitmentType(
   };
 }
 
-function classifyJobFamily(
-  detail: TencentDetail,
-  detailEvidenceRef: string,
-): {
-  value: EvidenceField<"product" | "operations" | "other">;
-  requiresManualReview: boolean;
-} {
-  const sourceFamily =
-    detail.tidName === "产品"
-      ? "product"
-      : detail.tidName === "运营" || detail.tidName === "市场"
-        ? "operations"
-        : undefined;
-  const titleLooksOperational = detail.title.includes("运营");
-  const titleLooksTechnical = /(开发|算法|工程|测试|运维)/.test(detail.title);
-
-  if (titleLooksOperational && titleLooksTechnical) {
-    return { value: unknown("needs_manual_review"), requiresManualReview: true };
-  }
-  if (sourceFamily === "product" && titleLooksOperational) {
-    return {
-      value: {
-        state: "conflict",
-        rawValues: ["product", "operations"],
-        evidenceRefs: [`${detailEvidenceRef}#/data/tidName`, `${detailEvidenceRef}#/data/title`],
-      },
-      requiresManualReview: true,
-    };
-  }
-  if (sourceFamily) {
-    return {
-      value: known(sourceFamily, [detailEvidenceRef]),
-      requiresManualReview: sourceFamily === "operations",
-    };
-  }
-  if (titleLooksOperational) {
-    return {
-      value: known("operations", [detailEvidenceRef]),
-      requiresManualReview: true,
-    };
-  }
-  return { value: unknown("needs_manual_review"), requiresManualReview: true };
-}
-
 export function normalizeTencentJob(input: {
   list: TencentListItem;
   detail: TencentDetail;
@@ -238,7 +195,12 @@ export function normalizeTencentJob(input: {
   }
 
   const recruitment = recruitmentType(entryScope, list, detail, listEvidenceRef, detailEvidenceRef);
-  const family = classifyJobFamily(detail, detailEvidenceRef);
+  const family = classifyOfficialJobFamily({
+    title: detail.title,
+    sourceLabels: [detail.tidName],
+    sourceEvidenceRef: `${detailEvidenceRef}#/data/tidName`,
+    titleEvidenceRef: `${detailEvidenceRef}#/data/title`,
+  });
   const qualityFlags: NormalizedTencentJob["qualityFlags"] = [];
   const reviewReasons: NormalizedTencentJob["reviewReasons"] = [
     {

@@ -3,8 +3,9 @@ import type { ColumnType, Generated } from "kysely";
 export type JsonPrimitive = boolean | number | string | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 export type ResumeAnalysisStorageMetadata = {
-  version: "resume-analysis-storage-v1";
+  version: "resume-analysis-storage-v1" | "resume-analysis-storage-v2";
   candidateEvidenceCount: number;
+  documentBlockCount?: number;
 };
 // PostgreSQL drivers return `Date` for timestamptz. Keep generated timestamps as
 // `Generated<Date>` rather than nesting one ColumnType inside another.
@@ -282,6 +283,7 @@ export interface PublishedJobVersionTable {
   apply_url: string | null;
   effective_at: Timestamp;
   created_at: Generated<Timestamp>;
+  active_requirement_set_id: Generated<string | null>;
 }
 
 export interface PublishedJobVersionRevisionLinkTable {
@@ -297,6 +299,22 @@ export interface JobRequirementSetTable {
   requirements: JsonValue;
   content_hash: string;
   created_at: Generated<Timestamp>;
+}
+
+export interface JobConditionProjectionTable {
+  published_job_version_id: string;
+  requirement_set_id: string;
+  locations: JsonValue;
+  weekly_attendance_days: JsonValue;
+  duration_months: JsonValue;
+  earliest_start_date: JsonValue;
+  graduation_years: JsonValue;
+  student_status: JsonValue;
+  education_levels: JsonValue;
+  majors: JsonValue;
+  languages: JsonValue;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface AuditEventTable {
@@ -393,6 +411,22 @@ export interface ResumeEvidenceRevisionTable {
   content_hash: string;
   confirmed_at: Timestamp;
   created_at: Generated<Timestamp>;
+  schema_version: Generated<string>;
+  document_revision_id: Generated<string | null>;
+}
+
+export interface ResumeDocumentRevisionTable {
+  id: string;
+  owner_id: string;
+  owner_epoch: number;
+  resume_analysis_id: string | null;
+  revision: number;
+  base_revision: number | null;
+  schema_version: string;
+  sections: JsonValue;
+  content_hash: string;
+  confirmed_at: Timestamp;
+  created_at: Generated<Timestamp>;
 }
 
 export interface MatchRunTable {
@@ -425,6 +459,8 @@ export interface RecommendationRunTable {
   evidence_revision_id: string;
   candidate_job_version_ids: JsonValue;
   candidate_freshness_snapshots: JsonValue | null;
+  candidate_requirement_set_ids: Generated<JsonValue>;
+  resume_document_revision_id: Generated<string | null>;
   candidate_set_hash: string;
   strategy_version: string;
   status: string;
@@ -443,13 +479,17 @@ export interface RecommendationItemTable {
   match_run_id: string;
   reason_codes: JsonValue;
   unknown_requirement_ids: JsonValue;
+  basis_state: Generated<string>;
+  coverage: Generated<JsonValue>;
+  gaps: Generated<JsonValue>;
 }
 
 export interface ResumeTailoringRunTable {
   id: string;
   owner_id: string;
   owner_epoch: number;
-  resume_analysis_id: string;
+  resume_analysis_id: string | null;
+  resume_document_revision_id: Generated<string | null>;
   published_job_version_id: string;
   requirement_set_id: string;
   evidence_revision_id: string;
@@ -480,6 +520,9 @@ export interface ResumeTailoringSegmentTable {
   decision: Generated<string>;
   edited_text: string | null;
   updated_at: Generated<Timestamp>;
+  source_block_id: Generated<string | null>;
+  section_id: Generated<string | null>;
+  section_title: Generated<string | null>;
 }
 
 export interface ResumeExportTable {
@@ -580,6 +623,7 @@ export interface Database {
   "catalog.published_job_versions": PublishedJobVersionTable;
   "catalog.published_job_version_revision_links": PublishedJobVersionRevisionLinkTable;
   "catalog.job_requirement_sets": JobRequirementSetTable;
+  "catalog.job_condition_projections": JobConditionProjectionTable;
   "catalog.internal_job_previews": InternalJobPreviewView;
   "identity.owners": OwnerTable;
   "identity.owner_sessions": OwnerSessionTable;
@@ -587,6 +631,7 @@ export interface Database {
   "profile.profile_fact_revisions": ProfileFactRevisionTable;
   "profile.job_preference_revisions": JobPreferenceRevisionTable;
   "profile.resume_evidence_revisions": ResumeEvidenceRevisionTable;
+  "profile.resume_document_revisions": ResumeDocumentRevisionTable;
   "matching.match_runs": MatchRunTable;
   "matching.recommendation_runs": RecommendationRunTable;
   "matching.recommendation_items": RecommendationItemTable;

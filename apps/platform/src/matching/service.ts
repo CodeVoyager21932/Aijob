@@ -23,6 +23,7 @@ import { lockOwnerIdempotencyKey } from "../lib/idempotency.js";
 import { ServiceError } from "../lib/service-error.js";
 import type { OwnerTaskLease } from "../workers/owner-task-lease.js";
 import { withOwnerTaskLease } from "../workers/owner-task-lease.js";
+import { CAPABILITY_DICTIONARY_VERSION } from "./capabilities.js";
 import { evaluateThreeAxisMatch, type MatchableJob } from "./engine.js";
 import {
   compareRecommendations,
@@ -30,10 +31,10 @@ import {
   recommendationReasonCodes,
 } from "./ranking.js";
 
-const RULE_VERSION = "eligibility-rules-v1";
-const DICTIONARY_VERSION = "zh-cn-internship-v1";
-const TEMPLATE_VERSION = "three-axis-explanation-v1";
-const RECOMMENDATION_STRATEGY_VERSION = "eligibility-preference-evidence-freshness-v1";
+const RULE_VERSION = "eligibility-rules-v3";
+const DICTIONARY_VERSION = `zh-cn-internship-v3+${CAPABILITY_DICTIONARY_VERSION}`;
+const TEMPLATE_VERSION = "three-axis-explanation-v3";
+const RECOMMENDATION_STRATEGY_VERSION = "decision-readiness-v2";
 
 const RecommendationCandidateFreshnessSnapshotSchema = z.object({
   publishedJobVersionId: z.string().trim().min(1),
@@ -55,9 +56,31 @@ const StringFieldSchema = fieldValueSchema(z.string().trim().min(1));
 const StringListFieldSchema = fieldValueSchema(z.array(z.string().trim().min(1)).min(1));
 const NumberFieldSchema = fieldValueSchema(z.number());
 const JobFamilyFieldSchema = fieldValueSchema(JobFamilySchema);
+const LegacyMatchRunResultSchema = MatchRunResultSchema.pick({
+  eligibility: true,
+  evidence: true,
+  preference: true,
+  unknownRequirementIds: true,
+});
 
 function json(value: unknown): JsonValue {
   return JSON.stringify(value) as JsonValue;
+}
+
+export function parseStoredMatchRunResult(value: unknown): MatchRunResult {
+  const current = MatchRunResultSchema.safeParse(value);
+  if (current.success) return current.data;
+  const legacy = LegacyMatchRunResultSchema.parse(value);
+  return {
+    ...legacy,
+    basisState: "insufficient",
+    coverage: {
+      eligibility: { required: 0, evaluated: 0, met: 0, conflicts: 0, unknown: 0 },
+      evidence: { applicable: 0, supported: 0, partial: 0, missing: 0, unknown: 0 },
+      preference: { configured: 0, compared: 0, conflicts: 0, unknown: 0 },
+    },
+    gaps: [],
+  };
 }
 
 function toIso(value: unknown): string | null {
@@ -96,11 +119,14 @@ async function assertOwnerRevision(
 
 async function requirementSetForVersion(db: DbExecutor, versionId: string) {
   const row = await db
-    .selectFrom("catalog.job_requirement_sets")
-    .selectAll()
-    .where("published_job_version_id", "=", versionId)
-    .orderBy("created_at", "desc")
-    .orderBy("id", "desc")
+    .selectFrom("catalog.published_job_versions as version")
+    .innerJoin(
+      "catalog.job_requirement_sets as requirements",
+      "requirements.id",
+      "version.active_requirement_set_id",
+    )
+    .selectAll("requirements")
+    .where("version.id", "=", versionId)
     .executeTakeFirst();
   if (!row) {
     throw new ServiceError(
@@ -244,7 +270,7 @@ function mapMatchRun(row: MatchRunRow): MatchRun {
     ruleVersion: row.rule_version,
     dictionaryVersion: row.dictionary_version,
     templateVersion: row.template_version,
-    result: row.result,
+    result: row.result === null ? null : parseStoredMatchRunResult(row.result),
     failureCode: row.failure_code,
     createdAt: toIso(row.created_at),
     completedAt: toIso(row.completed_at),
@@ -293,9 +319,22 @@ async function loadMatchInputs(db: DbExecutor, run: MatchRunRow) {
         .where("owner_id", "=", run.owner_id)
         .executeTakeFirstOrThrow(),
       db
-        .selectFrom("catalog.published_job_versions")
-        .selectAll()
-        .where("id", "=", run.published_job_version_id)
+        .selectFrom("catalog.published_job_versions as version")
+        .innerJoin(
+          "catalog.job_condition_projections as projection",
+          "projection.published_job_version_id",
+          "version.id",
+        )
+        .select([
+          "version.company_name",
+          "version.job_family",
+          "version.work_mode",
+          "projection.locations",
+          "projection.weekly_attendance_days",
+          "projection.duration_months",
+        ])
+        .where("version.id", "=", run.published_job_version_id)
+        .where("projection.requirement_set_id", "=", run.requirement_set_id)
         .executeTakeFirstOrThrow(),
     ]);
 
@@ -307,6 +346,13 @@ async function loadMatchInputs(db: DbExecutor, run: MatchRunRow) {
     durationMonths: NumberFieldSchema.parse(jobVersion.duration_months),
     workMode: StringFieldSchema.parse(jobVersion.work_mode),
   };
+  if (evidenceRevision.schema_version !== "resume-evidence-v2") {
+    throw new ServiceError(
+      409,
+      "LEGACY_EVIDENCE_READ_ONLY",
+      "旧版整段证据只保留历史读取，不能用于新的匹配运行。",
+    );
+  }
   return {
     requirements: JobRequirementSchema.array().parse(requirementSet.requirements),
     confirmedFacts: ProfileFactSchema.array().parse(factRevision.facts),
@@ -410,6 +456,20 @@ function parseRecommendationCandidateSnapshots(
   return new Map(snapshots.map((snapshot) => [snapshot.publishedJobVersionId, snapshot]));
 }
 
+const FrozenRequirementSetSchema = z.object({
+  publishedJobVersionId: z.string().trim().min(1),
+  requirementSetId: z.string().trim().min(1),
+});
+
+function parseFrozenRequirementSets(
+  row: Selectable<Database["matching.recommendation_runs"]>,
+): Map<string, string> {
+  const parsed = FrozenRequirementSetSchema.array().safeParse(row.candidate_requirement_set_ids);
+  if (!parsed.success) return new Map();
+  const entries = parsed.data;
+  return new Map(entries.map((entry) => [entry.publishedJobVersionId, entry.requirementSetId]));
+}
+
 async function currentCatalogCandidateSnapshots(
   db: DbExecutor,
   candidateIds: string[],
@@ -471,6 +531,7 @@ async function recommendationCatalogContext(
 ): Promise<RecommendationCatalogContext> {
   const candidateIds = parseRecommendationCandidateIds(row);
   const snapshots = parseRecommendationCandidateSnapshots(row);
+  const frozenRequirementSets = parseFrozenRequirementSets(row);
   let query = db
     .selectFrom("catalog.published_job_versions as candidate")
     .innerJoin("catalog.published_jobs as job", "job.id", "candidate.published_job_id")
@@ -483,6 +544,7 @@ async function recommendationCatalogContext(
     .select([
       "candidate.id as candidateId",
       "current.id as currentVersionId",
+      "current.active_requirement_set_id as currentRequirementSetId",
       "current.activity_state as currentActivityState",
       "preview.activity_state as previewActivityState",
       "preview.ingestion_state as ingestionState",
@@ -520,7 +582,13 @@ async function recommendationCatalogContext(
       itemStates.set(candidateId, "invalid");
       continue;
     }
-    itemStates.set(candidateId, candidate.currentVersionId === candidateId ? "current" : "stale");
+    itemStates.set(
+      candidateId,
+      candidate.currentVersionId === candidateId &&
+        candidate.currentRequirementSetId === frozenRequirementSets.get(candidateId)
+        ? "current"
+        : "stale",
+    );
   }
 
   const states = [...itemStates.values()];
@@ -577,10 +645,13 @@ export async function enqueueRecommendationRun(
 
     const existingCandidates = await transaction
       .selectFrom("catalog.published_job_versions")
-      .select("id")
+      .select(["id", "active_requirement_set_id"])
       .where("id", "in", normalizedRequest.candidateJobVersionIds)
       .execute();
-    if (existingCandidates.length !== normalizedRequest.candidateJobVersionIds.length) {
+    if (
+      existingCandidates.length !== normalizedRequest.candidateJobVersionIds.length ||
+      existingCandidates.some(({ active_requirement_set_id }) => !active_requirement_set_id)
+    ) {
       throw new ServiceError(422, "CANDIDATE_JOB_NOT_FOUND", "候选集合中包含不存在的岗位版本。");
     }
 
@@ -598,6 +669,19 @@ export async function enqueueRecommendationRun(
     }
 
     const id = randomUUID();
+    const frozenRequirementSets = normalizedRequest.candidateJobVersionIds.map(
+      (publishedJobVersionId) => ({
+        publishedJobVersionId,
+        requirementSetId: existingCandidates.find(({ id }) => id === publishedJobVersionId)
+          ?.active_requirement_set_id as string,
+      }),
+    );
+    const evidenceRevision = await transaction
+      .selectFrom("profile.resume_evidence_revisions")
+      .select("document_revision_id")
+      .where("id", "=", request.evidenceRevisionId)
+      .where("owner_id", "=", owner.ownerId)
+      .executeTakeFirstOrThrow();
     const created = await transaction
       .insertInto("matching.recommendation_runs")
       .values({
@@ -609,6 +693,8 @@ export async function enqueueRecommendationRun(
         evidence_revision_id: request.evidenceRevisionId,
         candidate_job_version_ids: json(normalizedRequest.candidateJobVersionIds),
         candidate_freshness_snapshots: json(candidateSnapshots),
+        candidate_requirement_set_ids: json(frozenRequirementSets),
+        resume_document_revision_id: evidenceRevision.document_revision_id,
         candidate_set_hash: candidateSetHash,
         strategy_version: RECOMMENDATION_STRATEGY_VERSION,
         status: "queued",
@@ -665,6 +751,9 @@ async function recommendationItems(
       "matching.recommendation_items.published_job_version_id",
       "matching.recommendation_items.match_run_id",
       "matching.recommendation_items.reason_codes",
+      "matching.recommendation_items.basis_state",
+      "matching.recommendation_items.coverage",
+      "matching.recommendation_items.gaps",
       "matching.recommendation_items.unknown_requirement_ids",
       "matching.match_runs.result",
     ])
@@ -673,7 +762,10 @@ async function recommendationItems(
     .orderBy("matching.recommendation_items.ordinal", "asc")
     .execute();
   return rows.map((row) => {
-    const result = MatchRunResultSchema.parse(row.result);
+    const result = parseStoredMatchRunResult(row.result);
+    const storedBasisState = MatchRunResultSchema.shape.basisState.safeParse(row.basis_state);
+    const storedCoverage = MatchRunResultSchema.shape.coverage.safeParse(row.coverage);
+    const storedGaps = MatchRunResultSchema.shape.gaps.safeParse(row.gaps);
     return {
       ordinal: row.ordinal,
       publishedJobVersionId: row.published_job_version_id,
@@ -682,6 +774,9 @@ async function recommendationItems(
       evidence: result.evidence.status,
       preference: result.preference.status,
       reasonCodes: z.array(z.string()).parse(row.reason_codes),
+      basisState: storedBasisState.success ? storedBasisState.data : result.basisState,
+      coverage: storedCoverage.success ? storedCoverage.data : result.coverage,
+      gaps: storedGaps.success ? storedGaps.data : result.gaps,
       unknownRequirementIds: z.array(z.string()).parse(row.unknown_requirement_ids),
       lastVerifiedAt: context.snapshots.get(row.published_job_version_id)?.lastVerifiedAt ?? null,
       catalogState: context.itemStates.get(row.published_job_version_id) ?? "invalid",
@@ -765,9 +860,13 @@ export async function processRecommendationRun(
   try {
     const candidateIds = parseRecommendationCandidateIds(recommendation);
     const candidateSnapshots = parseRecommendationCandidateSnapshots(recommendation);
+    const frozenRequirementSets = parseFrozenRequirementSets(recommendation);
     if (
       candidateSnapshots.size !== candidateIds.length ||
-      candidateIds.some((candidateId) => !candidateSnapshots.has(candidateId))
+      candidateIds.some(
+        (candidateId) =>
+          !candidateSnapshots.has(candidateId) || !frozenRequirementSets.has(candidateId),
+      )
     ) {
       throw new ServiceError(
         409,
@@ -787,7 +886,14 @@ export async function processRecommendationRun(
           "这次旧推荐没有可复现的来源核验时间，请重新生成推荐。",
         );
       }
-      const requirementSet = await requirementSetForVersion(db, candidateId);
+      const requirementSetId = frozenRequirementSets.get(candidateId);
+      if (!requirementSetId) {
+        throw new ServiceError(
+          409,
+          "RECOMMENDATION_REQUIREMENTS_NOT_FROZEN",
+          "这次推荐没有冻结岗位要求集，请重新生成推荐。",
+        );
+      }
       const idempotencyKey = `recommendation:${runId}:job:${candidateId}`;
       let matchRun = await existingMatchRun(db, owner.ownerId, idempotencyKey);
       if (!matchRun) {
@@ -801,7 +907,7 @@ export async function processRecommendationRun(
               owner_id: owner.ownerId,
               owner_epoch: owner.ownerEpoch,
               published_job_version_id: candidateId,
-              requirement_set_id: requirementSet.id,
+              requirement_set_id: requirementSetId,
               profile_fact_revision_id: recommendation.profile_fact_revision_id,
               preference_revision_id: recommendation.preference_revision_id,
               evidence_revision_id: recommendation.evidence_revision_id,
@@ -826,7 +932,7 @@ export async function processRecommendationRun(
       }
       const result =
         matchRun.status === "succeeded" && matchRun.result
-          ? MatchRunResultSchema.parse(matchRun.result)
+          ? parseStoredMatchRunResult(matchRun.result)
           : await computeMatchResult(db, matchRun);
       if (matchRun.status !== "succeeded") {
         await withOwnerTaskLease(db, lease, async (transaction) => {
@@ -871,6 +977,9 @@ export async function processRecommendationRun(
               match_run_id: item.matchRun.id,
               reason_codes: json(recommendationReasonCodes(item.result)),
               unknown_requirement_ids: json(item.result.unknownRequirementIds),
+              basis_state: item.result.basisState,
+              coverage: json(item.result.coverage),
+              gaps: json(item.result.gaps),
             })),
           )
           .execute();

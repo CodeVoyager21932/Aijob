@@ -11,6 +11,13 @@ function result(
     eligibility: { status: eligibility, reasons: [] },
     preference: { status: preference, reasons: [] },
     evidence: { status: evidence, reasons: [] },
+    basisState: "complete",
+    coverage: {
+      eligibility: { required: 0, evaluated: 0, met: 0, conflicts: 0, unknown: 0 },
+      evidence: { applicable: 0, supported: 0, partial: 0, missing: 0, unknown: 0 },
+      preference: { configured: 0, compared: 0, conflicts: 0, unknown: 0 },
+    },
+    gaps: [],
     unknownRequirementIds: [],
   };
 }
@@ -57,6 +64,11 @@ describe("deterministic recommendation ranking", () => {
   it("returns reason codes rather than a user-facing percentage", () => {
     expect(
       recommendationReasonCodes(result("no_explicit_conflict", "fits", "partial_evidence")),
-    ).toEqual(["NO_EXPLICIT_ELIGIBILITY_CONFLICT", "PARTIAL_RESUME_EVIDENCE", "PREFERENCES_FIT"]);
+    ).toEqual([
+      "BASIS_COMPLETE",
+      "NO_EXPLICIT_ELIGIBILITY_CONFLICT",
+      "PARTIAL_RESUME_EVIDENCE",
+      "PREFERENCES_FIT",
+    ]);
   });
 });

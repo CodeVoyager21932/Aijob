@@ -14,10 +14,12 @@ import {
   requestOwnerDeletion,
 } from "./deletion-service.js";
 import {
+  getCurrentResumeDocument,
   ProfileRevisionConflict,
   putJobPreferences,
   putProfileFacts,
   putResumeEvidence,
+  putSavedResumeEvidenceSelection,
 } from "./revision-repository.js";
 
 const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
@@ -213,9 +215,10 @@ describeWithDatabase("local owner resume, revisions and deletion flow", () => {
     const evidence: ResumeEvidence = {
       id: candidate.id,
       resumeAnalysisId: first.analysis.id,
+      sourceBlockId: candidate.sourceBlockId,
       section: candidate.section,
-      originalText: candidate.originalText,
-      claim: candidate.claim,
+      evidenceType: candidate.evidenceType,
+      statement: candidate.statement,
       skills: candidate.skills,
       outcomes: candidate.outcomes,
       confirmed: true,
@@ -225,7 +228,43 @@ describeWithDatabase("local owner resume, revisions and deletion flow", () => {
       owner,
       expectedRevision: 0,
       resumeAnalysisId: first.analysis.id,
+      document: result.document,
       evidence: [evidence],
+    });
+    const documentRevision = await db
+      .selectFrom("profile.resume_document_revisions")
+      .select(["id", "schema_version", "sections"])
+      .where("owner_id", "=", owner.ownerId)
+      .executeTakeFirstOrThrow();
+    expect(documentRevision).toMatchObject({
+      schema_version: "resume-document-v1",
+      sections: result.document.sections,
+    });
+    await expect(
+      db
+        .updateTable("profile.resume_document_revisions")
+        .set({ sections: JSON.stringify([]) })
+        .where("id", "=", documentRevision.id)
+        .execute(),
+    ).rejects.toThrow("IMMUTABLE_PROFILE_REVISION");
+    const savedDocument = await getCurrentResumeDocument({ db, ownerId: owner.ownerId });
+    expect(savedDocument?.id).toBe(documentRevision.id);
+    const reusedEvidence = await putSavedResumeEvidenceSelection({
+      db,
+      owner,
+      expectedRevision: 1,
+      documentRevisionId: documentRevision.id,
+      sourceBlockIds: [candidate.sourceBlockId],
+    });
+    expect(reusedEvidence).toMatchObject({
+      revision: 2,
+      documentRevisionId: documentRevision.id,
+      schemaVersion: "resume-evidence-v2",
+    });
+    expect(reusedEvidence.evidence[0]).toMatchObject({
+      sourceBlockId: candidate.sourceBlockId,
+      statement: candidate.statement,
+      confirmed: true,
     });
     const purged = await db
       .selectFrom("profile.resume_analyses")

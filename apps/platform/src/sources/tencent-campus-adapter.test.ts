@@ -16,8 +16,8 @@ async function fixture(name: string): Promise<unknown> {
 
 describe("Tencent campus adapter", () => {
   it("uses the semantic-hash adapter and normalizer version", () => {
-    expect(TENCENT_ADAPTER_VERSION).toBe("0.1.2");
-    expect(TENCENT_NORMALIZER_VERSION).toBe("0.1.2");
+    expect(TENCENT_ADAPTER_VERSION).toBe("0.2.0");
+    expect(TENCENT_NORMALIZER_VERSION).toBe("0.2.0");
   });
 
   it("preserves postId beyond JavaScript's safe integer range as text", async () => {

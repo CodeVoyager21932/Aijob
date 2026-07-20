@@ -1222,9 +1222,31 @@ code {
 
 .filter-primary {
   display: grid;
-  grid-template-columns: minmax(210px, 1.4fr) repeat(2, minmax(150px, 0.8fr)) auto;
+  grid-template-columns: minmax(260px, 1.4fr) repeat(2, minmax(180px, 0.8fr));
   align-items: end;
   gap: 12px;
+}
+
+.filter-primary-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding-top: 16px;
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.filter-primary-actions p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.filter-primary-actions .button {
+  flex: 0 0 auto;
+  min-width: 126px;
 }
 
 .product-filter label,
@@ -2053,6 +2075,79 @@ code {
   color: var(--ink-soft);
 }
 
+.saved-resume-panel,
+.saved-data-actions {
+  margin-bottom: 1.5rem;
+}
+
+.saved-selection-summary {
+  display: grid;
+  justify-items: end;
+  gap: 0.65rem;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
+.saved-selection-tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.saved-selection-button {
+  min-height: 36px;
+  padding: 7px 12px;
+  font-size: 0.78rem;
+}
+
+.saved-selection-note {
+  margin: 0.85rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.saved-document-sections {
+  display: grid;
+  gap: 1rem;
+  max-height: 34rem;
+  margin-top: 1rem;
+  padding-right: 0.35rem;
+  overflow: auto;
+}
+
+.saved-document-sections h3 {
+  margin: 0 0 0.65rem;
+}
+
+.saved-resume-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.algorithm-explainer {
+  margin-bottom: 1.5rem;
+}
+
+.algorithm-explainer summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.algorithm-explainer ol {
+  display: grid;
+  gap: 0.55rem;
+  margin: 1rem 0;
+  padding-left: 1.3rem;
+}
+
 .confirmation-submit {
   position: sticky;
   z-index: 10;
@@ -2086,23 +2181,6 @@ code {
 
 .recommendation-list > li {
   position: relative;
-  padding-left: 26px;
-}
-
-.recommendation-order {
-  position: absolute;
-  z-index: 2;
-  top: 18px;
-  left: 0;
-  display: grid;
-  width: 38px;
-  height: 38px;
-  place-items: center;
-  border: 3px solid #f4f7f2;
-  border-radius: 50%;
-  background: var(--brand);
-  color: white;
-  font-weight: 900;
 }
 
 .compact-axes {
@@ -2229,6 +2307,14 @@ code {
   flex-wrap: wrap;
   gap: 9px;
   padding: 15px 20px;
+}
+
+.final-resume-preview pre {
+  max-width: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+  white-space: pre-wrap;
 }
 
 .button--ghost {
@@ -2415,6 +2501,30 @@ code {
 }
 
 @media (max-width: 720px) {
+  .filter-primary-actions {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .filter-primary-actions .button {
+    width: 100%;
+  }
+
+  .saved-selection-summary {
+    justify-items: start;
+  }
+
+  .saved-selection-tools {
+    justify-content: flex-start;
+  }
+
+  .saved-resume-actions .button,
+  .saved-resume-actions .text-link {
+    justify-content: center;
+    width: 100%;
+  }
+
   .product-header {
     position: static;
   }
@@ -2531,7 +2641,7 @@ code {
     padding: 14px;
   }
 
-  .filter-primary .button,
+  .filter-primary-actions .button,
   .filter-actions .button {
     width: 100%;
   }
@@ -2565,17 +2675,6 @@ code {
   .product-job-card > dl > div + div {
     border-top: 1px solid var(--line);
     border-left: 0;
-  }
-
-  .recommendation-list > li {
-    padding-left: 14px;
-  }
-
-  .recommendation-order {
-    top: 13px;
-    width: 30px;
-    height: 30px;
-    font-size: 0.75rem;
   }
 
   .decision-options,
