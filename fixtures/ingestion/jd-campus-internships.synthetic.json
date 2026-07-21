@@ -1,0 +1,58 @@
+{
+  "success": true,
+  "body": {
+    "totalNumber": 100,
+    "items": [
+      {
+        "publishId": 9001,
+        "reqId": 8001,
+        "positionName": "财务会计实习生",
+        "publishTime": 1784505600000,
+        "jobDirection": "职能方向",
+        "jobDirectionCode": "FUNCTION",
+        "workContent": "协助完成财务核算、经营数据整理和月度报告复核。",
+        "qualification": "2027 届本科及以上学历在读，每周不少于 4 天，连续实习至少 3 个月。",
+        "requirementVoList": [
+          {
+            "reqId": 8001,
+            "workCity": "北京市-北京市",
+            "workCityCode": "010",
+            "positionBg": "京东集团"
+          },
+          {
+            "reqId": 8001,
+            "workCity": "江苏省-南京市",
+            "workCityCode": "025",
+            "positionBg": "京东集团"
+          }
+        ],
+        "jobCategory": "财务类",
+        "jobCategoryCode": "FINANCE",
+        "planId": 51,
+        "isHot": false
+      },
+      {
+        "publishId": 9002,
+        "reqId": 8002,
+        "positionName": "产品运营实习生",
+        "publishTime": 1784592000000,
+        "jobDirection": "产品方向",
+        "jobDirectionCode": "PRODUCT",
+        "workContent": "参与用户需求分析、产品方案整理和上线效果复盘。",
+        "qualification": "本科及以上学历在读，能够使用 SQL 和 Excel 完成基础分析。",
+        "requirementVoList": [
+          {
+            "reqId": 8002,
+            "workCity": "广东省-深圳市",
+            "workCityCode": "0755",
+            "positionBg": "京东零售"
+          }
+        ],
+        "jobCategory": "产品类",
+        "jobCategoryCode": "PRODUCT",
+        "planId": 45,
+        "isHot": true
+      }
+    ]
+  }
+}

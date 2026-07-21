@@ -12,6 +12,7 @@ import {
 import { runAiProviderSmoke } from "./ai/smoke.js";
 import { materializeLocalCatalog } from "./catalog/materialize.js";
 import { loadPlatformConfig } from "./config/platform-config.js";
+import { importManualBrowserSnapshot } from "./ingestion/manual-browser-import.js";
 import { runSourceProbe } from "./ingestion/probe.js";
 import { loadSourceCandidateRegistry } from "./sources/source-candidates.js";
 import { assessSource, listSourceKeys, loadSourceConfig } from "./sources/source-config.js";
@@ -99,6 +100,18 @@ async function selectedSourceKeys(sourceKey: string | undefined): Promise<string
   return [sourceKey];
 }
 
+async function selectedProbeSourceKeys(sourceKey: string | undefined): Promise<string[]> {
+  if (sourceKey) return selectedSourceKeys(sourceKey);
+  const sourceKeys = await listSourceKeys();
+  const enabled: string[] = [];
+  for (const selectedSourceKey of sourceKeys) {
+    if ((await loadSourceConfig(selectedSourceKey)).localProbe.enabled) {
+      enabled.push(selectedSourceKey);
+    }
+  }
+  return enabled;
+}
+
 program
   .command("catalog-materialize")
   .description("为本地 MVP 建立不可变岗位版本和可追溯要求集；不会批准或公开来源")
@@ -139,11 +152,42 @@ program
           sourceKey: selectedSourceKey,
           ...assessment,
           policyStatus: config.policy.status,
-          localProbeOnly: config.localProbe.enabled,
+          localOnly: config.policy.status === "pending_review",
+          liveProbeEnabled: config.localProbe.enabled,
+          manualBrowserImport: config.policy.adapterKey === "bytedance-manual-browser-snapshot",
           registered,
         });
       }
       console.info(JSON.stringify(sourceKey ? results[0] : { sources: results }, null, 2));
+    } finally {
+      await db.destroy();
+    }
+  });
+
+program
+  .command("source-import-browser-snapshot")
+  .description("离线导入已人工核对的浏览器可见 DOM 快照；命令本身不会访问招聘站")
+  .argument("<source-key>", "browser_required 来源配置键")
+  .requiredOption("--file <path>", "位于 .data/browser-imports/ 下的 JSON 快照")
+  .action(async (sourceKey: string, options: { file: string }) => {
+    const appConfig = loadAppConfig();
+    const db = createDatabase(appConfig.databaseUrl);
+    try {
+      console.info(
+        JSON.stringify(
+          await importManualBrowserSnapshot({
+            db,
+            appEnv: appConfig.appEnv,
+            enableLocalMvp: appConfig.enableLocalMvp,
+            workspaceRoot: appConfig.workspaceRoot,
+            snapshotDirectory: appConfig.snapshotDirectory,
+            sourceKey,
+            filePath: options.file,
+          }),
+          null,
+          2,
+        ),
+      );
     } finally {
       await db.destroy();
     }
@@ -163,7 +207,7 @@ program
     const db = createDatabase(appConfig.databaseUrl);
     try {
       const results = [];
-      for (const selectedSourceKey of await selectedSourceKeys(sourceKey)) {
+      for (const selectedSourceKey of await selectedProbeSourceKeys(sourceKey)) {
         try {
           const selectedConfig = await loadSourceConfig(selectedSourceKey);
           const result = await runSourceProbe({

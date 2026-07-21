@@ -52,6 +52,9 @@ describe("Tencent source configuration", () => {
 describe("controlled local source configurations", () => {
   it("discovers source configuration files instead of relying on a source-key allowlist", async () => {
     await expect(listSourceKeys()).resolves.toEqual([
+      "baidu-internships",
+      "bytedance-campus-manual",
+      "jd-campus-internships",
       "meituan-official",
       "nankai-tal-2027",
       "tencent-campus",
@@ -59,10 +62,13 @@ describe("controlled local source configurations", () => {
   });
 
   it.each([
-    ["tencent-campus", "tencent-public-api"],
-    ["meituan-official", "meituan-public-api"],
-    ["nankai-tal-2027", "nankai-tal-deterministic-html"],
-  ] as const)("keeps %s pending and local-only", async (sourceKey, adapterKey) => {
+    ["baidu-internships", "baidu-ssr-deterministic-html", true],
+    ["bytedance-campus-manual", "bytedance-manual-browser-snapshot", false],
+    ["jd-campus-internships", "jd-campus-public-api", true],
+    ["tencent-campus", "tencent-public-api", true],
+    ["meituan-official", "meituan-public-api", true],
+    ["nankai-tal-2027", "nankai-tal-deterministic-html", true],
+  ] as const)("keeps %s pending and local-only", async (sourceKey, adapterKey, probeEnabled) => {
     const config = await loadSourceConfig(sourceKey);
     const assessment = assessSource(config);
 
@@ -70,7 +76,7 @@ describe("controlled local source configurations", () => {
     expect(config.policy.status).toBe("pending_review");
     expect(config.policy.adapterKey).toBe(adapterKey);
     expect(config.policy.adapterVersion).toBe(officialSourceAdapterVersions[adapterKey]);
-    expect(config.localProbe.enabled).toBe(true);
+    expect(config.localProbe.enabled).toBe(probeEnabled);
     expect(config.localProbe.requestBudget.maxRequests).toBeGreaterThanOrEqual(
       config.localProbe.requestBudget.maxPages,
     );
@@ -97,5 +103,71 @@ describe("controlled local source configurations", () => {
         allowedQueryParameters: ["locale"],
       }),
     ]);
+  });
+
+  it("limits Baidu to the anonymous SSR internship page and UUID detail routes", async () => {
+    const config = await loadSourceConfig("baidu-internships");
+    expect(config.localProbe.requestBudget).toEqual({
+      maxItems: 10,
+      maxPages: 1,
+      maxRequests: 1,
+      minimumIntervalMs: 2000,
+    });
+    expect(config.policy.fetchTargets).toEqual([
+      expect.objectContaining({
+        method: "GET",
+        host: "talent.baidu.com",
+        pathPrefix: "/jobs/list",
+        allowedQueryParameters: ["recruitType"],
+      }),
+    ]);
+    expect(config.policy.applyTargets).toEqual([
+      expect.objectContaining({
+        host: "talent.baidu.com",
+        pathPrefix: "/jobs/detail/INTERN/",
+        allowedQueryParameters: [],
+      }),
+    ]);
+  });
+
+  it("limits JD to one anonymous internship API page and official detail routes", async () => {
+    const config = await loadSourceConfig("jd-campus-internships");
+    expect(config.localProbe.requestBudget).toEqual({
+      maxItems: 10,
+      maxPages: 1,
+      maxRequests: 1,
+      minimumIntervalMs: 2000,
+    });
+    expect(config.policy.fetchTargets).toEqual([
+      expect.objectContaining({
+        method: "POST",
+        host: "campus.jd.com",
+        pathPrefix: "/api/wx/position/page",
+        allowedQueryParameters: ["type"],
+      }),
+    ]);
+    expect(config.policy.applyTargets).toEqual([
+      expect.objectContaining({
+        method: "GET",
+        host: "campus.jd.com",
+        pathPrefix: "/api/wx/position/index",
+        allowedQueryParameters: ["type"],
+      }),
+    ]);
+  });
+
+  it("keeps ByteDance browser snapshots manual, internship-only and unable to live probe", async () => {
+    const config = await loadSourceConfig("bytedance-campus-manual");
+    expect(config.candidate.acquisitionMode).toBe("browser_required");
+    expect(config.localProbe.enabled).toBe(false);
+    expect(config.policy.fetchTargets).toEqual([
+      expect.objectContaining({
+        method: "GET",
+        host: "jobs.bytedance.com",
+        pathPrefix: "/campus/position",
+        allowedQueryParameters: [],
+      }),
+    ]);
+    expect(config.policy.policyNotes).toContain("导入 CLI 本身不得触网");
   });
 });

@@ -20,6 +20,7 @@
     "lint": "biome check .",
     "source:assess": "pnpm --filter @aijob/platform cli source-assess",
     "source:candidates": "pnpm --filter @aijob/platform cli source-candidates",
+    "source:import-browser-snapshot": "pnpm --filter @aijob/platform cli source-import-browser-snapshot",
     "source:probe": "pnpm --filter @aijob/platform cli source-probe",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"

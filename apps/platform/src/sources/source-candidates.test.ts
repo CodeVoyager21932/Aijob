@@ -19,6 +19,31 @@ describe("source candidate registry", () => {
       "网易",
     ]);
     expect(registry.liveProbeRequiresExplicitApproval).toBe(true);
+    expect(registry.priorityBatch.find((candidate) => candidate.companyKey === "baidu")).toEqual(
+      expect.objectContaining({
+        assessmentStatus: "configured_pending_review",
+        sourceKeys: ["baidu-internships"],
+      }),
+    );
+    expect(registry.priorityBatch.find((candidate) => candidate.companyKey === "jd")).toEqual(
+      expect.objectContaining({
+        assessmentStatus: "configured_pending_review",
+        sourceKeys: ["jd-campus-internships"],
+      }),
+    );
+    expect(
+      registry.priorityBatch.find((candidate) => candidate.companyKey === "bytedance"),
+    ).toEqual(
+      expect.objectContaining({
+        assessmentStatus: "configured_pending_review",
+        sourceKeys: ["bytedance-campus-manual"],
+      }),
+    );
+    expect(
+      registry.priorityBatch
+        .filter((candidate) => candidate.companyKey === "alibaba")
+        .every((candidate) => candidate.assessmentStatus === "paused"),
+    ).toBe(true);
     expect(
       registry.priorityBatch
         .filter((candidate) => candidate.assessmentStatus === "not_assessed")

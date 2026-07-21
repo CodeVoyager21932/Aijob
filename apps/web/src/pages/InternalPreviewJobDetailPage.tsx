@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { ApiError, getInternalPreviewJob } from "../api/jobs";
 import { ErrorState, LoadingState } from "../components/AsyncState";
 import { CopyLinkButton } from "../components/CopyLinkButton";
+import { OfficialJobText } from "../components/OfficialJobText";
 import { StatusBadge } from "../components/StatusBadge";
 import {
   type DisplayField,
@@ -250,15 +251,7 @@ function FieldText({ field }: { field: DisplayField }) {
     );
   }
 
-  return (
-    <div className="job-copy">
-      {field.value
-        .split(/\r?\n/)
-        .map((paragraph, index) =>
-          paragraph.trim() ? <p key={`${index}-${paragraph.slice(0, 20)}`}>{paragraph}</p> : null,
-        )}
-    </div>
-  );
+  return <OfficialJobText text={field.value} />;
 }
 
 function OfficialHandoff({ job }: { job: ReturnType<typeof toPreviewJobDetail> }) {

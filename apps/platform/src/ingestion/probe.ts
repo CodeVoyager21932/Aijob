@@ -4,6 +4,21 @@ import type { Kysely } from "kysely";
 import { ZodError, z } from "zod";
 import { canonicalJson, hashCanonicalJson } from "../lib/canonical-json.js";
 import {
+  BAIDU_INTERNSHIPS_ADAPTER_VERSION,
+  BAIDU_INTERNSHIPS_LIST_URL,
+  BAIDU_INTERNSHIPS_NORMALIZER_VERSION,
+  normalizeBaiduInternship,
+  parseBaiduInternshipPage,
+} from "../sources/baidu-internships-adapter.js";
+import {
+  buildJdCampusInternshipListRequest,
+  JD_CAMPUS_INTERNSHIPS_ADAPTER_VERSION,
+  JD_CAMPUS_INTERNSHIPS_LIST_URL,
+  JD_CAMPUS_INTERNSHIPS_NORMALIZER_VERSION,
+  normalizeJdCampusInternship,
+  parseJdCampusInternshipPage,
+} from "../sources/jd-campus-internships-adapter.js";
+import {
   buildMeituanDetailRequest,
   buildMeituanSearchRequest,
   MEITUAN_ADAPTER_VERSION,
@@ -838,6 +853,140 @@ async function runNankaiTalAdapterProbe(input: AdapterProbeInput): Promise<Adapt
   };
 }
 
+async function runBaiduInternshipsAdapterProbe(
+  input: AdapterProbeInput,
+): Promise<AdapterProbeOutput> {
+  claimProbeRequest(input.sourceConfig, input.budgetUsage, "page");
+  const response = await safeRequestHtml(
+    { method: "GET", url: BAIDU_INTERNSHIPS_LIST_URL },
+    input.sourceConfig.policy.fetchTargets,
+  );
+  const fetchId = await persistHttpResponse({
+    ...input,
+    crawlRunId: input.crawlRunId,
+    response,
+    lease: probeLease(input),
+  });
+  let page: ReturnType<typeof parseBaiduInternshipPage>;
+  try {
+    page = parseBaiduInternshipPage(response.text);
+  } catch (error) {
+    await markFetchSchemaError(input.db, fetchId, "UPSTREAM_SCHEMA_CHANGED", probeLease(input));
+    throw error;
+  }
+
+  const jobs = page.jobs.slice(0, input.limit);
+  const failureErrorCodes: string[] = [];
+  let normalizedCount = 0;
+  let rejectedCount = 0;
+  for (const [listItemIndex, job] of jobs.entries()) {
+    try {
+      const normalized = normalizeBaiduInternship({
+        job,
+        listItemIndex,
+        pageEvidenceRef: fetchId,
+      });
+      validateNavigationUrl(normalized.applyUrl, "GET", input.sourceConfig.policy.applyTargets);
+      await persistNormalizedOfficialJob({
+        db: input.db,
+        sourceId: input.sourceId,
+        normalized,
+        listFetchId: fetchId,
+        detailFetchId: fetchId,
+        observedAt: new Date(),
+        lease: probeLease(input),
+        adapterVersion: BAIDU_INTERNSHIPS_ADAPTER_VERSION,
+        normalizerVersion: BAIDU_INTERNSHIPS_NORMALIZER_VERSION,
+      });
+      normalizedCount += 1;
+    } catch (error) {
+      const code = errorCode(error);
+      if (code === "TASK_LEASE_LOST") throw error;
+      rejectedCount += 1;
+      failureErrorCodes.push(code);
+      input.errors.push({ code, message: errorMessage(error) });
+    }
+  }
+
+  return {
+    discoveredCount: jobs.length,
+    normalizedCount,
+    rejectedCount,
+    requestCount: input.budgetUsage.requests,
+    reportedTotals: { "all-function-internships": page.total },
+    failureErrorCodes,
+  };
+}
+
+async function runJdCampusInternshipsAdapterProbe(
+  input: AdapterProbeInput,
+): Promise<AdapterProbeOutput> {
+  claimProbeRequest(input.sourceConfig, input.budgetUsage, "page");
+  const response = await safeRequestJson(
+    {
+      method: "POST",
+      url: JD_CAMPUS_INTERNSHIPS_LIST_URL,
+      jsonBody: buildJdCampusInternshipListRequest({ pageIndex: 0, pageSize: input.limit }),
+    },
+    input.sourceConfig.policy.fetchTargets,
+  );
+  const fetchId = await persistHttpResponse({
+    ...input,
+    crawlRunId: input.crawlRunId,
+    response,
+    lease: probeLease(input),
+  });
+  let page: ReturnType<typeof parseJdCampusInternshipPage>;
+  try {
+    page = parseJdCampusInternshipPage(response.json);
+  } catch (error) {
+    await markFetchSchemaError(input.db, fetchId, "UPSTREAM_SCHEMA_CHANGED", probeLease(input));
+    throw error;
+  }
+
+  const jobs = page.jobs.slice(0, input.limit);
+  const failureErrorCodes: string[] = [];
+  let normalizedCount = 0;
+  let rejectedCount = 0;
+  for (const [listItemIndex, job] of jobs.entries()) {
+    try {
+      const normalized = normalizeJdCampusInternship({
+        job,
+        listItemIndex,
+        pageEvidenceRef: fetchId,
+      });
+      validateNavigationUrl(normalized.applyUrl, "GET", input.sourceConfig.policy.applyTargets);
+      await persistNormalizedOfficialJob({
+        db: input.db,
+        sourceId: input.sourceId,
+        normalized,
+        listFetchId: fetchId,
+        detailFetchId: fetchId,
+        observedAt: new Date(),
+        lease: probeLease(input),
+        adapterVersion: JD_CAMPUS_INTERNSHIPS_ADAPTER_VERSION,
+        normalizerVersion: JD_CAMPUS_INTERNSHIPS_NORMALIZER_VERSION,
+      });
+      normalizedCount += 1;
+    } catch (error) {
+      const code = errorCode(error);
+      if (code === "TASK_LEASE_LOST") throw error;
+      rejectedCount += 1;
+      failureErrorCodes.push(code);
+      input.errors.push({ code, message: errorMessage(error) });
+    }
+  }
+
+  return {
+    discoveredCount: jobs.length,
+    normalizedCount,
+    rejectedCount,
+    requestCount: input.budgetUsage.requests,
+    reportedTotals: { "all-function-internships": page.total },
+    failureErrorCodes,
+  };
+}
+
 export async function runSourceProbe(input: {
   db: Kysely<Database>;
   runtime: ProbeRuntimeConfig;
@@ -1010,9 +1159,13 @@ export async function runSourceProbe(input: {
           ? await runMeituanAdapterProbe(adapterInput)
           : sourceConfig.policy.adapterKey === "nankai-tal-deterministic-html"
             ? await runNankaiTalAdapterProbe(adapterInput)
-            : (() => {
-                throw new Error("ADAPTER_NOT_IMPLEMENTED");
-              })();
+            : sourceConfig.policy.adapterKey === "baidu-ssr-deterministic-html"
+              ? await runBaiduInternshipsAdapterProbe(adapterInput)
+              : sourceConfig.policy.adapterKey === "jd-campus-public-api"
+                ? await runJdCampusInternshipsAdapterProbe(adapterInput)
+                : (() => {
+                    throw new Error("ADAPTER_NOT_IMPLEMENTED");
+                  })();
       discoveredCount = output.discoveredCount;
       normalizedCount = output.normalizedCount;
       rejectedCount = output.rejectedCount;

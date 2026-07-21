@@ -1,12 +1,12 @@
 # 当前项目交接：全部职能 100–200 岗位扩容进入 G2 重新验收
 
-> 交接日期：2026-07-20
+> 交接日期：2026-07-21
 >
 > 当前分支：`codex/g0-research-prototype`
 >
 > 动态事实源：[MVP 路线与当前决策面板](../06-mvp-roadmap.md)
 >
-> 工程证据：[G2 正确性重新验收记录](../evidence/g2/correctness-reacceptance-2026-07-20.md)、[验收反馈修正记录](../evidence/g2/acceptance-followup-2026-07-20.md)、[全部职能扩容离线基础验收](../evidence/g2/all-function-expansion-foundation-2026-07-20.md)
+> 工程证据：[G2 正确性重新验收记录](../evidence/g2/correctness-reacceptance-2026-07-20.md)、[验收反馈修正记录](../evidence/g2/acceptance-followup-2026-07-20.md)、[全部职能扩容离线基础验收](../evidence/g2/all-function-expansion-foundation-2026-07-20.md)、[新公司官方来源首批评估与低频探测](../evidence/ingestion/new-source-batch-2026-07-20.md)
 
 ## 1. 当前唯一目标
 
@@ -33,7 +33,7 @@
 当前闭环已经能在本机运行：
 
 ```text
-三来源 31 条岗位
+六个已接入来源 61 条岗位
   -> 清洗、去重、结构化和来源追溯
   -> PDF / DOCX / 文本简历与隐私检查
   -> 事实、偏好和经历证据确认
@@ -46,8 +46,13 @@
 
 ## 2. 已确认工程事实
 
-- 本地目录为 31 条：腾讯 14、南开就业网·好未来 7、美团 10。
-- 三个来源均为 `pending_review`，只能进入本机 `local_mvp`；公开 `/v1/jobs` 保持 0 条。
+- 本地目录为 61 条：腾讯 14、南开就业网·好未来 7、美团 10、百度 10、京东 10、字节 10。
+- 六个已接入来源均为 `pending_review`，只能进入本机 `local_mvp`；公开 `/v1/jobs` 保持 0 条。
+- 字节列表、筛选和详情接口依赖动态 `_signature`，不带签名不能获得岗位 JSON；未逆向或复制签名。ADR-0016 允许人工读取官方可见 DOM，导入 CLI 只读本机快照且没有招聘站网络请求能力。
+- 百度成功探测运行 `cf967b11-69f7-4e1a-b038-1bee8af74c2d` 发现/规范化 10/10、拒绝 0；10/10 有活动要求集和官方 UUID 申请链接。
+- 京东成功探测运行 `1832f7e8-331f-424b-a762-d65a11e7db91` 只发送 1 个列表请求，发现/规范化 10/10、拒绝 0；10/10 为活动岗位、10/10 有活动要求集和官方详情链接。
+- 字节人工导入运行 `aa5c2271-a5b8-41ef-ab75-c61aa3028280` 的 `request_count=0`，发现/规范化 10/10、拒绝 0；10/10 修订标记为 `manual`、10/10 明确为实习、10/10 有活动要求集和官方详情链接。
+- 重复百度与京东探测均直接复用各自原运行记录且不触网；京东重复物化返回 51 个 eligible revisions、0 个新岗位版本、0 个新要求集、0 个疑似重复对。
 - 正式 `/jobs/*`、简历、确认、推荐、优化、数据控制页面均由 PostgreSQL 和 `/v1` API 提供数据。
 - localhost 匿名 owner、Origin/CSRF、owner epoch、不可变修订、TTL、删除墓碑和迟到任务拒绝已实现。
 - PDF、DOCX、粘贴文本、5 MiB 限制、MIME/魔数、宏/加密/ZIP bomb/扫描 PDF 失败路径已有自动化覆盖。
@@ -67,16 +72,17 @@
 - 2026-07-20 重新验收结果：244 项测试、TypeScript、生产构建和 202 文件 lint 全部通过。
 - 随后验收反馈修正结果：全量 247 项测试、TypeScript、生产构建和 203 文件 lint 通过；真实浏览器完成资料复访、3→2 段证据重选、31 条重新推荐和能力解释核对。
 - 全部职能离线扩容基础结果：隔离数据库中 285 项测试、TypeScript、生产构建和 212 文件 lint 通过；1000 岗位容量用例、来源候选 CLI 和本机浏览器复核通过。
-- `pnpm catalog:materialize` 离线返回 31 个 eligible revisions、0 个新岗位版本、0 个新要求集；31/31 活动岗位已有 v4 要求集和唯一投影。
+- 字节人工导入后结果：隔离数据库中 300 项测试、TypeScript、生产构建和 225 文件 lint 通过；人工导入 PostgreSQL 集成与 1000 岗位容量回归继续通过。
+- 当前重复物化返回 61 个 eligible revisions、0 个新岗位版本、0 个新要求集；61 条目录由活动要求集驱动。
 - 真实浏览器用纯合成简历完成 31 条推荐、目标美团详情、逐块改写、9,125 字节 DOCX 和全部个人数据删除。
 - 1280 px 与 320 px 下目录、详情、推荐和优化无全局横向溢出；优化文本框自动增高。
 
 ## 3. 当前未完成项
 
-1. 全部职能契约、配置驱动来源、来源/适配器解耦、请求预算、候选批次登记、能力词典 v2 和 1000 岗位容量回归已完成；真实优先来源评估、100–200 条目录和人工抽检尚未完成，现有快照不能伪造扩容。
-2. 真实招聘站低频探测仍需 coco 按批次明确启动；未批准批次不能访问。
+1. 全部职能契约、请求预算、人工浏览器离线导入和 1000 岗位容量回归已完成；百度、京东、字节各 10 条增量已完成，但 100–200 条目录和人工抽检尚未完成。
+2. 百度、京东和字节均需由 coco 至少抽检 5 条；下一批建议为滴滴、快手、网易，仍需 coco 明确批准该批后才能访问。
 3. G0 的 2 人协议校准尚未开始；扩大后的 G2 通过后才招募、执行和记录，不以工程测试代替参与者。
-4. G3 来源准入仍为 0/3，三个来源继续保持 `pending_review` 和仅限本机的 `local_mvp` 状态。
+4. G3 来源准入仍为 0/3，六个已接入来源继续保持 `pending_review` 和仅限本机的 `local_mvp` 状态；人工导入不计持续性。
 5. 公开 AI 仍未获批准，需要后续供应商、隐私、合规和至少 4/6 增量价值 Gate。
 
 真实 AI 冒烟不是公开启用批准。公开 AI 仍需供应商、隐私、合规和至少 4/6 增量价值 Gate。
@@ -84,7 +90,7 @@
 ## 4. 关键实现位置
 
 - 岗位目录：`apps/platform/src/catalog/`、`apps/web/src/pages/JobListPage.tsx`
-- 三来源：`apps/platform/src/sources/`、`config/sources/`
+- 官方来源：`apps/platform/src/sources/`、`config/sources/`
 - 匿名 owner 与安全：`apps/platform/src/identity/`、`apps/platform/src/profile/`
 - 简历：`apps/platform/src/resume/`、`apps/web/src/pages/ResumePage.tsx`
 - 匹配与推荐：`apps/platform/src/matching/`、`apps/web/src/pages/RecommendationsPage.tsx`
@@ -102,11 +108,12 @@ pnpm db:migrate
 pnpm source:candidates
 pnpm source:assess
 pnpm source:probe
+pnpm source:import-browser-snapshot bytedance-campus-manual --file .data/browser-imports/<snapshot>.json
 pnpm catalog:materialize
 pnpm dev
 ```
 
-`source:probe` 会低频访问三个真实官方来源，只能由维护者明确运行；日常测试和 CI 不应调用它。产品入口：
+`source:probe` 会按配置低频访问已登记的真实官方来源，只能由维护者明确运行；`source:import-browser-snapshot` 只读取人工生成的本机快照，不会访问招聘站。日常测试和 CI 不应调用真实来源。产品入口：
 
 - <http://127.0.0.1:5173/jobs>
 - <http://127.0.0.1:5173/resume>
@@ -130,7 +137,7 @@ pnpm lint
 - `pending_review` 只允许本机目录，不得写成获准公开或 G3 已通过。
 - AI 不修改三轴、不创造经历、不调用工具；原文件不发送给模型。
 - 不自动填写、模拟登录、批量投递或替用户提交。
-- 不引入 Redis、向量库、独立搜索、消息总线、生产 Playwright 或公共管理后台。
+- 不引入 Redis、向量库、独立搜索、消息总线、生产 Playwright 或公共管理后台；ADR-0016 只允许维护者按批次人工生成可见 DOM 快照。
 - 不提交 `.data/`、密钥、令牌、简历原文、本地数据库或下载的 DOCX。
 
 ## 7. 新任务接手检查
@@ -138,8 +145,8 @@ pnpm lint
 ```text
 [ ] 已读 AGENTS.md、README.md、docs/06-mvp-roadmap.md 和本交接
 [ ] 已检查分支、git status、最近提交和未提交差异
-[ ] 已确认目录是 31 条 local_mvp 岗位，三个来源仍 pending_review
+[ ] 已确认目录是 61 条 local_mvp 岗位，六个已接入来源仍 pending_review
 [ ] 已确认产品证据仍为 E0，G0/G1 未开始，G3 为 0/3
-[ ] 已确认 G2 已于 2026-07-20 重新通过，但产品证据仍为 E0，G0/G1 未开始，G3 为 0/3
+[ ] 已确认原 31 岗位正确性基线已于 2026-07-20 重新通过，但 100–200 条扩大范围的 G2 仍在重新验收；产品证据仍为 E0，G0/G1 未开始，G3 为 0/3
 [ ] 已确认不会读取、打印或提交本机 AI 密钥
 ```

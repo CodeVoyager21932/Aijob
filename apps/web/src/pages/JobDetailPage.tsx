@@ -14,6 +14,7 @@ import {
   markOfficialLinkOpened,
   putJobDecision,
 } from "../api/product";
+import { OfficialJobText } from "../components/OfficialJobText";
 import {
   JourneySteps,
   ProductEmpty,
@@ -514,7 +515,7 @@ function JobText({ title, field }: { title: string; field: JobDetail["responsibi
       <p className="eyebrow">官方原文</p>
       <h2>{title}</h2>
       {value.state === "known" ? (
-        <div>{value.text}</div>
+        <OfficialJobText text={value.text} />
       ) : (
         <div className="product-callout is-warning">
           <strong>{value.text}</strong>

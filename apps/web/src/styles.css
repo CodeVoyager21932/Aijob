@@ -642,18 +642,55 @@ code {
   min-width: 0;
 }
 
-.job-copy {
+.official-job-text {
+  min-width: 0;
   margin-top: 18px;
   color: #344238;
-  white-space: pre-wrap;
+  font-size: 0.92rem;
+  line-height: 1.72;
+  overflow-wrap: anywhere;
 }
 
-.job-copy p {
+.official-job-text__intro {
+  display: grid;
+  gap: 10px;
+}
+
+.official-job-text__intro p {
   margin: 0;
 }
 
-.job-copy p + p {
-  margin-top: 12px;
+.official-job-text__list {
+  padding: 0;
+  margin: 16px 0 0;
+  border-top: 1px solid #e3e9e4;
+  border-bottom: 1px solid #e3e9e4;
+  list-style: none;
+}
+
+.official-job-text__list:first-child {
+  margin-top: 0;
+}
+
+.official-job-text__list li {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: 10px;
+  padding: 11px 0;
+}
+
+.official-job-text__list li + li {
+  border-top: 1px solid #edf1ed;
+}
+
+.official-job-text__marker {
+  color: var(--brand);
+  font-weight: 800;
+  text-align: right;
+}
+
+.official-job-text__item {
+  min-width: 0;
 }
 
 .missing-content {
@@ -1701,10 +1738,8 @@ code {
   gap: 18px;
 }
 
-.job-prose > div:not(.product-callout) {
+.job-prose > .official-job-text {
   margin-top: 15px;
-  color: #334239;
-  white-space: pre-wrap;
 }
 
 .source-evidence {
@@ -2656,6 +2691,11 @@ code {
   .product-handoff,
   .danger-zone {
     padding: 19px 16px;
+  }
+
+  .official-job-text__list li {
+    grid-template-columns: 1.65rem minmax(0, 1fr);
+    gap: 8px;
   }
 
   .product-job-card {

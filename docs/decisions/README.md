@@ -19,5 +19,6 @@
 - [ADR-0013：本地 MVP 实现确定性推荐与受控 AI 简历优化](0013-local-ai-recommendation-and-resume-tailoring.md)
 - [ADR-0014：本地 MVP 使用可替换的后端 AI 配置来源](0014-local-backend-ai-config-source.md)
 - [ADR-0015：先在本机扩展全部职能实习，再决定是否上云](0015-local-all-function-internship-expansion.md)
+- [ADR-0016：允许本机人工浏览器辅助导入受控官方实习岗位](0016-manual-browser-assisted-source-import.md)
 
 新决定从 [ADR 模板](../templates/adr.md) 复制创建。已有决定变化时新增一条 ADR，并将旧记录标记为 `superseded`，不要静默改写历史理由。

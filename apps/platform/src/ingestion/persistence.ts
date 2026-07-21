@@ -141,6 +141,7 @@ export interface PersistNormalizedOfficialJobInput {
   lease: TaskLease;
   adapterVersion: string;
   normalizerVersion: string;
+  importMode?: "collector" | "manual";
 }
 
 export async function persistNormalizedOfficialJob(
@@ -175,7 +176,7 @@ export async function persistNormalizedOfficialJob(
         id: randomUUID(),
         source_job_record_id: record.id,
         revision_content_hash: normalized.revisionContentHash,
-        import_mode: "collector",
+        import_mode: input.importMode ?? "collector",
         adapter_version: input.adapterVersion,
         normalizer_version: input.normalizerVersion,
         company_name: normalized.companyName,
