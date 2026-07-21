@@ -14,6 +14,7 @@ import {
   markOfficialLinkOpened,
   putJobDecision,
 } from "../api/product";
+import { CopyTextButton } from "../components/CopyTextButton";
 import { OfficialJobText } from "../components/OfficialJobText";
 import {
   JourneySteps,
@@ -215,6 +216,11 @@ export function JobDetailPage() {
   const location = displayField(job.locations, (values) => values.join("、"));
   const family = displayField(job.jobFamily, (value) => jobFamilyLabels[value] || value);
   const showStaleMatch = staleMatchNoticeJobId === jobId || matchVersionMismatch;
+  const officialUrlMethod = job.applicationMethods?.find(
+    (method) => method.type === "official_url",
+  );
+  const emailMethod = job.applicationMethods?.find((method) => method.type === "company_email");
+  const officialApplicationUrl = officialUrlMethod?.url ?? job.officialLink;
 
   return (
     <>
@@ -432,21 +438,50 @@ export function JobDetailPage() {
             <h2 id="official-heading">前往企业官方页面自行投递</h2>
             <p>打开链接不会自动标记“已投递”；返回后请按真实进度更新状态。</p>
           </div>
-          {job.officialLink ? (
-            <a
-              className="button button--primary"
-              href={job.officialLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => {
-                void markOfficialLinkOpened(job.id).catch(() => undefined);
-              }}
-            >
-              打开官方投递链接 ↗
-            </a>
+          {officialApplicationUrl ? (
+            <div className="product-handoff__actions">
+              <a
+                className="button button--primary"
+                href={officialApplicationUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {
+                  void markOfficialLinkOpened(job.id).catch(() => undefined);
+                }}
+              >
+                打开官方投递链接 ↗
+              </a>
+            </div>
+          ) : emailMethod ? (
+            <div className="email-application">
+              <div>
+                <span>企业招聘邮箱</span>
+                <strong>{emailMethod.email}</strong>
+                <p>{emailMethod.sourceText}</p>
+              </div>
+              <div className="product-handoff__actions">
+                <CopyTextButton text={emailMethod.email} label="复制邮箱" />
+                <a
+                  className="button button--secondary"
+                  href={job.source.originalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  查看官方原文 ↗
+                </a>
+              </div>
+            </div>
           ) : (
             <div className="product-callout is-warning">
-              官方投递链接正在复核，请先查看来源页，不提供不确定跳转。
+              <p>官方投递入口正在复核，不提供不确定跳转。</p>
+              <a
+                className="text-link"
+                href={job.source.originalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                查看官方原文
+              </a>
             </div>
           )}
         </section>

@@ -10,6 +10,7 @@ import { catalogRoutes } from "./catalog/routes.js";
 import { registerDecisionRoutes } from "./decisions/routes.js";
 import { installAnonymousIdentity } from "./identity/fastify.js";
 import { isApiProblem, sendApiProblem } from "./identity/http.js";
+import { registerInsightRoutes } from "./insights/routes.js";
 import { sha256 } from "./lib/canonical-json.js";
 import { registerMatchingRoutes } from "./matching/routes.js";
 import { registerProfileRoutes } from "./profile/routes.js";
@@ -59,6 +60,7 @@ export function buildApp(input: { config: AppConfig; db: Kysely<Database> }): Fa
       "/v1/resume-tailorings",
       "/v1/resume-exports",
       "/v1/job-decisions",
+      "/v1/job-insight-runs",
     ];
     if (ownerScopedPrefixes.some((prefix) => request.url.startsWith(prefix))) {
       reply.header("Cache-Control", "no-store");
@@ -94,6 +96,10 @@ export function buildApp(input: { config: AppConfig; db: Kysely<Database> }): Fa
     deletionReceiptSecret: sha256(`${input.config.resumeEncryptionKey}:deletion-receipt-v1`),
   });
   registerMatchingRoutes(app, {
+    db: input.db,
+    enableLocalMvp: input.config.enableLocalMvp,
+  });
+  registerInsightRoutes(app, {
     db: input.db,
     enableLocalMvp: input.config.enableLocalMvp,
   });

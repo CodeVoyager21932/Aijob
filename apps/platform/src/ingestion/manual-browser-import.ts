@@ -10,6 +10,12 @@ import {
   normalizeBytedanceManualBrowserJob,
   parseBytedanceManualBrowserSnapshot,
 } from "../sources/bytedance-manual-browser-adapter.js";
+import {
+  normalizeOfficialAccountManualJob,
+  OFFICIAL_ACCOUNT_MANUAL_ADAPTER_VERSION,
+  OFFICIAL_ACCOUNT_MANUAL_NORMALIZER_VERSION,
+  parseOfficialAccountManualSnapshot,
+} from "../sources/official-account-manual-adapter.js";
 import { assertConfiguredAdapterVersion } from "../sources/official-source-adapters.js";
 import { loadSourceConfig } from "../sources/source-config.js";
 import { registerSourceConfig } from "../sources/source-registry.js";
@@ -23,6 +29,7 @@ import { storeSnapshot } from "./snapshot-store.js";
 
 const MAX_MANUAL_SNAPSHOT_BYTES = 2 * 1024 * 1024;
 const MANUAL_IMPORT_ROOT = ".data/browser-imports";
+const MANUAL_IMPORT_PIPELINE_VERSION = "2";
 
 export interface ManualBrowserImportResult {
   reused: boolean;
@@ -51,13 +58,7 @@ async function safeImportPath(workspaceRoot: string, filePath: string): Promise<
   return realSnapshotPath;
 }
 
-async function readManualSnapshot(
-  workspaceRoot: string,
-  filePath: string,
-): Promise<{
-  bytes: Uint8Array;
-  snapshot: ReturnType<typeof parseBytedanceManualBrowserSnapshot>;
-}> {
+async function readManualSnapshotFile(workspaceRoot: string, filePath: string): Promise<unknown> {
   const absolutePath = await safeImportPath(workspaceRoot, filePath);
   const metadata = await stat(absolutePath);
   if (!metadata.isFile() || metadata.size <= 0 || metadata.size > MAX_MANUAL_SNAPSHOT_BYTES) {
@@ -70,8 +71,7 @@ async function readManualSnapshot(
   } catch {
     throw new Error("MANUAL_BROWSER_SNAPSHOT_INVALID_JSON");
   }
-  const snapshot = parseBytedanceManualBrowserSnapshot(parsed);
-  return { bytes: new TextEncoder().encode(canonicalJson(snapshot)), snapshot };
+  return parsed;
 }
 
 function stableErrorCode(error: unknown): string {
@@ -87,16 +87,19 @@ export async function importManualBrowserSnapshot(input: {
   snapshotDirectory: string;
   sourceKey: string;
   filePath: string;
+  sourceConfigDirectory?: string;
 }): Promise<ManualBrowserImportResult> {
   if ((input.appEnv !== "local" && input.appEnv !== "test") || !input.enableLocalMvp) {
     throw new Error("MANUAL_BROWSER_IMPORT_LOCAL_ONLY");
   }
-  const sourceConfig = await loadSourceConfig(input.sourceKey);
+  const sourceConfig = await loadSourceConfig(input.sourceKey, input.sourceConfigDirectory);
   if (
     sourceConfig.policy.status !== "pending_review" ||
     sourceConfig.candidate.acquisitionMode !== "browser_required" ||
     sourceConfig.localProbe.enabled ||
-    sourceConfig.policy.adapterKey !== "bytedance-manual-browser-snapshot"
+    !["bytedance-manual-browser-snapshot", "official-account-manual-snapshot"].includes(
+      sourceConfig.policy.adapterKey,
+    )
   ) {
     throw new Error("INVALID_MANUAL_BROWSER_SOURCE");
   }
@@ -105,15 +108,53 @@ export async function importManualBrowserSnapshot(input: {
     sourceConfig.policy.adapterVersion,
   );
 
-  const { bytes, snapshot } = await readManualSnapshot(input.workspaceRoot, input.filePath);
-  validateNavigationUrl(snapshot.sourcePageUrl, "GET", sourceConfig.policy.fetchTargets);
-  const normalizedJobs = snapshot.jobs.map((job) => {
-    validateNavigationUrl(job.detailUrl, "GET", sourceConfig.policy.applyTargets);
-    return normalizeBytedanceManualBrowserJob({
-      job,
-      snapshotEvidenceRef: "manual-browser-snapshot",
-    });
-  });
+  const document = await readManualSnapshotFile(input.workspaceRoot, input.filePath);
+  const imported = (() => {
+    if (sourceConfig.policy.adapterKey === "bytedance-manual-browser-snapshot") {
+      const snapshot = parseBytedanceManualBrowserSnapshot(document);
+      validateNavigationUrl(snapshot.sourcePageUrl, "GET", sourceConfig.policy.fetchTargets);
+      return {
+        bytes: new TextEncoder().encode(canonicalJson(snapshot)),
+        sourcePageUrl: snapshot.sourcePageUrl,
+        capturedAt: snapshot.capturedAt,
+        captureMode: snapshot.captureMode,
+        reportedTotal: snapshot.reportedTotal,
+        adapterVersion: BYTEDANCE_MANUAL_BROWSER_ADAPTER_VERSION,
+        normalizerVersion: BYTEDANCE_MANUAL_BROWSER_NORMALIZER_VERSION,
+        normalizedJobs: snapshot.jobs.map((job) => {
+          validateNavigationUrl(job.detailUrl, "GET", sourceConfig.policy.applyTargets);
+          return normalizeBytedanceManualBrowserJob({
+            job,
+            snapshotEvidenceRef: "manual-browser-snapshot",
+          });
+        }),
+      };
+    }
+    const snapshot = parseOfficialAccountManualSnapshot(document);
+    validateNavigationUrl(snapshot.sourcePageUrl, "GET", sourceConfig.policy.fetchTargets);
+    return {
+      bytes: new TextEncoder().encode(canonicalJson(snapshot)),
+      sourcePageUrl: snapshot.sourcePageUrl,
+      capturedAt: snapshot.capturedAt,
+      captureMode: snapshot.captureMode,
+      reportedTotal: snapshot.reportedTotal,
+      adapterVersion: OFFICIAL_ACCOUNT_MANUAL_ADAPTER_VERSION,
+      normalizerVersion: OFFICIAL_ACCOUNT_MANUAL_NORMALIZER_VERSION,
+      normalizedJobs: snapshot.jobs.map((job) => {
+        if (job.application.type === "official_url") {
+          validateNavigationUrl(job.application.url, "GET", sourceConfig.policy.applyTargets);
+        }
+        return normalizeOfficialAccountManualJob({
+          job,
+          organizationName: sourceConfig.organization.name,
+          officialDomain: sourceConfig.organization.officialDomain,
+          sourcePageUrl: snapshot.sourcePageUrl,
+          snapshotEvidenceRef: "manual-official-account-snapshot",
+        });
+      }),
+    };
+  })();
+  const { bytes, normalizedJobs } = imported;
   const snapshotHash = sha256(bytes);
   const registered = await registerSourceConfig(input.db, sourceConfig);
   const idempotencyKey = hashCanonicalJson({
@@ -122,6 +163,7 @@ export async function importManualBrowserSnapshot(input: {
     sourceId: registered.sourceId,
     policyVersion: sourceConfig.policy.version,
     adapterVersion: sourceConfig.policy.adapterVersion,
+    importPipelineVersion: MANUAL_IMPORT_PIPELINE_VERSION,
     snapshotHash,
   });
 
@@ -202,7 +244,7 @@ export async function importManualBrowserSnapshot(input: {
         adapter_version: sourceConfig.policy.adapterVersion,
         run_mode: "probe",
         completion: null,
-        reported_totals: canonicalJson({ manualVisiblePage: snapshot.reportedTotal }),
+        reported_totals: canonicalJson({ manualVisiblePage: imported.reportedTotal }),
         request_count: 0,
         discovered_count: 0,
         normalized_count: 0,
@@ -220,15 +262,15 @@ export async function importManualBrowserSnapshot(input: {
       sourceId: registered.sourceId,
       crawlRunId: runId,
       response: {
-        requestUrl: snapshot.sourcePageUrl,
-        finalUrl: snapshot.sourcePageUrl,
+        requestUrl: imported.sourcePageUrl,
+        finalUrl: imported.sourcePageUrl,
         method: "GET",
         status: 200,
         contentType: "application/vnd.aijob.manual-browser-snapshot+json",
-        responseHeaders: { "x-aijob-capture-mode": snapshot.captureMode },
+        responseHeaders: { "x-aijob-capture-mode": imported.captureMode },
         requestFingerprint: hashCanonicalJson({
-          captureMode: snapshot.captureMode,
-          sourcePageUrl: snapshot.sourcePageUrl,
+          captureMode: imported.captureMode,
+          sourcePageUrl: imported.sourcePageUrl,
           snapshotHash,
         }),
         body: bytes,
@@ -236,7 +278,7 @@ export async function importManualBrowserSnapshot(input: {
       snapshot: storedSnapshot,
       lease,
     });
-    const observedAt = new Date(snapshot.capturedAt);
+    const observedAt = new Date(imported.capturedAt);
     for (const normalized of normalizedJobs) {
       const result = await persistNormalizedOfficialJob({
         db: input.db,
@@ -246,8 +288,8 @@ export async function importManualBrowserSnapshot(input: {
         detailFetchId: fetchId,
         observedAt,
         lease,
-        adapterVersion: BYTEDANCE_MANUAL_BROWSER_ADAPTER_VERSION,
-        normalizerVersion: BYTEDANCE_MANUAL_BROWSER_NORMALIZER_VERSION,
+        adapterVersion: imported.adapterVersion,
+        normalizerVersion: imported.normalizerVersion,
         importMode: "manual",
       });
       if (result.createdRevision) createdRevisionCount += 1;

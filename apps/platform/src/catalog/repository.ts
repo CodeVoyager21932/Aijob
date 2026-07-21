@@ -25,6 +25,7 @@ import { type Kysely, sql } from "kysely";
 import { z } from "zod";
 import { validateNavigationUrl } from "../ingestion/safe-http.js";
 import type { SourceTarget } from "../sources/source-config.js";
+import { approvedCompanyEmail } from "./application-methods.js";
 import { type CatalogSearchRecord, searchCatalogRecords } from "./filtering.js";
 
 type UnknownReason = "source_not_stated" | "parse_failed" | "not_yet_verified";
@@ -39,6 +40,10 @@ interface CatalogDatabaseRow {
   source_name: string;
   source_type: string;
   official_domain: string;
+  scale_band: string;
+  scale_evidence_url: string | null;
+  scale_evidence_text: string | null;
+  scale_verified_at: Date | string | null;
   provenance_level: string;
   policy_status: string;
   company_name: string;
@@ -171,6 +176,28 @@ function safeText(value: string, revisionId: string, field: string): FieldValue<
   return value.trim() ? known(value.trim(), revisionId, field) : unknown("source_not_stated");
 }
 
+function companyScale(row: CatalogDatabaseRow) {
+  if (
+    row.scale_band === "unknown" ||
+    !row.scale_evidence_url ||
+    !row.scale_evidence_text ||
+    !row.scale_verified_at
+  ) {
+    return {
+      band: "unknown" as const,
+      evidenceUrl: null,
+      evidenceText: null,
+      lastVerifiedAt: null,
+    };
+  }
+  return {
+    band: row.scale_band,
+    evidenceUrl: row.scale_evidence_url,
+    evidenceText: row.scale_evidence_text,
+    lastVerifiedAt: toIso(row.scale_verified_at),
+  };
+}
+
 function mapRow(row: CatalogDatabaseRow): CatalogSearchRecord {
   const structured = asObject(row.structured_fields);
   const policyStatus = PolicyStatusSchema.parse(row.policy_status);
@@ -187,6 +214,7 @@ function mapRow(row: CatalogDatabaseRow): CatalogSearchRecord {
     publishedJobVersionId: row.published_job_version_id,
     activeRequirementSetId: row.active_requirement_set_id,
     companyName: row.company_name,
+    companyScale: companyScale(row),
     title: row.title,
     jobFamily: parseField<JobFamily>(row.job_family, JobFamilySchema),
     locations: parseField(row.locations, z.array(z.string().trim().min(1)).min(1)),
@@ -258,6 +286,10 @@ async function loadLocalRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[]
       preview.source_name,
       preview.source_type,
       preview.official_domain,
+      organization.scale_band,
+      organization.scale_evidence_url,
+      organization.scale_evidence_text,
+      organization.scale_verified_at,
       preview.provenance_level,
       preview.policy_status,
       preview.company_name,
@@ -294,6 +326,10 @@ async function loadLocalRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[]
       preview.last_verified_at,
       COALESCE(runtime.freshness_state, 'unknown') AS freshness_state
     FROM catalog.internal_job_previews AS preview
+    JOIN source_control.sources AS source
+      ON source.id = preview.source_id
+    JOIN source_control.organizations AS organization
+      ON organization.id = source.organization_id
     JOIN ingestion.source_job_revisions AS revision
       ON revision.id = preview.revision_id
     LEFT JOIN source_control.source_runtime_states AS runtime
@@ -334,6 +370,10 @@ async function loadPublicRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[
       source.name AS source_name,
       source.source_type,
       organization.official_domain,
+      organization.scale_band,
+      organization.scale_evidence_url,
+      organization.scale_evidence_text,
+      organization.scale_verified_at,
       policy.provenance_level,
       policy.policy_status,
       version.company_name,
@@ -479,9 +519,14 @@ export function createCatalogRepository(input: {
         record.detail.source.sourceId,
         raw.apply_url,
       );
+      const emailMethod = approvedCompanyEmail(raw.structured_fields, raw.official_domain);
       return JobDetailSchema.parse({
         ...record.detail,
         officialLink,
+        applicationMethods: [
+          ...(officialLink ? [{ type: "official_url" as const, url: officialLink }] : []),
+          ...(emailMethod ? [emailMethod] : []),
+        ],
       });
     },
   };

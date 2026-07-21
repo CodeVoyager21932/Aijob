@@ -17,6 +17,10 @@ export interface OrganizationTable {
   slug: string;
   name: string;
   official_domain: string;
+  scale_band: Generated<string>;
+  scale_evidence_url: string | null;
+  scale_evidence_text: string | null;
+  scale_verified_at: Timestamp | null;
   created_at: Generated<Timestamp>;
 }
 
@@ -450,6 +454,24 @@ export interface MatchRunTable {
   completed_at: Timestamp | null;
 }
 
+export interface JobInsightRunTable {
+  id: string;
+  owner_id: string;
+  owner_epoch: number;
+  scope: JsonValue;
+  evidence_revision_id: string | null;
+  candidate_job_version_ids: JsonValue;
+  candidate_requirement_set_ids: JsonValue;
+  candidate_source_verifications: JsonValue;
+  data_version_hash: string;
+  request_hash: string;
+  idempotency_key: string;
+  algorithm_version: string;
+  result: JsonValue;
+  created_at: Generated<Timestamp>;
+  completed_at: Timestamp;
+}
+
 export interface RecommendationRunTable {
   id: string;
   owner_id: string;
@@ -633,6 +655,7 @@ export interface Database {
   "profile.resume_evidence_revisions": ResumeEvidenceRevisionTable;
   "profile.resume_document_revisions": ResumeDocumentRevisionTable;
   "matching.match_runs": MatchRunTable;
+  "matching.job_insight_runs": JobInsightRunTable;
   "matching.recommendation_runs": RecommendationRunTable;
   "matching.recommendation_items": RecommendationItemTable;
   "matching.resume_tailoring_runs": ResumeTailoringRunTable;

@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 const navigation = [
   { to: "/jobs", label: "找岗位" },
+  { to: "/insights", label: "岗位洞察" },
   { to: "/resume", label: "简历与画像" },
   { to: "/recommendations", label: "我的推荐" },
   { to: "/data-control", label: "数据控制" },

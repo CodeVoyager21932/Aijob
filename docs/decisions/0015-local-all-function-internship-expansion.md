@@ -1,6 +1,6 @@
 # ADR-0015：先在本机扩展全部职能实习，再决定是否上云
 
-- 状态：accepted
+- 状态：superseded by [ADR-0017](0017-local-sme-expansion-and-official-account-boundary.md)
 - 日期：2026-07-20
 - 决策者：coco
 - 关联：[PRD v0.2](../01-prd-v0.2.md)、[MVP 路线](../06-mvp-roadmap.md)、[ADR-0002](0002-allowlisted-official-sources.md)、[ADR-0011](0011-mvp-before-participant-validation.md)

@@ -1,0 +1,99 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "official-account-test",
+  "sourceType": "organization_official_account",
+  "organization": {
+    "slug": "official-account-test-company",
+    "name": "示例科技",
+    "officialDomain": "example.com",
+    "scale": {
+      "band": "medium",
+      "evidenceUrl": "https://example.com/about",
+      "evidenceText": "公司官网披露员工规模为 500 人。",
+      "lastVerifiedAt": "2026-07-21T00:00:00.000Z"
+    }
+  },
+  "candidate": {
+    "name": "示例科技认证公众号人工快照",
+    "entrypointUrl": "https://mp.weixin.qq.com/s/aijob-test-article",
+    "provenanceLevel": "official_account_link",
+    "acquisitionMode": "browser_required",
+    "candidateStatus": "local_probe_only",
+    "assessor": "offline-integration-fixture",
+    "hardGates": {
+      "officialIdentity": { "status": "pass", "note": "测试夹具模拟已核验的企业认证公众号。" },
+      "targetSupply": { "status": "pass", "note": "测试夹具包含两条实习岗位。" },
+      "noAuthBypass": { "status": "pass", "note": "只导入人工可见内容。" },
+      "officialApplyLink": { "status": "pass", "note": "投递入口为企业官网或企业域名邮箱。" },
+      "accessPolicyAccepted": { "status": "fail", "note": "只允许本机待复核目录。" },
+      "stableIdentityAndFields": { "status": "pending", "note": "仍需人工抽检。" }
+    },
+    "scores": {
+      "targetSupply": { "weight": 30, "score": 10, "status": "fixture", "note": "离线夹具。" },
+      "policyAccess": { "weight": 25, "score": 0, "status": "failed", "note": "不允许公开发布。" },
+      "structure": { "weight": 20, "score": 10, "status": "fixture", "note": "人工结构化。" },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 2,
+        "status": "fixture",
+        "note": "人工复核。"
+      },
+      "diversity": { "weight": 10, "score": 5, "status": "fixture", "note": "测试两类岗位。" }
+    },
+    "evidenceNotes": ["纯离线集成测试夹具，不代表真实来源准入。"]
+  },
+  "policy": {
+    "version": "1",
+    "status": "pending_review",
+    "adapterKey": "official-account-manual-snapshot",
+    "adapterVersion": "0.1.0",
+    "entrypoints": ["https://mp.weixin.qq.com/s/aijob-test-article"],
+    "crawlInterval": { "enabled": false, "minimumHours": 168 },
+    "reviewedAt": "2026-07-21",
+    "policyNotes": ["仅测试人工可见内容的零网络导入。"],
+    "fetchTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "mp.weixin.qq.com",
+        "port": 443,
+        "pathPrefix": "/s/",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "example.com",
+        "port": 443,
+        "pathPrefix": "/careers/",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": false,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 30,
+      "maxPages": 1,
+      "maxRequests": 1,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {},
+    "queryStreams": [
+      {
+        "key": "manual-visible-internships",
+        "label": "认证公众号人工可见实习",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 30
+      }
+    ]
+  }
+}

@@ -33,7 +33,7 @@
 
 ## 岗位样本表
 
-使用 [job-samples.csv](job-samples.csv) 记录或复核扩容后本地完整 MVP 的 100–200 条全部职能实习岗位。每条至少保留来源、原始链接、官方申请链接、最后核验时间和当前活动状态。
+使用 [job-samples.csv](job-samples.csv) 记录或复核扩容后本地完整 MVP 的 300–500 条全部职能实习岗位。每条至少保留企业规模证据、来源、原始链接、官方 URL 或企业域名邮箱、最后核验时间和当前活动状态。
 
 人工回退填写 `import_mode=manual` 和稳定 `import_batch_id`；自动来源使用 `import_mode=collector`。人工记录的原始字段与最小职责/要求摘录构成字段级证据，不得填写或伪造 Bucket 快照键。
 

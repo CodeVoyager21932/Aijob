@@ -327,6 +327,10 @@ export async function processOwnerDeletion(input: {
         .where("owner_id", "=", input.ownerId)
         .execute();
       await transaction
+        .deleteFrom("matching.job_insight_runs")
+        .where("owner_id", "=", input.ownerId)
+        .execute();
+      await transaction
         .deleteFrom("decision.job_decisions")
         .where("owner_id", "=", input.ownerId)
         .execute();

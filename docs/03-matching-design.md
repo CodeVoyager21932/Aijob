@@ -164,6 +164,14 @@ PostgreSQL 是这些对象的唯一持久化真源。工程 MVP 不部署向量�
 
 任何候选岗位版本、匹配运行、用户修订或排序策略变化都创建新的 `RecommendationRun`。旧运行不原地重排。
 
+### 5.2 `JobInsightRun`
+
+一次岗位洞察固定 `job_family`、可选城市/公司规模、候选岗位版本、活动要求集、逐岗位来源核验时间、`job-market-insight-v1` 和可选 `ResumeEvidence v2` 修订。运行同步、确定性并只读 PostgreSQL；修改筛选、岗位版本、要求集、来源核验时间、证据或算法版本时创建新运行，旧运行不可更新。
+
+洞察先检查至少 20 岗位、5 家企业和 70% 活动原子要求覆盖。任一门槛不足时只返回实际样本与原因，不返回排名。单项至少覆盖 3 岗位、2 家企业，先按公司数、再按岗位数和稳定键排序；`required`、`preferred/optional` 与必要性未知严格分开，明确工具不能由同能力工具替代。
+
+个人对照仅使用带真实 `sourceBlockId` 的已确认证据。能力词典可以连接同类行为，但输出只能是“已经体现 / 简历暂未体现 / 需要确认”，不能推导为不会、不能投递或应放弃。
+
 ## 6. `JobDecision` 用户决策队列
 
 `JobDecision` 由用户主动改变，系统不能根据三轴结果代替用户写入：
@@ -275,7 +283,7 @@ PostgreSQL 是这些对象的唯一持久化真源。工程 MVP 不部署向量�
 
 - 所有用户侧对象都带服务端确定的 `owner_id`，API 不接受客户端指定所有者。
 - 原文件和原始文本在用户完成证据确认后立即删除；未完成确认、异常中断或用户离开的记录也必须在提交后 24 小时内删除。
-- owner 建立时固定 `owner_expires_at`，最长不超过 30 天；`ProfileFact`、`JobPreference`、`ResumeEvidence`、`MatchRun`、`RecommendationRun`、`ResumeTailoringRun`、导出、`JobDecision` 和 owner 产品事件都不得晚于该时间。普通访问、新修订和再次确认均不能续期，用户可以提前删除。
+- owner 建立时固定 `owner_expires_at`，最长不超过 30 天；`ProfileFact`、`JobPreference`、`ResumeEvidence`、`MatchRun`、`RecommendationRun`、`JobInsightRun`、`ResumeTailoringRun`、导出、`JobDecision` 和 owner 产品事件都不得晚于该时间。普通访问、新修订和再次确认均不能续期，用户可以提前删除。
 - 删除请求立即撤销读取能力，并清理原文、结构化对象、任务载荷和缓存；审计记录只保留不含正文的结果。
 - 安全审计记录保留 90 天，不保存简历正文、岗位全文、提示词或可复用邀请令牌。
 
@@ -288,6 +296,7 @@ PostgreSQL 是这些对象的唯一持久化真源。工程 MVP 不部署向量�
 - 硬条件误杀、同义技能和可迁移能力。
 - 学生项目、课程、校园、竞赛和作品证据。
 - 岗位描述中的提示注入及简历中的恶意文本。
+- 洞察公司均衡统计、硬要求/加分项分离、低样本拒绝、必要性未知不排名和官方原句追溯。
 
 发布门至少检查：
 

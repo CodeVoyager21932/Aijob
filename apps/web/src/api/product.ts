@@ -1,10 +1,12 @@
 import type {
+  CreateJobInsightRunRequest,
   CreateMatchRunRequest,
   CreateRecommendationRunRequest,
   CreateResumeTailoringRequest,
   CurrentResumeDocument,
   JobDecision,
   JobDetail,
+  JobInsightRun,
   JobPreferenceRevision,
   JobSearchResponse,
   MatchRun,
@@ -170,6 +172,20 @@ export function getJobs(filters: JobFilters, signal?: AbortSignal) {
 
 export function getJob(jobId: string, signal?: AbortSignal) {
   return apiRequest<JobDetail>(`/v1/jobs/${encodeURIComponent(jobId)}`, { signal });
+}
+
+export function createJobInsightRun(body: CreateJobInsightRunRequest) {
+  return apiRequest<JobInsightRun>("/v1/job-insight-runs", {
+    method: "POST",
+    body,
+    idempotencyKey: createIdempotencyKey("job-insight"),
+  });
+}
+
+export function getJobInsightRun(id: string, signal?: AbortSignal) {
+  return apiRequest<JobInsightRun>(`/v1/job-insight-runs/${encodeURIComponent(id)}`, {
+    signal,
+  });
 }
 
 export function submitResumeText(text: string) {

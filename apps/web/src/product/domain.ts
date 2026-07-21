@@ -112,8 +112,16 @@ export const decisionLabels: Record<JobDecisionStatus, string> = {
 
 export const sourceTypeLabels: Record<string, string> = {
   organization_career_site: "企业官网",
+  organization_official_account: "企业认证公众号",
   official_ats: "官方 ATS",
   university_employment_site: "高校就业网",
+};
+
+export const companyScaleLabels: Record<string, string> = {
+  small: "小型 / 成长型",
+  medium: "中型",
+  large: "大型",
+  unknown: "规模未核验",
 };
 
 export const salaryPeriodLabels: Record<string, string> = {

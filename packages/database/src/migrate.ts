@@ -13,6 +13,8 @@ import { enforcePurgedResumeAnalysisErasureMigration } from "./migrations/010_en
 import { g2CorrectnessFoundationsMigration } from "./migrations/011_g2_correctness_foundations.js";
 import { allowResumeAnalysisV2MetadataMigration } from "./migrations/012_allow_resume_analysis_v2_metadata.js";
 import { enforceCorrectnessProjectionOwnershipMigration } from "./migrations/013_enforce_correctness_projection_ownership.js";
+import { employerScaleAndJobInsightsMigration } from "./migrations/014_employer_scale_and_job_insights.js";
+import { freezeJobInsightSourceVerificationsMigration } from "./migrations/015_freeze_job_insight_source_verifications.js";
 import type { Database } from "./types.js";
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -34,6 +36,8 @@ class StaticMigrationProvider implements MigrationProvider {
       "012_allow_resume_analysis_v2_metadata": allowResumeAnalysisV2MetadataMigration,
       "013_enforce_correctness_projection_ownership":
         enforceCorrectnessProjectionOwnershipMigration,
+      "014_employer_scale_and_job_insights": employerScaleAndJobInsightsMigration,
+      "015_freeze_job_insight_source_verifications": freezeJobInsightSourceVerificationsMigration,
     };
   }
 }

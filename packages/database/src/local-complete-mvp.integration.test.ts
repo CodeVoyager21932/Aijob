@@ -295,6 +295,7 @@ describeWithDatabase("local complete MVP persistence contracts", () => {
     `.execute(db);
     expect(new Set(triggers.rows.map((row) => row.trigger_name))).toEqual(
       new Set([
+        "job_insight_runs_no_update",
         "match_runs_immutable_context",
         "recommendation_runs_immutable_context",
         "tailoring_runs_immutable_context",

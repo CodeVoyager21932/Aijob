@@ -5,6 +5,7 @@ import { createDatabase, type Database, migrateToLatest } from "@aijob/database"
 import type { Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createAnonymousSession, findActiveSession } from "../identity/session-repository.js";
+import { createJobInsightRun } from "../insights/service.js";
 import type { ResumeAnalysisResult } from "../resume/analysis-service.js";
 import { getResumeAnalysis, submitResumeAnalysis } from "../resume/repository.js";
 import { runOneOwnerTask } from "../workers/owner-task-worker.js";
@@ -276,6 +277,28 @@ describeWithDatabase("local owner resume, revisions and deletion flow", () => {
     expect(purged.analysis_result).toBeNull();
     expect(purged.purged_at).not.toBeNull();
 
+    await createJobInsightRun({
+      db,
+      owner,
+      request: {
+        scope: {
+          jobFamily: "product",
+          cities: [`deletion-test-${randomUUID()}`],
+          companyScaleBands: [],
+        },
+        evidenceRevisionId: reusedEvidence.id,
+      },
+      idempotencyKey: `deletion-insight-${randomUUID()}`,
+      enableLocalMvp: true,
+    });
+    expect(
+      await db
+        .selectFrom("matching.job_insight_runs")
+        .select("id")
+        .where("owner_id", "=", owner.ownerId)
+        .execute(),
+    ).toHaveLength(1);
+
     const deletionRequest = await requestOwnerDeletion({ db, owner });
     expect(
       await findActiveSession({
@@ -323,6 +346,13 @@ describeWithDatabase("local owner resume, revisions and deletion flow", () => {
     expect(
       await db
         .selectFrom("profile.resume_analyses")
+        .select("id")
+        .where("owner_id", "=", owner.ownerId)
+        .execute(),
+    ).toHaveLength(0);
+    expect(
+      await db
+        .selectFrom("matching.job_insight_runs")
         .select("id")
         .where("owner_id", "=", owner.ownerId)
         .execute(),

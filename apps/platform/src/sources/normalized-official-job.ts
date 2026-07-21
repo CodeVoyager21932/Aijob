@@ -34,7 +34,7 @@ export interface NormalizedOfficialJob {
   publicationState: "review";
   activityState: "active";
   sourceUrl: string;
-  applyUrl: string;
+  applyUrl: string | null;
   qualityFlags: Array<{ code: string; detail: string }>;
   reviewReasons: Array<{ code: string; details: Record<string, unknown> }>;
   revisionContentHash: string;

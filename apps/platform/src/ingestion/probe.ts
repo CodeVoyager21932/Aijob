@@ -758,6 +758,7 @@ async function runMeituanAdapterProbe(input: AdapterProbeInput): Promise<Adapter
         listEvidenceRef: candidate.listFetchId,
         detailEvidenceRef: detailResult.fetchId,
       });
+      if (!normalized.applyUrl) throw new Error("OFFICIAL_APPLY_URL_MISSING");
       validateNavigationUrl(normalized.applyUrl, "GET", input.sourceConfig.policy.applyTargets);
       await persistNormalizedOfficialJob({
         db: input.db,
@@ -821,6 +822,7 @@ async function runNankaiTalAdapterProbe(input: AdapterProbeInput): Promise<Adapt
         page,
         pageEvidenceRef: fetchId,
       });
+      if (!normalized.applyUrl) throw new Error("OFFICIAL_APPLY_URL_MISSING");
       validateNavigationUrl(normalized.applyUrl, "GET", input.sourceConfig.policy.applyTargets);
       await persistNormalizedOfficialJob({
         db: input.db,
@@ -886,6 +888,7 @@ async function runBaiduInternshipsAdapterProbe(
         listItemIndex,
         pageEvidenceRef: fetchId,
       });
+      if (!normalized.applyUrl) throw new Error("OFFICIAL_APPLY_URL_MISSING");
       validateNavigationUrl(normalized.applyUrl, "GET", input.sourceConfig.policy.applyTargets);
       await persistNormalizedOfficialJob({
         db: input.db,
@@ -955,6 +958,7 @@ async function runJdCampusInternshipsAdapterProbe(
         listItemIndex,
         pageEvidenceRef: fetchId,
       });
+      if (!normalized.applyUrl) throw new Error("OFFICIAL_APPLY_URL_MISSING");
       validateNavigationUrl(normalized.applyUrl, "GET", input.sourceConfig.policy.applyTargets);
       await persistNormalizedOfficialJob({
         db: input.db,
@@ -1134,6 +1138,7 @@ export async function runSourceProbe(input: {
             listEvidenceRef: candidate.listFetchId,
             detailEvidenceRef: detail.fetchId,
           });
+          if (!normalized.applyUrl) throw new Error("OFFICIAL_APPLY_URL_MISSING");
           validateNavigationUrl(normalized.applyUrl, "GET", sourceConfig.policy.applyTargets);
           await persistNormalizedTencentJob({
             db: input.db,

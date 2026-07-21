@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { officialSourceAdapterVersions } from "./official-source-adapters.js";
 import { assessSource, listSourceKeys, loadSourceConfig } from "./source-config.js";
@@ -169,5 +170,30 @@ describe("controlled local source configurations", () => {
       }),
     ]);
     expect(config.policy.policyNotes).toContain("导入 CLI 本身不得触网");
+  });
+
+  it("locks official account sources to local manual import with evidenced company scale", async () => {
+    const fixtureDirectory = fileURLToPath(
+      new URL("../../../../fixtures/source-configs/", import.meta.url),
+    );
+    const config = await loadSourceConfig("official-account-test", fixtureDirectory);
+    expect(config).toMatchObject({
+      sourceType: "organization_official_account",
+      organization: {
+        scale: {
+          band: "medium",
+          evidenceUrl: "https://example.com/about",
+        },
+      },
+      candidate: {
+        provenanceLevel: "official_account_link",
+        acquisitionMode: "browser_required",
+      },
+      policy: {
+        status: "pending_review",
+        adapterKey: "official-account-manual-snapshot",
+      },
+      localProbe: { enabled: false },
+    });
   });
 });

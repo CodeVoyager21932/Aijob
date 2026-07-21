@@ -2,6 +2,7 @@ import { z } from "zod";
 import { DateSchema, HttpsUrlSchema, IdentifierSchema, TimestampSchema } from "./common.js";
 import {
   ActivityStateSchema,
+  CompanyScaleBandSchema,
   ImportModeSchema,
   IngestionStateSchema,
   JobDisplayStatusSchema,
@@ -54,11 +55,45 @@ export const JobSourceDetailSchema = JobSourceSummarySchema.extend({
 });
 export type JobSourceDetail = z.infer<typeof JobSourceDetailSchema>;
 
+export const CompanyScaleSchema = z
+  .object({
+    band: CompanyScaleBandSchema,
+    evidenceUrl: HttpsUrlSchema.nullable(),
+    evidenceText: z.string().trim().min(1).max(2_000).nullable(),
+    lastVerifiedAt: TimestampSchema.nullable(),
+  })
+  .superRefine((value, context) => {
+    const evidenceValues = [value.evidenceUrl, value.evidenceText, value.lastVerifiedAt];
+    const hasAnyEvidence = evidenceValues.some((item) => item !== null);
+    const hasCompleteEvidence = evidenceValues.every((item) => item !== null);
+    if (value.band === "unknown" && hasAnyEvidence) {
+      context.addIssue({ code: "custom", message: "unknown scale cannot carry evidence" });
+    }
+    if (value.band !== "unknown" && !hasCompleteEvidence) {
+      context.addIssue({ code: "custom", message: "known scale requires official evidence" });
+    }
+  });
+export type CompanyScale = z.infer<typeof CompanyScaleSchema>;
+
+export const ApplicationMethodSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("official_url"),
+    url: HttpsUrlSchema,
+  }),
+  z.object({
+    type: z.literal("company_email"),
+    email: z.string().trim().email().max(320),
+    sourceText: z.string().trim().min(1).max(1_000),
+  }),
+]);
+export type ApplicationMethod = z.infer<typeof ApplicationMethodSchema>;
+
 export const JobSummarySchema = z.object({
   id: IdentifierSchema,
   publishedJobVersionId: IdentifierSchema.nullable(),
   activeRequirementSetId: IdentifierSchema.nullable().optional(),
   companyName: z.string().trim().min(1),
+  companyScale: CompanyScaleSchema.optional(),
   title: z.string().trim().min(1),
   jobFamily: fieldValueSchema(JobFamilySchema),
   locations: fieldValueSchema(z.array(z.string().trim().min(1)).min(1)),
@@ -102,6 +137,7 @@ export const JobDetailSchema = JobSummarySchema.omit({ source: true }).extend({
   responsibilitiesText: fieldValueSchema(z.string().trim().min(1)),
   requirementsText: fieldValueSchema(z.string().trim().min(1)),
   officialLink: HttpsUrlSchema.nullable(),
+  applicationMethods: z.array(ApplicationMethodSchema).max(5).optional(),
 });
 export type JobDetail = z.infer<typeof JobDetailSchema>;
 

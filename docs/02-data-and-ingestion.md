@@ -17,7 +17,7 @@
 | `organization_owned` | 企业或高校自有域名的公开招聘页面/接口 | 优先接入 |
 | `verified_ats_tenant` | 已核验企业归属和租户路径的官方 ATS 页面 | 接入精确租户范围 |
 | `university_published` | 高校就业网站公开发布，企业主体可核验 | 保留高校来源；企业申请页无法核验时明确降级 |
-| `official_account_link` | 企业认证公开账号链接到官方落地页 | 只把核验后的落地页作为岗位来源 |
+| `official_account_link` | 企业认证公众号的人工可见原文 | 只允许本机人工快照；投递页或企业域名邮箱必须另行核验 |
 | `unverified` | 转载、截图、个人表格或主体不明页面 | 不进入正式岗位库 |
 
 ### 2.2 访问政策 `policy_status`
@@ -37,7 +37,7 @@
 | `public_api` | 公开 API 或稳定 JSON | 启用 |
 | `json_ld` | `schema.org/JobPosting` | 启用 |
 | `deterministic_html` | 固定 ATS 模板或来源专用 DOM 映射 | 启用 |
-| `browser_required` | 必须执行浏览器脚本才能得到数据 | 记录但不启用；Playwright 延后单独决策 |
+| `browser_required` | 必须执行浏览器脚本才能得到数据 | 不进入生产 Worker；仅 ADR-0016/0017 明确允许的维护者人工可见快照可在本机导入 |
 
 ### 2.4 新鲜度 `freshness_state`
 
@@ -58,7 +58,7 @@
 |---|---|
 | `source_id` | 内部唯一标识 |
 | `organization_id` | 企业或高校主体；共享 ATS 中仍按企业租户分别登记 |
-| `source_type` | 企业官网、企业 ATS、高校就业网 |
+| `source_type` | 企业官网、企业认证公众号、企业 ATS、高校就业网 |
 | `provenance_level` | 主体证明等级 |
 | `policy_status` | 当前访问政策状态 |
 | `acquisition_mode` | 采集方式 |
@@ -96,6 +96,10 @@ path_prefix=/tenant/acme/
 共享 ATS 必须核验企业租户路径或租户 ID，不能因为一个企业获准而允许访问该 ATS 主机上的全部租户。重定向每一跳重新校验，申请链接使用单独的 `apply_targets`，不能继承采集权限。
 
 普通用户建议的新来源只进入人工审核队列，不触发网络请求。
+
+企业认证公众号额外遵守以下边界：`source_type=organization_official_account`、`provenance_level=official_account_link`、`acquisition_mode=browser_required`、`policy_status=pending_review` 且 `localProbe.enabled=false`。导入 CLI 只读 `.data/browser-imports/` 下的人工快照，任务 `request_count=0`；个人邮箱、个人微信、二维码-only、无法核验表单和非实习岗位整批拒绝。
+
+企业主体保存 `scale_band`、`scale_evidence_url`、`scale_evidence_text` 和 `scale_verified_at`。已知规模必须四项完整，未知规模不得携带部分证据；Aijob 当前使用 `small=1–199 人`、`medium=200–1999 人`、`large=2000 人及以上`，该口径只服务于样本分析，不代表法定企业划型。
 
 ## 4. 岗位与版本模型
 

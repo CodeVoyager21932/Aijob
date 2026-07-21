@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CompanyScaleSchema,
   CreateResumeTailoringRequestSchema,
   JobDetailSchema,
   MatchRunResultSchema,
@@ -50,6 +51,33 @@ describe("local complete MVP contracts", () => {
     });
 
     expect(result.success).toBe(true);
+  });
+
+  it("requires company scale evidence to be complete or entirely absent", () => {
+    expect(
+      CompanyScaleSchema.safeParse({
+        band: "unknown",
+        evidenceUrl: "https://example.com/about",
+        evidenceText: null,
+        lastVerifiedAt: null,
+      }).success,
+    ).toBe(false);
+    expect(
+      CompanyScaleSchema.safeParse({
+        band: "medium",
+        evidenceUrl: "https://example.com/about",
+        evidenceText: "公司官方页面披露员工规模为 500 人。",
+        lastVerifiedAt: null,
+      }).success,
+    ).toBe(false);
+    expect(
+      CompanyScaleSchema.safeParse({
+        band: "unknown",
+        evidenceUrl: null,
+        evidenceText: null,
+        lastVerifiedAt: null,
+      }).success,
+    ).toBe(true);
   });
 
   it("rejects oversized files and mismatched file media types", () => {

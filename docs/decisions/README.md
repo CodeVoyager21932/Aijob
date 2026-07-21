@@ -18,7 +18,9 @@
 - [ADR-0012：允许本地 MVP 隔离处理 PDF/DOCX 简历](0012-isolated-resume-document-ingestion.md)
 - [ADR-0013：本地 MVP 实现确定性推荐与受控 AI 简历优化](0013-local-ai-recommendation-and-resume-tailoring.md)
 - [ADR-0014：本地 MVP 使用可替换的后端 AI 配置来源](0014-local-backend-ai-config-source.md)
-- [ADR-0015：先在本机扩展全部职能实习，再决定是否上云](0015-local-all-function-internship-expansion.md)
+- [ADR-0015：先在本机扩展全部职能实习，再决定是否上云（已被取代）](0015-local-all-function-internship-expansion.md)
 - [ADR-0016：允许本机人工浏览器辅助导入受控官方实习岗位](0016-manual-browser-assisted-source-import.md)
+- [ADR-0017：本机扩展中小企业岗位并限定公众号与企业邮箱边界](0017-local-sme-expansion-and-official-account-boundary.md)
+- [ADR-0018：使用冻结样本生成确定性 JD 市场洞察](0018-deterministic-job-market-insights.md)
 
 新决定从 [ADR 模板](../templates/adr.md) 复制创建。已有决定变化时新增一条 ADR，并将旧记录标记为 `superseded`，不要静默改写历史理由。

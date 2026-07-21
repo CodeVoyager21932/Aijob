@@ -2,16 +2,17 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createDatabase, type Database } from "@aijob/database";
+import { createDatabase, type Database, migrateToLatest } from "@aijob/database";
 import type { Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { approvedCompanyEmail } from "../catalog/application-methods.js";
 import { importManualBrowserSnapshot } from "./manual-browser-import.js";
 
 const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
-const sourceKey = "bytedance-manual-test";
+const sourceKey = "official-account-test";
 
-describeWithDatabase("manual browser snapshot import", () => {
+describeWithDatabase("official account zero-network manual import", () => {
   let db: Kysely<Database>;
   let workspaceRoot: string;
   let snapshotFile: string;
@@ -29,14 +30,14 @@ describeWithDatabase("manual browser snapshot import", () => {
       .select("id")
       .where("source_id", "=", source.id)
       .execute();
-    const recordIds = records.map((record) => record.id);
+    const recordIds = records.map(({ id }) => id);
     if (recordIds.length > 0) {
       const revisions = await db
         .selectFrom("ingestion.source_job_revisions")
         .select("id")
         .where("source_job_record_id", "in", recordIds)
         .execute();
-      const revisionIds = revisions.map((revision) => revision.id);
+      const revisionIds = revisions.map(({ id }) => id);
       if (revisionIds.length > 0) {
         await db
           .deleteFrom("ingestion.source_job_revision_evidence")
@@ -59,14 +60,14 @@ describeWithDatabase("manual browser snapshot import", () => {
       .select("id")
       .where("source_id", "=", source.id)
       .execute();
-    const taskIds = tasks.map((task) => task.id);
+    const taskIds = tasks.map(({ id }) => id);
     if (taskIds.length > 0) {
       const runs = await db
         .selectFrom("ingestion.crawl_runs")
         .select("id")
         .where("task_id", "in", taskIds)
         .execute();
-      const runIds = runs.map((run) => run.id);
+      const runIds = runs.map(({ id }) => id);
       if (runIds.length > 0) {
         await db
           .deleteFrom("ingestion.crawl_fetches")
@@ -112,14 +113,15 @@ describeWithDatabase("manual browser snapshot import", () => {
 
   beforeAll(async () => {
     db = createDatabase(databaseUrl as string);
+    await migrateToLatest(db);
     await cleanup();
-    workspaceRoot = await mkdtemp(join(tmpdir(), "aijob-manual-browser-"));
+    workspaceRoot = await mkdtemp(join(tmpdir(), "aijob-official-account-"));
     const importRoot = join(workspaceRoot, ".data", "browser-imports");
     await mkdir(importRoot, { recursive: true });
-    snapshotFile = join(importRoot, "bytedance.synthetic.json");
+    snapshotFile = join(importRoot, "official-account.synthetic.json");
     const fixture = await readFile(
       new URL(
-        "../../../../fixtures/ingestion/bytedance-manual-browser.synthetic.json",
+        "../../../../fixtures/ingestion/official-account-manual.synthetic.json",
         import.meta.url,
       ),
       "utf8",
@@ -133,7 +135,10 @@ describeWithDatabase("manual browser snapshot import", () => {
     await rm(workspaceRoot, { recursive: true, force: true });
   });
 
-  it("stores a zero-network manual task, manual revisions and reuses the same snapshot", async () => {
+  it("imports only the local snapshot and preserves URL or company-email application methods", async () => {
+    const sourceConfigDirectory = fileURLToPath(
+      new URL("../../../../fixtures/source-configs/", import.meta.url),
+    );
     const first = await importManualBrowserSnapshot({
       db,
       appEnv: "test",
@@ -141,9 +146,17 @@ describeWithDatabase("manual browser snapshot import", () => {
       workspaceRoot,
       snapshotDirectory: join(workspaceRoot, ".data", "job-snapshots"),
       sourceKey,
-      sourceConfigDirectory: fileURLToPath(
-        new URL("../../../../fixtures/source-configs/", import.meta.url),
-      ),
+      sourceConfigDirectory,
+      filePath: snapshotFile,
+    });
+    const replayed = await importManualBrowserSnapshot({
+      db,
+      appEnv: "test",
+      enableLocalMvp: true,
+      workspaceRoot,
+      snapshotDirectory: join(workspaceRoot, ".data", "job-snapshots"),
+      sourceKey,
+      sourceConfigDirectory,
       filePath: snapshotFile,
     });
     expect(first).toMatchObject({
@@ -152,43 +165,42 @@ describeWithDatabase("manual browser snapshot import", () => {
       normalizedCount: 2,
       createdRevisionCount: 2,
     });
+    expect(replayed).toMatchObject({ reused: true, runId: first.runId, createdRevisionCount: 0 });
 
-    const second = await importManualBrowserSnapshot({
-      db,
-      appEnv: "test",
-      enableLocalMvp: true,
-      workspaceRoot,
-      snapshotDirectory: join(workspaceRoot, ".data", "job-snapshots"),
-      sourceKey,
-      sourceConfigDirectory: fileURLToPath(
-        new URL("../../../../fixtures/source-configs/", import.meta.url),
-      ),
-      filePath: snapshotFile,
-    });
-    expect(second).toMatchObject({
-      reused: true,
-      taskId: first.taskId,
-      runId: first.runId,
-      normalizedCount: 2,
-      createdRevisionCount: 0,
+    const source = await db
+      .selectFrom("source_control.sources as source")
+      .innerJoin(
+        "source_control.organizations as organization",
+        "organization.id",
+        "source.organization_id",
+      )
+      .innerJoin("source_control.source_policy_versions as policy", (join) =>
+        join
+          .onRef("policy.source_id", "=", "source.id")
+          .onRef("policy.version", "=", "source.current_policy_version"),
+      )
+      .select([
+        "source.id",
+        "source.source_type",
+        "organization.official_domain",
+        "organization.scale_band",
+        "policy.provenance_level",
+      ])
+      .where("source.source_key", "=", sourceKey)
+      .executeTakeFirstOrThrow();
+    expect(source).toMatchObject({
+      source_type: "organization_official_account",
+      scale_band: "medium",
+      provenance_level: "official_account_link",
     });
 
     const run = await db
       .selectFrom("ingestion.crawl_runs")
-      .select(["request_count", "discovered_count", "normalized_count", "completion"])
+      .select(["request_count", "completion"])
       .where("id", "=", first.runId)
       .executeTakeFirstOrThrow();
-    expect(run).toEqual({
-      request_count: 0,
-      discovered_count: 2,
-      normalized_count: 2,
-      completion: "partial",
-    });
-    const source = await db
-      .selectFrom("source_control.sources")
-      .select("id")
-      .where("source_key", "=", sourceKey)
-      .executeTakeFirstOrThrow();
+    expect(run).toEqual({ request_count: 0, completion: "partial" });
+
     const revisions = await db
       .selectFrom("ingestion.source_job_revisions as revision")
       .innerJoin(
@@ -196,13 +208,23 @@ describeWithDatabase("manual browser snapshot import", () => {
         "record.id",
         "revision.source_job_record_id",
       )
-      .select(["revision.import_mode", "revision.recruitment_type"])
+      .select([
+        "record.source_job_id",
+        "revision.apply_url",
+        "revision.structured_fields",
+        "revision.import_mode",
+      ])
       .where("record.source_id", "=", source.id)
+      .orderBy("record.source_job_id")
       .execute();
     expect(revisions).toHaveLength(2);
-    expect(revisions.every((revision) => revision.import_mode === "manual")).toBe(true);
+    expect(revisions.every(({ import_mode }) => import_mode === "manual")).toBe(true);
+    const [emailRevision, urlRevision] = revisions;
+    if (!emailRevision || !urlRevision) throw new Error("official account fixture rows missing");
+    expect(emailRevision.apply_url).toBeNull();
     expect(
-      revisions.every((revision) => JSON.stringify(revision.recruitment_type).includes("实习")),
-    ).toBe(true);
+      approvedCompanyEmail(emailRevision.structured_fields, source.official_domain),
+    ).toMatchObject({ type: "company_email", email: "intern@example.com" });
+    expect(urlRevision.apply_url).toBe("https://example.com/careers/data-intern");
   });
 });

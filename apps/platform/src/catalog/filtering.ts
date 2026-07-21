@@ -48,6 +48,7 @@ function asSummary(detail: JobDetail): JobSummary {
     publishedJobVersionId: detail.publishedJobVersionId,
     activeRequirementSetId: detail.activeRequirementSetId,
     companyName: detail.companyName,
+    companyScale: detail.companyScale,
     title: detail.title,
     jobFamily: detail.jobFamily,
     locations: detail.locations,

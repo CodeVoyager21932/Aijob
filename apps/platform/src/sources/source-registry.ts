@@ -91,7 +91,30 @@ export async function registerSourceConfig(
           slug: config.organization.slug,
           name: config.organization.name,
           official_domain: config.organization.officialDomain,
+          scale_band: config.organization.scale.band,
+          scale_evidence_url: config.organization.scale.evidenceUrl,
+          scale_evidence_text: config.organization.scale.evidenceText,
+          scale_verified_at: config.organization.scale.lastVerifiedAt
+            ? new Date(config.organization.scale.lastVerifiedAt)
+            : null,
         })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+    }
+
+    if (organization && config.organization.scale.band !== "unknown") {
+      if (!config.organization.scale.lastVerifiedAt) {
+        throw new Error("COMPANY_SCALE_EVIDENCE_INCOMPLETE");
+      }
+      organization = await transaction
+        .updateTable("source_control.organizations")
+        .set({
+          scale_band: config.organization.scale.band,
+          scale_evidence_url: config.organization.scale.evidenceUrl,
+          scale_evidence_text: config.organization.scale.evidenceText,
+          scale_verified_at: new Date(config.organization.scale.lastVerifiedAt),
+        })
+        .where("id", "=", organization.id)
         .returningAll()
         .executeTakeFirstOrThrow();
     }

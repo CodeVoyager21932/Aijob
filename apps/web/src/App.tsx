@@ -7,6 +7,7 @@ import { DeletionStatusPage } from "./pages/DeletionStatusPage";
 import { InternalPreviewJobDetailPage } from "./pages/InternalPreviewJobDetailPage";
 import { InternalPreviewJobListPage } from "./pages/InternalPreviewJobListPage";
 import { JobDetailPage } from "./pages/JobDetailPage";
+import { JobInsightsPage } from "./pages/JobInsightsPage";
 import { JobListPage } from "./pages/JobListPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { ProductUnavailablePage } from "./pages/ProductUnavailablePage";
@@ -38,6 +39,7 @@ export function App() {
       <Route element={<ProductShell />}>
         <Route path="/jobs" element={<JobListPage />} />
         <Route path="/jobs/:jobId" element={<JobDetailPage />} />
+        <Route path="/insights" element={<JobInsightsPage />} />
         <Route path="/resume" element={<ResumePage />} />
         <Route path="/resume/confirm/:analysisId" element={<ResumeConfirmPage />} />
         <Route path="/recommendations" element={<RecommendationsPage />} />

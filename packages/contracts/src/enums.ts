@@ -2,10 +2,14 @@ import { z } from "zod";
 
 export const SourceTypeSchema = z.enum([
   "organization_career_site",
+  "organization_official_account",
   "official_ats",
   "university_employment_site",
 ]);
 export type SourceType = z.infer<typeof SourceTypeSchema>;
+
+export const CompanyScaleBandSchema = z.enum(["small", "medium", "large", "unknown"]);
+export type CompanyScaleBand = z.infer<typeof CompanyScaleBandSchema>;
 
 export const ProvenanceLevelSchema = z.enum([
   "organization_owned",
