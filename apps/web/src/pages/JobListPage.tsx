@@ -336,6 +336,15 @@ export function JobListPage() {
             </div>
             <p>未知条件不会被算作符合，也不会被静默隐藏。</p>
           </div>
+          {query.data.companyQuotaGaps?.length ? (
+            <p className="quota-gap-note">
+              无中小规模证据企业按单家配额显示：
+              {query.data.companyQuotaGaps
+                .map((gap) => `${gap.companyName} ${gap.selected}/供给 ${gap.supply}`)
+                .join("、")}
+              。被压缩的供给保留缺口记录，不代表岗位关闭。
+            </p>
+          ) : null}
           {groups.clear.length > 0 ? (
             <JobGroup
               title={

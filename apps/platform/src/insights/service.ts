@@ -412,8 +412,12 @@ async function loadInsightRecords(
     JOIN source_control.source_policy_versions AS policy
       ON policy.source_id = source.id
       AND policy.version = source.current_policy_version
+    LEFT JOIN catalog.company_quota_selections AS quota
+      ON quota.published_job_id = job.id
     WHERE version.activity_state = 'active'
       AND revision.ingestion_state = 'validated'
+      -- ADR-0021：洞察样本与可见目录一致，被配额压缩的岗位不进入分母。
+      AND COALESCE(quota.selected, TRUE)
     ORDER BY version.company_name, version.title, version.id
   `.execute(db);
 

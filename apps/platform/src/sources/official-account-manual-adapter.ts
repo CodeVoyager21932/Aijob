@@ -92,7 +92,7 @@ function graduationYears(value: string): number[] {
   ];
 }
 
-function isCompanyDomainEmail(email: string, officialDomain: string): boolean {
+export function isCompanyDomainEmail(email: string, officialDomain: string): boolean {
   const domain = email.toLowerCase().split("@")[1];
   const expected = officialDomain.toLowerCase().replace(/^www\./, "");
   return Boolean(domain && (domain === expected || domain.endsWith(`.${expected}`)));

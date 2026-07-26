@@ -15,6 +15,7 @@ import { allowResumeAnalysisV2MetadataMigration } from "./migrations/012_allow_r
 import { enforceCorrectnessProjectionOwnershipMigration } from "./migrations/013_enforce_correctness_projection_ownership.js";
 import { employerScaleAndJobInsightsMigration } from "./migrations/014_employer_scale_and_job_insights.js";
 import { freezeJobInsightSourceVerificationsMigration } from "./migrations/015_freeze_job_insight_source_verifications.js";
+import { companyQuotaSelectionsMigration } from "./migrations/016_company_quota_selections.js";
 import type { Database } from "./types.js";
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -38,6 +39,7 @@ class StaticMigrationProvider implements MigrationProvider {
         enforceCorrectnessProjectionOwnershipMigration,
       "014_employer_scale_and_job_insights": employerScaleAndJobInsightsMigration,
       "015_freeze_job_insight_source_verifications": freezeJobInsightSourceVerificationsMigration,
+      "016_company_quota_selections": companyQuotaSelectionsMigration,
     };
   }
 }

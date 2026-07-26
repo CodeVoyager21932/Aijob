@@ -190,11 +190,22 @@ export const JobSearchItemSchema = JobSummarySchema.extend({
 });
 export type JobSearchItem = z.infer<typeof JobSearchItemSchema>;
 
+// ADR-0021：单家配额压缩后的公开缺口分母（仅在本机 local_mvp 存在被压缩供给时返回）。
+export const CompanyQuotaGapSchema = z.object({
+  companyName: z.string().min(1),
+  scaleBand: z.string().min(1),
+  quota: z.number().int().positive(),
+  supply: z.number().int().nonnegative(),
+  selected: z.number().int().nonnegative(),
+});
+export type CompanyQuotaGap = z.infer<typeof CompanyQuotaGapSchema>;
+
 export const JobSearchResponseSchema = z.object({
   items: z.array(JobSearchItemSchema),
   nextCursor: z.string().min(1).nullable(),
   facets: z.array(JobFacetSchema),
   totalKnown: z.number().int().nonnegative(),
   totalUnknown: z.number().int().nonnegative(),
+  companyQuotaGaps: z.array(CompanyQuotaGapSchema).optional(),
 });
 export type JobSearchResponse = z.infer<typeof JobSearchResponseSchema>;

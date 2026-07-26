@@ -57,11 +57,16 @@ describe("controlled local source configurations", () => {
       "baidu-internships",
       "bytedance-campus-manual",
       "fanruan-trainee-internships",
+      "hr-soft-internships",
       "huice-campus-internships",
+      "jcquant-internships",
       "jd-campus-internships",
       "meituan-official",
       "nankai-tal-2027",
       "pudutech-internships",
+      "shengumedia-internships",
+      "spirit-ai-feishu-manual",
+      "supvan-info-internships",
       "tencent-campus",
     ]);
   });
@@ -71,9 +76,14 @@ describe("controlled local source configurations", () => {
     ["baidu-internships", "baidu-ssr-deterministic-html", true],
     ["bytedance-campus-manual", "bytedance-manual-browser-snapshot", false],
     ["fanruan-trainee-internships", "fanruan-trainee-public-api", true],
+    ["hr-soft-internships", "university-employment-detail-html", true],
     ["huice-campus-internships", "beisen-zhiye-public-api", true],
+    ["jcquant-internships", "university-employment-detail-html", true],
     ["jd-campus-internships", "jd-campus-public-api", true],
     ["pudutech-internships", "beisen-zhiye-public-api", true],
+    ["shengumedia-internships", "university-employment-detail-html", true],
+    ["spirit-ai-feishu-manual", "official-account-manual-snapshot", false],
+    ["supvan-info-internships", "university-employment-detail-html", true],
     ["tencent-campus", "tencent-public-api", true],
     ["meituan-official", "meituan-public-api", true],
     ["nankai-tal-2027", "nankai-tal-deterministic-html", true],
@@ -224,6 +234,80 @@ describe("controlled local source configurations", () => {
       ]);
     },
   );
+
+  it.each([
+    [
+      "supvan-info-internships",
+      "career.nankai.edu.cn",
+      "/correcruit/content/id/116240.html",
+      [] as string[],
+      { host: "www.supvan.com", pathPrefix: "/joinUs" },
+      { maxItems: 6, maxPages: 6, maxRequests: 10, minimumIntervalMs: 2000 },
+    ],
+    [
+      "jcquant-internships",
+      "career.cuhk.edu.cn",
+      "/job/view/id/466931",
+      [] as string[],
+      { host: "career.cuhk.edu.cn", pathPrefix: "/job/view/id/466931" },
+      { maxItems: 1, maxPages: 1, maxRequests: 2, minimumIntervalMs: 2000 },
+    ],
+    [
+      "shengumedia-internships",
+      "career.cuhk.edu.cn",
+      "/job/view/id/467659",
+      [] as string[],
+      { host: "career.cuhk.edu.cn", pathPrefix: "/job/view/id/467659" },
+      { maxItems: 1, maxPages: 1, maxRequests: 2, minimumIntervalMs: 2000 },
+    ],
+    [
+      "hr-soft-internships",
+      "www.career.zju.edu.cn",
+      "/jyxt/sczp/zpztgl/ckZpgwXq.zf",
+      ["zpxxbh"],
+      { host: "www.career.zju.edu.cn", pathPrefix: "/jyxt/sczp/zpztgl/ckZpgwXq.zf" },
+      { maxItems: 1, maxPages: 1, maxRequests: 2, minimumIntervalMs: 2000 },
+    ],
+  ] as const)(
+    "limits %s to its frozen university detail pages",
+    async (sourceKey, fetchHost, firstFetchPath, queryParameters, applyTarget, budget) => {
+      const config = await loadSourceConfig(sourceKey);
+      expect(config.policy.version).toBe(1);
+      expect(config.localProbe.requestBudget).toEqual(budget);
+      expect(config.policy.fetchTargets[0]).toMatchObject({
+        method: "GET",
+        host: fetchHost,
+        pathPrefix: firstFetchPath,
+        allowedQueryParameters: [...queryParameters],
+      });
+      expect(config.policy.fetchTargets.every((target) => target.host === fetchHost)).toBe(true);
+      expect(config.policy.applyTargets).toEqual([
+        expect.objectContaining({
+          method: "GET",
+          host: applyTarget.host,
+          pathPrefix: applyTarget.pathPrefix,
+        }),
+      ]);
+    },
+  );
+
+  it("records the evidenced medium scale for HR-Soft from the university employer panel", async () => {
+    const config = await loadSourceConfig("hr-soft-internships");
+    expect(config.organization.scale).toMatchObject({
+      band: "medium",
+      evidenceUrl:
+        "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4DE5B03172671701E0653A68DD0E9B18",
+      lastVerifiedAt: "2026-07-26T00:00:00.000Z",
+    });
+    for (const sourceKey of [
+      "supvan-info-internships",
+      "jcquant-internships",
+      "shengumedia-internships",
+    ] as const) {
+      const other = await loadSourceConfig(sourceKey);
+      expect(other.organization.scale.band).toBe("unknown");
+    }
+  });
 
   it("records the evidenced large scale for Huice and keeps others unknown", async () => {
     const huice = await loadSourceConfig("huice-campus-internships");

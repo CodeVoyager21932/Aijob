@@ -351,11 +351,38 @@ async function loadLocalRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[]
     LEFT JOIN catalog.job_condition_projections AS projection
       ON projection.published_job_version_id = published.published_job_version_id
       AND projection.requirement_set_id = published.active_requirement_set_id
+    LEFT JOIN catalog.company_quota_selections AS quota
+      ON quota.published_job_id = published.published_job_id
     WHERE preview.ingestion_state = 'validated'
       AND preview.publication_state IN ('review', 'published')
       AND preview.policy_status IN ('pending_review', 'approved')
+      -- ADR-0021：被单家配额压缩的岗位只在读取层隐藏，缺口另行公开分母。
+      AND (published.published_job_id IS NULL OR COALESCE(quota.selected, TRUE))
   `.execute(db);
   return result.rows;
+}
+
+async function loadCompanyQuotaGaps(db: Kysely<Database>) {
+  const rows = await db
+    .selectFrom("catalog.company_quota_selections")
+    .select(({ fn }) => [
+      "company_name",
+      "scale_band",
+      "quota",
+      "supply",
+      fn.count<number>(sql`case when selected then 1 end`).as("selectedCount"),
+    ])
+    .groupBy(["company_name", "scale_band", "quota", "supply"])
+    .having(sql`supply`, ">", sql`quota`)
+    .orderBy("company_name")
+    .execute();
+  return rows.map((row) => ({
+    companyName: row.company_name,
+    scaleBand: row.scale_band,
+    quota: row.quota,
+    supply: row.supply,
+    selected: Number(row.selectedCount),
+  }));
 }
 
 async function loadPublicRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[]> {
@@ -503,7 +530,10 @@ export function createCatalogRepository(input: {
 
   return {
     async search(query) {
-      return searchCatalogRecords(await load(), query);
+      const response = searchCatalogRecords(await load(), query);
+      if (!input.enableLocalMvp) return response;
+      const companyQuotaGaps = await loadCompanyQuotaGaps(input.db);
+      return companyQuotaGaps.length > 0 ? { ...response, companyQuotaGaps } : response;
     },
     async get(jobId) {
       const records = await load();

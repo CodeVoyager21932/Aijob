@@ -391,6 +391,121 @@ export interface LocalCatalogMaterializationResult {
   createdVersions: number;
   createdRequirementSets: number;
   suspectedDuplicatePairs: number;
+  quotaSelectedJobs: number;
+  quotaSuppressedJobs: number;
+}
+
+// ADR-0021：无已接受 small/medium 规模证据的企业单家配额压缩到 10 条；
+// 有证据的中小企业维持 30 条。择优保留 ADR-0020 两条优先轨道岗位。
+const NON_SME_COMPANY_QUOTA = 10;
+const SME_COMPANY_QUOTA = 30;
+const SME_SCALE_BANDS = new Set(["small", "medium"]);
+const PRIORITY_TRACK_FAMILIES = new Set(["product", "operations", "engineering", "data_ai"]);
+
+function isPriorityTrackFamily(jobFamily: JsonValue): boolean {
+  const field = asObject(jobFamily);
+  return (
+    field.state === "known" &&
+    typeof field.value === "string" &&
+    PRIORITY_TRACK_FAMILIES.has(field.value)
+  );
+}
+
+export interface CompanyQuotaApplication {
+  selectedJobs: number;
+  suppressedJobs: number;
+}
+
+/**
+ * 确定性计算并整表重写单家配额选择（ADR-0021）。
+ * 排序键：优先轨道岗位在前，其余按 published_jobs.created_at 与 id 稳定排序；
+ * 不删除任何岗位版本或来源修订，仅在读取层过滤并公开缺口。
+ */
+export async function applyCompanyQuotaSelections(
+  db: DbExecutor,
+): Promise<CompanyQuotaApplication> {
+  const rows = await db
+    .selectFrom("catalog.published_jobs as job")
+    .innerJoin("catalog.published_job_versions as version", "version.id", "job.current_version_id")
+    .innerJoin(
+      "ingestion.source_job_revisions as revision",
+      "revision.id",
+      "version.source_job_revision_id",
+    )
+    .innerJoin(
+      "ingestion.source_job_records as record",
+      "record.id",
+      "revision.source_job_record_id",
+    )
+    .innerJoin("source_control.sources as source", "source.id", "record.source_id")
+    .innerJoin(
+      "source_control.organizations as organization",
+      "organization.id",
+      "source.organization_id",
+    )
+    .select([
+      "job.id as jobId",
+      "job.created_at as createdAt",
+      "version.company_name as companyName",
+      "version.job_family as jobFamily",
+      "organization.scale_band as scaleBand",
+    ])
+    .execute();
+
+  const byCompany = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const group = byCompany.get(row.companyName) ?? [];
+    group.push(row);
+    byCompany.set(row.companyName, group);
+  }
+
+  let selectedJobs = 0;
+  let suppressedJobs = 0;
+  const values: Array<{
+    published_job_id: string;
+    company_name: string;
+    scale_band: string;
+    quota: number;
+    supply: number;
+    selection_rank: number;
+    selected: boolean;
+  }> = [];
+  for (const [companyName, group] of byCompany) {
+    // 同名公司出现多个来源组织时，只要任一组织有已接受的中小规模证据即按中小配额。
+    const smeEvidence = group.some((row) => SME_SCALE_BANDS.has(row.scaleBand));
+    const scaleBand = smeEvidence
+      ? (group.find((row) => SME_SCALE_BANDS.has(row.scaleBand))?.scaleBand ?? "unknown")
+      : (group[0]?.scaleBand ?? "unknown");
+    const quota = smeEvidence ? SME_COMPANY_QUOTA : NON_SME_COMPANY_QUOTA;
+    const ranked = [...group].sort((left, right) => {
+      const leftPriority = isPriorityTrackFamily(left.jobFamily) ? 0 : 1;
+      const rightPriority = isPriorityTrackFamily(right.jobFamily) ? 0 : 1;
+      if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+      const timeOrder = new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime();
+      if (timeOrder !== 0) return timeOrder;
+      return left.jobId < right.jobId ? -1 : left.jobId > right.jobId ? 1 : 0;
+    });
+    for (const [index, row] of ranked.entries()) {
+      const selected = index < quota;
+      if (selected) selectedJobs += 1;
+      else suppressedJobs += 1;
+      values.push({
+        published_job_id: row.jobId,
+        company_name: companyName,
+        scale_band: scaleBand,
+        quota,
+        supply: ranked.length,
+        selection_rank: index + 1,
+        selected,
+      });
+    }
+  }
+
+  await db.deleteFrom("catalog.company_quota_selections").execute();
+  if (values.length > 0) {
+    await db.insertInto("catalog.company_quota_selections").values(values).execute();
+  }
+  return { selectedJobs, suppressedJobs };
 }
 
 async function persistCrossSourceDuplicateReviews(
@@ -512,11 +627,14 @@ export async function materializeLocalCatalog(
       transaction,
       revisions.map(({ id }) => id),
     );
+    const quota = await applyCompanyQuotaSelections(transaction);
     return {
       eligibleRevisions: revisions.length,
       createdVersions,
       createdRequirementSets,
       suspectedDuplicatePairs,
+      quotaSelectedJobs: quota.selectedJobs,
+      quotaSuppressedJobs: quota.suppressedJobs,
     };
   });
 }

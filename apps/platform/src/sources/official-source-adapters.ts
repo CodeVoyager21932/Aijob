@@ -7,6 +7,7 @@ import { MEITUAN_ADAPTER_VERSION } from "./meituan-official-adapter.js";
 import { NANKAI_TAL_ADAPTER_VERSION } from "./nankai-tal-2027-adapter.js";
 import { OFFICIAL_ACCOUNT_MANUAL_ADAPTER_VERSION } from "./official-account-manual-adapter.js";
 import { TENCENT_ADAPTER_VERSION } from "./tencent-campus-adapter.js";
+import { UNIVERSITY_EMPLOYMENT_ADAPTER_VERSION } from "./university-employment-adapter.js";
 
 export const officialSourceAdapterVersions = {
   "baidu-ssr-deterministic-html": BAIDU_INTERNSHIPS_ADAPTER_VERSION,
@@ -18,6 +19,7 @@ export const officialSourceAdapterVersions = {
   "meituan-public-api": MEITUAN_ADAPTER_VERSION,
   "nankai-tal-deterministic-html": NANKAI_TAL_ADAPTER_VERSION,
   "official-account-manual-snapshot": OFFICIAL_ACCOUNT_MANUAL_ADAPTER_VERSION,
+  "university-employment-detail-html": UNIVERSITY_EMPLOYMENT_ADAPTER_VERSION,
 };
 
 export type OfficialSourceAdapterKey = keyof typeof officialSourceAdapterVersions;

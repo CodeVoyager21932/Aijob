@@ -1,0 +1,154 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "hr-soft-internships",
+  "sourceType": "university_employment_site",
+  "organization": {
+    "slug": "hr-soft",
+    "name": "广州红海云计算股份有限公司",
+    "officialDomain": "hr-soft.cn",
+    "scale": {
+      "band": "medium",
+      "evidenceUrl": "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4DE5B03172671701E0653A68DD0E9B18",
+      "evidenceText": "浙江大学就业服务平台企业信息栏标注该公司为信息传输、软件和信息技术服务业 200-500 人。",
+      "lastVerifiedAt": "2026-07-26T00:00:00.000Z"
+    }
+  },
+  "candidate": {
+    "name": "浙大就业网·红海云商务助理实习",
+    "entrypointUrl": "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4DE5B03172671701E0653A68DD0E9B18",
+    "provenanceLevel": "university_published",
+    "acquisitionMode": "deterministic_html",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-local-probe",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "岗位由浙江大学官方就业域名发布；hr-soft.cn 页脚版权与粤ICP备12081892号标注同一法人主体广州红海云计算股份有限公司。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "商务助理 1 条，工作性质官方标注全职,实习（含实习），截止 2027-12-31，本科及以上 5 人。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "详情页无需登录、验证码或脚本即可读取；2026-07-26 服务端无 Cookie curl 复现通过。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "联系方式原句电子邮箱：hr@hr-soft.cn；域名与 ICP 备案官网域名一致，通过 ADR-0017 企业邮箱白名单。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "www.career.zju.edu.cn 对 /robots.txt 返回应用页面（无有效 robots 政策）；尚无允许第三方长期复制和公开聚合的授权，只能进入本机 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "zpxxbh 标识稳定、zp-info 六段结构与职位描述小节可确定性解析，尚未经过连续运行验证。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 6,
+        "status": "provisional",
+        "note": "单一岗位供给，为产品/运营优先轨道的商务助理实习。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过，分数不能覆盖该失败。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 12,
+        "status": "provisional",
+        "note": "六段结构与正文小节可确定性解析；发布与截止时间齐全。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 8,
+        "status": "provisional",
+        "note": "提供发布时间与 2027-12-31 截止时间。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 8,
+        "status": "provisional",
+        "note": "首个带合格规模证据的中型（200-500 人）中小企业来源，直接服务 ADR-0017/0021 占比目标。"
+      }
+    },
+    "evidenceNotes": [
+      "工作性质原文为全职,实习：官方明示接受实习，但与纯实习标记矛盾，按 SOURCE_KIND_CONFLICT 导入并留复核项。",
+      "正文补充说明列出工作城市：广州、深圳、北京、杭州、武汉，与结构化地区（杭州）并存，写 MULTI_CITY_SUPPLEMENT 复核项。",
+      "企业规模 200-500 人来自浙大就业服务平台企业信息栏（Aijob 口径 medium），已按 ADR-0017 保存证据链接、原文与核验时间。",
+      "台账 EP-0616 记录的岗位名业务助理与页面实际岗位名商务助理不一致，以页面为准并回写台账。",
+      "本配置只证明受限技术可读取性，不构成来源批准或公开发布授权。",
+      "本地证据：docs/evidence/ingestion/source-approval-batch-02-2026-07-26.md"
+    ]
+  },
+  "policy": {
+    "version": "1",
+    "status": "pending_review",
+    "adapterKey": "university-employment-detail-html",
+    "adapterVersion": "0.1.0",
+    "entrypoints": [
+      "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4DE5B03172671701E0653A68DD0E9B18"
+    ],
+    "crawlInterval": {
+      "enabled": false,
+      "minimumHours": 168
+    },
+    "reviewedAt": "2026-07-26",
+    "policyNotes": [
+      "accessPolicyAccepted 未通过，仅允许维护者显式执行低频本地技术探测。",
+      "只允许读取冻结的单一详情页（zpxxbh 查询参数白名单），禁止跟随页面其他链接、递归抓取高校网站、定时调度或自动公开。",
+      "投递方式为企业域名邮箱，只展示复制邮箱与查看官方原文，不自动发送邮件。",
+      "工作性质全职,实习与多城市补充说明必须保留复核项；页面结构、截止时间或邮箱变化时必须进入复核。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "www.career.zju.edu.cn",
+        "port": 443,
+        "pathPrefix": "/jyxt/sczp/zpztgl/ckZpgwXq.zf",
+        "allowRedirects": false,
+        "allowedQueryParameters": ["zpxxbh"]
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "www.career.zju.edu.cn",
+        "port": 443,
+        "pathPrefix": "/jyxt/sczp/zpztgl/ckZpgwXq.zf",
+        "allowRedirects": false,
+        "allowedQueryParameters": ["zpxxbh"]
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 1,
+      "maxPages": 1,
+      "maxRequests": 2,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {},
+    "queryStreams": [
+      {
+        "key": "hr-soft-internship-page",
+        "label": "红海云商务助理实习详情页",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 1
+      }
+    ]
+  }
+}

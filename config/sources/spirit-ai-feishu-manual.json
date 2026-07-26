@@ -1,0 +1,148 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "spirit-ai-feishu-manual",
+  "sourceType": "official_ats",
+  "organization": {
+    "slug": "spirit-ai",
+    "name": "千寻智能",
+    "officialDomain": "spirit-ai.com"
+  },
+  "candidate": {
+    "name": "千寻智能飞书校招实习站·人工浏览器快照",
+    "entrypointUrl": "https://nwd4iy9rd2s.jobs.feishu.cn/campusofSpiritAI/position/list",
+    "provenanceLevel": "verified_ats_tenant",
+    "acquisitionMode": "browser_required",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-local-probe",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "飞书 ATS 租户站点标题标注千寻智能（杭州）科技有限公司并带京ICP备16045432号-4；www.spirit-ai.com/career 与 campus@spirit-ai.com 相互印证。南开/港中深发布主体万境千寻（北京）科技有限公司为同品牌关联主体，台账 ICU-0002 与 PT-0347 合并指向本来源。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "2026-07-26 职位列表报告 29 个实习岗位（2027 届校招实习项目 + 日常实习），覆盖研发、产品、市场与职能方向。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "职位列表与详情页无需登录即可人工查看；岗位 API 需页面自身的动态签名与 Cookie 会话，因此不做生产采集，只允许人工浏览器快照（ADR-0016）。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "每个岗位提供官方 ATS 逐岗详情页（/campusofSpiritAI/position/<id>/detail），2026-07-26 人工验证可打开并含立即投递入口。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "租户 robots.txt 返回 404，无明确机器访问政策；尚无允许第三方长期复制和公开聚合的授权，只能进入本机 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "岗位 ID 稳定、官方 recruit_type=实习 语义明确，但快照为人工批次采集，尚无连续运行验证。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 18,
+        "status": "provisional",
+        "note": "29 个明确实习岗位，研发 12 条覆盖电子信息技术优先轨道，产品/市场覆盖产品运营轨道。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过，且岗位接口需动态签名，禁止生产采集。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 10,
+        "status": "provisional",
+        "note": "官方结构化字段完整（类目、城市、发布时间、recruit_type），但只能以人工快照批次进入。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 6,
+        "status": "provisional",
+        "note": "提供发布时间；无截止日期，需人工批次维护新鲜度。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 8,
+        "status": "provisional",
+        "note": "补充具身智能初创企业与飞书 ATS 人工快照模式（规模证据缺失，保持 unknown）。"
+      }
+    },
+    "evidenceNotes": [
+      "飞书 ATS 岗位 API 需先 POST /api/v1/csrf/token 获取动态令牌并携带 Cookie 会话（批次 01 核验），按 ADR-0016 转人工浏览器快照，导入 CLI 本身不得触网。",
+      "2026-07-26 首批快照采集职位列表第一页 10 个岗位：7 条含完整职责与任职要求进入快照；政府事务经理、品牌专员、市场专员 3 条无任职要求正文，按快照最低字段要求排除并留复核记录。",
+      "官方 recruit_type 为实习（校招子类）；标题带【校招实习】的岗位可在转正答辩后获得应届校招 offer，其余为日常实习。",
+      "发布主体链条：飞书 ATS 站点主体为千寻智能（杭州）科技有限公司；南开 116118 与港中深 468454 页面发布主体为万境千寻（北京）科技有限公司（同品牌 Spirit AI，campus@spirit-ai.com 与 www.spirit-ai.com/career 相互印证）。",
+      "公司规模无官方或政府证据，保持 unknown。",
+      "本配置只证明受限技术可读取性，不构成来源批准或公开发布授权。",
+      "本地证据：docs/evidence/ingestion/source-approval-batch-02-2026-07-26.md"
+    ]
+  },
+  "policy": {
+    "version": "2",
+    "status": "pending_review",
+    "adapterKey": "official-account-manual-snapshot",
+    "adapterVersion": "0.1.0",
+    "entrypoints": ["https://nwd4iy9rd2s.jobs.feishu.cn/campusofSpiritAI/position/list"],
+    "crawlInterval": {
+      "enabled": false,
+      "minimumHours": 168
+    },
+    "reviewedAt": "2026-07-26",
+    "policyNotes": [
+      "v2 将目录展示名从法人全称调整为品牌名千寻智能；法人主体千寻智能（杭州）科技有限公司保留在证据注记，访问范围不变。",
+      "只允许维护者人工浏览器读取无需登录即可见的职位内容并生成本机快照；导入 CLI 本身不得触网。",
+      "禁止逆向、复制或复用动态签名与 CSRF 令牌，禁止 Cookie、代理、自动翻页或生产浏览器采集。",
+      "快照仅接收 employmentScope=实习 的岗位，单批最多 30 条。",
+      "岗位接口、页面结构或主体信息变化时必须进入复核。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "nwd4iy9rd2s.jobs.feishu.cn",
+        "port": 443,
+        "pathPrefix": "/campusofSpiritAI/position/list",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "nwd4iy9rd2s.jobs.feishu.cn",
+        "port": 443,
+        "pathPrefix": "/campusofSpiritAI/position/",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": false,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 10,
+      "maxPages": 1,
+      "maxRequests": 1,
+      "minimumIntervalMs": 3000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {},
+    "queryStreams": [
+      {
+        "key": "campus-intern-snapshot",
+        "label": "千寻智能校招实习人工快照",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 10
+      }
+    ]
+  }
+}

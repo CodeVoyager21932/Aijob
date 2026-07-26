@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "shengumedia-internships",
+  "sourceType": "university_employment_site",
+  "organization": {
+    "slug": "shengumedia",
+    "name": "北京神谷文化传播有限公司",
+    "officialDomain": "shengumedia.com"
+  },
+  "candidate": {
+    "name": "港中深就业网·神谷文化 AE 实习",
+    "entrypointUrl": "https://career.cuhk.edu.cn/job/view/id/467659",
+    "provenanceLevel": "university_published",
+    "acquisitionMode": "deterministic_html",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-local-probe",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "岗位由香港中文大学（深圳）官方就业域名发布，公司名与工商登记主体北京神谷文化传播有限公司一致；工商登记信息记录的企业邮箱与投递邮箱同域（shengumedia.com）。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "AE实习生 1 条，工作性质官方标注实习，截止 2028-06-30，覆盖品牌策划、社交内容、项目执行与竞品分析。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "详情页无需登录、验证码或脚本即可读取；2026-07-26 服务端无 Cookie curl 复现通过。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "正文原句简历投递邮箱：linjiachun@shengumedia.com；域名与工商登记企业邮箱同域，通过 ADR-0017 企业邮箱白名单。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "career.cuhk.edu.cn 无 robots.txt（404），无明确机器访问政策；尚无允许第三方长期复制和公开聚合的授权，只能进入本机 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "岗位 ID 稳定、标签段与工作内容描述小节可确定性解析，尚未经过连续运行验证；shengumedia.com 无可达网站，域名归属依赖工商登记邮箱佐证，需复核。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 6,
+        "status": "provisional",
+        "note": "单一岗位供给，但为产品/运营优先轨道的品牌营销实习。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过，分数不能覆盖该失败。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 12,
+        "status": "provisional",
+        "note": "标签段与正文小节可确定性解析；发布与结束时间齐全。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 8,
+        "status": "provisional",
+        "note": "提供发布时间与 2028-06-30 截止时间。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 8,
+        "status": "provisional",
+        "note": "补充品牌营销中小企业与企业邮箱投递模式（规模证据仍缺，保持 unknown）。"
+      }
+    },
+    "evidenceNotes": [
+      "工作性质：实习 为官方实习标记；职能类别：市场/公关类，岗位方向按标题与职责归产品/运营轨道需复核。",
+      "shengumedia.com 无可达网站（https/http 均不可达）；企业信息聚合平台（企查猫）记录该公司登记企业邮箱为 s***@shengumedia.com，与投递邮箱同域。",
+      "数英网自报企业规模 201-500 人不符合官方或政府证据口径，公司规模保持 unknown。",
+      "本配置只证明受限技术可读取性，不构成来源批准或公开发布授权。",
+      "本地证据：docs/evidence/ingestion/source-approval-batch-02-2026-07-26.md"
+    ]
+  },
+  "policy": {
+    "version": "1",
+    "status": "pending_review",
+    "adapterKey": "university-employment-detail-html",
+    "adapterVersion": "0.1.0",
+    "entrypoints": ["https://career.cuhk.edu.cn/job/view/id/467659"],
+    "crawlInterval": {
+      "enabled": false,
+      "minimumHours": 168
+    },
+    "reviewedAt": "2026-07-26",
+    "policyNotes": [
+      "accessPolicyAccepted 未通过，仅允许维护者显式执行低频本地技术探测。",
+      "只允许读取冻结的单一详情页，禁止跟随页面其他链接、递归抓取高校网站、定时调度或自动公开。",
+      "投递方式为企业域名邮箱，只展示复制邮箱与查看官方原文，不自动发送邮件。",
+      "页面结构变化、招聘过期、邮箱域名或工商登记信息变化时必须进入复核。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.cuhk.edu.cn",
+        "port": 443,
+        "pathPrefix": "/job/view/id/467659",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.cuhk.edu.cn",
+        "port": 443,
+        "pathPrefix": "/job/view/id/467659",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 1,
+      "maxPages": 1,
+      "maxRequests": 2,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {},
+    "queryStreams": [
+      {
+        "key": "shengumedia-internship-page",
+        "label": "神谷文化 AE 实习详情页",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 1
+      }
+    ]
+  }
+}

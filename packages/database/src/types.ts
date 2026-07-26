@@ -624,6 +624,18 @@ export interface InternalJobPreviewView {
   last_verified_at: Timestamp;
 }
 
+// ADR-0021：目录物化确定性计算的单家配额选择；整表由物化重写，属派生状态。
+export interface CompanyQuotaSelectionTable {
+  published_job_id: string;
+  company_name: string;
+  scale_band: string;
+  quota: number;
+  supply: number;
+  selection_rank: number;
+  selected: boolean;
+  computed_at: Generated<Timestamp>;
+}
+
 export interface Database {
   "source_control.organizations": OrganizationTable;
   "source_control.source_candidates": SourceCandidateTable;
@@ -647,6 +659,7 @@ export interface Database {
   "catalog.job_requirement_sets": JobRequirementSetTable;
   "catalog.job_condition_projections": JobConditionProjectionTable;
   "catalog.internal_job_previews": InternalJobPreviewView;
+  "catalog.company_quota_selections": CompanyQuotaSelectionTable;
   "identity.owners": OwnerTable;
   "identity.owner_sessions": OwnerSessionTable;
   "profile.resume_analyses": ResumeAnalysisTable;

@@ -76,6 +76,13 @@ import {
   tencentSearchResponseSchema,
 } from "../sources/tencent-campus-adapter.js";
 import {
+  normalizeUniversityEmploymentJob,
+  parseUniversityEmploymentPage,
+  resolveUniversityEmploymentSource,
+  UNIVERSITY_EMPLOYMENT_ADAPTER_VERSION,
+  UNIVERSITY_EMPLOYMENT_NORMALIZER_VERSION,
+} from "../sources/university-employment-adapter.js";
+import {
   assertActiveTaskLease,
   markFetchSchemaError,
   persistNormalizedOfficialJob,
@@ -1212,6 +1219,88 @@ async function runBeisenZhiyeAdapterProbe(input: AdapterProbeInput): Promise<Ada
   };
 }
 
+async function runUniversityEmploymentAdapterProbe(
+  input: AdapterProbeInput,
+): Promise<AdapterProbeOutput> {
+  const source = resolveUniversityEmploymentSource(input.sourceConfig.sourceKey);
+  const pages = source.pageUrls.slice(0, input.limit);
+  const failureErrorCodes: string[] = [];
+  let normalizedCount = 0;
+  let rejectedCount = 0;
+
+  for (const [pageIndex, pageUrl] of pages.entries()) {
+    if (pageIndex > 0) {
+      await updateHeartbeat(input.db, input.taskId, input.leaseOwner, input.fencingToken);
+      await delay(requestInterval(input));
+    }
+    claimProbeRequest(input.sourceConfig, input.budgetUsage, "page");
+    const response = await safeRequestHtml(
+      { method: "GET", url: pageUrl },
+      input.sourceConfig.policy.fetchTargets,
+    );
+    const fetchId = await persistHttpResponse({
+      ...input,
+      crawlRunId: input.crawlRunId,
+      response,
+      lease: probeLease(input),
+    });
+    let job: ReturnType<typeof parseUniversityEmploymentPage>;
+    try {
+      job = parseUniversityEmploymentPage({
+        format: source.pageFormat,
+        html: response.text,
+        pageUrl,
+      });
+    } catch (error) {
+      await markFetchSchemaError(input.db, fetchId, "UPSTREAM_SCHEMA_CHANGED", probeLease(input));
+      throw error;
+    }
+    try {
+      const normalized = normalizeUniversityEmploymentJob({
+        source,
+        job,
+        pageEvidenceRef: fetchId,
+      });
+      if (normalized.applyUrl) {
+        validateNavigationUrl(normalized.applyUrl, "GET", input.sourceConfig.policy.applyTargets);
+      } else {
+        const applicationEmail = (normalized.structuredFields as Record<string, unknown>)
+          .applicationEmail;
+        if (typeof applicationEmail !== "string" || applicationEmail.length === 0) {
+          throw new Error("UNIVERSITY_EMPLOYMENT_APPLICATION_METHOD_MISSING");
+        }
+      }
+      await persistNormalizedOfficialJob({
+        db: input.db,
+        sourceId: input.sourceId,
+        normalized,
+        listFetchId: fetchId,
+        detailFetchId: fetchId,
+        observedAt: new Date(),
+        lease: probeLease(input),
+        adapterVersion: UNIVERSITY_EMPLOYMENT_ADAPTER_VERSION,
+        normalizerVersion: UNIVERSITY_EMPLOYMENT_NORMALIZER_VERSION,
+      });
+      normalizedCount += 1;
+    } catch (error) {
+      const code = errorCode(error);
+      if (code === "TASK_LEASE_LOST") throw error;
+      rejectedCount += 1;
+      failureErrorCodes.push(code);
+      input.errors.push({ code, message: errorMessage(error) });
+    }
+  }
+
+  return {
+    discoveredCount: pages.length,
+    normalizedCount,
+    rejectedCount,
+    requestCount: input.budgetUsage.requests,
+    reportedTotals: { "university-detail-pages": source.pageUrls.length },
+    failureErrorCodes,
+  };
+}
+
 export async function runSourceProbe(input: {
   db: Kysely<Database>;
   runtime: ProbeRuntimeConfig;
@@ -1393,9 +1482,11 @@ export async function runSourceProbe(input: {
                   ? await runFanruanTraineeAdapterProbe(adapterInput)
                   : sourceConfig.policy.adapterKey === "beisen-zhiye-public-api"
                     ? await runBeisenZhiyeAdapterProbe(adapterInput)
-                    : (() => {
-                        throw new Error("ADAPTER_NOT_IMPLEMENTED");
-                      })();
+                    : sourceConfig.policy.adapterKey === "university-employment-detail-html"
+                      ? await runUniversityEmploymentAdapterProbe(adapterInput)
+                      : (() => {
+                          throw new Error("ADAPTER_NOT_IMPLEMENTED");
+                        })();
       discoveredCount = output.discoveredCount;
       normalizedCount = output.normalizedCount;
       rejectedCount = output.rejectedCount;
