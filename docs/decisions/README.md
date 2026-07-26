@@ -22,5 +22,7 @@
 - [ADR-0016：允许本机人工浏览器辅助导入受控官方实习岗位](0016-manual-browser-assisted-source-import.md)
 - [ADR-0017：本机扩展中小企业岗位并限定公众号与企业邮箱边界](0017-local-sme-expansion-and-official-account-boundary.md)
 - [ADR-0018：使用冻结样本生成确定性 JD 市场洞察](0018-deterministic-job-market-insights.md)
+- [ADR-0019：建立约 1000 家企业的实习来源审查宇宙](0019-thousand-company-internship-discovery-universe.md)
+- [ADR-0020：优先覆盖产品运营与电子信息技术实习](0020-prioritize-product-operations-and-electronic-information-internships.md)
 
 新决定从 [ADR 模板](../templates/adr.md) 复制创建。已有决定变化时新增一条 ADR，并将旧记录标记为 `superseded`，不要静默改写历史理由。

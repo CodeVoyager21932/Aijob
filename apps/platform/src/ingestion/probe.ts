@@ -11,6 +11,27 @@ import {
   parseBaiduInternshipPage,
 } from "../sources/baidu-internships-adapter.js";
 import {
+  BEISEN_ZHIYE_ADAPTER_VERSION,
+  BEISEN_ZHIYE_NORMALIZER_VERSION,
+  type BeisenJobAd,
+  buildBeisenZhiyeListRequest,
+  buildBeisenZhiyeListUrl,
+  isBeisenExplicitInternship,
+  normalizeBeisenZhiyeJobAd,
+  parseBeisenZhiyeListPage,
+  resolveBeisenZhiyeTenant,
+} from "../sources/beisen-zhiye-adapter.js";
+import {
+  buildFanruanTraineeListFormBody,
+  FANRUAN_TRAINEE_ADAPTER_VERSION,
+  FANRUAN_TRAINEE_LIST_URL,
+  FANRUAN_TRAINEE_NORMALIZER_VERSION,
+  type FanruanTraineeJob,
+  isFanruanInternship,
+  normalizeFanruanTraineeJob,
+  parseFanruanTraineePage,
+} from "../sources/fanruan-trainee-adapter.js";
+import {
   buildJdCampusInternshipListRequest,
   JD_CAMPUS_INTERNSHIPS_ADAPTER_VERSION,
   JD_CAMPUS_INTERNSHIPS_LIST_URL,
@@ -991,6 +1012,206 @@ async function runJdCampusInternshipsAdapterProbe(
   };
 }
 
+async function runFanruanTraineeAdapterProbe(
+  input: AdapterProbeInput,
+): Promise<AdapterProbeOutput> {
+  const candidates: Array<{ job: FanruanTraineeJob; listItemIndex: number; fetchId: string }> = [];
+  const failureErrorCodes: string[] = [];
+  const reportedTotals: Record<string, number> = {};
+  let filteredNonInternship = 0;
+  let page = 1;
+
+  for (;;) {
+    claimProbeRequest(input.sourceConfig, input.budgetUsage, "page");
+    const response = await safeRequestHtml(
+      {
+        method: "POST",
+        url: FANRUAN_TRAINEE_LIST_URL,
+        formBody: buildFanruanTraineeListFormBody(page),
+      },
+      input.sourceConfig.policy.fetchTargets,
+    );
+    const fetchId = await persistHttpResponse({
+      ...input,
+      crawlRunId: input.crawlRunId,
+      response,
+      lease: probeLease(input),
+    });
+    let parsed: ReturnType<typeof parseFanruanTraineePage>;
+    try {
+      parsed = parseFanruanTraineePage(response.text);
+    } catch (error) {
+      await markFetchSchemaError(input.db, fetchId, "UPSTREAM_SCHEMA_CHANGED", probeLease(input));
+      throw error;
+    }
+    reportedTotals["trainee-jobads"] = parsed.dataTotal;
+
+    for (const [listItemIndex, job] of parsed.jobs.entries()) {
+      if (!isFanruanInternship(job)) {
+        filteredNonInternship += 1;
+        continue;
+      }
+      if (candidates.length < input.limit) {
+        candidates.push({ job, listItemIndex, fetchId });
+      }
+    }
+
+    if (
+      candidates.length >= input.limit ||
+      page >= parsed.pageTotal ||
+      parsed.jobs.length < parsed.pageSize
+    ) {
+      break;
+    }
+    page += 1;
+    await updateHeartbeat(input.db, input.taskId, input.leaseOwner, input.fencingToken);
+    await delay(requestInterval(input));
+  }
+  reportedTotals["non-internship-filtered"] = filteredNonInternship;
+
+  let normalizedCount = 0;
+  let rejectedCount = 0;
+  for (const candidate of candidates) {
+    try {
+      const normalized = normalizeFanruanTraineeJob({
+        job: candidate.job,
+        listItemIndex: candidate.listItemIndex,
+        pageEvidenceRef: candidate.fetchId,
+      });
+      if (!normalized.applyUrl) throw new Error("OFFICIAL_APPLY_URL_MISSING");
+      validateNavigationUrl(normalized.applyUrl, "GET", input.sourceConfig.policy.applyTargets);
+      await persistNormalizedOfficialJob({
+        db: input.db,
+        sourceId: input.sourceId,
+        normalized,
+        listFetchId: candidate.fetchId,
+        detailFetchId: candidate.fetchId,
+        observedAt: new Date(),
+        lease: probeLease(input),
+        adapterVersion: FANRUAN_TRAINEE_ADAPTER_VERSION,
+        normalizerVersion: FANRUAN_TRAINEE_NORMALIZER_VERSION,
+      });
+      normalizedCount += 1;
+    } catch (error) {
+      const code = errorCode(error);
+      if (code === "TASK_LEASE_LOST") throw error;
+      rejectedCount += 1;
+      failureErrorCodes.push(code);
+      input.errors.push({ code, message: errorMessage(error) });
+    }
+  }
+
+  return {
+    discoveredCount: candidates.length,
+    normalizedCount,
+    rejectedCount,
+    requestCount: input.budgetUsage.requests,
+    reportedTotals,
+    failureErrorCodes,
+  };
+}
+
+async function runBeisenZhiyeAdapterProbe(input: AdapterProbeInput): Promise<AdapterProbeOutput> {
+  const tenant = resolveBeisenZhiyeTenant(input.sourceConfig.sourceKey);
+  const candidates: Array<{ job: BeisenJobAd; listItemIndex: number; fetchId: string }> = [];
+  const failureErrorCodes: string[] = [];
+  const reportedTotals: Record<string, number> = {};
+  let filteredNonInternship = 0;
+  const pageSize = 30;
+  let pageIndex = 0;
+
+  for (;;) {
+    claimProbeRequest(input.sourceConfig, input.budgetUsage, "page");
+    const response = await safeRequestJson(
+      {
+        method: "POST",
+        url: buildBeisenZhiyeListUrl(tenant),
+        jsonBody: buildBeisenZhiyeListRequest({ tenant, pageIndex, pageSize }),
+      },
+      input.sourceConfig.policy.fetchTargets,
+    );
+    const fetchId = await persistHttpResponse({
+      ...input,
+      crawlRunId: input.crawlRunId,
+      response,
+      lease: probeLease(input),
+    });
+    let parsed: ReturnType<typeof parseBeisenZhiyeListPage>;
+    try {
+      parsed = parseBeisenZhiyeListPage(response.json);
+    } catch (error) {
+      await markFetchSchemaError(input.db, fetchId, "UPSTREAM_SCHEMA_CHANGED", probeLease(input));
+      throw error;
+    }
+    reportedTotals[tenant.reportedTotalKey] = parsed.total;
+
+    for (const [listItemIndex, job] of parsed.jobs.entries()) {
+      if (!isBeisenExplicitInternship(job)) {
+        filteredNonInternship += 1;
+        continue;
+      }
+      if (candidates.length < input.limit) {
+        candidates.push({ job, listItemIndex, fetchId });
+      }
+    }
+
+    const consumed = (pageIndex + 1) * pageSize;
+    if (
+      candidates.length >= input.limit ||
+      consumed >= parsed.total ||
+      parsed.jobs.length < pageSize
+    ) {
+      break;
+    }
+    pageIndex += 1;
+    await updateHeartbeat(input.db, input.taskId, input.leaseOwner, input.fencingToken);
+    await delay(requestInterval(input));
+  }
+  reportedTotals["non-internship-filtered"] = filteredNonInternship;
+
+  let normalizedCount = 0;
+  let rejectedCount = 0;
+  for (const candidate of candidates) {
+    try {
+      const normalized = normalizeBeisenZhiyeJobAd({
+        tenant,
+        job: candidate.job,
+        listItemIndex: candidate.listItemIndex,
+        pageEvidenceRef: candidate.fetchId,
+      });
+      if (!normalized.applyUrl) throw new Error("OFFICIAL_APPLY_URL_MISSING");
+      validateNavigationUrl(normalized.applyUrl, "GET", input.sourceConfig.policy.applyTargets);
+      await persistNormalizedOfficialJob({
+        db: input.db,
+        sourceId: input.sourceId,
+        normalized,
+        listFetchId: candidate.fetchId,
+        detailFetchId: candidate.fetchId,
+        observedAt: new Date(),
+        lease: probeLease(input),
+        adapterVersion: BEISEN_ZHIYE_ADAPTER_VERSION,
+        normalizerVersion: BEISEN_ZHIYE_NORMALIZER_VERSION,
+      });
+      normalizedCount += 1;
+    } catch (error) {
+      const code = errorCode(error);
+      if (code === "TASK_LEASE_LOST") throw error;
+      rejectedCount += 1;
+      failureErrorCodes.push(code);
+      input.errors.push({ code, message: errorMessage(error) });
+    }
+  }
+
+  return {
+    discoveredCount: candidates.length,
+    normalizedCount,
+    rejectedCount,
+    requestCount: input.budgetUsage.requests,
+    reportedTotals,
+    failureErrorCodes,
+  };
+}
+
 export async function runSourceProbe(input: {
   db: Kysely<Database>;
   runtime: ProbeRuntimeConfig;
@@ -1168,9 +1389,13 @@ export async function runSourceProbe(input: {
               ? await runBaiduInternshipsAdapterProbe(adapterInput)
               : sourceConfig.policy.adapterKey === "jd-campus-public-api"
                 ? await runJdCampusInternshipsAdapterProbe(adapterInput)
-                : (() => {
-                    throw new Error("ADAPTER_NOT_IMPLEMENTED");
-                  })();
+                : sourceConfig.policy.adapterKey === "fanruan-trainee-public-api"
+                  ? await runFanruanTraineeAdapterProbe(adapterInput)
+                  : sourceConfig.policy.adapterKey === "beisen-zhiye-public-api"
+                    ? await runBeisenZhiyeAdapterProbe(adapterInput)
+                    : (() => {
+                        throw new Error("ADAPTER_NOT_IMPLEMENTED");
+                      })();
       discoveredCount = output.discoveredCount;
       normalizedCount = output.normalizedCount;
       rejectedCount = output.rejectedCount;

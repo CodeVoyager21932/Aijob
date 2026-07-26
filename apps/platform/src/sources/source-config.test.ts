@@ -53,19 +53,27 @@ describe("Tencent source configuration", () => {
 describe("controlled local source configurations", () => {
   it("discovers source configuration files instead of relying on a source-key allowlist", async () => {
     await expect(listSourceKeys()).resolves.toEqual([
+      "adaps-photonics-internships",
       "baidu-internships",
       "bytedance-campus-manual",
+      "fanruan-trainee-internships",
+      "huice-campus-internships",
       "jd-campus-internships",
       "meituan-official",
       "nankai-tal-2027",
+      "pudutech-internships",
       "tencent-campus",
     ]);
   });
 
   it.each([
+    ["adaps-photonics-internships", "beisen-zhiye-public-api", true],
     ["baidu-internships", "baidu-ssr-deterministic-html", true],
     ["bytedance-campus-manual", "bytedance-manual-browser-snapshot", false],
+    ["fanruan-trainee-internships", "fanruan-trainee-public-api", true],
+    ["huice-campus-internships", "beisen-zhiye-public-api", true],
     ["jd-campus-internships", "jd-campus-public-api", true],
+    ["pudutech-internships", "beisen-zhiye-public-api", true],
     ["tencent-campus", "tencent-public-api", true],
     ["meituan-official", "meituan-public-api", true],
     ["nankai-tal-2027", "nankai-tal-deterministic-html", true],
@@ -155,6 +163,83 @@ describe("controlled local source configurations", () => {
         allowedQueryParameters: ["type"],
       }),
     ]);
+  });
+
+  it("limits Fanruan to the trainee list form POST and numeric detail routes", async () => {
+    const config = await loadSourceConfig("fanruan-trainee-internships");
+    expect(config.localProbe.requestBudget).toEqual({
+      maxItems: 30,
+      maxPages: 3,
+      maxRequests: 40,
+      minimumIntervalMs: 2000,
+    });
+    expect(config.policy.fetchTargets).toEqual([
+      expect.objectContaining({
+        method: "POST",
+        host: "join.fanruan.com",
+        pathPrefix: "/trainee",
+        allowedQueryParameters: [],
+      }),
+    ]);
+    expect(config.policy.applyTargets).toEqual([
+      expect.objectContaining({
+        method: "GET",
+        host: "join.fanruan.com",
+        pathPrefix: "/trainee/detail",
+        allowedQueryParameters: ["id"],
+      }),
+    ]);
+  });
+
+  it.each([
+    ["huice-campus-internships", "huicecom.zhiye.com", "/campus/jobs"],
+    ["adaps-photonics-internships", "adaps-ph.zhiye.com", "/intern/jobs"],
+    ["pudutech-internships", "pudutech.zhiye.com", "/intern/jobs"],
+  ] as const)(
+    "limits %s to its own Beisen tenant list API and official jobs page",
+    async (sourceKey, host, jobsPagePath) => {
+      const config = await loadSourceConfig(sourceKey);
+      expect(config.policy.version).toBe(2);
+      expect(config.localProbe.requestBudget).toEqual({
+        maxItems: 30,
+        maxPages: 3,
+        maxRequests: 40,
+        minimumIntervalMs: 2000,
+      });
+      expect(config.policy.fetchTargets).toEqual([
+        expect.objectContaining({
+          method: "POST",
+          host,
+          pathPrefix: "/api/Jobad/GetJobAdPageList",
+          allowedQueryParameters: [],
+        }),
+      ]);
+      expect(config.policy.applyTargets).toEqual([
+        expect.objectContaining({
+          method: "GET",
+          host,
+          pathPrefix: jobsPagePath,
+          allowedQueryParameters: [],
+        }),
+      ]);
+    },
+  );
+
+  it("records the evidenced large scale for Huice and keeps others unknown", async () => {
+    const huice = await loadSourceConfig("huice-campus-internships");
+    expect(huice.organization.scale).toMatchObject({
+      band: "large",
+      evidenceUrl: "https://career.nankai.edu.cn/correcruit/content/id/114173.html",
+      lastVerifiedAt: "2026-07-26T00:00:00.000Z",
+    });
+    for (const sourceKey of [
+      "fanruan-trainee-internships",
+      "adaps-photonics-internships",
+      "pudutech-internships",
+    ] as const) {
+      const config = await loadSourceConfig(sourceKey);
+      expect(config.organization.scale.band).toBe("unknown");
+    }
   });
 
   it("keeps ByteDance browser snapshots manual, internship-only and unable to live probe", async () => {

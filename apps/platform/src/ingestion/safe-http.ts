@@ -42,6 +42,7 @@ interface RequestSpec {
   method: "GET" | "POST";
   url: string;
   jsonBody?: unknown;
+  formBody?: Record<string, string>;
 }
 
 function isPrivateIpv4(address: string): boolean {
@@ -223,8 +224,22 @@ async function requestOnce(
 ): Promise<SafeHttpResult> {
   const { url, target } = validateRequestTarget(spec.url, spec.method, targets);
   const selectedAddress = await selectPublicAddress(url.hostname);
+  if (spec.jsonBody !== undefined && spec.formBody !== undefined) {
+    throw new NetworkPolicyError(
+      "REQUEST_BODY_AMBIGUOUS",
+      "A POST request must use either jsonBody or formBody, not both",
+    );
+  }
   const requestBody =
-    spec.method === "POST" ? Buffer.from(canonicalJson(spec.jsonBody ?? {}), "utf8") : undefined;
+    spec.method === "POST"
+      ? spec.formBody !== undefined
+        ? Buffer.from(new URLSearchParams(spec.formBody).toString(), "utf8")
+        : Buffer.from(canonicalJson(spec.jsonBody ?? {}), "utf8")
+      : undefined;
+  const requestContentType =
+    spec.formBody !== undefined
+      ? "application/x-www-form-urlencoded;charset=UTF-8"
+      : "application/json;charset=UTF-8";
 
   const response = await new Promise<{
     status: number;
@@ -250,7 +265,7 @@ async function requestOnce(
           ...(requestBody
             ? {
                 "Content-Length": requestBody.byteLength,
-                "Content-Type": "application/json;charset=UTF-8",
+                "Content-Type": requestContentType,
               }
             : {}),
         },
@@ -304,7 +319,9 @@ async function requestOnce(
       {
         method: redirectedMethod,
         url: redirectedUrl,
-        ...(redirectedMethod === "POST" ? { jsonBody: spec.jsonBody } : {}),
+        ...(redirectedMethod === "POST"
+          ? { jsonBody: spec.jsonBody, formBody: spec.formBody }
+          : {}),
       },
       targets,
       responseKind,
@@ -337,7 +354,12 @@ async function requestOnce(
       canonicalJson({
         method: spec.method,
         url: spec.url,
-        body: spec.method === "POST" ? spec.jsonBody : null,
+        body:
+          spec.method === "POST"
+            ? spec.formBody !== undefined
+              ? spec.formBody
+              : spec.jsonBody
+            : null,
         responseKind,
       }),
     ),
