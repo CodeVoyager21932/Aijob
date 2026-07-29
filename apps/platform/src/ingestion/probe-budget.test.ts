@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SourceConfig } from "../sources/source-config.js";
-import { claimProbeRequest } from "./probe.js";
+import { claimProbeRequest, probeRequestOptions } from "./probe.js";
 
 function sourceConfig(): SourceConfig {
   return {
@@ -35,5 +35,22 @@ describe("probe request budget", () => {
       "PROBE_REQUEST_BUDGET_EXCEEDED",
     );
     expect(usage).toEqual({ requests: 3, pages: 1 });
+  });
+
+  it("counts retries and redirect hops as physical requests without duplicating pages", async () => {
+    const usage = { requests: 0, pages: 0 };
+    const options = probeRequestOptions(
+      {
+        sourceConfig: sourceConfig(),
+        budgetUsage: usage,
+        minimumIntervalMs: 0,
+      },
+      "page",
+    );
+    await options.beforeRequest?.();
+    await options.beforeRequest?.();
+    await options.beforeRequest?.();
+    await expect(options.beforeRequest?.()).rejects.toThrow("PROBE_REQUEST_BUDGET_EXCEEDED");
+    expect(usage).toMatchObject({ requests: 3, pages: 1 });
   });
 });

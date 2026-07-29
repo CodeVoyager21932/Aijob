@@ -107,11 +107,20 @@ describe("collector network policy", () => {
 
   it("rejects private, loopback, link-local and special-use addresses", () => {
     expect(isPublicIp("8.8.8.8")).toBe(true);
+    expect(isPublicIp("2606:4700:4700::1111")).toBe(true);
     expect(isPublicIp("10.0.0.1")).toBe(false);
     expect(isPublicIp("127.0.0.1")).toBe(false);
     expect(isPublicIp("169.254.1.1")).toBe(false);
     expect(isPublicIp("192.168.1.1")).toBe(false);
+    expect(isPublicIp("192.0.2.1")).toBe(false);
+    expect(isPublicIp("198.51.100.1")).toBe(false);
+    expect(isPublicIp("203.0.113.1")).toBe(false);
     expect(isPublicIp("::1")).toBe(false);
+    expect(isPublicIp("64:ff9b:1::1")).toBe(false);
+    expect(isPublicIp("100::1")).toBe(false);
+    expect(isPublicIp("2001:db8::1")).toBe(false);
+    expect(isPublicIp("3fff::1")).toBe(false);
+    expect(isPublicIp("5f00::1")).toBe(false);
     expect(isPublicIp("fc00::1")).toBe(false);
   });
 });

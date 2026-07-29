@@ -6,6 +6,7 @@ import {
   JobDetailSchema,
   MatchRunResultSchema,
   normalizeCityPreferences,
+  ProfileDeletionSchema,
   ResumeAnalysisSubmissionSchema,
   ResumeTailoringRunSchema,
   ResumeTailoringSegmentSchema,
@@ -14,6 +15,28 @@ import {
 const unknown = { state: "unknown" as const, reason: "source_not_stated" as const };
 
 describe("local complete MVP contracts", () => {
+  it("keeps deletion status wire output free of receipt-only owner fields", () => {
+    expect(
+      ProfileDeletionSchema.parse({
+        id: "deletion-1",
+        ownerId: "must-not-leak",
+        requestedOwnerEpoch: 1,
+        status: "queued",
+        failureCode: null,
+        requestedAt: "2026-07-29T00:00:00.000Z",
+        completedAt: null,
+        updatedAt: "2026-07-29T00:00:00.000Z",
+      }),
+    ).toEqual({
+      id: "deletion-1",
+      status: "queued",
+      failureCode: null,
+      requestedAt: "2026-07-29T00:00:00.000Z",
+      completedAt: null,
+      updatedAt: "2026-07-29T00:00:00.000Z",
+    });
+  });
+
   it("keeps the existing job detail payload backward compatible", () => {
     const result = JobDetailSchema.safeParse({
       id: "job-1",

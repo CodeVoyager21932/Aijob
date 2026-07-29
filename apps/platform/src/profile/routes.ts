@@ -14,6 +14,7 @@ import { clearIdentityCookies, requireOwnerContext } from "../identity/fastify.j
 import { ApiProblem, isApiProblem, sendApiProblem } from "../identity/http.js";
 import {
   createDeletionReceipt,
+  DELETION_RECEIPT_TTL_SECONDS,
   getOwnerDeletionByReceipt,
   requestOwnerDeletion,
 } from "./deletion-service.js";
@@ -190,7 +191,7 @@ export function registerProfileRoutes(app: FastifyInstance, options: ProfileRout
         httpOnly: true,
         sameSite: "strict",
         secure: cookieSecure(options.appEnv),
-        maxAge: 7 * 24 * 60 * 60,
+        maxAge: DELETION_RECEIPT_TTL_SECONDS,
       });
       request.ownerContext = null;
       return reply.code(202).send(result.deletion);
@@ -229,6 +230,14 @@ export function registerProfileRoutes(app: FastifyInstance, options: ProfileRout
           "删除回执无效、已过期，或任务不存在。",
         ),
       );
+    }
+    if (deletion.status === "succeeded") {
+      reply.clearCookie(DELETION_RECEIPT_COOKIE_NAME, {
+        path: "/v1/profile/deletion",
+        httpOnly: true,
+        sameSite: "strict",
+        secure: cookieSecure(options.appEnv),
+      });
     }
     return reply.send(deletion);
   });

@@ -12,10 +12,18 @@ import {
 import { processResumeAnalysis, purgeExpiredResumeContent } from "../resume/analysis-service.js";
 import { purgeExpiredResumeExports } from "../tailoring/export-retention.js";
 import { processResumeExport, processTailoringRun } from "../tailoring/service.js";
-import type { OwnerTaskLease } from "./owner-task-lease.js";
+import { type OwnerTaskLease, OwnerTaskLeaseLostError } from "./owner-task-lease.js";
 
 const LEASE_MS = 60_000;
 const HEARTBEAT_MS = 10_000;
+const OWNER_TASK_TYPES = [
+  "resume_analysis",
+  "match_run",
+  "recommendation_run",
+  "resume_tailoring",
+  "resume_export",
+  "owner_deletion",
+] as const;
 
 type TaskRow = Selectable<Database["task_queue.tasks"]>;
 
@@ -34,10 +42,34 @@ async function claimTask(
   now: Date,
 ): Promise<TaskRow | null> {
   return db.transaction().execute(async (transaction) => {
+    await transaction
+      .updateTable("task_queue.tasks")
+      .set({
+        status: "dead",
+        lease_owner: null,
+        lease_until: null,
+        heartbeat_at: now,
+        completed_at: now,
+        last_error_code: "OWNER_TASK_ATTEMPTS_EXHAUSTED",
+        last_error_summary: null,
+      })
+      .where("task_type", "in", OWNER_TASK_TYPES)
+      .where((expression) => expression("attempt", ">=", expression.ref("max_attempts")))
+      .where((expression) =>
+        expression.or([
+          expression("status", "=", "queued"),
+          expression.and([
+            expression("status", "=", "running"),
+            expression("lease_until", "<", now),
+          ]),
+        ]),
+      )
+      .execute();
     const candidate = await transaction
       .selectFrom("task_queue.tasks")
       .select("id")
-      .where("task_type", "!=", "crawl")
+      .where("task_type", "in", OWNER_TASK_TYPES)
+      .where((expression) => expression("attempt", "<", expression.ref("max_attempts")))
       .where((expression) =>
         expression.or([
           expression.and([
@@ -95,16 +127,19 @@ async function taskLeaseStillHeld(
   db: Kysely<Database>,
   task: TaskRow,
   workerId: string,
+  now = new Date(),
 ): Promise<boolean> {
   const current = await db
     .selectFrom("task_queue.tasks")
-    .select(["status", "lease_owner", "fencing_token"])
+    .select(["status", "lease_owner", "lease_until", "fencing_token"])
     .where("id", "=", task.id)
     .executeTakeFirst();
   return (
     current?.status === "running" &&
     current.lease_owner === workerId &&
-    Number(current.fencing_token) === Number(task.fencing_token)
+    Number(current.fencing_token) === Number(task.fencing_token) &&
+    current.lease_until !== null &&
+    new Date(current.lease_until).getTime() > now.getTime()
   );
 }
 
@@ -207,67 +242,100 @@ async function dispatchTask(
   }
 }
 
-async function finishTask(db: Kysely<Database>, task: TaskRow, workerId: string): Promise<void> {
-  await db
+export async function finishOwnerTask(
+  db: Kysely<Database>,
+  task: TaskRow,
+  workerId: string,
+  now = new Date(),
+): Promise<void> {
+  const result = await db
     .updateTable("task_queue.tasks")
     .set({
       status: "succeeded",
       lease_owner: null,
       lease_until: null,
-      heartbeat_at: new Date(),
-      completed_at: new Date(),
+      heartbeat_at: now,
+      completed_at: now,
     })
     .where("id", "=", task.id)
     .where("lease_owner", "=", workerId)
     .where("fencing_token", "=", task.fencing_token)
-    .execute();
+    .where("status", "=", "running")
+    .where("lease_until", ">", now)
+    .executeTakeFirst();
+  if (Number(result.numUpdatedRows) !== 1) {
+    throw new OwnerTaskLeaseLostError();
+  }
 }
 
-async function failTask(
+export async function failOwnerTask(
   db: Kysely<Database>,
   task: TaskRow,
   workerId: string,
   error: unknown,
+  now = new Date(),
 ): Promise<void> {
   const exhausted = task.attempt >= task.max_attempts;
   const errorCode =
     error instanceof Error && /^[A-Z][A-Z0-9_]+$/.test(error.message)
       ? error.message
       : "OWNER_TASK_FAILED";
-  await db
+  const result = await db
     .updateTable("task_queue.tasks")
     .set({
       status: exhausted ? "dead" : "queued",
       available_at: exhausted
-        ? new Date()
-        : new Date(Date.now() + Math.min(30_000, 2 ** task.attempt * 1_000)),
+        ? now
+        : new Date(now.getTime() + Math.min(30_000, 2 ** task.attempt * 1_000)),
       lease_owner: null,
       lease_until: null,
-      heartbeat_at: new Date(),
+      heartbeat_at: now,
       last_error_code: errorCode,
       last_error_summary: null,
-      completed_at: exhausted ? new Date() : null,
+      completed_at: exhausted ? now : null,
     })
     .where("id", "=", task.id)
     .where("lease_owner", "=", workerId)
     .where("fencing_token", "=", task.fencing_token)
-    .execute();
+    .where("status", "=", "running")
+    .where("lease_until", ">", now)
+    .executeTakeFirst();
+  if (Number(result.numUpdatedRows) !== 1) {
+    throw new OwnerTaskLeaseLostError();
+  }
 }
 
-function heartbeat(db: Kysely<Database>, task: TaskRow, workerId: string): NodeJS.Timeout {
+export async function renewOwnerTaskLease(
+  db: Kysely<Database>,
+  task: TaskRow,
+  workerId: string,
+  now = new Date(),
+): Promise<void> {
+  const result = await db
+    .updateTable("task_queue.tasks")
+    .set({
+      heartbeat_at: now,
+      lease_until: new Date(now.getTime() + LEASE_MS),
+    })
+    .where("id", "=", task.id)
+    .where("lease_owner", "=", workerId)
+    .where("fencing_token", "=", task.fencing_token)
+    .where("status", "=", "running")
+    .where("lease_until", ">", now)
+    .executeTakeFirst();
+  if (Number(result.numUpdatedRows) !== 1) {
+    throw new OwnerTaskLeaseLostError();
+  }
+}
+
+function heartbeat(
+  db: Kysely<Database>,
+  task: TaskRow,
+  workerId: string,
+  controller: AbortController,
+): NodeJS.Timeout {
   const timer = setInterval(() => {
-    const now = new Date();
-    void db
-      .updateTable("task_queue.tasks")
-      .set({
-        heartbeat_at: now,
-        lease_until: new Date(now.getTime() + LEASE_MS),
-      })
-      .where("id", "=", task.id)
-      .where("lease_owner", "=", workerId)
-      .where("fencing_token", "=", task.fencing_token)
-      .where("status", "=", "running")
-      .execute();
+    void renewOwnerTaskLease(db, task, workerId).catch(() => controller.abort());
   }, HEARTBEAT_MS);
   timer.unref();
   return timer;
@@ -291,7 +359,7 @@ export async function runOneOwnerTask(input: {
   } else {
     input.signal?.addEventListener("abort", onAbort, { once: true });
   }
-  const timer = heartbeat(input.db, task, workerId);
+  const timer = heartbeat(input.db, task, workerId, controller);
   const validityTimer = watchOwnerTaskValidity({
     db: input.db,
     task,
@@ -300,9 +368,15 @@ export async function runOneOwnerTask(input: {
   });
   try {
     await dispatchTask(input.db, input.config, task, controller.signal, input.fetchImpl);
-    await finishTask(input.db, task, workerId);
+    await finishOwnerTask(input.db, task, workerId);
   } catch (error) {
-    await failTask(input.db, task, workerId, error);
+    if (!(error instanceof OwnerTaskLeaseLostError)) {
+      try {
+        await failOwnerTask(input.db, task, workerId, error);
+      } catch (failureError) {
+        if (!(failureError instanceof OwnerTaskLeaseLostError)) throw failureError;
+      }
+    }
   } finally {
     clearInterval(timer);
     clearInterval(validityTimer);

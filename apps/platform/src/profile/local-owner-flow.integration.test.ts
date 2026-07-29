@@ -299,7 +299,42 @@ describeWithDatabase("local owner resume, revisions and deletion flow", () => {
         .execute(),
     ).toHaveLength(1);
 
+    const cancelledTaskId = randomUUID();
+    await db
+      .insertInto("task_queue.tasks")
+      .values({
+        id: cancelledTaskId,
+        task_type: "match_run",
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        payload: JSON.stringify({ runId: randomUUID() }),
+        idempotency_key: `deletion-cancel-test:${cancelledTaskId}`,
+        status: "queued",
+        attempt: 0,
+        max_attempts: 3,
+        available_at: new Date(),
+        backoff_policy: JSON.stringify({ kind: "fixed", seconds: 1 }),
+        lease_owner: null,
+        lease_until: null,
+        heartbeat_at: null,
+        fencing_token: 0,
+        last_error_code: null,
+        last_error_summary: null,
+        completed_at: null,
+      })
+      .execute();
     const deletionRequest = await requestOwnerDeletion({ db, owner });
+    await expect(
+      db
+        .selectFrom("task_queue.tasks")
+        .select(["status", "last_error_code", "completed_at"])
+        .where("id", "=", cancelledTaskId)
+        .executeTakeFirstOrThrow(),
+    ).resolves.toMatchObject({
+      status: "dead",
+      last_error_code: "OWNER_EPOCH_STALE",
+      completed_at: expect.any(Date),
+    });
     expect(
       await findActiveSession({
         db,

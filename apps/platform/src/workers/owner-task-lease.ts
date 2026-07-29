@@ -29,6 +29,24 @@ export async function assertOwnerTaskLease(
   lease: OwnerTaskLease,
   now = new Date(),
 ): Promise<void> {
+  const owner = await transaction
+    .selectFrom("identity.owners")
+    .select(["status", "epoch", "retention_expires_at"])
+    .where("id", "=", lease.ownerId)
+    .forUpdate()
+    .executeTakeFirst();
+  const ownerIsValid =
+    lease.taskType === "owner_deletion"
+      ? owner !== undefined &&
+        (owner.status === "deletion_pending" || owner.status === "deleted") &&
+        Number(owner.epoch) === lease.ownerEpoch + 1
+      : owner?.status === "active" &&
+        Number(owner.epoch) === lease.ownerEpoch &&
+        new Date(owner.retention_expires_at).getTime() > now.getTime();
+  if (!ownerIsValid) {
+    throw new OwnerTaskLeaseLostError();
+  }
+
   const task = await transaction
     .selectFrom("task_queue.tasks")
     .select([
@@ -55,24 +73,6 @@ export async function assertOwnerTaskLease(
     !leaseUntil ||
     leaseUntil.getTime() <= now.getTime()
   ) {
-    throw new OwnerTaskLeaseLostError();
-  }
-
-  const owner = await transaction
-    .selectFrom("identity.owners")
-    .select(["status", "epoch", "retention_expires_at"])
-    .where("id", "=", lease.ownerId)
-    .forUpdate()
-    .executeTakeFirst();
-  const ownerIsValid =
-    lease.taskType === "owner_deletion"
-      ? owner !== undefined &&
-        (owner.status === "deletion_pending" || owner.status === "deleted") &&
-        Number(owner.epoch) === lease.ownerEpoch + 1
-      : owner?.status === "active" &&
-        Number(owner.epoch) === lease.ownerEpoch &&
-        new Date(owner.retention_expires_at).getTime() > now.getTime();
-  if (!ownerIsValid) {
     throw new OwnerTaskLeaseLostError();
   }
 }

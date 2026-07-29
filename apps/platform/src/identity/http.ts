@@ -18,6 +18,7 @@ export function sendApiProblem(
   reply: FastifyReply,
   error: Pick<ApiProblem, "status" | "code" | "title" | "detail">,
 ) {
+  reply.type("application/problem+json");
   return reply.code(error.status).send(
     ProblemDetailsSchema.parse({
       type: `https://aijob.local/problems/${error.code.toLowerCase()}`,

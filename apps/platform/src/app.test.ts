@@ -51,6 +51,7 @@ describe("environment route boundary", () => {
     try {
       const response = await app.inject({ method: "GET", url: "/v1/internal-preview/jobs" });
       expect(response.statusCode).toBe(404);
+      expect(response.headers["content-type"]).toContain("application/problem+json");
       expect(response.json()).toMatchObject({ code: "ROUTE_NOT_FOUND" });
     } finally {
       await app.close();

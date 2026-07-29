@@ -118,6 +118,7 @@ export function buildApp(input: { config: AppConfig; db: Kysely<Database> }): Fa
       const { jobId } = jobParamsSchema.parse(request.params);
       const result = await getInternalPreviewJob(input.db, jobId);
       if (!result) {
+        reply.type("application/problem+json");
         return reply.code(404).send(
           problem({
             status: 404,
@@ -134,6 +135,7 @@ export function buildApp(input: { config: AppConfig; db: Kysely<Database> }): Fa
   }
 
   app.setNotFoundHandler((request, reply) => {
+    reply.type("application/problem+json");
     return reply.code(404).send(
       problem({
         status: 404,
@@ -153,6 +155,7 @@ export function buildApp(input: { config: AppConfig; db: Kysely<Database> }): Fa
     }
     const validationError = error instanceof ZodError;
     const status = validationError ? 400 : 500;
+    reply.type("application/problem+json");
     return reply.code(status).send(
       problem({
         status,

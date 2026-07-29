@@ -65,6 +65,20 @@ function enforceOfficialAccountBoundary(
   }
 }
 
+function enforceSourceBoundaries(
+  value: Parameters<typeof enforceOfficialAccountBoundary>[0],
+  context: z.RefinementCtx,
+): void {
+  if (value.candidate.acquisitionMode === "browser_required" && value.localProbe.enabled) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["localProbe", "enabled"],
+      message: "browser_required sources cannot enable network probing",
+    });
+  }
+  enforceOfficialAccountBoundary(value, context);
+}
+
 const allowedQueryParameterSchema = z
   .string()
   .min(1)
@@ -155,7 +169,7 @@ const normalizedSourceConfigSchema = z
       queryStreams: z.array(normalizedQueryStreamSchema).min(1).max(50),
     }),
   })
-  .superRefine(enforceOfficialAccountBoundary);
+  .superRefine(enforceSourceBoundaries);
 
 const assessedValueSchema = z.object({
   status: z.enum(["pass", "pending", "fail"]),
@@ -235,7 +249,7 @@ const rawSourceConfigSchema = z
         .max(50),
     }),
   })
-  .superRefine(enforceOfficialAccountBoundary);
+  .superRefine(enforceSourceBoundaries);
 
 export type SourceConfig = z.infer<typeof normalizedSourceConfigSchema>;
 export type SourceTarget = z.infer<typeof targetSchema>;

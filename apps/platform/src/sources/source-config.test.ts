@@ -1,7 +1,14 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { officialSourceAdapterVersions } from "./official-source-adapters.js";
-import { assessSource, listSourceKeys, loadSourceConfig } from "./source-config.js";
+import {
+  assessSource,
+  listSourceKeys,
+  loadSourceConfig,
+  parseSourceConfigValue,
+} from "./source-config.js";
 import { TENCENT_ADAPTER_VERSION } from "./tencent-campus-adapter.js";
 
 describe("Tencent source configuration", () => {
@@ -339,6 +346,25 @@ describe("controlled local source configurations", () => {
       }),
     ]);
     expect(config.policy.policyNotes).toContain("导入 CLI 本身不得触网");
+  });
+
+  it("rejects network probing for every browser-required source type", async () => {
+    const fixtureDirectory = fileURLToPath(
+      new URL("../../../../fixtures/source-configs/", import.meta.url),
+    );
+    const fixture = JSON.parse(
+      await readFile(path.join(fixtureDirectory, "official-account-test.json"), "utf8"),
+    ) as {
+      sourceType: string;
+      policy: { adapterKey: string };
+      localProbe: { enabled: boolean };
+    };
+    fixture.sourceType = "organization_career_site";
+    fixture.policy.adapterKey = "tencent-public-api";
+    fixture.localProbe.enabled = true;
+    expect(() => parseSourceConfigValue(fixture)).toThrow(
+      "browser_required sources cannot enable network probing",
+    );
   });
 
   it("locks official account sources to local manual import with evidenced company scale", async () => {

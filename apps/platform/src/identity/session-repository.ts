@@ -4,9 +4,12 @@ import type { Kysely } from "kysely";
 
 export const ANONYMOUS_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
 
-export interface OwnerContext {
+export interface OwnerScope {
   ownerId: string;
   ownerEpoch: number;
+}
+
+export interface OwnerContext extends OwnerScope {
   sessionId: string;
   sessionExpiresAt: Date;
   csrfTokenHash: string;

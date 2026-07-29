@@ -17,7 +17,7 @@ import {
 import type { Database, JsonValue } from "@aijob/database";
 import type { Kysely, Selectable, Transaction } from "kysely";
 import { z } from "zod";
-import { assertActiveOwnerEpoch } from "../identity/session-repository.js";
+import { assertActiveOwnerEpoch, type OwnerScope } from "../identity/session-repository.js";
 import { hashCanonicalJson } from "../lib/canonical-json.js";
 import { lockOwnerIdempotencyKey } from "../lib/idempotency.js";
 import { ServiceError } from "../lib/service-error.js";
@@ -44,12 +44,8 @@ type RecommendationCandidateFreshnessSnapshot = z.infer<
   typeof RecommendationCandidateFreshnessSnapshotSchema
 >;
 
-export interface OwnerContext {
-  ownerId: string;
-  ownerEpoch: number;
-}
-
 type DbExecutor = Kysely<Database> | Transaction<Database>;
+type OwnerContext = OwnerScope;
 type MatchRunRow = Selectable<Database["matching.match_runs"]>;
 
 const StringFieldSchema = fieldValueSchema(z.string().trim().min(1));

@@ -15,11 +15,13 @@ import type { Kysely, Selectable, Transaction } from "kysely";
 import { z } from "zod";
 import { AiProviderError, OpenAiCompatibleProvider } from "../ai/provider.js";
 import { STRUCTURED_BLOCK_REWRITE_OUTPUT_INSTRUCTION } from "../ai/selection-contract.js";
-import { assertActiveOwnerEpoch } from "../identity/session-repository.js";
+import {
+  assertActiveOwnerEpoch,
+  type OwnerScope as OwnerContext,
+} from "../identity/session-repository.js";
 import { hashCanonicalJson } from "../lib/canonical-json.js";
 import { lockOwnerIdempotencyKey } from "../lib/idempotency.js";
 import { ServiceError } from "../lib/service-error.js";
-import type { OwnerContext } from "../matching/service.js";
 import {
   decryptResumePayload,
   type EncryptedResumePayload,

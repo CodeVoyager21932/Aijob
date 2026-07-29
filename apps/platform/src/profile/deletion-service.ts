@@ -8,7 +8,8 @@ import { sha256 } from "../lib/canonical-json.js";
 import type { OwnerTaskLease } from "../workers/owner-task-lease.js";
 import { assertOwnerTaskLease, withOwnerTaskLease } from "../workers/owner-task-lease.js";
 
-const DELETION_RECEIPT_TTL_MS = 7 * 24 * 60 * 60 * 1_000;
+export const DELETION_RECEIPT_TTL_SECONDS = 24 * 60 * 60;
+const DELETION_RECEIPT_TTL_MS = DELETION_RECEIPT_TTL_SECONDS * 1_000;
 
 export interface OwnerDeletionStatus {
   id: string;
@@ -150,6 +151,22 @@ export async function beginOwnerDeletion(
       last_error_summary: null,
       completed_at: null,
     })
+    .execute();
+  await transaction
+    .updateTable("task_queue.tasks")
+    .set((expression) => ({
+      status: "dead",
+      lease_owner: null,
+      lease_until: null,
+      heartbeat_at: input.now,
+      last_error_code: "OWNER_EPOCH_STALE",
+      last_error_summary: null,
+      completed_at: input.now,
+      fencing_token: expression("fencing_token", "+", 1),
+    }))
+    .where("owner_id", "=", input.ownerId)
+    .where("task_type", "!=", "owner_deletion")
+    .where("status", "in", ["queued", "running"])
     .execute();
   await transaction
     .updateTable("identity.owners")

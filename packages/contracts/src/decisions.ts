@@ -24,8 +24,6 @@ export type JobDecision = z.infer<typeof JobDecisionSchema>;
 
 export const ProfileDeletionSchema = z.object({
   id: IdentifierSchema,
-  ownerId: IdentifierSchema,
-  requestedOwnerEpoch: z.number().int().positive(),
   status: DeletionStatusSchema,
   failureCode: z.string().trim().min(1).nullable(),
   requestedAt: TimestampSchema,

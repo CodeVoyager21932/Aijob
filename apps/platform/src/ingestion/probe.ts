@@ -93,6 +93,7 @@ import {
 import {
   NetworkPolicyError,
   type SafeHttpResult,
+  type SafeRequestOptions,
   safeRequestHtml,
   safeRequestJson,
   validateNavigationUrl,
@@ -128,6 +129,21 @@ interface DiscoveredCandidate {
 export interface ProbeBudgetUsage {
   requests: number;
   pages: number;
+  lastRequestStartedAtMs?: number;
+}
+
+function claimProbePage(sourceConfig: SourceConfig, usage: ProbeBudgetUsage): void {
+  if (usage.pages >= sourceConfig.localProbe.requestBudget.maxPages) {
+    throw new Error("PROBE_PAGE_BUDGET_EXCEEDED");
+  }
+  usage.pages += 1;
+}
+
+function claimProbeAttempt(sourceConfig: SourceConfig, usage: ProbeBudgetUsage): void {
+  if (usage.requests >= sourceConfig.localProbe.requestBudget.maxRequests) {
+    throw new Error("PROBE_REQUEST_BUDGET_EXCEEDED");
+  }
+  usage.requests += 1;
 }
 
 export function claimProbeRequest(
@@ -135,15 +151,30 @@ export function claimProbeRequest(
   usage: ProbeBudgetUsage,
   kind: "page" | "detail",
 ): void {
-  const budget = sourceConfig.localProbe.requestBudget;
-  if (usage.requests >= budget.maxRequests) {
-    throw new Error("PROBE_REQUEST_BUDGET_EXCEEDED");
-  }
-  if (kind === "page" && usage.pages >= budget.maxPages) {
-    throw new Error("PROBE_PAGE_BUDGET_EXCEEDED");
-  }
-  usage.requests += 1;
-  if (kind === "page") usage.pages += 1;
+  if (kind === "page") claimProbePage(sourceConfig, usage);
+  claimProbeAttempt(sourceConfig, usage);
+}
+
+export function probeRequestOptions(
+  input: {
+    sourceConfig: SourceConfig;
+    budgetUsage: ProbeBudgetUsage;
+    minimumIntervalMs: number;
+  },
+  kind: "page" | "detail",
+): SafeRequestOptions {
+  if (kind === "page") claimProbePage(input.sourceConfig, input.budgetUsage);
+  return {
+    beforeRequest: async () => {
+      claimProbeAttempt(input.sourceConfig, input.budgetUsage);
+      const now = Date.now();
+      const lastStartedAt = input.budgetUsage.lastRequestStartedAtMs;
+      if (lastStartedAt !== undefined) {
+        await delay(Math.max(0, lastStartedAt + input.minimumIntervalMs - now));
+      }
+      input.budgetUsage.lastRequestStartedAtMs = Date.now();
+    },
+  };
 }
 
 const taskBackoffPolicySchema = z.object({
@@ -442,7 +473,6 @@ async function fetchSearchPage(input: {
   parsed: ReturnType<typeof tencentSearchResponseSchema.parse>;
   fetchId: string;
 }> {
-  claimProbeRequest(input.sourceConfig, input.budgetUsage, "page");
   const requestBody = buildTencentSearchRequest(input.stream, input.pageIndex, input.pageSize);
   const response = await safeRequestJson(
     {
@@ -451,6 +481,17 @@ async function fetchSearchPage(input: {
       jsonBody: requestBody,
     },
     input.sourceConfig.policy.fetchTargets,
+    probeRequestOptions(
+      {
+        sourceConfig: input.sourceConfig,
+        budgetUsage: input.budgetUsage,
+        minimumIntervalMs: Math.max(
+          input.runtime.probeRequestIntervalMs,
+          input.sourceConfig.localProbe.requestBudget.minimumIntervalMs,
+        ),
+      },
+      "page",
+    ),
   );
   const fetchId = await persistHttpResponse({ ...input, response });
   try {
@@ -477,13 +518,23 @@ async function fetchDetail(input: {
   parsed: ReturnType<typeof tencentDetailResponseSchema.parse>;
   fetchId: string;
 }> {
-  claimProbeRequest(input.sourceConfig, input.budgetUsage, "detail");
   const response = await safeRequestJson(
     {
       method: "GET",
       url: buildTencentDetailUrl(input.postId),
     },
     input.sourceConfig.policy.fetchTargets,
+    probeRequestOptions(
+      {
+        sourceConfig: input.sourceConfig,
+        budgetUsage: input.budgetUsage,
+        minimumIntervalMs: Math.max(
+          input.runtime.probeRequestIntervalMs,
+          input.sourceConfig.localProbe.requestBudget.minimumIntervalMs,
+        ),
+      },
+      "detail",
+    ),
   );
   const fetchId = await persistHttpResponse({ ...input, response });
   try {
@@ -664,7 +715,6 @@ async function fetchMeituanListPage(
   parsed: ReturnType<typeof meituanSearchResponseSchema.parse>;
   fetchId: string;
 }> {
-  claimProbeRequest(input.sourceConfig, input.budgetUsage, "page");
   const response = await safeRequestJson(
     {
       method: "POST",
@@ -672,6 +722,14 @@ async function fetchMeituanListPage(
       jsonBody: buildMeituanSearchRequest(input.pageNo, input.pageSize),
     },
     input.sourceConfig.policy.fetchTargets,
+    probeRequestOptions(
+      {
+        sourceConfig: input.sourceConfig,
+        budgetUsage: input.budgetUsage,
+        minimumIntervalMs: requestInterval(input),
+      },
+      "page",
+    ),
   );
   const fetchId = await persistHttpResponse({
     ...input,
@@ -695,7 +753,6 @@ async function fetchMeituanDetail(
   parsed: ReturnType<typeof meituanDetailResponseSchema.parse>;
   fetchId: string;
 }> {
-  claimProbeRequest(input.sourceConfig, input.budgetUsage, "detail");
   const response = await safeRequestJson(
     {
       method: "POST",
@@ -703,6 +760,14 @@ async function fetchMeituanDetail(
       jsonBody: buildMeituanDetailRequest(input.jobUnionId),
     },
     input.sourceConfig.policy.fetchTargets,
+    probeRequestOptions(
+      {
+        sourceConfig: input.sourceConfig,
+        budgetUsage: input.budgetUsage,
+        minimumIntervalMs: requestInterval(input),
+      },
+      "detail",
+    ),
   );
   const fetchId = await persistHttpResponse({
     ...input,
@@ -820,10 +885,17 @@ async function runMeituanAdapterProbe(input: AdapterProbeInput): Promise<Adapter
 }
 
 async function runNankaiTalAdapterProbe(input: AdapterProbeInput): Promise<AdapterProbeOutput> {
-  claimProbeRequest(input.sourceConfig, input.budgetUsage, "page");
   const response = await safeRequestHtml(
     { method: "GET", url: NANKAI_TAL_SOURCE_URL },
     input.sourceConfig.policy.fetchTargets,
+    probeRequestOptions(
+      {
+        sourceConfig: input.sourceConfig,
+        budgetUsage: input.budgetUsage,
+        minimumIntervalMs: requestInterval(input),
+      },
+      "page",
+    ),
   );
   const fetchId = await persistHttpResponse({
     ...input,
@@ -886,10 +958,17 @@ async function runNankaiTalAdapterProbe(input: AdapterProbeInput): Promise<Adapt
 async function runBaiduInternshipsAdapterProbe(
   input: AdapterProbeInput,
 ): Promise<AdapterProbeOutput> {
-  claimProbeRequest(input.sourceConfig, input.budgetUsage, "page");
   const response = await safeRequestHtml(
     { method: "GET", url: BAIDU_INTERNSHIPS_LIST_URL },
     input.sourceConfig.policy.fetchTargets,
+    probeRequestOptions(
+      {
+        sourceConfig: input.sourceConfig,
+        budgetUsage: input.budgetUsage,
+        minimumIntervalMs: requestInterval(input),
+      },
+      "page",
+    ),
   );
   const fetchId = await persistHttpResponse({
     ...input,
@@ -952,7 +1031,6 @@ async function runBaiduInternshipsAdapterProbe(
 async function runJdCampusInternshipsAdapterProbe(
   input: AdapterProbeInput,
 ): Promise<AdapterProbeOutput> {
-  claimProbeRequest(input.sourceConfig, input.budgetUsage, "page");
   const response = await safeRequestJson(
     {
       method: "POST",
@@ -960,6 +1038,14 @@ async function runJdCampusInternshipsAdapterProbe(
       jsonBody: buildJdCampusInternshipListRequest({ pageIndex: 0, pageSize: input.limit }),
     },
     input.sourceConfig.policy.fetchTargets,
+    probeRequestOptions(
+      {
+        sourceConfig: input.sourceConfig,
+        budgetUsage: input.budgetUsage,
+        minimumIntervalMs: requestInterval(input),
+      },
+      "page",
+    ),
   );
   const fetchId = await persistHttpResponse({
     ...input,
@@ -1029,7 +1115,6 @@ async function runFanruanTraineeAdapterProbe(
   let page = 1;
 
   for (;;) {
-    claimProbeRequest(input.sourceConfig, input.budgetUsage, "page");
     const response = await safeRequestHtml(
       {
         method: "POST",
@@ -1037,6 +1122,14 @@ async function runFanruanTraineeAdapterProbe(
         formBody: buildFanruanTraineeListFormBody(page),
       },
       input.sourceConfig.policy.fetchTargets,
+      probeRequestOptions(
+        {
+          sourceConfig: input.sourceConfig,
+          budgetUsage: input.budgetUsage,
+          minimumIntervalMs: requestInterval(input),
+        },
+        "page",
+      ),
     );
     const fetchId = await persistHttpResponse({
       ...input,
@@ -1128,7 +1221,6 @@ async function runBeisenZhiyeAdapterProbe(input: AdapterProbeInput): Promise<Ada
   let pageIndex = 0;
 
   for (;;) {
-    claimProbeRequest(input.sourceConfig, input.budgetUsage, "page");
     const response = await safeRequestJson(
       {
         method: "POST",
@@ -1136,6 +1228,14 @@ async function runBeisenZhiyeAdapterProbe(input: AdapterProbeInput): Promise<Ada
         jsonBody: buildBeisenZhiyeListRequest({ tenant, pageIndex, pageSize }),
       },
       input.sourceConfig.policy.fetchTargets,
+      probeRequestOptions(
+        {
+          sourceConfig: input.sourceConfig,
+          budgetUsage: input.budgetUsage,
+          minimumIntervalMs: requestInterval(input),
+        },
+        "page",
+      ),
     );
     const fetchId = await persistHttpResponse({
       ...input,
@@ -1233,10 +1333,17 @@ async function runUniversityEmploymentAdapterProbe(
       await updateHeartbeat(input.db, input.taskId, input.leaseOwner, input.fencingToken);
       await delay(requestInterval(input));
     }
-    claimProbeRequest(input.sourceConfig, input.budgetUsage, "page");
     const response = await safeRequestHtml(
       { method: "GET", url: pageUrl },
       input.sourceConfig.policy.fetchTargets,
+      probeRequestOptions(
+        {
+          sourceConfig: input.sourceConfig,
+          budgetUsage: input.budgetUsage,
+          minimumIntervalMs: requestInterval(input),
+        },
+        "page",
+      ),
     );
     const fetchId = await persistHttpResponse({
       ...input,
@@ -1316,7 +1423,8 @@ export async function runSourceProbe(input: {
   if (
     sourceConfig.policy.status !== "pending_review" ||
     assessment.hardGatesPassed ||
-    !sourceConfig.localProbe.enabled
+    !sourceConfig.localProbe.enabled ||
+    sourceConfig.candidate.acquisitionMode === "browser_required"
   ) {
     throw new Error("INVALID_LOCAL_PROBE_EXCEPTION");
   }

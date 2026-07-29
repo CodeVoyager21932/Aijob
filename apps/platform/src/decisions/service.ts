@@ -1,8 +1,8 @@
 import { type JobDecision, JobDecisionSchema } from "@aijob/contracts";
 import type { Database } from "@aijob/database";
 import type { Kysely, Selectable, Transaction } from "kysely";
+import type { OwnerScope as OwnerContext } from "../identity/session-repository.js";
 import { ServiceError } from "../lib/service-error.js";
-import type { OwnerContext } from "../matching/service.js";
 
 function toIso(value: unknown): string {
   return (value instanceof Date ? value : new Date(String(value))).toISOString();

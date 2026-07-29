@@ -38,6 +38,10 @@ export interface SafeHtmlHttpResult extends SafeHttpResult {
   text: string;
 }
 
+export interface SafeRequestOptions {
+  beforeRequest?: () => Promise<void> | void;
+}
+
 interface RequestSpec {
   method: "GET" | "POST";
   url: string;
@@ -45,45 +49,103 @@ interface RequestSpec {
   formBody?: Record<string, string>;
 }
 
-function isPrivateIpv4(address: string): boolean {
+const blockedIpv4Cidrs = [
+  ["0.0.0.0", 8],
+  ["10.0.0.0", 8],
+  ["100.64.0.0", 10],
+  ["127.0.0.0", 8],
+  ["169.254.0.0", 16],
+  ["172.16.0.0", 12],
+  ["192.0.0.0", 24],
+  ["192.0.2.0", 24],
+  ["192.88.99.0", 24],
+  ["192.168.0.0", 16],
+  ["198.18.0.0", 15],
+  ["198.51.100.0", 24],
+  ["203.0.113.0", 24],
+  ["224.0.0.0", 3],
+] as const;
+
+const blockedIpv6Cidrs = [
+  ["::", 128],
+  ["::1", 128],
+  ["::ffff:0:0", 96],
+  ["64:ff9b::", 96],
+  ["64:ff9b:1::", 48],
+  ["100::", 64],
+  ["100:0:0:1::", 64],
+  ["2001::", 23],
+  ["2001:db8::", 32],
+  ["2002::", 16],
+  ["3fff::", 20],
+  ["5f00::", 16],
+  ["fc00::", 7],
+  ["fe80::", 10],
+  ["ff00::", 8],
+] as const;
+
+function ipv4Value(address: string): bigint | null {
   const parts = address.split(".").map(Number);
-  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part))) {
-    return true;
+  if (
+    parts.length !== 4 ||
+    parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
+  ) {
+    return null;
   }
-  const [first = 0, second = 0] = parts;
-  return (
-    first === 0 ||
-    first === 10 ||
-    first === 127 ||
-    (first === 100 && second >= 64 && second <= 127) ||
-    (first === 169 && second === 254) ||
-    (first === 172 && second >= 16 && second <= 31) ||
-    (first === 192 && second === 168) ||
-    (first === 198 && (second === 18 || second === 19)) ||
-    first >= 224
-  );
+  return parts.reduce((value, part) => (value << 8n) | BigInt(part), 0n);
+}
+
+function ipv6Value(address: string): bigint | null {
+  let normalized = address.toLowerCase();
+  if (normalized.includes(".")) {
+    const separator = normalized.lastIndexOf(":");
+    const embedded = ipv4Value(normalized.slice(separator + 1));
+    if (separator < 0 || embedded === null) return null;
+    normalized = `${normalized.slice(0, separator)}:${Number(embedded >> 16n).toString(16)}:${Number(
+      embedded & 0xffffn,
+    ).toString(16)}`;
+  }
+  const halves = normalized.split("::");
+  if (halves.length > 2) return null;
+  const left = halves[0] ? halves[0].split(":") : [];
+  const right = halves[1] ? halves[1].split(":") : [];
+  const missing = 8 - left.length - right.length;
+  if ((halves.length === 1 && missing !== 0) || missing < 0) return null;
+  const groups = [...left, ...Array.from({ length: missing }, () => "0"), ...right];
+  if (groups.length !== 8 || groups.some((group) => !/^[0-9a-f]{1,4}$/.test(group))) {
+    return null;
+  }
+  return groups.reduce((value, group) => (value << 16n) | BigInt(`0x${group}`), 0n);
+}
+
+function isInCidr(value: bigint, network: bigint, prefix: number, bits: number): boolean {
+  const shift = BigInt(bits - prefix);
+  return shift === 0n ? value === network : value >> shift === network >> shift;
 }
 
 export function isPublicIp(address: string): boolean {
   const family = isIP(address);
   if (family === 4) {
-    return !isPrivateIpv4(address);
+    const value = ipv4Value(address);
+    return (
+      value !== null &&
+      !blockedIpv4Cidrs.some(([network, prefix]) => {
+        const networkValue = ipv4Value(network);
+        return networkValue !== null && isInCidr(value, networkValue, prefix, 32);
+      })
+    );
   }
   if (family !== 6) {
     return false;
   }
 
-  const normalized = address.toLowerCase();
-  if (normalized.startsWith("::ffff:")) {
-    return isPublicIp(normalized.slice("::ffff:".length));
-  }
-  return !(
-    normalized === "::" ||
-    normalized === "::1" ||
-    normalized.startsWith("fc") ||
-    normalized.startsWith("fd") ||
-    /^fe[89ab]/.test(normalized) ||
-    normalized.startsWith("ff")
+  const value = ipv6Value(address);
+  return (
+    value !== null &&
+    !blockedIpv6Cidrs.some(([network, prefix]) => {
+      const networkValue = ipv6Value(network);
+      return networkValue !== null && isInCidr(value, networkValue, prefix, 128);
+    })
   );
 }
 
@@ -220,6 +282,7 @@ async function requestOnce(
   spec: RequestSpec,
   targets: SourceTarget[],
   responseKind: "json" | "html",
+  options: SafeRequestOptions,
   redirectCount = 0,
 ): Promise<SafeHttpResult> {
   const { url, target } = validateRequestTarget(spec.url, spec.method, targets);
@@ -241,11 +304,19 @@ async function requestOnce(
       ? "application/x-www-form-urlencoded;charset=UTF-8"
       : "application/json;charset=UTF-8";
 
+  await options.beforeRequest?.();
   const response = await new Promise<{
     status: number;
     headers: IncomingHttpHeaders;
     body: Uint8Array;
   }>((resolve, reject) => {
+    let settled = false;
+    const settle = <T>(callback: (value: T) => void, value: T) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadline);
+      callback(value);
+    };
     const request = httpsRequest(
       {
         protocol: "https:",
@@ -285,19 +356,20 @@ async function requestOnce(
           chunks.push(chunk);
         });
         incoming.on("end", () => {
-          resolve({
+          settle(resolve, {
             status: incoming.statusCode ?? 0,
             headers: incoming.headers,
             body: Buffer.concat(chunks),
           });
         });
-        incoming.on("error", reject);
+        incoming.on("error", (error) => settle(reject, error));
       },
     );
-    request.setTimeout(REQUEST_TIMEOUT_MS, () => {
+    const deadline = setTimeout(() => {
       request.destroy(new NetworkPolicyError("UPSTREAM_TIMEOUT", "Upstream request timed out"));
-    });
-    request.on("error", reject);
+    }, REQUEST_TIMEOUT_MS);
+    deadline.unref();
+    request.on("error", (error) => settle(reject, error));
     if (requestBody) {
       request.write(requestBody);
     }
@@ -325,6 +397,7 @@ async function requestOnce(
       },
       targets,
       responseKind,
+      options,
       redirectCount + 1,
     );
   }
@@ -382,13 +455,14 @@ function delay(milliseconds: number): Promise<void> {
 export async function safeRequestJson(
   spec: RequestSpec,
   targets: SourceTarget[],
+  options: SafeRequestOptions = {},
 ): Promise<SafeJsonHttpResult> {
   let lastResult: SafeHttpResult | undefined;
   let lastError: unknown;
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      const result = await requestOnce(spec, targets, "json");
+      const result = await requestOnce(spec, targets, "json", options);
       lastResult = result;
       if ((result.status === 429 || result.status >= 500) && attempt < 2) {
         await delay(retryDelayMs(result.responseHeaders, attempt));
@@ -432,13 +506,14 @@ export async function safeRequestJson(
 export async function safeRequestHtml(
   spec: RequestSpec,
   targets: SourceTarget[],
+  options: SafeRequestOptions = {},
 ): Promise<SafeHtmlHttpResult> {
   let lastResult: SafeHttpResult | undefined;
   let lastError: unknown;
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      const result = await requestOnce(spec, targets, "html");
+      const result = await requestOnce(spec, targets, "html", options);
       lastResult = result;
       if ((result.status === 429 || result.status >= 500) && attempt < 2) {
         await delay(retryDelayMs(result.responseHeaders, attempt));
