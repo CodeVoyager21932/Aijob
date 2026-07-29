@@ -57,4 +57,16 @@ describe("formal job search API query", () => {
     expect(url.searchParams.has("educationLevels")).toBe(false);
     expect(url.searchParams.has("freshness")).toBe(false);
   });
+
+  it("passes the catalog cursor only when loading a later page", () => {
+    const firstPage = new URL(jobSearchPath(filters()), "http://aijob.local");
+    const laterPage = new URL(
+      jobSearchPath({ ...filters(), cursor: "catalog-page-two" }),
+      "http://aijob.local",
+    );
+
+    expect(firstPage.searchParams.has("cursor")).toBe(false);
+    expect(laterPage.searchParams.get("cursor")).toBe("catalog-page-two");
+    expect(laterPage.searchParams.get("limit")).toBe("100");
+  });
 });

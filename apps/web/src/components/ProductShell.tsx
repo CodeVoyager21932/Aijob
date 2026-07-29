@@ -15,19 +15,25 @@ export function ProductShell({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (!location.pathname) return;
-    mainRef.current?.focus();
+    mainRef.current?.focus({ preventScroll: true });
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [location.pathname]);
 
   return (
-    <>
+    <div className="product-app">
       <a className="skip-link" href="#product-main">
         跳到主要内容
       </a>
       <header className="product-header">
         <div className="product-shell product-header__inner">
           <NavLink className="product-brand" to="/jobs" aria-label="Aijob 岗位首页">
-            <span aria-hidden="true">A</span>
-            <strong>Aijob</strong>
+            <span className="product-brand__mark" aria-hidden="true">
+              A
+            </span>
+            <span className="product-brand__wordmark">
+              <strong>Aijob</strong>
+              <small>向阳生长</small>
+            </span>
           </NavLink>
           <nav className="product-nav" aria-label="主要导航">
             {navigation.map((item) => (
@@ -44,8 +50,11 @@ export function ProductShell({ children }: PropsWithChildren) {
         </div>
       </header>
       <aside className="local-notice" role="note">
-        <div className="product-shell">
-          本机匿名会话 · 未说明的岗位条件保持未知 · 投递始终在企业官方页面完成
+        <div className="product-shell local-notice__inner">
+          <strong>证据优先</strong>
+          <span>本机匿名会话</span>
+          <span>未说明保持未知</span>
+          <span>投递回到企业官方页面</span>
         </div>
       </aside>
       <main ref={mainRef} className="product-shell product-main" id="product-main" tabIndex={-1}>
@@ -54,6 +63,6 @@ export function ProductShell({ children }: PropsWithChildren) {
       <footer className="product-shell product-footer">
         Aijob 不代替你投递，也不会用 AI 补写不存在的经历。
       </footer>
-    </>
+    </div>
   );
 }
