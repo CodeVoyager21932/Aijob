@@ -14,6 +14,8 @@ match-worker
 
 这一形态兼顾两点：领域模块在代码和数据上保持边界，高风险采集与用户匹配在运行时使用不同身份和权限；同时不为尚未出现的规模问题引入微服务和分布式一致性成本。
 
+> 2026-07-29 R1 实现状态：上述内容仍是已接受的目标架构，不等于全部运行时边界已经落地。当前已有独立 `web-api` 与 `match-worker` 入口，采集仍主要由受控 CLI 执行；数据库角色、受限任务函数、独立 collector 身份和 OpenAPI artifact 尚未完成。收口方案见 [R1 架构审视](evidence/r1/architecture-review-2026-07-29.md)与 [ADR-0023 提案](decisions/0023-enforce-runtime-and-database-role-boundaries.md)。
+
 ## 2. 系统上下文
 
 ```mermaid
@@ -146,7 +148,7 @@ MVP 使用一个 PostgreSQL 16 实例（本地由 Docker Desktop 运行，后续
 
 ## 7. `/v1` API 契约
 
-所有 HTTP API 使用 `/v1` 前缀。代码实现前先生成并评审 OpenAPI；下列为边界而非完整 Schema。
+所有 HTTP API 使用 `/v1` 前缀。目标是在进入 Private Alpha 前生成并评审 OpenAPI；当前仓库以 Zod 契约和路由测试为实现事实，下列为边界而非完整 Schema。
 
 ### 7.1 匿名岗位
 
