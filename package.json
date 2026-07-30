@@ -9,6 +9,7 @@
   "scripts": {
     "ai:configure": "pnpm --filter @aijob/platform cli ai-configure",
     "ai:smoke": "pnpm --filter @aijob/platform cli ai-smoke",
+    "audit:ci": "pnpm audit --audit-level high",
     "build": "pnpm -r build",
     "catalog:materialize": "pnpm --filter @aijob/platform cli catalog-materialize",
     "check": "pnpm lint && pnpm typecheck && pnpm test",
