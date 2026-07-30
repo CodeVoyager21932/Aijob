@@ -77,7 +77,7 @@ import {
 } from "../sources/tencent-campus-adapter.js";
 import {
   normalizeUniversityEmploymentJob,
-  parseUniversityEmploymentPage,
+  parseUniversityEmploymentJobs,
   resolveUniversityEmploymentSource,
   UNIVERSITY_EMPLOYMENT_ADAPTER_VERSION,
   UNIVERSITY_EMPLOYMENT_NORMALIZER_VERSION,
@@ -1323,12 +1323,14 @@ async function runUniversityEmploymentAdapterProbe(
   input: AdapterProbeInput,
 ): Promise<AdapterProbeOutput> {
   const source = resolveUniversityEmploymentSource(input.sourceConfig.sourceKey);
-  const pages = source.pageUrls.slice(0, input.limit);
+  const pages = source.pageUrls;
   const failureErrorCodes: string[] = [];
   let normalizedCount = 0;
   let rejectedCount = 0;
+  let discoveredCount = 0;
 
   for (const [pageIndex, pageUrl] of pages.entries()) {
+    if (discoveredCount >= input.limit) break;
     if (pageIndex > 0) {
       await updateHeartbeat(input.db, input.taskId, input.leaseOwner, input.fencingToken);
       await delay(requestInterval(input));
@@ -1351,55 +1353,58 @@ async function runUniversityEmploymentAdapterProbe(
       response,
       lease: probeLease(input),
     });
-    let job: ReturnType<typeof parseUniversityEmploymentPage>;
+    let jobs: ReturnType<typeof parseUniversityEmploymentJobs>;
     try {
-      job = parseUniversityEmploymentPage({
+      jobs = parseUniversityEmploymentJobs({
         format: source.pageFormat,
         html: response.text,
         pageUrl,
-      });
+      }).slice(0, input.limit - discoveredCount);
     } catch (error) {
       await markFetchSchemaError(input.db, fetchId, "UPSTREAM_SCHEMA_CHANGED", probeLease(input));
       throw error;
     }
-    try {
-      const normalized = normalizeUniversityEmploymentJob({
-        source,
-        job,
-        pageEvidenceRef: fetchId,
-      });
-      if (normalized.applyUrl) {
-        validateNavigationUrl(normalized.applyUrl, "GET", input.sourceConfig.policy.applyTargets);
-      } else {
-        const applicationEmail = (normalized.structuredFields as Record<string, unknown>)
-          .applicationEmail;
-        if (typeof applicationEmail !== "string" || applicationEmail.length === 0) {
-          throw new Error("UNIVERSITY_EMPLOYMENT_APPLICATION_METHOD_MISSING");
+    discoveredCount += jobs.length;
+    for (const job of jobs) {
+      try {
+        const normalized = normalizeUniversityEmploymentJob({
+          source,
+          job,
+          pageEvidenceRef: fetchId,
+        });
+        if (normalized.applyUrl) {
+          validateNavigationUrl(normalized.applyUrl, "GET", input.sourceConfig.policy.applyTargets);
+        } else {
+          const applicationEmail = (normalized.structuredFields as Record<string, unknown>)
+            .applicationEmail;
+          if (typeof applicationEmail !== "string" || applicationEmail.length === 0) {
+            throw new Error("UNIVERSITY_EMPLOYMENT_APPLICATION_METHOD_MISSING");
+          }
         }
+        await persistNormalizedOfficialJob({
+          db: input.db,
+          sourceId: input.sourceId,
+          normalized,
+          listFetchId: fetchId,
+          detailFetchId: fetchId,
+          observedAt: new Date(),
+          lease: probeLease(input),
+          adapterVersion: UNIVERSITY_EMPLOYMENT_ADAPTER_VERSION,
+          normalizerVersion: UNIVERSITY_EMPLOYMENT_NORMALIZER_VERSION,
+        });
+        normalizedCount += 1;
+      } catch (error) {
+        const code = errorCode(error);
+        if (code === "TASK_LEASE_LOST") throw error;
+        rejectedCount += 1;
+        failureErrorCodes.push(code);
+        input.errors.push({ code, message: errorMessage(error) });
       }
-      await persistNormalizedOfficialJob({
-        db: input.db,
-        sourceId: input.sourceId,
-        normalized,
-        listFetchId: fetchId,
-        detailFetchId: fetchId,
-        observedAt: new Date(),
-        lease: probeLease(input),
-        adapterVersion: UNIVERSITY_EMPLOYMENT_ADAPTER_VERSION,
-        normalizerVersion: UNIVERSITY_EMPLOYMENT_NORMALIZER_VERSION,
-      });
-      normalizedCount += 1;
-    } catch (error) {
-      const code = errorCode(error);
-      if (code === "TASK_LEASE_LOST") throw error;
-      rejectedCount += 1;
-      failureErrorCodes.push(code);
-      input.errors.push({ code, message: errorMessage(error) });
     }
   }
 
   return {
-    discoveredCount: pages.length,
+    discoveredCount,
     normalizedCount,
     rejectedCount,
     requestCount: input.budgetUsage.requests,

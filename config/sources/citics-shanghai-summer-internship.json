@@ -1,0 +1,153 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "citics-shanghai-summer-internship",
+  "sourceType": "university_employment_site",
+  "organization": {
+    "slug": "citics-shanghai-branch",
+    "name": "中信证券股份有限公司上海分公司",
+    "officialDomain": "citics.com"
+  },
+  "candidate": {
+    "name": "港中深就业网·中信证券上海分公司暑期实习",
+    "entrypointUrl": "https://career.cuhk.edu.cn/job/view/id/468515",
+    "provenanceLevel": "university_published",
+    "acquisitionMode": "deterministic_html",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-local-probe",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "港中深页面发布主体为中信证券股份有限公司上海分公司；官方 ATS 同一岗位详情显示部门名称“上海分公司”。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "1 条 2026 年暑期实习，职责与要求完整，截止 2026-08-28。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "高校详情与官方 ATS 岗位详情均可匿名读取；未登录、未提交申请、未读取或复用 Cookie、动态令牌。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "高校原文指向 careers.citics.com；人工浏览器在官方 ATS 分支机构实习列表进入 positionNo=5468，详情显示上海分公司、上海市及同一职责要求。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "没有允许第三方长期复制与公开聚合的授权，只能进入本机 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "高校详情结构稳定；官方 ATS 深链已冻结，但仍需后续活动性复核。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 6,
+        "status": "provisional",
+        "note": "单一上海分公司暑期实习。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 14,
+        "status": "provisional",
+        "note": "高校页字段与官方 ATS 详情互证。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 12,
+        "status": "provisional",
+        "note": "发布时间与截止日期明确。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 7,
+        "status": "provisional",
+        "note": "补充证券财富管理类实习。"
+      }
+    },
+    "evidenceNotes": [
+      "官方 ATS 核验路径：分支机构实习列表 → 上海分公司 → positionNo=5468、deptNo=637。",
+      "只保存公开岗位深链，不绕过登录或代替用户投递。",
+      "组织规模没有合格证据，保持 unknown，单家配额上限 10。",
+      "本配置不构成来源批准或公开发布授权。"
+    ]
+  },
+  "policy": {
+    "version": "2",
+    "status": "pending_review",
+    "adapterKey": "university-employment-detail-html",
+    "adapterVersion": "0.1.0",
+    "entrypoints": ["https://career.cuhk.edu.cn/job/view/id/468515"],
+    "crawlInterval": {
+      "enabled": false,
+      "minimumHours": 168
+    },
+    "reviewedAt": "2026-07-29",
+    "policyNotes": [
+      "仅允许维护者显式执行冻结高校详情页的低频本地探测。",
+      "官方 ATS 仅作为用户申请导航目标，探测进程不登录、不提交、不读取账号状态。",
+      "上海分公司主体、岗位编号、职责要求或截止日期变化时立即暂停。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.cuhk.edu.cn",
+        "port": 443,
+        "pathPrefix": "/job/view/id/468515",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "careers.citics.com",
+        "port": 443,
+        "pathPrefix": "/mobile/position/detail",
+        "allowRedirects": false,
+        "allowedQueryParameters": [
+          "resumeType",
+          "recruitType",
+          "practice",
+          "deptype",
+          "pagetype",
+          "positionNo",
+          "deptNo",
+          "status",
+          "full"
+        ]
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 1,
+      "maxPages": 1,
+      "maxRequests": 10,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {},
+    "queryStreams": [
+      {
+        "key": "citics-shanghai-summer-internship",
+        "label": "中信证券上海分公司暑期实习",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 1
+      }
+    ]
+  }
+}

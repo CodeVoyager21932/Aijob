@@ -1,3 +1,4 @@
+import { inflateSync } from "node:zlib";
 import { hashCanonicalJson, sha256 } from "../lib/canonical-json.js";
 import { classifyOfficialJobFamily } from "./job-family-classifier.js";
 import { htmlToDeterministicLines } from "./nankai-tal-2027-adapter.js";
@@ -19,15 +20,22 @@ export const UNIVERSITY_EMPLOYMENT_NORMALIZER_VERSION = "0.1.0";
  * curl 复现验证）；投递方式按 ADR-0017：company_email 必须是企业官方域名邮箱且
  * 原句在页面出现，official_url 必须与页面原文明示的投递网址完全一致。
  *
- * 三种载体页面格式在核验时人工冻结：
+ * 四种载体页面格式在核验时人工冻结：
  * - nankai-correcruit：career.nankai.edu.cn 实习信息栏目详情页（meta keywords 含
  *   "实习信息" 为官方实习标记；字段为 div.zpxx 标签值对）。
  * - cuhk-jobview：career.cuhk.edu.cn 招聘详情页（"工作性质：实习" 为官方标记；
  *   中文版路径为契约页，英文版仅作发现证据）。
  * - zju-jyxt：www.career.zju.edu.cn 岗位详情页（工作性质 span 含 "实习" 为官方
  *   标记；与 "全职" 并存时仍导入但写 SOURCE_KIND_CONFLICT 复核项）。
+ * - gdut-campus：career.gdut.edu.cn 招聘简章详情页；正文以页面自带的 zlib +
+ *   Base64 静态载荷发布，一张简章可包含多条带独立职责和要求的实习岗位。
  */
-export type UniversityEmploymentPageFormat = "nankai-correcruit" | "cuhk-jobview" | "zju-jyxt";
+export type UniversityEmploymentPageFormat =
+  | "nankai-correcruit"
+  | "nankai-correcruit-dtl"
+  | "cuhk-jobview"
+  | "zju-jyxt"
+  | "gdut-campus";
 
 export interface UniversityEmploymentSource {
   sourceKey: string;
@@ -37,7 +45,13 @@ export interface UniversityEmploymentSource {
   pageFormat: UniversityEmploymentPageFormat;
   /** 冻结的详情页列表（每页一岗），按主证据页优先、官方列表顺序排列。 */
   pageUrls: string[];
-  application: { type: "official_url"; url: string } | { type: "company_email" };
+  application:
+    | {
+        type: "official_url";
+        url: string;
+        verification?: "page_exact" | "browser_verified_official_ats";
+      }
+    | { type: "company_email" };
 }
 
 const universityEmploymentSourceList: UniversityEmploymentSource[] = [
@@ -91,6 +105,75 @@ const universityEmploymentSourceList: UniversityEmploymentSource[] = [
       "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4DE5B03172671701E0653A68DD0E9B18",
     ],
     application: { type: "company_email" },
+  },
+  {
+    sourceKey: "allwinner-gdut-internships",
+    companyLegalName: "珠海全志科技股份有限公司",
+    companyDisplayName: "全志科技",
+    officialDomain: "allwinnertech.com",
+    pageFormat: "gdut-campus",
+    pageUrls: ["https://career.gdut.edu.cn/campus/view/id/1020713"],
+    application: {
+      type: "official_url",
+      url: "https://campus.allwinnertech.com/campus-recruitment/allwinnertech/43436/#/jobs?zhineng%5B0%5D=240584",
+      verification: "browser_verified_official_ats",
+    },
+  },
+  {
+    sourceKey: "citics-shanghai-summer-internship",
+    companyLegalName: "中信证券股份有限公司上海分公司",
+    companyDisplayName: "中信证券上海分公司",
+    officialDomain: "citics.com",
+    pageFormat: "cuhk-jobview",
+    pageUrls: ["https://career.cuhk.edu.cn/job/view/id/468515"],
+    application: {
+      type: "official_url",
+      url: "https://careers.citics.com/mobile/position/detail?resumeType=3&recruitType=08&practice=1&deptype=Branch&pagetype=xz&positionNo=5468&deptNo=637&status=&full=0",
+      verification: "browser_verified_official_ats",
+    },
+  },
+  {
+    sourceKey: "kunlunxin-internships",
+    companyLegalName: "昆仑芯（北京）科技股份有限公司",
+    companyDisplayName: "昆仑芯",
+    officialDomain: "kunlunxin.com",
+    pageFormat: "zju-jyxt",
+    pageUrls: [
+      "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=53F7344A6F204A94E0653A68DD0E9B18",
+    ],
+    application: { type: "company_email" },
+  },
+  {
+    sourceKey: "dingwei-consulting-internships",
+    companyLegalName: "北京鼎帷管理顾问有限公司",
+    companyDisplayName: "北京鼎帷",
+    officialDomain: "dwmcts.com",
+    pageFormat: "zju-jyxt",
+    pageUrls: [
+      "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4F7B3CC147F24EB6E0653A68DD0E9B18",
+    ],
+    application: { type: "company_email" },
+  },
+  {
+    sourceKey: "sharecapital-internships",
+    companyLegalName: "深圳市分享成长投资管理有限公司",
+    companyDisplayName: "分享投资",
+    officialDomain: "sharecapital.cn",
+    pageFormat: "cuhk-jobview",
+    pageUrls: ["https://career.cuhk.edu.cn/job/view/id/467309"],
+    application: { type: "company_email" },
+  },
+  {
+    sourceKey: "dtl-quant-internships",
+    companyLegalName: "北京道泰量合私募基金管理有限公司",
+    companyDisplayName: "DTL量化",
+    officialDomain: "dytechlab.com",
+    pageFormat: "nankai-correcruit-dtl",
+    pageUrls: ["https://career.nankai.edu.cn/correcruit/content/id/116147.html"],
+    application: {
+      type: "official_url",
+      url: "https://www.dytechlab.com/careers",
+    },
   },
 ];
 
@@ -156,13 +239,21 @@ function collectEmails(lines: string[]): Array<{ email: string; sourceText: stri
 function pageIdentity(format: UniversityEmploymentPageFormat, pageUrl: string): string {
   const patterns: Record<UniversityEmploymentPageFormat, RegExp> = {
     "nankai-correcruit": /\/correcruit\/content\/id\/(\d+)\.html$/,
+    "nankai-correcruit-dtl": /\/correcruit\/content\/id\/(\d+)\.html$/,
     "cuhk-jobview": /\/job\/view\/id\/(\d+)$/,
     "zju-jyxt": /[?&]zpxxbh=([0-9A-F]+)$/i,
+    "gdut-campus": /\/campus\/view\/id\/(\d+)$/,
   };
   const match = pageUrl.match(patterns[format]);
   if (!match?.[1]) throw new Error("UNIVERSITY_EMPLOYMENT_PAGE_URL_UNRECOGNIZED");
   const prefix =
-    format === "nankai-correcruit" ? "nankai" : format === "cuhk-jobview" ? "cuhk" : "zju";
+    format === "nankai-correcruit" || format === "nankai-correcruit-dtl"
+      ? "nankai"
+      : format === "cuhk-jobview"
+        ? "cuhk"
+        : format === "zju-jyxt"
+          ? "zju"
+          : "gdut";
   return `${prefix}-${match[1]}`;
 }
 
@@ -177,12 +268,19 @@ function splitRequirements(bodyLines: string[]): {
   requirements: string;
 } {
   const markerIndex = bodyLines.findIndex((line) =>
-    /^[【[]?\s*(任职要求|职位要求)/.test(line.normalize("NFKC")),
+    /^(?:[【[]?\s*(?:任职要求|职位要求)|\d+[.、]\s*要求)/.test(line.normalize("NFKC")),
   );
   if (markerIndex < 0) throw new Error("UNIVERSITY_EMPLOYMENT_REQUIREMENTS_SECTION_MISSING");
+  const requirementLines = bodyLines.slice(markerIndex);
+  const stopIndex = requirementLines.findIndex(
+    (line, index) =>
+      index > 0 && /^(?:关于我们|申请方式|企业简介|其他信息)$/u.test(line.normalize("NFKC")),
+  );
   return {
     responsibilities: bodyLines.slice(0, markerIndex).join("\n"),
-    requirements: bodyLines.slice(markerIndex).join("\n"),
+    requirements: (stopIndex < 0 ? requirementLines : requirementLines.slice(0, stopIndex)).join(
+      "\n",
+    ),
   };
 }
 
@@ -323,6 +421,9 @@ export function parseZjuJyxtPage(html: string, pageUrl: string): UniversityEmplo
   const bodyLines = rawBody.filter((line, index) => !(index === 0 && line === "职位描述"));
   const { responsibilities, requirements } = splitRequirements(bodyLines);
 
+  const applicationEmailLines = bodyLines.filter(
+    (line) => line.includes("投递") && /@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.test(line),
+  );
   const contactStart = lines.findIndex((line) => line === "联系方式");
   const contactLines = contactStart >= 0 ? lines.slice(contactStart + 1) : [];
   const contactEmailLines = contactLines.filter((line) => line.startsWith("电子邮箱："));
@@ -344,10 +445,210 @@ export function parseZjuJyxtPage(html: string, pageUrl: string): UniversityEmplo
     requirements: [...(educationText ? [`学历要求：${educationText}`] : []), requirements].join(
       "\n",
     ),
-    emails: collectEmails(contactEmailLines),
+    emails: collectEmails(
+      applicationEmailLines.length > 0 ? applicationEmailLines : contactEmailLines,
+    ),
     applicationUrlOnPage: undefined,
     hasMultiCitySupplement: bodyLines.some((line) => line.includes("工作城市：")),
   };
+}
+
+const allwinnerRoles = [
+  { code: "2701", title: "数字设计工程师", locationText: "珠海/西安/上海" },
+  { code: "2702", title: "算法设计工程师", locationText: "珠海/西安" },
+  { code: "2703", title: "算法测试工程师", locationText: "珠海/西安" },
+  { code: "2704", title: "ATE测试系统设计工程师", locationText: "珠海" },
+  { code: "2705", title: "嵌入式软件设计工程师", locationText: "珠海" },
+  { code: "2706", title: "射频系统设计工程师", locationText: "珠海" },
+  { code: "2707", title: "硬件工程师", locationText: "珠海" },
+] as const;
+
+function decodeGdutStaticContent(html: string): string {
+  const blob = html.match(/unzip\(\s*"([A-Za-z0-9+/=]+)"\s*,?\s*\)/)?.[1];
+  if (!blob) throw new Error("UNIVERSITY_EMPLOYMENT_GDUT_STATIC_PAYLOAD_MISSING");
+  let inflated: string;
+  try {
+    inflated = inflateSync(Buffer.from(blob, "base64")).toString("utf8");
+  } catch {
+    throw new Error("UNIVERSITY_EMPLOYMENT_GDUT_STATIC_PAYLOAD_INVALID");
+  }
+  if (!inflated.startsWith("view2d") || inflated.length <= 56) {
+    throw new Error("UNIVERSITY_EMPLOYMENT_GDUT_STATIC_PAYLOAD_INVALID");
+  }
+  const decoded = Buffer.from(inflated.slice(56), "base64").toString("utf8");
+  if (!decoded.startsWith("view1d") || decoded.length <= 22) {
+    throw new Error("UNIVERSITY_EMPLOYMENT_GDUT_STATIC_PAYLOAD_INVALID");
+  }
+  return decoded.slice(22);
+}
+
+function splitAllwinnerRoleText(lines: string[]): {
+  responsibilities: string;
+  requirements: string;
+} {
+  const responsibilities: string[] = [];
+  const requirements: string[] = [];
+  let section: "responsibilities" | "requirements" | undefined;
+  for (const line of lines) {
+    const normalized = line.normalize("NFKC").replace(/\s+/g, "");
+    if (normalized === "一、任职资格") {
+      section = "requirements";
+      continue;
+    }
+    if (normalized === "二、职位描述") {
+      section = "responsibilities";
+      continue;
+    }
+    if (normalized === "三、职位方向" || normalized.startsWith("注:")) {
+      section = undefined;
+      continue;
+    }
+    if (section === "responsibilities") responsibilities.push(line);
+    if (section === "requirements") requirements.push(line);
+  }
+  if (responsibilities.length === 0) {
+    throw new Error("UNIVERSITY_EMPLOYMENT_BODY_SECTION_MISSING");
+  }
+  if (requirements.length === 0) {
+    throw new Error("UNIVERSITY_EMPLOYMENT_REQUIREMENTS_SECTION_MISSING");
+  }
+  return {
+    responsibilities: responsibilities.join("\n"),
+    requirements: requirements.join("\n"),
+  };
+}
+
+export function parseGdutCampusPage(html: string, pageUrl: string): UniversityEmploymentJob[] {
+  const pageId = pageIdentity("gdut-campus", pageUrl);
+  const companyName = html
+    .match(/<div class="title-message">[\s\S]{0,300}?<h5>([^<]+)<\/h5>/)?.[1]
+    ?.trim();
+  if (!companyName) throw new Error("UNIVERSITY_EMPLOYMENT_COMPANY_MISSING");
+  const deadline = html.match(/过期时间：\s*(\d{4}-\d{2}-\d{2})/)?.[1];
+  const publishedAt = html.match(/发布时间：\s*(\d{4}-\d{2}-\d{2})/)?.[1];
+  const content = decodeGdutStaticContent(html);
+  const compactContent = content.replace(/\s+/g, "");
+  if (!compactContent.includes("2027届实习生招聘")) {
+    throw new Error("UNIVERSITY_EMPLOYMENT_NOT_EXPLICIT_INTERNSHIP");
+  }
+  const applicationUrlOnPage =
+    content.match(/https:\/\/campus\.allwinnertech\.com(?:\/)?/)?.[0] ??
+    content.match(/target=https%3A%2F%2Fcampus\.allwinnertech\.com%2F/i)?.[0];
+  if (!applicationUrlOnPage) {
+    throw new Error("UNIVERSITY_EMPLOYMENT_APPLICATION_METHOD_MISSING");
+  }
+
+  return allwinnerRoles.map((role, index) => {
+    const start = content.search(new RegExp(`<strong>${role.code}(?:\\s|<)`));
+    const nextCode = allwinnerRoles[index + 1]?.code;
+    const end = nextCode
+      ? content.search(new RegExp(`<strong>${nextCode}(?:\\s|<)`))
+      : content.length;
+    if (start < 0 || end <= start) {
+      throw new Error("UNIVERSITY_EMPLOYMENT_STRUCTURE_CHANGED");
+    }
+    const { responsibilities, requirements } = splitAllwinnerRoleText(
+      htmlToDeterministicLines(content.slice(start, end)),
+    );
+    return {
+      sourceJobId: `${pageId}-${role.code}`,
+      pageUrl,
+      companyName,
+      title: role.title,
+      category: "电子信息技术",
+      locationText: role.locationText,
+      employmentTypeText: "实习",
+      educationText: undefined,
+      headcountText: undefined,
+      publishedAt,
+      deadline,
+      responsibilities,
+      requirements,
+      emails: [],
+      applicationUrlOnPage: "https://campus.allwinnertech.com",
+      hasMultiCitySupplement: role.locationText.includes("/"),
+    };
+  });
+}
+
+const dtlRoles = [
+  "量化研究员",
+  "量化研究员-机器学习",
+  "基本面量化研究员",
+  "交易算法研究员",
+  "交易分析师",
+  "软件工程师（系统、数据与基础设施）",
+  "GPU工程师",
+  "人力资源专员",
+] as const;
+
+export function parseDtlNankaiPage(html: string, pageUrl: string): UniversityEmploymentJob[] {
+  const base = parseNankaiCorrecruitPage(html, pageUrl);
+  const lines = htmlToDeterministicLines(html);
+  if (!lines.some((line) => line.includes("Internship（纯实习）"))) {
+    throw new Error("UNIVERSITY_EMPLOYMENT_NOT_EXPLICIT_INTERNSHIP");
+  }
+
+  return dtlRoles.map((title, index) => {
+    const numberedTitle = `${index + 1}.${title}`;
+    const start = lines.findIndex(
+      (line) =>
+        line.normalize("NFKC").replace(/\s+/g, "") ===
+        numberedTitle.normalize("NFKC").replace(/\s+/g, ""),
+    );
+    const nextTitle = dtlRoles[index + 1];
+    const end =
+      nextTitle === undefined
+        ? lines.findIndex((line, lineIndex) => lineIndex > start && line === "友情链接")
+        : lines.findIndex(
+            (line, lineIndex) =>
+              lineIndex > start &&
+              line.normalize("NFKC").replace(/\s+/g, "") ===
+                `${index + 2}.${nextTitle}`.normalize("NFKC").replace(/\s+/g, ""),
+          );
+    if (start < 0 || end <= start) {
+      throw new Error("UNIVERSITY_EMPLOYMENT_STRUCTURE_CHANGED");
+    }
+    const roleLines = lines.slice(start + 1, end);
+    const descriptionStart = roleLines.findIndex((line) => line === "职位描述");
+    const requirementStart = roleLines.findIndex((line) => line === "任职要求");
+    if (descriptionStart < 0 || requirementStart < 0 || requirementStart <= descriptionStart) {
+      throw new Error("UNIVERSITY_EMPLOYMENT_STRUCTURE_CHANGED");
+    }
+    const responsibilities = roleLines
+      .slice(descriptionStart + 1, requirementStart)
+      .filter((line) => line !== "主要职责")
+      .join("\n");
+    const requirements = roleLines
+      .slice(requirementStart + 1)
+      .filter((line) => line !== "加分项")
+      .join("\n");
+    if (!responsibilities || !requirements) {
+      throw new Error("UNIVERSITY_EMPLOYMENT_STRUCTURE_CHANGED");
+    }
+    return {
+      ...base,
+      sourceJobId: `${pageIdentity("nankai-correcruit", pageUrl)}-dtl-${String(index + 1).padStart(2, "0")}`,
+      title,
+      responsibilities,
+      requirements,
+      emails: [],
+    };
+  });
+}
+
+export function parseUniversityEmploymentJobs(input: {
+  format: UniversityEmploymentPageFormat;
+  html: string;
+  pageUrl: string;
+}): UniversityEmploymentJob[] {
+  if (input.format === "gdut-campus") {
+    return parseGdutCampusPage(input.html, input.pageUrl);
+  }
+  if (input.format === "nankai-correcruit-dtl") {
+    return parseDtlNankaiPage(input.html, input.pageUrl);
+  }
+  return [parseUniversityEmploymentPage(input)];
 }
 
 export function parseUniversityEmploymentPage(input: {
@@ -358,10 +659,20 @@ export function parseUniversityEmploymentPage(input: {
   switch (input.format) {
     case "nankai-correcruit":
       return parseNankaiCorrecruitPage(input.html, input.pageUrl);
+    case "nankai-correcruit-dtl": {
+      const [job] = parseDtlNankaiPage(input.html, input.pageUrl);
+      if (!job) throw new Error("UNIVERSITY_EMPLOYMENT_STRUCTURE_CHANGED");
+      return job;
+    }
     case "cuhk-jobview":
       return parseCuhkJobViewPage(input.html, input.pageUrl);
     case "zju-jyxt":
       return parseZjuJyxtPage(input.html, input.pageUrl);
+    case "gdut-campus": {
+      const [job] = parseGdutCampusPage(input.html, input.pageUrl);
+      if (!job) throw new Error("UNIVERSITY_EMPLOYMENT_STRUCTURE_CHANGED");
+      return job;
+    }
   }
 }
 
@@ -406,7 +717,10 @@ export function normalizeUniversityEmploymentJob(input: {
   let applicationEmailSourceText: string | undefined;
   if (source.application.type === "official_url") {
     const onPage = job.applicationUrlOnPage?.normalize("NFKC").trim();
-    if (onPage !== source.application.url) {
+    if (
+      (source.application.verification ?? "page_exact") === "page_exact" &&
+      onPage !== source.application.url
+    ) {
       throw new Error("UNIVERSITY_EMPLOYMENT_APPLY_URL_MISMATCH");
     }
     applyUrl = source.application.url;
@@ -468,7 +782,16 @@ export function normalizeUniversityEmploymentJob(input: {
     throw new Error("UNIVERSITY_EMPLOYMENT_REQUIREMENTS_SECTION_MISSING");
   }
 
-  const city = job.locationText ? normalizeUniversityLocation(job.locationText) : undefined;
+  const cities = job.locationText
+    ? [
+        ...new Set(
+          job.locationText
+            .split(/[/、，,]/u)
+            .map(normalizeUniversityLocation)
+            .filter((city): city is string => Boolean(city)),
+        ),
+      ]
+    : [];
   const combinedText = `${job.responsibilities}\n${job.requirements}`;
   const durationMonths = captureMinimum(combinedText, [
     /(?:至少|不少于|为期|连续实习)\s*(\d+)\s*个?月/u,
@@ -485,7 +808,7 @@ export function normalizeUniversityEmploymentJob(input: {
     companyName: source.companyDisplayName,
     title: job.title,
     jobFamily: family.value,
-    locations: city ? known([city], [pageEvidenceRef]) : unknown<string[]>(),
+    locations: cities.length > 0 ? known(cities, [pageEvidenceRef]) : unknown<string[]>(),
     businessGroups: [],
     entryScope: "实习生",
     sourceProjectName: null,

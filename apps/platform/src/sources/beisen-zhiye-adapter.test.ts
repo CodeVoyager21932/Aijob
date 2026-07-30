@@ -28,10 +28,15 @@ describe("Beisen zhiye adapter", () => {
       ["huice-campus-internships", "huicecom.zhiye.com"],
       ["adaps-photonics-internships", "adaps-ph.zhiye.com"],
       ["pudutech-internships", "pudutech.zhiye.com"],
+      ["shining3d-internships", "shining3d.zhiye.com"],
     ]);
     expect(resolveBeisenZhiyeTenant("huice-campus-internships").category).toBe("2");
     expect(resolveBeisenZhiyeTenant("adaps-photonics-internships").category).toBe("3");
     expect(resolveBeisenZhiyeTenant("pudutech-internships").category).toBe("3");
+    expect(resolveBeisenZhiyeTenant("shining3d-internships")).toMatchObject({
+      portalId: "957a969f-e192-4ab2-ae07-44c35064f1ab",
+      category: "3",
+    });
     expect(() => resolveBeisenZhiyeTenant("unknown-tenant")).toThrow(
       "BEISEN_TENANT_NOT_CONFIGURED",
     );

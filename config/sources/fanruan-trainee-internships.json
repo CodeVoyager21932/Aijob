@@ -5,7 +5,13 @@
   "organization": {
     "slug": "fanruan",
     "name": "帆软软件有限公司",
-    "officialDomain": "fanruan.com"
+    "officialDomain": "fanruan.com",
+    "scale": {
+      "band": "large",
+      "evidenceUrl": "https://join.fanruan.com/explore-fr",
+      "evidenceText": "帆软招聘官网“走近帆软”页面标注“2000+员工，公司2000+员工”。",
+      "lastVerifiedAt": "2026-07-29T00:00:00.000Z"
+    }
   },
   "candidate": {
     "name": "帆软实习生招聘",
@@ -76,13 +82,13 @@
       "浏览器只用于人工发现官方页面自身调用的公开接口，生产探测使用标准 HTTP 适配器。",
       "列表为 join.fanruan.com/trainee 表单 POST，返回 JSON；mode 非实习的岗位在本地被拒绝，不写入目录。",
       "不处理验证码、不使用账号、Cookie、代理或隐藏浏览器指纹。",
-      "官网招聘页称员工超过 1800 人但未给出上界，可能跨过 2000 人分界，规模保守保持 unknown。",
+      "帆软招聘官网“走近帆软”页面标注“2000+员工，公司2000+员工”，按 Aijob 固定口径记录为 large；无锡市锡山区政府 2026-07-03 发布的企业报道同时记载“企业目前在职员工规模超2000人”。",
       "本配置只证明受限技术可读取性，不构成来源批准或公开发布授权。",
       "本地证据：docs/evidence/ingestion/source-approval-batch-2026-07-26.md"
     ]
   },
   "policy": {
-    "version": "1",
+    "version": "2",
     "status": "pending_review",
     "adapterKey": "fanruan-trainee-public-api",
     "adapterVersion": "0.1.0",

@@ -8,8 +8,8 @@ import {
   unknown,
 } from "./normalized-official-job.js";
 
-export const BYTEDANCE_MANUAL_BROWSER_ADAPTER_VERSION = "0.1.0";
-export const BYTEDANCE_MANUAL_BROWSER_NORMALIZER_VERSION = "0.1.0";
+export const BYTEDANCE_MANUAL_BROWSER_ADAPTER_VERSION = "0.1.1";
+export const BYTEDANCE_MANUAL_BROWSER_NORMALIZER_VERSION = "0.1.1";
 export const BYTEDANCE_CAMPUS_POSITION_URL = "https://jobs.bytedance.com/campus/position";
 
 const bytedanceDetailUrlSchema = z

@@ -46,7 +46,7 @@
     "version": "1",
     "status": "pending_review",
     "adapterKey": "official-account-manual-snapshot",
-    "adapterVersion": "0.1.0",
+    "adapterVersion": "0.1.1",
     "entrypoints": ["https://mp.weixin.qq.com/s/aijob-test-article"],
     "crawlInterval": { "enabled": false, "minimumHours": 168 },
     "reviewedAt": "2026-07-21",

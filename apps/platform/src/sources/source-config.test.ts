@@ -61,17 +61,24 @@ describe("controlled local source configurations", () => {
   it("discovers source configuration files instead of relying on a source-key allowlist", async () => {
     await expect(listSourceKeys()).resolves.toEqual([
       "adaps-photonics-internships",
+      "allwinner-gdut-internships",
       "baidu-internships",
       "bytedance-campus-manual",
+      "citics-shanghai-summer-internship",
+      "dingwei-consulting-internships",
+      "dtl-quant-internships",
       "fanruan-trainee-internships",
       "hr-soft-internships",
       "huice-campus-internships",
       "jcquant-internships",
       "jd-campus-internships",
+      "kunlunxin-internships",
       "meituan-official",
       "nankai-tal-2027",
       "pudutech-internships",
+      "sharecapital-internships",
       "shengumedia-internships",
+      "shining3d-internships",
       "spirit-ai-feishu-manual",
       "supvan-info-internships",
       "tencent-campus",
@@ -80,15 +87,22 @@ describe("controlled local source configurations", () => {
 
   it.each([
     ["adaps-photonics-internships", "beisen-zhiye-public-api", true],
+    ["allwinner-gdut-internships", "university-employment-detail-html", true],
     ["baidu-internships", "baidu-ssr-deterministic-html", true],
     ["bytedance-campus-manual", "bytedance-manual-browser-snapshot", false],
+    ["citics-shanghai-summer-internship", "university-employment-detail-html", true],
+    ["dingwei-consulting-internships", "university-employment-detail-html", true],
+    ["dtl-quant-internships", "university-employment-detail-html", true],
     ["fanruan-trainee-internships", "fanruan-trainee-public-api", true],
     ["hr-soft-internships", "university-employment-detail-html", true],
     ["huice-campus-internships", "beisen-zhiye-public-api", true],
     ["jcquant-internships", "university-employment-detail-html", true],
     ["jd-campus-internships", "jd-campus-public-api", true],
+    ["kunlunxin-internships", "university-employment-detail-html", true],
     ["pudutech-internships", "beisen-zhiye-public-api", true],
+    ["sharecapital-internships", "university-employment-detail-html", true],
     ["shengumedia-internships", "university-employment-detail-html", true],
+    ["shining3d-internships", "beisen-zhiye-public-api", true],
     ["spirit-ai-feishu-manual", "official-account-manual-snapshot", false],
     ["supvan-info-internships", "university-employment-detail-html", true],
     ["tencent-campus", "tencent-public-api", true],
@@ -275,6 +289,38 @@ describe("controlled local source configurations", () => {
       { host: "www.career.zju.edu.cn", pathPrefix: "/jyxt/sczp/zpztgl/ckZpgwXq.zf" },
       { maxItems: 1, maxPages: 1, maxRequests: 2, minimumIntervalMs: 2000 },
     ],
+    [
+      "kunlunxin-internships",
+      "www.career.zju.edu.cn",
+      "/jyxt/sczp/zpztgl/ckZpgwXq.zf",
+      ["zpxxbh"],
+      { host: "www.career.zju.edu.cn", pathPrefix: "/jyxt/sczp/zpztgl/ckZpgwXq.zf" },
+      { maxItems: 1, maxPages: 1, maxRequests: 10, minimumIntervalMs: 2000 },
+    ],
+    [
+      "dingwei-consulting-internships",
+      "www.career.zju.edu.cn",
+      "/jyxt/sczp/zpztgl/ckZpgwXq.zf",
+      ["zpxxbh"],
+      { host: "www.career.zju.edu.cn", pathPrefix: "/jyxt/sczp/zpztgl/ckZpgwXq.zf" },
+      { maxItems: 1, maxPages: 1, maxRequests: 10, minimumIntervalMs: 2000 },
+    ],
+    [
+      "sharecapital-internships",
+      "career.cuhk.edu.cn",
+      "/job/view/id/467309",
+      [] as string[],
+      { host: "career.cuhk.edu.cn", pathPrefix: "/job/view/id/467309" },
+      { maxItems: 1, maxPages: 1, maxRequests: 10, minimumIntervalMs: 2000 },
+    ],
+    [
+      "dtl-quant-internships",
+      "career.nankai.edu.cn",
+      "/correcruit/content/id/116147.html",
+      [] as string[],
+      { host: "www.dytechlab.com", pathPrefix: "/careers" },
+      { maxItems: 8, maxPages: 1, maxRequests: 10, minimumIntervalMs: 2000 },
+    ],
   ] as const)(
     "limits %s to its frozen university detail pages",
     async (sourceKey, fetchHost, firstFetchPath, queryParameters, applyTarget, budget) => {
@@ -316,17 +362,36 @@ describe("controlled local source configurations", () => {
     }
   });
 
-  it("records the evidenced large scale for Huice and keeps others unknown", async () => {
+  it("records evidenced large scales and keeps unresolved organizations unknown", async () => {
     const huice = await loadSourceConfig("huice-campus-internships");
     expect(huice.organization.scale).toMatchObject({
       band: "large",
       evidenceUrl: "https://career.nankai.edu.cn/correcruit/content/id/114173.html",
       lastVerifiedAt: "2026-07-26T00:00:00.000Z",
     });
+    const fanruan = await loadSourceConfig("fanruan-trainee-internships");
+    expect(fanruan.organization.scale).toMatchObject({
+      band: "large",
+      evidenceUrl: "https://join.fanruan.com/explore-fr",
+      lastVerifiedAt: "2026-07-29T00:00:00.000Z",
+    });
+    for (const sourceKey of ["adaps-photonics-internships", "pudutech-internships"] as const) {
+      const config = await loadSourceConfig(sourceKey);
+      expect(config.organization.scale.band).toBe("unknown");
+    }
+  });
+
+  it("records Share Capital as small and keeps unresolved batch-03 scales unknown", async () => {
+    const sharecapital = await loadSourceConfig("sharecapital-internships");
+    expect(sharecapital.organization.scale).toMatchObject({
+      band: "small",
+      evidenceUrl: "https://www.sharecapital.cn/about-us",
+      lastVerifiedAt: "2026-07-29T00:00:00.000Z",
+    });
     for (const sourceKey of [
-      "fanruan-trainee-internships",
-      "adaps-photonics-internships",
-      "pudutech-internships",
+      "kunlunxin-internships",
+      "dingwei-consulting-internships",
+      "dtl-quant-internships",
     ] as const) {
       const config = await loadSourceConfig(sourceKey);
       expect(config.organization.scale.band).toBe("unknown");

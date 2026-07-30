@@ -81,10 +81,10 @@
     ]
   },
   "policy": {
-    "version": "1",
+    "version": "2",
     "status": "pending_review",
     "adapterKey": "bytedance-manual-browser-snapshot",
-    "adapterVersion": "0.1.0",
+    "adapterVersion": "0.1.1",
     "entrypoints": ["https://jobs.bytedance.com/campus/position"],
     "crawlInterval": {
       "enabled": false,

@@ -66,6 +66,16 @@ const beisenZhiyeTenantList: BeisenZhiyeTenant[] = [
     jobsPagePath: "/intern/jobs",
     reportedTotalKey: "intern-jobads",
   },
+  {
+    sourceKey: "shining3d-internships",
+    companyName: "先临三维",
+    host: "shining3d.zhiye.com",
+    portalId: "957a969f-e192-4ab2-ae07-44c35064f1ab",
+    category: "3",
+    categoryLabel: "实习",
+    jobsPagePath: "/intern/jobs",
+    reportedTotalKey: "intern-jobads",
+  },
 ];
 
 export const BEISEN_ZHIYE_DISPLAY_FIELDS = [

@@ -8,8 +8,8 @@ import {
   unknown,
 } from "./normalized-official-job.js";
 
-export const OFFICIAL_ACCOUNT_MANUAL_ADAPTER_VERSION = "0.1.0";
-export const OFFICIAL_ACCOUNT_MANUAL_NORMALIZER_VERSION = "0.1.0";
+export const OFFICIAL_ACCOUNT_MANUAL_ADAPTER_VERSION = "0.1.1";
+export const OFFICIAL_ACCOUNT_MANUAL_NORMALIZER_VERSION = "0.1.1";
 
 const applicationSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("official_url"), url: z.string().url() }).strict(),
