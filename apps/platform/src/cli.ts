@@ -14,12 +14,30 @@ import { materializeLocalCatalog } from "./catalog/materialize.js";
 import { loadPlatformConfig } from "./config/platform-config.js";
 import { importManualBrowserSnapshot } from "./ingestion/manual-browser-import.js";
 import { runSourceProbe } from "./ingestion/probe.js";
+import { runLocalBootstrap } from "./local-bootstrap.js";
 import { loadSourceCandidateRegistry } from "./sources/source-candidates.js";
 import { assessSource, listSourceKeys, loadSourceConfig } from "./sources/source-config.js";
 import { registerSourceConfig } from "./sources/source-registry.js";
 
 const program = new Command();
 program.name("aijob").description("Aijob internal operations CLI").showHelpAfterError();
+
+program
+  .command("local-bootstrap")
+  .description("按 Git 忽略清单恢复本地目录；快照缺失或统计不一致时 fail-closed")
+  .option("--manifest <path>", "Git 忽略的恢复清单", ".data/local-bootstrap.json")
+  .action(async (options: { manifest: string }) => {
+    console.info(
+      JSON.stringify(
+        await runLocalBootstrap({
+          appConfig: loadAppConfig(),
+          manifestPath: options.manifest,
+        }),
+        null,
+        2,
+      ),
+    );
+  });
 
 async function promptValue(label: string): Promise<string> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {

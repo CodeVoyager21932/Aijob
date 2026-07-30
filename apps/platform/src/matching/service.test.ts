@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { parseStoredMatchRunResult } from "./service.js";
+import { parseMatchJobFamily, parseStoredMatchRunResult } from "./service.js";
 
 describe("stored match result compatibility", () => {
+  it("treats a legacy one-reference conflict as unknown instead of failing a run", () => {
+    expect(
+      parseMatchJobFamily({
+        state: "conflict",
+        rawValues: ["operations", "data_ai"],
+        evidenceRefs: ["legacy-page"],
+      }),
+    ).toEqual({ state: "unknown", reason: "parse_failed" });
+  });
+
   it("keeps a legacy v1 result readable without reconstructing missing basis data", () => {
     const result = parseStoredMatchRunResult({
       eligibility: { status: "needs_information", reasons: [] },

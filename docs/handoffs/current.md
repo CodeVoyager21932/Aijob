@@ -1,16 +1,16 @@
-# 当前项目交接：R2 UI/UX 已完成，回到 G2 扩容主线
+# 当前项目交接：P7 报告已完成，等待 coco 终局判定
 
-> 交接日期：2026-07-29
+> 交接日期：2026-07-30
 >
 > 当前分支：`codex/g0-research-prototype`
 >
 > 动态事实源：[MVP 路线与当前决策面板](../06-mvp-roadmap.md)
 >
-> 工程与发现证据：[G2 正确性重新验收记录](../evidence/g2/correctness-reacceptance-2026-07-20.md)、[验收反馈修正记录](../evidence/g2/acceptance-followup-2026-07-20.md)、[审批包 01 执行记录](../evidence/ingestion/approved-source-batch-01-2026-07-26.md)、[审批包 02 执行记录](../evidence/ingestion/approved-source-batch-02-execution-2026-07-26.md)、[G2 收束执行计划](../plans/g2-closeout-plan-2026-07-26.md)、[1000 家审查宇宙台账](../evidence/ingestion/internship-company-universe-2026-07-26.md)、[分层收录清单](../evidence/ingestion/import-candidate-list-2026-07-26.md)
+> 工程与发现证据：[G2 终局重新验收报告](../evidence/g2/g2-reacceptance-2026-07-30.md)、[空库恢复演练](../evidence/g2/local-bootstrap-drill-2026-07-30.md)、[供给检查点](../evidence/g2/supply-checkpoint-2026-07-30.md)、[G2 收束执行计划](../plans/g2-closeout-plan-2026-07-26.md)
 
 ## 1. 当前唯一目标
 
-coco 按 ADR-0017/0018 将本机假设扩展为 20–30 家企业、300–500 条全部职能实习岗位（中小企业不少于企业数 60% 和岗位数 50%），新范围处于 G2 重新验收。当前不购买服务器、不招募或运行参与者任务，产品证据保持 `E0`。
+coco 按 ADR-0017/0018 将本机假设扩展为 20–30 家企业、300–500 条全部职能实习岗位（中小企业不少于企业数 60% 和岗位数 50%）。P1–P7 已执行：工程、安全、50 条分类金标与真实浏览器闭环通过，但目录仅 178 总供给、114 可见、16 家企业，SME 为 1/16 家与 1/114 岗位，空库完整恢复也因真实 HTTPS `ECONNRESET` 未完成。**当前唯一目标是等待 coco 对 P7 报告四选一；不得自行创建批次 07。** 产品证据保持 `E0`，G0/G1 暂停。
 
 2026-07-26 coco 作出四项决定并已全部执行：
 
@@ -37,7 +37,7 @@ coco 按 ADR-0017/0018 将本机假设扩展为 20–30 家企业、300–500 �
 当前闭环已经能在本机运行：
 
 ```text
-十五个已接入来源，总供给 177 条、按 ADR-0021 配额可见 113 条
+十六个已接入来源，总供给 178 条、按 ADR-0021 配额可见 114 条
   -> 清洗、去重、结构化和来源追溯（缺口公开分母）
   -> PDF / DOCX / 文本简历与隐私检查
   -> 事实、偏好和经历证据确认
@@ -51,28 +51,32 @@ coco 按 ADR-0017/0018 将本机假设扩展为 20–30 家企业、300–500 �
 
 ## 2. 已确认工程事实
 
-- 目录终态：总供给 177 条、可见 113 条、15 家企业——京东/帆软/腾讯/百度/慧策/字节跳动/美团/普渡机器人/千寻智能各 10、灵明光子 7、好未来 7、硕方信息 6、神谷文化 1、红海云 1、鲸驰寰宇 1；被压缩 64 条保留全部不可变版本并在目录页公开"X/供给 Y"。
-- 十五个已接入来源均为 `pending_review`，只能进入本机 `local_mvp`；公开 `/v1/jobs` 保持 0 条。
+- 目录终态：总供给 178 条、可见 114 条、16 家企业；在 P0 基线上新增中信证券上海分公司 1 条；被压缩 64 条保留全部不可变版本并在目录页公开"X/供给 Y"。
+- 十六个已接入来源均为 `pending_review`，只能进入本机 `local_mvp`；公开 `/v1/jobs` 保持 0 条。
 - P0 提额运行：硕方 run `f4d022fa-d7ff-4004-a990-d29cc113797c` 为 6 请求、6/6/0，同小时重放 `reused=true`；千寻 run `b26d6015-da9e-4a28-93f5-5cd96233da5a` 为 `request_count=0`、22/22/0，同快照重放 `reused=true` 且 0 新修订。快照哈希为 `46aca0c1…3a93127`。
 - 新增共享适配器 `university-employment-detail-html` 0.1.0：冻结南开 correcruit / 港中深 jobview（中文版）/ 浙大 jyxt 三种载体格式；每页一岗单请求、服务端无 Cookie curl 复现、严格 UTF-8；company_email 复用企业域名白名单（域名相等或子域 + 原句含邮箱），official_url 与页面原文明示网址精确比对，fail-closed 负例有离线覆盖并经四张真实页面互证。
 - ADR-0021 配额机制：`catalog.company_quota_selections`（迁移 016）由物化在同一事务整表重写；择优为优先轨道（product/operations/engineering/data_ai 的 known 值）在前、组内按 created_at 与 id 稳定排序；目录 `loadLocalRows` 与洞察样本 SQL 按 `selected` 过滤，推荐候选集经目录搜索自然继承，历史冻结运行不回溯；未物化修订不受配额影响（兼容既有容量测试路径）。
 - `/v1/jobs` 搜索响应新增可选 `companyQuotaGaps`（公司、规模档、配额、供给、已显示），目录页顶部公示缺口且注明"不代表岗位关闭"。
-- 中小企业占比现状（公开分母）：有合格中小规模证据企业 1/15（红海云 medium）、中小证据岗位 1/113；其余 `unknown` 按非中小计；距 60%/50% 目标缺口显著，不降低证据标准凑比例。
+- 中小企业占比现状（公开分母）：有合格中小规模证据企业 1/16（红海云 medium）、中小证据岗位 1/114；其余 `unknown` 按非中小计；距 60%/50% 目标缺口显著，不降低证据标准凑比例。
+- P1–P5 已执行：批次 04 只有中信上海 1 条通过；批次 03、05、06 以及批次 04 其余来源按过期、主体/申请链冲突或 TLS `ECONNRESET` 独立暂停；没有批次 07。
+- P6 已完成 50 条跨职能分类金标，覆盖 12 个职能，A/B 盲标 50/50 一致；三轴工程金标实际 40 条。
+- P7 真实浏览器闭环已完成：1280/320 无全局横向溢出，100 岗推荐、产品洞察、模板降级、9,176 字节 DOCX 下载、官方链接交接、五态决定与全部个人数据删除通过，控制台无 warning/error。
+- `pnpm local:bootstrap` 已实现；隔离空库完成迁移、字节 10 条与千寻 22 条零网络导入，随后首个网络来源三次 `ECONNRESET` 后 fail-closed，未伪造目录成功。
 - 千寻智能来源：`sourceType=official_ats`、`acquisitionMode=browser_required`、复用 `official-account-manual-snapshot` 通用适配器（无新代码路径）；快照文件在 Git 忽略的 `.data/browser-imports/`；官方逐岗详情页作为 `official_url` 投递；动态签名与 CSRF 未逆向、未复用。
 - 审批包 01 既有事实（北森列表契约、帆软表单、官方列表页申请链、字节人工快照、百度/京东幂等探测等）继续有效，详见其执行记录。
 - 正式 `/jobs/*`、简历、确认、推荐、优化、数据控制页面均由 PostgreSQL 和 `/v1` API 提供数据；localhost 匿名 owner、Origin/CSRF、owner epoch、不可变修订、TTL、删除墓碑和迟到任务拒绝已实现。
 - 三轴、32 个命名金标、coverage/basisState/类型化 gaps、确定性分组推荐、冻结要求集/画像/核验时间、五态决定和官方链接交接已实现；AI 只能对单个已确认 `sourceBlockId` 返回建议稿并逐块校验，失败安全降级为模板。
 - 2026-07-29 R1 最终工程门：隔离数据库 `aijob_test` 中全量 365 项测试（platform 273、web 56、config 16、contracts 15、database 5）、TypeScript、生产构建、biome lint（266 文件）与 `git diff --check` 通过。
 - 2026-07-29 R2 终局工程门：隔离库全量 366 项测试（platform 273、web 57、config 16、contracts 15、database 5）、全仓 TypeScript、全仓生产构建、biome lint（266 文件）、改动级 Biome 与 `git diff --check` 通过；真实来源未访问、AI 未调用。
+- 2026-07-30 P7 终局工程门：隔离库全量 391 项测试（platform 298、web 57、config 16、contracts 15、database 5）、全仓 TypeScript、全仓生产构建、biome lint（276 文件）与 `git diff --check` 通过。
 
 ## 3. 当前未完成项
 
-1. **G2 扩容继续**：R2 正式产品前端实现已经关闭；自然产生真实优化任务后只需补充 populated state 视觉抽检，不为截图新建 AI 请求。R1 的 ADR-0023/0024 仍为提案，不得在后续来源批次顺手实施运行时或采集架构大改。
-2. 目录可见 113 条、15 家企业；300–500 条、20–30 家、中小企业占比（企业数 60% / 岗位数 50%）、至少 50 条跨职能分类金标尚未完成，缺口按 ADR-0020/0021 公开。
-3. 鹏扶按 ADR-0022 不补位；批次 03–06 名单与暂停条件已由计划预授权，但 R1 完成前不提前进入后续来源批次。
-4. 301–1000 家仍需逐步补齐行业、主体、导入处置和企业规模证据后分批合并主台账。
-5. 为普渡、灵明光子、硕方、鲸驰、神谷、千寻等继续检索官方/政府规模证据；命中 `small/medium` 的企业在下一物化周期恢复 30 条配额（ADR-0021 第 5 条）。
-6. G0 的 2 人协议校准尚未开始；扩大后的 G2 通过后才招募、执行和记录。G3 来源准入仍为 0/3。公开 AI 仍未获批准。
+1. **coco P7 四选一判定**：通过 / 带公开缺口通过 / 继续扩容并批准批次 07+ / 修订目标并新增 ADR。
+2. 若选择继续扩容，应先定位当前环境对多个官方 HTTPS 站点的系统性 TLS `ECONNRESET`；否则新增名单大概率重复暂停。
+3. 目录硬指标仍未达：114 / 300 可见、16 / 20 家企业、SME 企业 6.25% / 60%、SME 岗位 0.88% / 50%。
+4. 空库恢复命令已实现，但尚未完成到 178 / 114 / 16 / 0 的最终一致性断言。
+5. G0/G1 尚未开始；只有 coco 判定 G2 通过后才招募、执行和记录。G3 仍为 0/3，公开 AI 与公开岗位目录继续关闭。
 
 ## 4. 关键实现位置
 
@@ -88,15 +92,11 @@ coco 按 ADR-0017/0018 将本机假设扩展为 20–30 家企业、300–500 �
 
 ```powershell
 pnpm install
-pnpm infra:up
-pnpm db:migrate
-pnpm source:probe
-pnpm source:import-browser-snapshot spirit-ai-feishu-manual --file .data/browser-imports/spirit-ai-feishu-manual-2026-07-26.json
-pnpm catalog:materialize
+pnpm local:bootstrap
 pnpm dev
 ```
 
-`source:probe` 会按配置低频访问已登记的真实官方来源，只能由维护者明确运行；`source:import-browser-snapshot` 只读取人工生成的本机快照，不会访问招聘站。日常测试和 CI 不应调用真实来源。产品入口：
+`local:bootstrap` 读取 Git 忽略的 `.data/local-bootstrap.json`，先预检全部人工快照，再依次迁移、登记、导入/探测、物化和核对精确目录统计。它可能真实低频访问清单中的官方来源，只能由维护者明确运行；任一必需快照缺失或来源失败都会停止。详见 `docs/runbooks/local-bootstrap.md`。产品入口：
 
 - <http://127.0.0.1:5173/jobs>
 - <http://127.0.0.1:5173/resume>
@@ -131,11 +131,12 @@ pnpm lint
 ```text
 [ ] 已读 AGENTS.md、README.md、docs/06-mvp-roadmap.md 和本交接
 [ ] 已检查分支、git status、最近提交和未提交差异
-[ ] 已确认目录为总供给 177 / 可见 113 条 local_mvp 岗位、15 家企业，十五个已接入来源仍 pending_review
+[ ] 已确认目录为总供给 178 / 可见 114 条 local_mvp 岗位、16 家企业，十六个已接入来源仍 pending_review
 [ ] 已确认 P0 15/15 自审通过，硕方 6 条、千寻 22 条，鹏扶按预设暂停且不补位
 [ ] 已确认 ADR-0021 配额压缩生效（64 条公开缺口），配额恢复需合格规模证据
 [ ] 已确认产品证据仍为 E0，G0/G1 未开始，G3 为 0/3
-[ ] 已确认 R1 与 R2 已完成，下一阶段回到 G2 目录与中小企业证据扩容
-[ ] 已确认 P7 G2 终局判定是 coco 唯一保留的人工卡点
+[ ] 已确认 P1–P6 已执行，P7 报告已完成但新范围硬指标未通过
+[ ] 已确认 P7 四选一是 coco 唯一保留的人工卡点，批次 07 尚未获批
+[ ] 已确认空库恢复入口已实现但网络阶段 fail-closed，不能写成完整恢复通过
 [ ] 已确认不会读取、打印或提交本机 AI 密钥
 ```

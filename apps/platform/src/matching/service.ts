@@ -59,6 +59,11 @@ const LegacyMatchRunResultSchema = MatchRunResultSchema.pick({
   unknownRequirementIds: true,
 });
 
+export function parseMatchJobFamily(value: unknown) {
+  const parsed = JobFamilyFieldSchema.safeParse(value);
+  return parsed.success ? parsed.data : ({ state: "unknown", reason: "parse_failed" } as const);
+}
+
 function json(value: unknown): JsonValue {
   return JSON.stringify(value) as JsonValue;
 }
@@ -336,7 +341,7 @@ async function loadMatchInputs(db: DbExecutor, run: MatchRunRow) {
 
   const job: MatchableJob = {
     companyName: jobVersion.company_name,
-    jobFamily: JobFamilyFieldSchema.parse(jobVersion.job_family),
+    jobFamily: parseMatchJobFamily(jobVersion.job_family),
     locations: StringListFieldSchema.parse(jobVersion.locations),
     weeklyAttendanceDays: NumberFieldSchema.parse(jobVersion.weekly_attendance_days),
     durationMonths: NumberFieldSchema.parse(jobVersion.duration_months),
@@ -475,9 +480,14 @@ async function currentCatalogCandidateSnapshots(
     .selectFrom("catalog.published_job_versions as version")
     .innerJoin("catalog.published_jobs as job", "job.id", "version.published_job_id")
     .innerJoin(
+      "catalog.published_job_version_revision_links as link",
+      "link.published_job_version_id",
+      "version.id",
+    )
+    .innerJoin(
       "ingestion.source_job_revisions as revision",
       "revision.id",
-      "version.source_job_revision_id",
+      "link.source_job_revision_id",
     )
     .innerJoin(
       "ingestion.source_job_records as record",
@@ -485,12 +495,16 @@ async function currentCatalogCandidateSnapshots(
       "revision.source_job_record_id",
     )
     .innerJoin("catalog.internal_job_previews as preview", "preview.revision_id", "revision.id")
-    .select(["version.id as publishedJobVersionId", "record.last_seen_at as lastVerifiedAt"])
+    .select(({ fn }) => [
+      "version.id as publishedJobVersionId",
+      fn.max("record.last_seen_at").as("lastVerifiedAt"),
+    ])
     .where("version.id", "in", candidateIds)
     .whereRef("job.current_version_id", "=", "version.id")
     .where("version.activity_state", "=", "active")
     .where("preview.activity_state", "=", "active")
-    .where("preview.ingestion_state", "=", "validated");
+    .where("preview.ingestion_state", "=", "validated")
+    .groupBy("version.id");
   query = enableLocalMvp
     ? query
         .where("preview.publication_state", "in", ["review", "published"])
@@ -532,10 +546,15 @@ async function recommendationCatalogContext(
     .selectFrom("catalog.published_job_versions as candidate")
     .innerJoin("catalog.published_jobs as job", "job.id", "candidate.published_job_id")
     .leftJoin("catalog.published_job_versions as current", "current.id", "job.current_version_id")
-    .leftJoin(
+    .innerJoin(
+      "catalog.published_job_version_revision_links as link",
+      "link.published_job_version_id",
+      "current.id",
+    )
+    .innerJoin(
       "catalog.internal_job_previews as preview",
       "preview.revision_id",
-      "current.source_job_revision_id",
+      "link.source_job_revision_id",
     )
     .select([
       "candidate.id as candidateId",

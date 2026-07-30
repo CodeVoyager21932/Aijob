@@ -36,7 +36,7 @@ const titleRules: ReadonlyArray<{ family: JobFamily; pattern: RegExp }> = [
     pattern: /开发|研发|工程师|测试|运维|前端|后端|客户端|基础架构|网络安全/i,
   },
   { family: "design", pattern: /设计|视觉|交互|用户体验|\bUX\b|\bUI\b/i },
-  { family: "marketing", pattern: /市场|品牌|公关|传播|广告|媒介/i },
+  { family: "marketing", pattern: /市场|营销|品牌|公关|传播|广告|媒介/i },
   { family: "sales_business", pattern: /销售|商务|商业拓展|客户成功|渠道|\bBD\b/i },
   { family: "finance", pattern: /财务|会计|审计|税务|资金/i },
   { family: "people_admin_legal", pattern: /人力|招聘|行政|法务|合规|\bHR\b/i },
@@ -69,17 +69,17 @@ export function classifyOfficialJobFamily(input: {
     titleRules.filter((rule) => rule.pattern.test(input.title)).map((rule) => rule.family),
   );
   const combinedFamilies = new Set([...sourceFamilies, ...titleFamilies]);
-  const evidenceRefs = [
-    ...(sourceFamilies.size > 0 ? [input.sourceEvidenceRef] : []),
-    ...(titleFamilies.size > 0 ? [input.titleEvidenceRef ?? input.sourceEvidenceRef] : []),
-  ].filter((value, index, values) => values.indexOf(value) === index);
+  const sourceEvidenceRefs = [...sourceFamilies].map(() => input.sourceEvidenceRef);
+  const titleEvidenceRefs = [...titleFamilies].map(
+    () => input.titleEvidenceRef ?? input.sourceEvidenceRef,
+  );
 
   if (combinedFamilies.size > 1) {
     return {
       value: {
         state: "conflict",
         rawValues: [...combinedFamilies],
-        evidenceRefs,
+        evidenceRefs: [...sourceEvidenceRefs, ...titleEvidenceRefs],
       },
       requiresManualReview: true,
     };
@@ -88,6 +88,7 @@ export function classifyOfficialJobFamily(input: {
   if (!family) {
     return { value: unknown("needs_manual_review"), requiresManualReview: true };
   }
+  const evidenceRefs = [...new Set([...sourceEvidenceRefs, ...titleEvidenceRefs])];
   return {
     value: known(family, evidenceRefs),
     requiresManualReview: sourceFamilies.size === 0,

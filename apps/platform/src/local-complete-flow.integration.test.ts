@@ -213,6 +213,13 @@ describeWithDatabase("complete local MVP service journey", () => {
       })
       .execute();
     await db
+      .insertInto("catalog.published_job_version_revision_links")
+      .values({
+        published_job_version_id: ids.publishedVersion,
+        source_job_revision_id: ids.sourceRevision,
+      })
+      .execute();
+    await db
       .updateTable("catalog.published_jobs")
       .set({ current_version_id: ids.publishedVersion })
       .where("id", "=", ids.publishedJob)

@@ -55,6 +55,20 @@ describe("official job-family classifier", () => {
     });
   });
 
+  it("keeps enough conflict evidence when both facts came from one frozen page", () => {
+    expect(
+      classifyOfficialJobFamily({
+        title: "供应链产品实习生",
+        sourceLabels: ["产品"],
+        sourceEvidenceRef: "fixture#page",
+        titleEvidenceRef: "fixture#page",
+      }).value,
+    ).toMatchObject({
+      state: "conflict",
+      evidenceRefs: ["fixture#page", "fixture#page", "fixture#page"],
+    });
+  });
+
   it("keeps unrecognized roles unknown", () => {
     expect(
       classifyOfficialJobFamily({

@@ -18,6 +18,7 @@
     "infra:down": "docker compose -f infra/compose.yaml down",
     "infra:up": "docker compose -f infra/compose.yaml up -d --wait",
     "lint": "biome check .",
+    "local:bootstrap": "pnpm --filter @aijob/platform cli local-bootstrap",
     "source:assess": "pnpm --filter @aijob/platform cli source-assess",
     "source:candidates": "pnpm --filter @aijob/platform cli source-candidates",
     "source:import-browser-snapshot": "pnpm --filter @aijob/platform cli source-import-browser-snapshot",

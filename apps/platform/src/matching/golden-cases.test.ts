@@ -569,8 +569,8 @@ describe("high-risk three-axis golden cases", () => {
     });
   }
 
-  it("golden 集固定至少覆盖 20 个高风险案例", () => {
-    expect(goldenCases.length).toBeGreaterThanOrEqual(20);
+  it("golden 集固定至少覆盖 32 个高风险案例", () => {
+    expect(goldenCases.length).toBeGreaterThanOrEqual(32);
   });
 });
 
