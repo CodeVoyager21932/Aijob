@@ -5,6 +5,7 @@
 - 决策者：coco
 - 关联：[ADR-0002](0002-allowlisted-official-sources.md)、[ADR-0015](0015-local-all-function-internship-expansion.md)、[ADR-0016](0016-manual-browser-assisted-source-import.md)、[MVP 路线](../06-mvp-roadmap.md)
 - 替代：[ADR-0015](0015-local-all-function-internship-expansion.md) 的目录规模与公司组合目标
+- 部分替代：企业数量上限与批次 07+ 授权方式已由 [ADR-0025](0025-extend-g2-sme-company-cap-and-batch-authorization.md) 调整；本文其余来源、证据与产品边界继续有效
 
 ## 背景
 

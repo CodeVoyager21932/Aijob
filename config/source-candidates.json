@@ -1,158 +1,186 @@
 {
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "2.0.0",
   "scope": "local_all_function_internships",
   "evidenceLevel": "E0",
-  "targetActiveJobs": {
-    "minimum": 100,
-    "maximum": 200
+  "targets": {
+    "visibleJobs": {
+      "minimum": 300,
+      "maximum": 500
+    },
+    "companies": {
+      "minimum": 30,
+      "maximum": 40
+    },
+    "minimumSmeCompanyRatio": 0.6,
+    "minimumSmeVisibleJobRatio": 0.5
+  },
+  "batchPolicy": {
+    "maxCompanies": 5,
+    "initialJobsPerCompany": 5
   },
   "liveProbeRequiresExplicitApproval": true,
   "priorityBatch": [
     {
-      "companyKey": "tencent",
-      "displayName": "腾讯",
-      "assessmentStatus": "configured_pending_review",
-      "sourceKeys": ["tencent-campus"]
-    },
-    {
-      "companyKey": "meituan",
-      "displayName": "美团",
-      "assessmentStatus": "configured_pending_review",
-      "sourceKeys": ["meituan-official"]
-    },
-    {
-      "companyKey": "tal",
-      "displayName": "好未来",
-      "assessmentStatus": "configured_pending_review",
-      "sourceKeys": ["nankai-tal-2027"]
-    },
-    {
-      "companyKey": "bytedance",
-      "displayName": "字节跳动",
-      "assessmentStatus": "configured_pending_review",
-      "sourceKeys": ["bytedance-campus-manual"]
-    },
-    {
-      "companyKey": "alibaba",
-      "displayName": "阿里巴巴",
-      "assessmentStatus": "paused",
-      "sourceKeys": []
-    },
-    {
-      "companyKey": "jd",
-      "displayName": "京东",
-      "assessmentStatus": "configured_pending_review",
-      "sourceKeys": ["jd-campus-internships"]
-    },
-    {
-      "companyKey": "baidu",
-      "displayName": "百度",
-      "assessmentStatus": "configured_pending_review",
-      "sourceKeys": ["baidu-internships"]
-    },
-    {
-      "companyKey": "huawei",
-      "displayName": "华为",
+      "companyKey": "xiaoyong-private-fund",
+      "displayName": "上海孝庸私募基金管理有限公司",
       "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "xiaomi",
-      "displayName": "小米",
+      "companyKey": "joinocean-shipping",
+      "displayName": "上海津洋航运",
       "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "didi",
-      "displayName": "滴滴",
+      "companyKey": "sixie-investment",
+      "displayName": "上海思勰投资管理有限公司",
       "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "kuaishou",
-      "displayName": "快手",
+      "companyKey": "isv-tech",
+      "displayName": "易思维",
       "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "netease",
-      "displayName": "网易",
+      "companyKey": "spacemit",
+      "displayName": "杭州进迭时空科技有限公司",
       "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     }
   ],
   "reserveBatch": [
     {
-      "companyKey": "pdd",
-      "displayName": "拼多多",
+      "companyKey": "entropy-ai-chip",
+      "displayName": "北京熵旋芯智科技有限公司",
       "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "xiaohongshu",
-      "displayName": "小红书",
+      "companyKey": "yuhengxing",
+      "displayName": "北京玉衡星科技有限公司",
       "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "bilibili",
-      "displayName": "哔哩哔哩",
+      "companyKey": "yuanli-lingji",
+      "displayName": "北京原力灵机智能科技有限公司",
       "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "trip",
-      "displayName": "携程",
+      "companyKey": "smartmore",
+      "displayName": "深圳市思谋科技有限公司",
       "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "ant",
-      "displayName": "蚂蚁集团",
+      "companyKey": "woolley-robot",
+      "displayName": "深圳市卧安机器人有限公司",
       "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "oppo",
-      "displayName": "OPPO",
+      "companyKey": "deeproute",
+      "displayName": "深圳一清创新科技有限公司",
       "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "vivo",
-      "displayName": "vivo",
+      "companyKey": "uniview-ai",
+      "displayName": "杭州宇泛智能科技股份有限公司",
       "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "lenovo",
-      "displayName": "联想",
+      "companyKey": "wuhan-huajing",
+      "displayName": "武汉华瑾科技有限公司",
       "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "byd",
-      "displayName": "比亚迪",
+      "companyKey": "dulishuo",
+      "displayName": "独立说教育科技北京有限公司",
       "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "li-auto",
-      "displayName": "理想汽车",
+      "companyKey": "tianjin-yidisi",
+      "displayName": "天津易迪思信息科技有限公司",
       "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "nio",
-      "displayName": "蔚来",
+      "companyKey": "weibu-online",
+      "displayName": "北京微步在线科技有限公司",
       "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "dji",
-      "displayName": "大疆",
+      "companyKey": "zhangshang-xianji",
+      "displayName": "北京掌上先机网络科技有限公司",
       "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
+    },
+    {
+      "companyKey": "sanshiyuan",
+      "displayName": "广东三石园科技有限公司",
+      "assessmentStatus": "not_assessed",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
+    },
+    {
+      "companyKey": "hunan-douan",
+      "displayName": "湖南斗安智能科技有限公司",
+      "assessmentStatus": "not_assessed",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
+    },
+    {
+      "companyKey": "guangzhou-touwen",
+      "displayName": "广州头文科技有限公司",
+      "assessmentStatus": "not_assessed",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     }
   ]
 }
