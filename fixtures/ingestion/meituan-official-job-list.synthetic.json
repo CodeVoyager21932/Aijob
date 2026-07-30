@@ -1,0 +1,22 @@
+{
+  "data": {
+    "list": [
+      { "jobUnionId": "5100000001", "jobName": "产品实习生-用户增长" },
+      { "jobUnionId": "5100000002", "jobName": "产品运营实习生-到店事业群" },
+      { "jobUnionId": "5100000003", "jobName": "策略产品实习生" },
+      { "jobUnionId": "5100000004", "jobName": "商业产品实习生" },
+      { "jobUnionId": "5100000005", "jobName": "数据产品实习生" },
+      { "jobUnionId": "5100000006", "jobName": "用户产品实习生" },
+      { "jobUnionId": "5100000007", "jobName": "交易产品实习生" },
+      { "jobUnionId": "5100000008", "jobName": "平台产品实习生" },
+      { "jobUnionId": "5100000009", "jobName": "增长产品实习生" },
+      { "jobUnionId": "5100000010", "jobName": "产品分析实习生" }
+    ],
+    "page": {
+      "pageNo": 1,
+      "pageSize": 10,
+      "totalCount": 16,
+      "totalPage": 2
+    }
+  }
+}

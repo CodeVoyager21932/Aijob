@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "organization-official-account-manual-snapshot-v1",
+  "captureMode": "manual-official-account-visible-content",
+  "sourcePageUrl": "https://mp.weixin.qq.com/s/aijob-test-article",
+  "capturedAt": "2026-07-21T10:00:00+08:00",
+  "reportedTotal": 2,
+  "jobs": [
+    {
+      "sourceJobId": "official-account-job-1",
+      "title": "产品实习生",
+      "locations": ["上海"],
+      "employmentScope": "实习",
+      "recruitmentChannel": "校招",
+      "jobCategory": "产品",
+      "responsibilities": "参与用户研究、需求分析和产品方案迭代。",
+      "requirements": "本科在读，每周至少 4 天，连续实习 3 个月以上。",
+      "application": {
+        "type": "company_email",
+        "email": "intern@example.com",
+        "sourceText": "请将简历发送至 intern@example.com"
+      },
+      "itemIndex": 0
+    },
+    {
+      "sourceJobId": "official-account-job-2",
+      "title": "数据分析实习生",
+      "locations": ["北京"],
+      "employmentScope": "实习",
+      "recruitmentChannel": "实习",
+      "jobCategory": "数据",
+      "responsibilities": "维护业务指标并协助完成数据分析。",
+      "requirements": "熟悉 SQL，每周至少 3 天。",
+      "application": {
+        "type": "official_url",
+        "url": "https://example.com/careers/data-intern"
+      },
+      "itemIndex": 1
+    }
+  ]
+}

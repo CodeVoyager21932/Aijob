@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "nankai-tal-2027",
+  "sourceType": "university_employment_site",
+  "organization": {
+    "slug": "nankai-career",
+    "name": "南开大学就业指导中心",
+    "officialDomain": "career.nankai.edu.cn"
+  },
+  "candidate": {
+    "name": "南开就业网·好未来 2027 暑期实习",
+    "entrypointUrl": "https://career.nankai.edu.cn/correcruit/content/id/115842.html",
+    "provenanceLevel": "university_published",
+    "acquisitionMode": "deterministic_html",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-local-probe",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "招聘简章由南开大学官方就业域名公开发布，并列出企业主体和官方申请入口。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "同一招聘简章明确列出 7 个运营类实习岗位。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "招聘简章无需登录、验证码或脚本绕过即可读取。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "页面明确给出好未来主体的 Moka 校招租户申请链接。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "尚无允许第三方长期复制和公开聚合页面正文的明确授权，只能进入本机 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "页面 ID 和七个角色可确定性拆分，但尚未经过连续抓取和页面变更验证。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 18,
+        "status": "provisional",
+        "note": "明确包含 7 个运营岗位，但岗位级职责未分别展开。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过，分数不能覆盖该失败。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 12,
+        "status": "provisional",
+        "note": "HTML 章节和角色顺序可确定性解析，但不是岗位级结构化接口。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 6,
+        "status": "provisional",
+        "note": "页面提供发布日期，未提供截止日期或关闭状态。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 8,
+        "status": "provisional",
+        "note": "补充高校就业网站与教育科技企业的运营实习来源。"
+      }
+    },
+    "evidenceNotes": [
+      "页面列出商业化运营、直播运营、电商运营、达人直播运营、活动新媒体运营、招生增长运营（ToB方向）、学科产品运营。",
+      "页面明确给出 2027 届及以后、在校生、每周 4 天及以上、2 个月及以上和北京实习地点。",
+      "岗位级职责未说明，必须显示 unknown/待复核，不能从职位名称补写。",
+      "本配置只允许单页低频本地读取，不构成公开发布授权。"
+    ]
+  },
+  "policy": {
+    "version": "2",
+    "status": "pending_review",
+    "adapterKey": "nankai-tal-deterministic-html",
+    "adapterVersion": "0.1.0",
+    "entrypoints": ["https://career.nankai.edu.cn/correcruit/content/id/115842.html"],
+    "crawlInterval": {
+      "enabled": false,
+      "minimumHours": 24
+    },
+    "reviewedAt": "2026-07-18",
+    "policyNotes": [
+      "accessPolicyAccepted 未通过，仅允许维护者显式执行单页本地技术探测。",
+      "禁止跟随页面其他链接、递归抓取高校网站、定时调度或自动公开。",
+      "Moka 链接只作为用户导航目标校验，不由采集进程请求。",
+      "页面结构变化、招聘过期或申请链接变化时必须进入复核。",
+      "v2 将 sourceKey 与可复用 adapterKey 解耦，并将单页、单请求和最小间隔写成显式请求预算；访问范围不变。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.nankai.edu.cn",
+        "port": 443,
+        "pathPrefix": "/correcruit/content/id/115842.html",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "app.mokahr.com",
+        "port": 443,
+        "pathPrefix": "/campus-recruitment/tal/95443",
+        "allowRedirects": false,
+        "allowedQueryParameters": ["locale"]
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 7,
+      "maxPages": 1,
+      "maxRequests": 1,
+      "minimumIntervalMs": 1500
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {},
+    "queryStreams": [
+      {
+        "key": "operations-roles",
+        "label": "好未来运营类实习岗位",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 7
+      }
+    ]
+  }
+}

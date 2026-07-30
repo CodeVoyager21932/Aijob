@@ -1,0 +1,143 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "dingwei-consulting-internships",
+  "sourceType": "university_employment_site",
+  "organization": {
+    "slug": "dingwei-consulting",
+    "name": "北京鼎帷管理顾问有限公司",
+    "officialDomain": "dwmcts.com"
+  },
+  "candidate": {
+    "name": "浙江大学就业网·北京鼎帷新媒体运营实习",
+    "entrypointUrl": "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4F7B3CC147F24EB6E0653A68DD0E9B18",
+    "provenanceLevel": "university_published",
+    "acquisitionMode": "deterministic_html",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-local-probe",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "浙江大学就业网主体、公司官网名称和 dwmcts.com 域名相互一致。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "页面明确提供新媒体策划运营实习生岗位、完整职责与要求，截止 2026-12-31。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "冻结详情页可无登录、Cookie、验证码或动态令牌读取。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "正文原文明示 dwzp@dwmcts.com 为简历投递邮箱，域名与公司官网一致。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "未取得第三方长期复制与公开聚合授权，仅进入 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "正文投递邮箱优先于一般联系邮箱；结构已冻结，仍待连续运行验证。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 6,
+        "status": "provisional",
+        "note": "首批一条新媒体运营实习。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 14,
+        "status": "provisional",
+        "note": "浙江大学详情页和申请邮箱均可确定性解析。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 10,
+        "status": "provisional",
+        "note": "发布时间和截止日期明确。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 9,
+        "status": "provisional",
+        "note": "补充咨询 SME 候选与产品运营轨道。"
+      }
+    },
+    "evidenceNotes": [
+      "官网未披露可映射到固定口径的员工总数，规模保持 unknown。",
+      "本配置不构成来源批准或公开发布授权。"
+    ]
+  },
+  "policy": {
+    "version": "1",
+    "status": "pending_review",
+    "adapterKey": "university-employment-detail-html",
+    "adapterVersion": "0.1.0",
+    "entrypoints": [
+      "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4F7B3CC147F24EB6E0653A68DD0E9B18"
+    ],
+    "crawlInterval": {
+      "enabled": false,
+      "minimumHours": 168
+    },
+    "reviewedAt": "2026-07-29",
+    "policyNotes": [
+      "仅允许维护者显式执行低频本地技术探测。",
+      "只读取冻结详情页，不跟随更多职位链接。",
+      "主体、实习标记、申请邮箱或正文结构变化时立即暂停。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "www.career.zju.edu.cn",
+        "port": 443,
+        "pathPrefix": "/jyxt/sczp/zpztgl/ckZpgwXq.zf",
+        "allowRedirects": false,
+        "allowedQueryParameters": ["zpxxbh"]
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "www.career.zju.edu.cn",
+        "port": 443,
+        "pathPrefix": "/jyxt/sczp/zpztgl/ckZpgwXq.zf",
+        "allowRedirects": false,
+        "allowedQueryParameters": ["zpxxbh"]
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 1,
+      "maxPages": 1,
+      "maxRequests": 10,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {},
+    "queryStreams": [
+      {
+        "key": "dingwei-new-media-intern",
+        "label": "北京鼎帷新媒体运营实习",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 1
+      }
+    ]
+  }
+}

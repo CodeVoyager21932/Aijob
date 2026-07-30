@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "bytedance-manual-browser-snapshot-v1",
+  "captureMode": "manual-browser-visible-dom",
+  "sourcePageUrl": "https://jobs.bytedance.com/campus/position",
+  "capturedAt": "2026-07-21T01:00:00+08:00",
+  "reportedTotal": 5000,
+  "pageIndex": 1,
+  "jobs": [
+    {
+      "sourceJobId": "7664000000000000001",
+      "jobCode": "A10001A",
+      "title": "产品策略实习生-示例业务",
+      "locations": ["上海"],
+      "employmentType": "实习",
+      "jobCategory": "产品 - 数据分析",
+      "projectName": "ByteIntern",
+      "responsibilities": "ByteIntern：面向2027届毕业生。参与用户研究、数据分析和产品方案迭代。",
+      "requirements": "本科及以上学历在读，每周至少4天，连续实习3个月以上。",
+      "detailUrl": "https://jobs.bytedance.com/campus/position/7664000000000000001/detail",
+      "listItemIndex": 0
+    },
+    {
+      "sourceJobId": "7664000000000000002",
+      "jobCode": "A10002B",
+      "title": "品牌营销实习生-示例业务",
+      "locations": ["北京"],
+      "employmentType": "实习",
+      "jobCategory": "市场",
+      "projectName": "日常实习",
+      "responsibilities": "日常实习：面向全体在校生，为期3个月及以上。参与品牌研究和项目推进。",
+      "requirements": "本科及以上学历在读，具备良好的沟通和研究能力。",
+      "detailUrl": "https://jobs.bytedance.com/campus/position/7664000000000000002/detail",
+      "listItemIndex": 1
+    }
+  ]
+}

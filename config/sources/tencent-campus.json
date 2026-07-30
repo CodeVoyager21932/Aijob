@@ -1,0 +1,174 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "tencent-campus",
+  "sourceType": "organization_career_site",
+  "organization": {
+    "slug": "tencent",
+    "name": "腾讯",
+    "officialDomain": "join.qq.com"
+  },
+  "candidate": {
+    "name": "腾讯校招日常实习（p_104）",
+    "entrypointUrl": "https://join.qq.com/post.html?query=p_104",
+    "provenanceLevel": "organization_owned",
+    "acquisitionMode": "public_api",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-local-probe",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "入口、岗位接口和岗位详情均位于腾讯自有招聘域名 join.qq.com。"
+      },
+      "targetSupply": {
+        "status": "pending",
+        "note": "已发现产品与运营候选，但仍需人工确认至少 5 条真实产品/运营实习岗位满足首轮范围。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "单次技术探测无需登录、验证码、浏览器脚本绕过或访问控制规避。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "岗位申请交接地址限定为 join.qq.com/post_detail.html 的官方详情页。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "尚未发现允许第三方长期聚合、复制和公开展示岗位内容的明确授权；不得定时抓取或公开发布。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "postId 和当前 JSON 字段可确定性读取，但只有单次证据，尚未通过连续运行与结构稳定性验证。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 18,
+        "status": "provisional",
+        "note": "存在产品与运营查询结果，但目标岗位数量和误命中率尚未完成金标复核。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过，分数不能覆盖该失败。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 18,
+        "status": "provisional",
+        "note": "页面自身使用无需登录的 JSON 列表与详情接口，并提供稳定字符串 postId。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 5,
+        "status": "provisional",
+        "note": "尚无连续运行证据，且响应未稳定提供发布日期和截止日期。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 4,
+        "status": "provisional",
+        "note": "覆盖多个地点和职能候选，但仍是单一大型企业来源。"
+      }
+    },
+    "evidenceNotes": [
+      "本配置只证明技术可读取性，不构成来源批准。",
+      "入口 p_104 映射为“日常实习”，但岗位自身可能返回 projectName/recruitLabelName=“应届实习”；两组证据必须分别保留并进入冲突复核。",
+      "到岗时间、每周出勤、持续月数、毕业年份、发布日期和截止日期未稳定提供，必须保持 unknown。",
+      "本地证据：docs/evidence/ingestion/tencent-campus-p104-2026-07-16.md",
+      "政策证据：https://join.qq.com/termsservice.html"
+    ]
+  },
+  "policy": {
+    "version": "5",
+    "status": "pending_review",
+    "adapterKey": "tencent-public-api",
+    "adapterVersion": "0.2.0",
+    "entrypoints": ["https://join.qq.com/post.html?query=p_104"],
+    "crawlInterval": {
+      "enabled": false,
+      "minimumHours": 24
+    },
+    "reviewedAt": "2026-07-17",
+    "policyNotes": [
+      "accessPolicyAccepted 硬门槛未通过，只允许显式 Local 技术探测。",
+      "禁止定时全量采集、生产调度、自动发布和公开展示。",
+      "禁止登录、验证码绕过、浏览器自动化和未登记网络目标。",
+      "若条款、授权、展示范围或接口边界变化，必须创建新的不可变 policy version。",
+      "v2 修正双查询流去重后的分页补足语义；访问与发布边界不变。",
+      "v3 仅新增细粒度网络目标策略持久化：默认禁止重定向，并固定允许的查询参数；适配器与采集范围不变。",
+      "v4 将适配器与规范化版本升至 0.1.2，修订哈希排除每次抓取都会变化的证据引用；岗位业务内容和采集范围不变。",
+      "v5 将岗位职能分类升级为全部职能 v1，将 sourceKey 与 adapterKey 解耦，并显式限制 maxItems、maxPages、maxRequests 和 minimumIntervalMs；冲突与无法归一的岗位继续进入人工复核。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "POST",
+        "scheme": "https",
+        "host": "join.qq.com",
+        "port": 443,
+        "pathPrefix": "/api/v1/position/searchPosition",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      },
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "join.qq.com",
+        "port": 443,
+        "pathPrefix": "/api/v1/jobDetails/getJobDetailsByPostId",
+        "allowRedirects": false,
+        "allowedQueryParameters": ["postId"]
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "join.qq.com",
+        "port": 443,
+        "pathPrefix": "/post_detail.html",
+        "allowRedirects": false,
+        "allowedQueryParameters": ["postid"]
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 20,
+      "maxPages": 4,
+      "maxRequests": 24,
+      "minimumIntervalMs": 1500
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {
+      "projectIdList": [],
+      "projectMappingIdList": [104],
+      "bgList": [],
+      "workCountryType": 0,
+      "workCityList": [],
+      "recruitCityList": [],
+      "pageIndex": 1,
+      "pageSize": 10
+    },
+    "queryStreams": [
+      {
+        "key": "product-families",
+        "label": "产品岗位族候选",
+        "keyword": "",
+        "positionFamilyIds": ["79", "80", "83", "94", "219", "253"],
+        "targetItems": 10
+      },
+      {
+        "key": "operations-keyword",
+        "label": "运营关键词候选",
+        "keyword": "运营",
+        "positionFamilyIds": [],
+        "targetItems": 10
+      }
+    ]
+  }
+}

@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "jd-campus-internships",
+  "sourceType": "organization_career_site",
+  "organization": {
+    "slug": "jd",
+    "name": "京东",
+    "officialDomain": "campus.jd.com"
+  },
+  "candidate": {
+    "name": "京东校园招聘·实习生",
+    "entrypointUrl": "https://campus.jd.com/#/jobs",
+    "provenanceLevel": "organization_owned",
+    "acquisitionMode": "public_api",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-browser-reassessment",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "招聘页面、岗位接口和详情投递入口均位于京东自有域名 campus.jd.com。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "2026-07-20 官方 internship 类型接口报告 100 条实习岗位，覆盖多个职能。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "公开列表和单岗位详情无需账号、Cookie、验证码或浏览器脚本采集；浏览器仅用于发现和人工核验接口契约。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "publishId 可构造并人工打开 campus.jd.com 官方详情与立即投递页面。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "未发现允许第三方长期复制和公开聚合岗位正文的明确授权；只能进入本机 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "单次接口提供 publishId、reqId、职责、要求、地点、职类和项目字段，仍需重复运行和人工抽检。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 30,
+        "status": "provisional",
+        "note": "官方接口报告 100 条实习岗位。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过，技术可读性不能覆盖该失败。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 18,
+        "status": "provisional",
+        "note": "公开 JSON 包含稳定身份、完整职责要求、城市、业务线、职类、计划与发布时间。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 8,
+        "status": "provisional",
+        "note": "提供 publishTime，但尚无连续运行和关闭状态验证。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 9,
+        "status": "provisional",
+        "note": "首批可补充财务、销售、客服等非产品运营岗位和多个城市。"
+      }
+    },
+    "evidenceNotes": [
+      "浏览器只用于人工发现官方页面自身调用的公开接口，生产探测改用标准 HTTP API 适配器。",
+      "只请求 type=internship 的第 0 页，单次最多 10 条，不读取登录、申请记录或个人中心接口。",
+      "不处理验证码、不使用账号、Cookie、代理或隐藏浏览器指纹。",
+      "本配置只证明受限技术可读取性，不构成来源批准或公开发布授权。",
+      "本地证据：docs/evidence/ingestion/new-source-batch-2026-07-20.md"
+    ]
+  },
+  "policy": {
+    "version": "1",
+    "status": "pending_review",
+    "adapterKey": "jd-campus-public-api",
+    "adapterVersion": "0.1.0",
+    "entrypoints": ["https://campus.jd.com/#/jobs"],
+    "crawlInterval": {
+      "enabled": false,
+      "minimumHours": 24
+    },
+    "reviewedAt": "2026-07-20",
+    "policyNotes": [
+      "accessPolicyAccepted 未通过，仅允许维护者显式执行单页本地技术探测。",
+      "禁止定时全量采集、生产调度、自动发布和公开展示。",
+      "禁止登录、验证码绕过、Cookie、代理和浏览器自动化生产采集。",
+      "若匿名接口失效、出现验证、发生重定向或结构变化，立即暂停并复核。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "POST",
+        "scheme": "https",
+        "host": "campus.jd.com",
+        "port": 443,
+        "pathPrefix": "/api/wx/position/page",
+        "allowRedirects": false,
+        "allowedQueryParameters": ["type"]
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "campus.jd.com",
+        "port": 443,
+        "pathPrefix": "/api/wx/position/index",
+        "allowRedirects": false,
+        "allowedQueryParameters": ["type"]
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 10,
+      "maxPages": 1,
+      "maxRequests": 1,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {
+      "type": "internship",
+      "pageIndex": 0,
+      "pageSize": 10
+    },
+    "queryStreams": [
+      {
+        "key": "all-function-internships",
+        "label": "京东全部职能实习",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 10
+      }
+    ]
+  }
+}

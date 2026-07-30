@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "allwinner-gdut-internships",
+  "sourceType": "university_employment_site",
+  "organization": {
+    "slug": "allwinner",
+    "name": "珠海全志科技股份有限公司",
+    "officialDomain": "allwinnertech.com",
+    "scale": {
+      "band": "medium",
+      "evidenceUrl": "https://static.cninfo.com.cn/finalpage/2025-03-28/1222928548.PDF",
+      "evidenceText": "珠海全志科技股份有限公司 2024 年年度报告记载报告期末在职员工数量合计 814 人。",
+      "lastVerifiedAt": "2026-07-29T00:00:00.000Z"
+    }
+  },
+  "candidate": {
+    "name": "广东工业大学就业网·全志科技 2027 届实习",
+    "entrypointUrl": "https://career.gdut.edu.cn/campus/view/id/1020713",
+    "provenanceLevel": "university_published",
+    "acquisitionMode": "deterministic_html",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-local-probe",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "广东工业大学就业网发布主体为珠海全志科技股份有限公司；正文官网、上市代码和官方 Moka 招聘站互相印证。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "同一招聘简章包含 7 条 2027 届实习岗位，每条均有独立任职资格和职位描述，截止 2026-08-25。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "高校详情页可在无 Cookie、无登录、无验证码条件下单次 GET 复现；正文是页面自带 zlib + Base64 静态载荷。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "正文原文明示 https://campus.allwinnertech.com；人工浏览器核验后固定到官方 Moka 的 2027 届实习类职位页。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "未取得允许第三方长期复制与公开聚合的授权，只能进入本机 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "静态载荷、2701–2707 岗位编号、任职资格与职位描述结构已冻结，仍需连续运行验证。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 20,
+        "status": "provisional",
+        "note": "7 条芯片、算法、嵌入式、射频和硬件实习。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 16,
+        "status": "provisional",
+        "note": "单页静态载荷包含稳定岗位编号和完整职责要求。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 11,
+        "status": "provisional",
+        "note": "高校页提供发布时间和明确截止日期。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 9,
+        "status": "provisional",
+        "note": "补充 medium 芯片设计企业和电子信息技术岗位。"
+      }
+    },
+    "evidenceNotes": [
+      "2026-07-29 无 Cookie、禁重定向 GET 返回 200；招聘正文由页面内嵌静态载荷确定性解码，不执行远程脚本。",
+      "官方 Moka 页面显示“2027届实习类 共7个职位”，与高校简章岗位数一致。",
+      "公司规模证据见 docs/evidence/ingestion/company-scale-evidence-p1-2026-07-29.md。",
+      "本配置不构成来源批准或公开发布授权。"
+    ]
+  },
+  "policy": {
+    "version": "2",
+    "status": "pending_review",
+    "adapterKey": "university-employment-detail-html",
+    "adapterVersion": "0.1.0",
+    "entrypoints": ["https://career.gdut.edu.cn/campus/view/id/1020713"],
+    "crawlInterval": {
+      "enabled": false,
+      "minimumHours": 168
+    },
+    "reviewedAt": "2026-07-29",
+    "policyNotes": [
+      "仅允许维护者显式执行低频本地技术探测。",
+      "只读取冻结的单一高校详情页；不跟随其他高校链接，不执行页面远程脚本。",
+      "正文静态载荷、岗位编号、主体、实习标记、职责或要求任一变化时立即暂停。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.gdut.edu.cn",
+        "port": 443,
+        "pathPrefix": "/campus/view/id/1020713",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "campus.allwinnertech.com",
+        "port": 443,
+        "pathPrefix": "/campus-recruitment/allwinnertech/43436/",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 7,
+      "maxPages": 1,
+      "maxRequests": 10,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {},
+    "queryStreams": [
+      {
+        "key": "gdut-allwinner-2027-internships",
+        "label": "全志科技 2027 届实习",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 7
+      }
+    ]
+  }
+}

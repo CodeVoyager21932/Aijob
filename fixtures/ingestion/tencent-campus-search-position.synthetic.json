@@ -1,0 +1,24 @@
+{
+  "message": "",
+  "status": 0,
+  "data": {
+    "positionList": [
+      {
+        "id": 31001,
+        "position": 501,
+        "positionTitle": "合成产品运营实习生（示例数据）",
+        "positionFamily": 4,
+        "projectId": 9,
+        "bgs": "SYN ",
+        "workCities": "深圳总部 北京总部 ",
+        "positionUrl": null,
+        "positionSource": "oa",
+        "projectName": "应届实习",
+        "recruitLabelName": "应届实习",
+        "groupTag": null,
+        "postId": "1212345678901234567"
+      }
+    ],
+    "count": 1
+  }
+}

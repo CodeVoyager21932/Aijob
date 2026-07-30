@@ -1,0 +1,38 @@
+[
+  {
+    "data": {
+      "jobUnionId": "5100000001",
+      "jobName": "产品实习生-用户增长",
+      "workCityNameList": ["北京市"],
+      "departmentName": "核心本地商业",
+      "jobDuty": "协助用户增长产品的需求分析、数据监控与方案推进。",
+      "jobRequirement": "在校生；具备用户研究和数据分析能力，熟练使用 Excel。",
+      "jobTypeName": "日常实习",
+      "updateTime": "2026-07-16"
+    }
+  },
+  {
+    "data": {
+      "jobUnionId": "5100000002",
+      "jobName": "产品运营实习生-到店事业群",
+      "workCityNameList": ["上海市"],
+      "departmentName": "到店事业群",
+      "jobDuty": "协助产品运营、用户反馈整理和跨团队项目跟进。",
+      "jobRequirement": "在校生；有内容运营或活动运营经历优先。",
+      "jobTypeName": "转正实习",
+      "updateTime": "2026-07-15"
+    }
+  },
+  {
+    "data": {
+      "jobUnionId": "5100000003",
+      "jobName": "策略产品实习生",
+      "workCityNameList": ["深圳市"],
+      "departmentName": "优选事业部",
+      "jobDuty": "支持策略产品调研、竞品分析和实验复盘。",
+      "jobRequirement": "逻辑思维清晰，具备 SQL 或 Python 数据分析能力。",
+      "jobTypeName": "日常实习",
+      "updateTime": "2026-07-14"
+    }
+  }
+]

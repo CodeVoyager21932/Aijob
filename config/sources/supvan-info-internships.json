@@ -1,0 +1,199 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "supvan-info-internships",
+  "sourceType": "university_employment_site",
+  "organization": {
+    "slug": "supvan-info",
+    "name": "北京硕方信息技术有限公司",
+    "officialDomain": "supvan.com.cn"
+  },
+  "candidate": {
+    "name": "南开就业网·硕方信息实习",
+    "entrypointUrl": "https://career.nankai.edu.cn/correcruit/content/id/116240.html",
+    "provenanceLevel": "university_published",
+    "acquisitionMode": "deterministic_html",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-local-probe",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "岗位由南开大学官方就业域名实习信息栏目公开发布；supvan.com.cn 页脚以营业执照与京ICP备160003891号-1 标注同一法人主体北京硕方信息技术有限公司。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "2026-07-06 同日发布 6 个连续 ID（116235–116240）的同企业实习详情页：嵌入式、渠道销售、高分子耗材、企业AI、硬件、助理机械设计。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "六个详情页无需登录、验证码或脚本即可读取；2026-07-26 服务端无 Cookie curl 复现通过。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "页面原文明示职位投递网址链接 https://www.supvan.com/joinUs（关联主体硕方科技（北京）有限公司的官方加入我们页，Moka 列表页先例）；页面邮箱域 jtsupvan.com 无法核验主体归属，按 ADR-0017 白名单拒绝。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "尚无允许第三方长期复制和公开聚合页面正文的明确授权，只能进入本机 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "页面 ID 稳定、div.zpxx 标签值对与专业要求/职位描述小节可确定性解析，尚未经过连续运行验证。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 14,
+        "status": "provisional",
+        "note": "6 条明确实习，电子信息技术方向为主（嵌入式/硬件/AI），供给规模小。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过，分数不能覆盖该失败。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 12,
+        "status": "provisional",
+        "note": "标签值对与小节结构可确定性解析，但不是结构化接口；无截止日期字段。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 6,
+        "status": "provisional",
+        "note": "提供发布时间，无截止日期或关闭状态。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 7,
+        "status": "provisional",
+        "note": "补充中小企业与电子信息技术优先轨道供给（规模证据仍缺，保持 unknown）。"
+      }
+    },
+    "evidenceNotes": [
+      "六页均为南开实习信息栏目详情页，meta keywords 含实习信息栏目标记；岗位标题不带实习字样，实习语义来自官方栏目。",
+      "投递邮箱 wangjianli@jtsupvan.com 的域名 jtsupvan.com 无可达网站且无主体证据，不等于企业官方域名 supvan.com.cn，按企业邮箱白名单拒绝，仅保留官方投递网址。",
+      "硕方科技（北京）有限公司官网 supvan.com robots.txt 为 Disallow: /，该站仅作为用户导航目标，采集进程不请求。",
+      "公司规模无官方或政府证据，保持 unknown。",
+      "本配置只证明受限技术可读取性，不构成来源批准或公开发布授权。",
+      "本地证据：docs/evidence/ingestion/source-approval-batch-02-2026-07-26.md"
+    ]
+  },
+  "policy": {
+    "version": "1",
+    "status": "pending_review",
+    "adapterKey": "university-employment-detail-html",
+    "adapterVersion": "0.1.0",
+    "entrypoints": [
+      "https://career.nankai.edu.cn/correcruit/content/id/116240.html",
+      "https://career.nankai.edu.cn/correcruit/content/id/116239.html",
+      "https://career.nankai.edu.cn/correcruit/content/id/116238.html",
+      "https://career.nankai.edu.cn/correcruit/content/id/116237.html",
+      "https://career.nankai.edu.cn/correcruit/content/id/116236.html",
+      "https://career.nankai.edu.cn/correcruit/content/id/116235.html"
+    ],
+    "crawlInterval": {
+      "enabled": false,
+      "minimumHours": 168
+    },
+    "reviewedAt": "2026-07-26",
+    "policyNotes": [
+      "accessPolicyAccepted 未通过，仅允许维护者显式执行低频本地技术探测。",
+      "只允许读取六个冻结的详情页，禁止跟随页面其他链接、递归抓取高校网站、定时调度或自动公开。",
+      "投递网址 https://www.supvan.com/joinUs 只作为用户导航目标校验，不由采集进程请求。",
+      "页面邮箱域 jtsupvan.com 未通过企业域名白名单，不得展示邮箱投递方式。",
+      "页面结构变化、招聘过期或申请链接变化时必须进入复核。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.nankai.edu.cn",
+        "port": 443,
+        "pathPrefix": "/correcruit/content/id/116240.html",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      },
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.nankai.edu.cn",
+        "port": 443,
+        "pathPrefix": "/correcruit/content/id/116239.html",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      },
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.nankai.edu.cn",
+        "port": 443,
+        "pathPrefix": "/correcruit/content/id/116238.html",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      },
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.nankai.edu.cn",
+        "port": 443,
+        "pathPrefix": "/correcruit/content/id/116237.html",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      },
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.nankai.edu.cn",
+        "port": 443,
+        "pathPrefix": "/correcruit/content/id/116236.html",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      },
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.nankai.edu.cn",
+        "port": 443,
+        "pathPrefix": "/correcruit/content/id/116235.html",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "www.supvan.com",
+        "port": 443,
+        "pathPrefix": "/joinUs",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 6,
+      "maxPages": 6,
+      "maxRequests": 10,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {},
+    "queryStreams": [
+      {
+        "key": "supvan-internship-pages",
+        "label": "硕方信息实习详情页",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 6
+      }
+    ]
+  }
+}

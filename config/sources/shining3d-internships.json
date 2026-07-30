@@ -1,0 +1,153 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "shining3d-internships",
+  "sourceType": "organization_career_site",
+  "organization": {
+    "slug": "shining3d",
+    "name": "先临三维科技股份有限公司",
+    "officialDomain": "shining3d.cn",
+    "scale": {
+      "band": "medium",
+      "evidenceUrl": "https://www.shining3d.cn/",
+      "evidenceText": "先临三维官网标注“先临团队规模达1300+人”。",
+      "lastVerifiedAt": "2026-07-29T00:00:00.000Z"
+    }
+  },
+  "candidate": {
+    "name": "先临三维官方实习生招聘",
+    "entrypointUrl": "https://shining3d.zhiye.com/intern/jobs",
+    "provenanceLevel": "organization_owned",
+    "acquisitionMode": "public_api",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-local-probe",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "先临三维官网招聘导航直达 shining3d.zhiye.com；北森租户 Alias 为先临三维科技股份有限公司。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "2026-07-29 官方实习类目报告 8 条岗位，均含职责与任职要求。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "门户与列表接口无需登录、验证码、Cookie 或动态签名；只使用官方前端公开调用的 JSON 契约。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "申请链接固定到先临三维官方北森实习职位列表页，页面内联展示详情并提供投递。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "robots.txt 为 Allow: /，但没有允许第三方长期复制与公开聚合的授权，只能进入本机 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "PortalId、实习 Category=3、字段列表和无状态 POST 已冻结，仍需连续运行验证。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 22,
+        "status": "provisional",
+        "note": "8 条产品、C++、几何算法、三维重建和测试等实习。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 18,
+        "status": "provisional",
+        "note": "公共 JSON 返回稳定 ID、完整职责要求、地区和时间字段。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 9,
+        "status": "provisional",
+        "note": "提供发布时间，截止可为空并诚实保留 unknown。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 9,
+        "status": "provisional",
+        "note": "补充三维视觉 medium 企业及产品、算法、软件岗位。"
+      }
+    },
+    "evidenceNotes": [
+      "2026-07-29 读取 robots.txt 与官方校园页，冻结 PortalId 957a969f-e192-4ab2-ae07-44c35064f1ab。",
+      "首次公开接口请求 PageSize=5 返回 Count=8，前 5 条均为实习且职责、要求完整。",
+      "公司规模证据见 docs/evidence/ingestion/company-scale-evidence-p1-2026-07-29.md。",
+      "本配置不构成来源批准或公开发布授权。"
+    ]
+  },
+  "policy": {
+    "version": "1",
+    "status": "pending_review",
+    "adapterKey": "beisen-zhiye-public-api",
+    "adapterVersion": "0.1.1",
+    "entrypoints": ["https://shining3d.zhiye.com/intern/jobs"],
+    "crawlInterval": {
+      "enabled": false,
+      "minimumHours": 24
+    },
+    "reviewedAt": "2026-07-29",
+    "policyNotes": [
+      "仅允许维护者显式执行低频本地技术探测。",
+      "禁止登录、验证码绕过、Cookie、代理或浏览器自动化生产采集。",
+      "Category、PortalId、主体或字段结构变化时立即暂停。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "POST",
+        "scheme": "https",
+        "host": "shining3d.zhiye.com",
+        "port": 443,
+        "pathPrefix": "/api/Jobad/GetJobAdPageList",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "shining3d.zhiye.com",
+        "port": 443,
+        "pathPrefix": "/intern/jobs",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 30,
+      "maxPages": 3,
+      "maxRequests": 40,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {
+      "category": "3",
+      "pageIndex": 0,
+      "pageSize": 30
+    },
+    "queryStreams": [
+      {
+        "key": "intern-jobs",
+        "label": "先临三维实习",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 30
+      }
+    ]
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "bytedance-manual-test",
+  "sourceType": "organization_career_site",
+  "organization": {
+    "slug": "bytedance-manual-test-company",
+    "name": "字节跳动测试夹具",
+    "officialDomain": "jobs.bytedance.com"
+  },
+  "candidate": {
+    "name": "字节人工快照离线测试",
+    "entrypointUrl": "https://jobs.bytedance.com/campus/position",
+    "provenanceLevel": "organization_owned",
+    "acquisitionMode": "browser_required",
+    "candidateStatus": "local_probe_only",
+    "assessor": "offline-integration-fixture",
+    "hardGates": {
+      "officialIdentity": { "status": "pass", "note": "测试官方域名边界。" },
+      "targetSupply": { "status": "pass", "note": "夹具包含两条岗位。" },
+      "noAuthBypass": { "status": "pass", "note": "只读离线快照。" },
+      "officialApplyLink": { "status": "pass", "note": "使用官方详情链接。" },
+      "accessPolicyAccepted": { "status": "fail", "note": "仅限本机测试。" },
+      "stableIdentityAndFields": { "status": "pending", "note": "合成测试数据。" }
+    },
+    "scores": {
+      "targetSupply": { "weight": 30, "score": 10, "status": "fixture", "note": "离线夹具。" },
+      "policyAccess": { "weight": 25, "score": 0, "status": "failed", "note": "不公开。" },
+      "structure": { "weight": 20, "score": 10, "status": "fixture", "note": "结构化夹具。" },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 2,
+        "status": "fixture",
+        "note": "不做网络刷新。"
+      },
+      "diversity": { "weight": 10, "score": 5, "status": "fixture", "note": "测试两类岗位。" }
+    },
+    "evidenceNotes": ["纯离线集成测试夹具，不代表真实来源准入。"]
+  },
+  "policy": {
+    "version": "1",
+    "status": "pending_review",
+    "adapterKey": "bytedance-manual-browser-snapshot",
+    "adapterVersion": "0.1.1",
+    "entrypoints": ["https://jobs.bytedance.com/campus/position"],
+    "crawlInterval": { "enabled": false, "minimumHours": 168 },
+    "reviewedAt": "2026-07-21",
+    "policyNotes": ["仅测试人工快照的零网络导入。"],
+    "fetchTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "jobs.bytedance.com",
+        "port": 443,
+        "pathPrefix": "/campus/position",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "jobs.bytedance.com",
+        "port": 443,
+        "pathPrefix": "/campus/position/",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": false,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 10,
+      "maxPages": 1,
+      "maxRequests": 1,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {},
+    "queryStreams": [
+      {
+        "key": "manual-visible-internships",
+        "label": "字节人工快照测试",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 10
+      }
+    ]
+  }
+}

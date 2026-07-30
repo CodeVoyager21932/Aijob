@@ -1,0 +1,148 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "baidu-internships",
+  "sourceType": "organization_career_site",
+  "organization": {
+    "slug": "baidu",
+    "name": "百度",
+    "officialDomain": "talent.baidu.com"
+  },
+  "candidate": {
+    "name": "百度官方招聘·实习生招聘",
+    "entrypointUrl": "https://talent.baidu.com/jobs/list?recruitType=INTERN",
+    "provenanceLevel": "organization_owned",
+    "acquisitionMode": "deterministic_html",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-local-probe",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "招聘入口、岗位列表和岗位详情均位于百度自有域名 talent.baidu.com。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "2026-07-20 官方实习列表报告 399 条，覆盖技术、产品、政企、销售和综合职类。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "首屏岗位由服务器端 HTML 直接提供，无需登录、验证码、Cookie 或浏览器脚本执行。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "列表内稳定 jobId 对应 talent.baidu.com/jobs/detail/INTERN/{jobId} 官方详情与投递入口。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "robots.txt 返回 404，且未发现允许第三方长期复制和公开聚合岗位正文的明确授权；只能进入本机 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "单次 SSR 数据提供稳定 UUID jobId/postId 与结构化字段，仍需重复运行和人工抽检验证。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 30,
+        "status": "provisional",
+        "note": "官方页面报告 399 条实习岗位，明显超过本地扩容需要。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过，技术可读性不能覆盖该失败。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 18,
+        "status": "provisional",
+        "note": "SSR 内嵌完整 JSON，包含稳定身份、职责、要求、地点、职类和发布时间。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 8,
+        "status": "provisional",
+        "note": "岗位提供 publishDate/updateDate，但尚无连续运行和关闭状态验证。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 8,
+        "status": "provisional",
+        "note": "补充技术、设计、销售、战略等多职能和多个城市。"
+      }
+    },
+    "evidenceNotes": [
+      "只读取 recruitType=INTERN 的首个 SSR HTML 页面，单次最多 10 条。",
+      "不使用搜索结果中的 recommendCode，不读取登录、收藏、申请或个人中心接口。",
+      "解析器只读取 listData.listDetailData，忽略同页可能存在的其他招聘类型 detailData。",
+      "本配置只证明受限技术可读取性，不构成来源批准或公开发布授权。",
+      "本地证据：docs/evidence/ingestion/new-source-batch-2026-07-20.md"
+    ]
+  },
+  "policy": {
+    "version": "2",
+    "status": "pending_review",
+    "adapterKey": "baidu-ssr-deterministic-html",
+    "adapterVersion": "0.1.1",
+    "entrypoints": ["https://talent.baidu.com/jobs/list?recruitType=INTERN"],
+    "crawlInterval": {
+      "enabled": false,
+      "minimumHours": 24
+    },
+    "reviewedAt": "2026-07-20",
+    "policyNotes": [
+      "accessPolicyAccepted 未通过，仅允许维护者显式执行单页本地技术探测。",
+      "禁止定时全量采集、生产调度、自动发布和公开展示。",
+      "禁止登录、验证码绕过、浏览器自动化、推荐码和未登记网络目标。",
+      "只读取首屏 SSR 数据；若页面改为客户端动态加载、出现验证码或结构变化，立即暂停并复核。",
+      "v2 将适配器升级至 0.1.1，使用字符串感知的平衡花括号解析 SSR JSON，兼容同一脚本中的后续官方初始化语句；字段范围和网络目标不变。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "talent.baidu.com",
+        "port": 443,
+        "pathPrefix": "/jobs/list",
+        "allowRedirects": false,
+        "allowedQueryParameters": ["recruitType"]
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "talent.baidu.com",
+        "port": 443,
+        "pathPrefix": "/jobs/detail/INTERN/",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 10,
+      "maxPages": 1,
+      "maxRequests": 1,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {
+      "recruitType": "INTERN"
+    },
+    "queryStreams": [
+      {
+        "key": "all-function-internships",
+        "label": "百度全部职能实习",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 10
+      }
+    ]
+  }
+}

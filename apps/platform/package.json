@@ -1,0 +1,38 @@
+{
+  "name": "@aijob/platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "cli": "tsx src/cli.ts",
+    "db:migrate": "tsx src/migrate.ts",
+    "dev": "tsx watch src/dev.ts",
+    "dev:web-api": "tsx watch src/server.ts",
+    "dev:match-worker": "tsx watch src/match-worker.ts",
+    "start": "node dist/server.js",
+    "start:match-worker": "node dist/match-worker.js",
+    "test": "vitest run --no-file-parallelism",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@aijob/config": "workspace:*",
+    "@aijob/contracts": "workspace:*",
+    "@aijob/database": "workspace:*",
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/multipart": "^10.1.0",
+    "commander": "14.0.0",
+    "docx": "^9.7.1",
+    "fastify": "5.8.5",
+    "kysely": "0.28.17",
+    "mammoth": "^1.12.0",
+    "pdfjs-dist": "^6.1.200",
+    "yauzl": "^3.4.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/yauzl": "^3.4.0",
+    "tsx": "4.20.3",
+    "vitest": "3.2.6"
+  }
+}

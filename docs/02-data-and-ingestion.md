@@ -17,7 +17,7 @@
 | `organization_owned` | 企业或高校自有域名的公开招聘页面/接口 | 优先接入 |
 | `verified_ats_tenant` | 已核验企业归属和租户路径的官方 ATS 页面 | 接入精确租户范围 |
 | `university_published` | 高校就业网站公开发布，企业主体可核验 | 保留高校来源；企业申请页无法核验时明确降级 |
-| `official_account_link` | 企业认证公开账号链接到官方落地页 | 只把核验后的落地页作为岗位来源 |
+| `official_account_link` | 企业认证公众号的人工可见原文 | 只允许本机人工快照；投递页或企业域名邮箱必须另行核验 |
 | `unverified` | 转载、截图、个人表格或主体不明页面 | 不进入正式岗位库 |
 
 ### 2.2 访问政策 `policy_status`
@@ -37,7 +37,7 @@
 | `public_api` | 公开 API 或稳定 JSON | 启用 |
 | `json_ld` | `schema.org/JobPosting` | 启用 |
 | `deterministic_html` | 固定 ATS 模板或来源专用 DOM 映射 | 启用 |
-| `browser_required` | 必须执行浏览器脚本才能得到数据 | 记录但不启用；Playwright 延后单独决策 |
+| `browser_required` | 必须执行浏览器脚本才能得到数据 | 不进入生产 Worker；仅 ADR-0016/0017 明确允许的维护者人工可见快照可在本机导入 |
 
 ### 2.4 新鲜度 `freshness_state`
 
@@ -58,17 +58,18 @@
 |---|---|
 | `source_id` | 内部唯一标识 |
 | `organization_id` | 企业或高校主体；共享 ATS 中仍按企业租户分别登记 |
-| `source_type` | 企业官网、企业 ATS、高校就业网 |
+| `source_type` | 企业官网、企业认证公众号、企业 ATS、高校就业网 |
 | `provenance_level` | 主体证明等级 |
 | `policy_status` | 当前访问政策状态 |
 | `acquisition_mode` | 采集方式 |
 | `entrypoints` | 审核后的列表页、站点地图或公开接口入口 |
 | `fetch_targets` | 允许采集的协议、主机、端口和路径前缀集合 |
 | `apply_targets` | 允许展示为官方申请入口的独立目标集合 |
-| `adapter_key` | 本项目维护的适配器标识 |
+| `adapter_key` | 本项目维护的可复用适配器标识；与企业或租户级 `source_key` 独立 |
 | `adapter_version` | 当前适配器版本 |
 | `crawl_interval` | 最小采集间隔和允许时间窗 |
 | `rate_policy` | 并发、请求速率、响应上限和退避策略 |
+| `request_budget` | 单次运行的 `maxItems`、`maxPages`、`maxRequests` 和 `minimumIntervalMs` 硬上限 |
 | `absence_policy` | 只有完整运行才能累计的未见次数、最短观察时间和关闭阈值 |
 | `policy_notes` | 条款、robots、展示和退出说明 |
 | `reviewed_at` | 最近人工复核时间 |
@@ -95,6 +96,10 @@ path_prefix=/tenant/acme/
 共享 ATS 必须核验企业租户路径或租户 ID，不能因为一个企业获准而允许访问该 ATS 主机上的全部租户。重定向每一跳重新校验，申请链接使用单独的 `apply_targets`，不能继承采集权限。
 
 普通用户建议的新来源只进入人工审核队列，不触发网络请求。
+
+企业认证公众号额外遵守以下边界：`source_type=organization_official_account`、`provenance_level=official_account_link`、`acquisition_mode=browser_required`、`policy_status=pending_review` 且 `localProbe.enabled=false`。导入 CLI 只读 `.data/browser-imports/` 下的人工快照，任务 `request_count=0`；个人邮箱、个人微信、二维码-only、无法核验表单和非实习岗位整批拒绝。
+
+企业主体保存 `scale_band`、`scale_evidence_url`、`scale_evidence_text` 和 `scale_verified_at`。已知规模必须四项完整，未知规模不得携带部分证据；Aijob 当前使用 `small=1–199 人`、`medium=200–1999 人`、`large=2000 人及以上`，该口径只服务于样本分析，不代表法定企业划型。
 
 ## 4. 岗位与版本模型
 
@@ -123,7 +128,7 @@ path_prefix=/tenant/acme/
 每次内容变化生成不可变 `SourceJobRevision`，并记录 `import_mode=collector/manual`、原始值、标准化值、字段置信度和字段来源。两种导入证据不能混淆：
 
 - `collector`：必须引用已完成完整性校验的 `RawJobSnapshot`；重复处理相同 `content_hash` 不产生新修订。
-- `manual`：仅供 MVP-0 的 `internal ops CLI` 使用，可以不创建快照，但必须引用已批准 `SourcePolicy`，保存原始来源 URL、核验时间、复核人、导入批次，以及支持每个关键字段的最小纯文本摘录或“来源未说明”。人工导入不保存原始 HTML，也不得标记为“可回放快照”。
+- `manual`：仅作为完整本地 MVP 的采集失败回退，由 `internal ops CLI` 使用；可以不创建快照，但必须引用已批准 `SourcePolicy`，保存原始来源 URL、核验时间、复核人、导入批次，以及支持每个关键字段的最小纯文本摘录或“来源未说明”。人工导入不保存原始 HTML，也不得标记为“可回放快照”。
 
 两种模式都计算覆盖规范字段与证据引用的 `revision_content_hash`；同一 `SourceJobRecord` 的相同哈希不得重复生成修订。人工导入和自动采集都必须通过同一字段 Schema、URL/申请目标校验、不可变版本和发布复核。后续自动采集到同一岗位时创建新的快照支持修订，不在原有人工修订上补写快照。
 
@@ -243,7 +248,7 @@ SourcePolicy
 
 所有用户查询只读取已发布版本。新解析结果先进入候选或复核状态，不直接覆盖当前可见版本；发现错误时将活动指针切回上一已验证版本，不修改历史。
 
-MVP-0 的人工路径不伪造网络快照：
+人工回退路径不伪造网络快照：
 
 ```text
 已批准 SourcePolicy

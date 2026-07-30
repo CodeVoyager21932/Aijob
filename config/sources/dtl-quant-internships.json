@@ -1,0 +1,142 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "dtl-quant-internships",
+  "sourceType": "university_employment_site",
+  "organization": {
+    "slug": "dtl-quant",
+    "name": "北京道泰量合私募基金管理有限公司",
+    "officialDomain": "dytechlab.com"
+  },
+  "candidate": {
+    "name": "南开就业网·DTL量化2026秋季实习",
+    "entrypointUrl": "https://career.nankai.edu.cn/correcruit/content/id/116147.html",
+    "provenanceLevel": "university_published",
+    "acquisitionMode": "deterministic_html",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-local-probe",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "南开就业网发布主体为北京道泰量合私募基金管理有限公司，正文 DTL 名称、官网与企业域名邮箱互相印证。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "同页提供八个 Internship 岗位，均有独立职位描述和任职要求。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "冻结详情页和官方 Careers 均可匿名读取，不依赖登录、Cookie、验证码或动态令牌。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "页面原文明示 https://www.dytechlab.com/careers 为其他职位主申请渠道。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "未取得第三方长期复制与公开聚合授权，仅进入 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "八岗位编号顺序、职位描述与任职要求边界已冻结，仍待连续运行验证。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 20,
+        "status": "provisional",
+        "note": "八条量化、交易、软件、GPU 和人力资源实习。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 16,
+        "status": "provisional",
+        "note": "单页多岗位具有稳定标题与职责要求边界。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 8,
+        "status": "provisional",
+        "note": "发布时间明确，投递为即日起。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 10,
+        "status": "provisional",
+        "note": "跨量化研究、工程技术与人力资源职能。"
+      }
+    },
+    "evidenceNotes": [
+      "官网未披露可映射到固定口径的员工总数，规模保持 unknown。",
+      "不因金融公司标签将软件、GPU 或人力资源岗位自动归入技术轨道。",
+      "本配置不构成来源批准或公开发布授权。"
+    ]
+  },
+  "policy": {
+    "version": "1",
+    "status": "pending_review",
+    "adapterKey": "university-employment-detail-html",
+    "adapterVersion": "0.1.0",
+    "entrypoints": ["https://career.nankai.edu.cn/correcruit/content/id/116147.html"],
+    "crawlInterval": {
+      "enabled": false,
+      "minimumHours": 168
+    },
+    "reviewedAt": "2026-07-29",
+    "policyNotes": [
+      "仅允许维护者显式执行低频本地技术探测。",
+      "只读取冻结详情页；申请交接仅导航到官方 Careers。",
+      "主体、实习标记、申请链或任一岗位职责要求边界变化时立即暂停。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.nankai.edu.cn",
+        "port": 443,
+        "pathPrefix": "/correcruit/content/id/116147.html",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "www.dytechlab.com",
+        "port": 443,
+        "pathPrefix": "/careers",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 8,
+      "maxPages": 1,
+      "maxRequests": 10,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {},
+    "queryStreams": [
+      {
+        "key": "dtl-2026-autumn-internships",
+        "label": "DTL量化2026秋季实习",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 8
+      }
+    ]
+  }
+}

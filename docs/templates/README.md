@@ -1,6 +1,6 @@
 # 项目模板
 
-这些模板用于 Phase 0 产品发现、MVP-0 工程交付和首批数据验证，不是生产数据库导出格式。当前阶段、两个最高风险假设和 Gate 状态以 [MVP 路线与当前决策面板](../06-mvp-roadmap.md) 为唯一动态事实源。
+这些模板用于本地完整 MVP 工程交付、后续产品发现和数据验证，不是生产数据库导出格式。当前阶段、两个最高风险假设和 Gate 状态以 [MVP 路线与当前决策面板](../06-mvp-roadmap.md) 为唯一动态事实源。
 
 ## 产品发现与交付
 
@@ -10,7 +10,7 @@
 - [功能规格](feature-spec.md)：把已经验证的问题转成可验收范围，并明确三轴、五态、AI 降级与删除路径。
 - [ADR](adr.md)：记录跨模块、敏感或难以逆转的重要决定。
 
-固定研究协议先完成 2 人校准，再进行 6 人正式实验；实时样本进度只在决策面板更新。AI 默认关闭；模板与规则先独立成立，AI 只作为最后一层受控对照。
+固定顺序是先完成 G2 本地完整 MVP，再做 2 人校准和 6 人正式实验；实时进度只在决策面板更新。本地 AI 简历优化由用户显式启用并保留模板降级，远程/公开启用仍需受控对照。
 
 ## 来源登记表
 
@@ -33,9 +33,9 @@
 
 ## 岗位样本表
 
-使用 [job-samples.csv](job-samples.csv) 人工记录 Phase 0 的 20-30 条产品 / 运营实习岗位；先录入 5 条校准字段，再扩充完整样本。每条至少保留来源、原始链接、官方申请链接、最后核验时间和当前活动状态。
+使用 [job-samples.csv](job-samples.csv) 记录或复核扩容后本地完整 MVP 的 300–500 条全部职能实习岗位。每条至少保留企业规模证据、来源、原始链接、官方 URL 或企业域名邮箱、最后核验时间和当前活动状态。
 
-MVP-0 人工样本填写 `import_mode=manual` 和稳定 `import_batch_id`；自动数据切片使用 `import_mode=collector`。人工记录的原始字段与最小职责/要求摘录构成字段级证据，不得填写或伪造 Bucket 快照键。
+人工回退填写 `import_mode=manual` 和稳定 `import_batch_id`；自动来源使用 `import_mode=collector`。人工记录的原始字段与最小职责/要求摘录构成字段级证据，不得填写或伪造 Bucket 快照键。
 
 以下六个资格重点字段必须填写原文值，来源未说明时统一写 `unknown`，不能留空或猜测：
 
@@ -46,7 +46,9 @@ MVP-0 人工样本填写 `import_mode=manual` 和稳定 `import_batch_id`；自�
 5. `graduation_year_raw`：毕业年份。
 6. `recruitment_batch_raw`：招聘批次。
 
-`function_track` 只允许 `product / operations`。岗位状态使用三个独立轴：`ingestion_state` 为 `discovered / parsed / validated / rejected`，`publication_state` 为 `draft / review / published / suppressed / archived`，`activity_state` 为 `active / uncertain / closed`。样本中的未知值是诚实数据，不等于不符合。
+`function_track` 使用 `product / operations / engineering / data_ai / design / marketing / sales_business / finance / people_admin_legal / research_consulting / supply_chain_manufacturing / other`。无法稳定归一或多个职能依据冲突时，不得强行写入单一值，必须在 `unknown_or_conflict_notes` 保留原文依据并进入复核。岗位状态使用三个独立轴：`ingestion_state` 为 `discovered / parsed / validated / rejected`，`publication_state` 为 `draft / review / published / suppressed / archived`，`activity_state` 为 `active / uncertain / closed`。样本中的未知值和冲突是诚实数据，不等于不符合。
+
+`manual_review_result` 在复核前写 `pending`；人工打开官方页面并完成逐字段检查后，只允许写 `confirmed / replace / needs_second_review`。`pending` 候选不计入人工样本进度，也不得进入研究目录。
 
 ## 假设登记表
 

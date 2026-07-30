@@ -1,0 +1,155 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "fanruan-trainee-internships",
+  "sourceType": "organization_career_site",
+  "organization": {
+    "slug": "fanruan",
+    "name": "帆软软件有限公司",
+    "officialDomain": "fanruan.com",
+    "scale": {
+      "band": "large",
+      "evidenceUrl": "https://join.fanruan.com/explore-fr",
+      "evidenceText": "帆软招聘官网“走近帆软”页面标注“2000+员工，公司2000+员工”。",
+      "lastVerifiedAt": "2026-07-29T00:00:00.000Z"
+    }
+  },
+  "candidate": {
+    "name": "帆软实习生招聘",
+    "entrypointUrl": "https://join.fanruan.com/trainee",
+    "provenanceLevel": "organization_owned",
+    "acquisitionMode": "public_api",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-browser-reassessment",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "实习列表、岗位详情与投递入口均位于帆软自有域名 join.fanruan.com，公司官网 fanruan.com 招聘导航直接指向该站点。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "2026-07-26 官方列表接口报告 19 条在招岗位，其中首页 10 条中 9 条 mode=实习，覆盖产品、设计、市场、销售等职能。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "列表为公开表单 POST，详情为公开 GET；无登录、验证码、Cookie 或动态签名，浏览器仅用于人工发现页面自身调用的接口。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "岗位 id 可构造 join.fanruan.com/trainee/detail?id=N 官方详情页，2026-07-26 人工核验返回 200 且含岗位正文与投递入口。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "robots.txt 仅禁止 /wp-admin/，未发现允许第三方长期复制和公开聚合岗位正文的明确授权；只能进入本机 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "列表 JSON 提供数字 id、职责、要求、城市、部门、职类和 mode 字段，仍需重复运行和人工抽检。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 22,
+        "status": "provisional",
+        "note": "官方列表报告 19 条，其中明确实习约 17 条，含产品/运营优先方向。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过，技术可读性不能覆盖该失败。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 17,
+        "status": "provisional",
+        "note": "公开 JSON 含稳定数字 id、mode 实习标记、完整职责要求与多城市字段；update_date 可为空。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 6,
+        "status": "provisional",
+        "note": "未提供发布或截止时间，尚无连续运行和关闭状态验证。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 8,
+        "status": "provisional",
+        "note": "覆盖产品、设计、测试、市场、销售、职能等多职能与南京/无锡/北京等城市。"
+      }
+    },
+    "evidenceNotes": [
+      "浏览器只用于人工发现官方页面自身调用的公开接口，生产探测使用标准 HTTP 适配器。",
+      "列表为 join.fanruan.com/trainee 表单 POST，返回 JSON；mode 非实习的岗位在本地被拒绝，不写入目录。",
+      "不处理验证码、不使用账号、Cookie、代理或隐藏浏览器指纹。",
+      "帆软招聘官网“走近帆软”页面标注“2000+员工，公司2000+员工”，按 Aijob 固定口径记录为 large；无锡市锡山区政府 2026-07-03 发布的企业报道同时记载“企业目前在职员工规模超2000人”。",
+      "本配置只证明受限技术可读取性，不构成来源批准或公开发布授权。",
+      "本地证据：docs/evidence/ingestion/source-approval-batch-2026-07-26.md"
+    ]
+  },
+  "policy": {
+    "version": "2",
+    "status": "pending_review",
+    "adapterKey": "fanruan-trainee-public-api",
+    "adapterVersion": "0.1.0",
+    "entrypoints": ["https://join.fanruan.com/trainee"],
+    "crawlInterval": {
+      "enabled": false,
+      "minimumHours": 24
+    },
+    "reviewedAt": "2026-07-26",
+    "policyNotes": [
+      "accessPolicyAccepted 未通过，仅允许维护者显式执行低频本地技术探测。",
+      "禁止定时全量采集、生产调度、自动发布和公开展示。",
+      "禁止登录、验证码绕过、Cookie、代理和浏览器自动化生产采集。",
+      "mode 非实习、社招或兼职岗位一律拒绝；若接口失效、出现验证或重定向，立即暂停并复核。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "POST",
+        "scheme": "https",
+        "host": "join.fanruan.com",
+        "port": 443,
+        "pathPrefix": "/trainee",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "join.fanruan.com",
+        "port": 443,
+        "pathPrefix": "/trainee/detail",
+        "allowRedirects": false,
+        "allowedQueryParameters": ["id"]
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 30,
+      "maxPages": 3,
+      "maxRequests": 40,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {
+      "filter": 1,
+      "page": 1
+    },
+    "queryStreams": [
+      {
+        "key": "trainee-internships",
+        "label": "帆软实习生招聘",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 30
+      }
+    ]
+  }
+}

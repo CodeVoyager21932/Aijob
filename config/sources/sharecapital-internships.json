@@ -1,0 +1,147 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "sharecapital-internships",
+  "sourceType": "university_employment_site",
+  "organization": {
+    "slug": "sharecapital",
+    "name": "深圳市分享成长投资管理有限公司",
+    "officialDomain": "sharecapital.cn",
+    "scale": {
+      "band": "small",
+      "evidenceUrl": "https://www.sharecapital.cn/about-us",
+      "evidenceText": "分享投资官网关于分享页面披露专业投资团队50余人。",
+      "lastVerifiedAt": "2026-07-29T00:00:00.000Z"
+    }
+  },
+  "candidate": {
+    "name": "港中深就业网·分享投资基金投后助理实习",
+    "entrypointUrl": "https://career.cuhk.edu.cn/job/view/id/467309",
+    "provenanceLevel": "university_published",
+    "acquisitionMode": "deterministic_html",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-local-probe",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "港中深就业网主体与分享投资官网主体一致，官网同时披露相同 HR 邮箱。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "页面明确提供基金投后助理实习岗位、完整职责与要求，截止 2026-12-31。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "冻结详情页可无登录、Cookie、验证码或动态令牌读取。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "页面和公司官网均明示 hr@sharecapital.cn。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "未取得第三方长期复制与公开聚合授权，仅进入 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "主体、实习标记、申请邮箱、职责和要求结构已冻结，仍待连续运行验证。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 6,
+        "status": "provisional",
+        "note": "首批一条投后助理实习。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 14,
+        "status": "provisional",
+        "note": "港中深详情页可确定性解析。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 10,
+        "status": "provisional",
+        "note": "发布时间和截止日期明确。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 9,
+        "status": "provisional",
+        "note": "补充 small 企业与投资运营岗位。"
+      }
+    },
+    "evidenceNotes": [
+      "官网专业投资团队50余人按固定口径归类 small。",
+      "本配置不构成来源批准或公开发布授权。"
+    ]
+  },
+  "policy": {
+    "version": "1",
+    "status": "pending_review",
+    "adapterKey": "university-employment-detail-html",
+    "adapterVersion": "0.1.0",
+    "entrypoints": ["https://career.cuhk.edu.cn/job/view/id/467309"],
+    "crawlInterval": {
+      "enabled": false,
+      "minimumHours": 168
+    },
+    "reviewedAt": "2026-07-29",
+    "policyNotes": [
+      "仅允许维护者显式执行低频本地技术探测。",
+      "只读取冻结详情页，不跟随其他招聘链接。",
+      "主体、实习标记、申请邮箱或正文结构变化时立即暂停。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.cuhk.edu.cn",
+        "port": 443,
+        "pathPrefix": "/job/view/id/467309",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.cuhk.edu.cn",
+        "port": 443,
+        "pathPrefix": "/job/view/id/467309",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 1,
+      "maxPages": 1,
+      "maxRequests": 10,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {},
+    "queryStreams": [
+      {
+        "key": "sharecapital-post-investment-intern",
+        "label": "分享投资基金投后助理实习",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 1
+      }
+    ]
+  }
+}

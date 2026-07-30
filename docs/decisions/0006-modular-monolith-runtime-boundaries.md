@@ -1,6 +1,6 @@
 # ADR-0006：采用模块化单体、三个进程、PostgreSQL 真源与岗位快照 Bucket
 
-- 状态：accepted
+- 状态：accepted；文件上传边界由 [ADR-0012](0012-isolated-resume-document-ingestion.md) 修订
 - 日期：2026-07-15
 - 决策者：项目维护者
 - 关联：系统架构、安全威胁模型、工程交付规范
@@ -40,7 +40,9 @@
 
 PostgreSQL 是唯一查询、任务和元数据真源，通过 schema、角色和外键/唯一约束隔离领域并承担任务表。独立岗位快照 Bucket 只保存原始公开岗位响应正文，绝不存放用户简历、画像、匹配结果、邀请令牌或日志；`collector-worker` 只能读写其专用前缀，`web-api` 和 `match-worker` 没有 Bucket 读取权限。
 
-快照对象键由来源标识与内容哈希确定性生成。采集进程必须先上传并校验对象，再提交 PostgreSQL 快照元数据和版本；上传成功但事务未提交的无引用对象满 24 小时后清理，对象缺失、不可读或哈希不一致时不得发布对应岗位版本。MVP 不引入 Redis/Celery、独立搜索、向量库、Playwright、文件上传、公共管理端或岗位快照之外的对象存储用途。
+快照对象键由来源标识与内容哈希确定性生成。采集进程必须先上传并校验对象，再提交 PostgreSQL 快照元数据和版本；上传成功但事务未提交的无引用对象满 24 小时后清理，对象缺失、不可读或哈希不一致时不得发布对应岗位版本。MVP 不引入 Redis/Celery、独立搜索、向量库、Playwright、公共管理端或岗位快照之外的对象存储用途。
+
+2026-07-18 后，本地完整 MVP 允许按 [ADR-0012](0012-isolated-resume-document-ingestion.md) 接受 PDF/DOCX 简历。原文件只以应用层加密形式暂存在 PostgreSQL，不进入岗位快照 Bucket，也不扩大 `collector-worker` 权限。
 
 邀请制 Alpha 接受单 PostgreSQL、单 Web，以及 `collector-worker` 和 `match-worker` 各单实例的单点故障，恢复目标为 `RPO <= 24 小时`、`RTO <= 8 小时`；这是内部测试目标，不是公开服务 SLA。进入私测前完成 PostgreSQL 备份恢复、快照引用完整性检查和删除墓碑重放。
 
