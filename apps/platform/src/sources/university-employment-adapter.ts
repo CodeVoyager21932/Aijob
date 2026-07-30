@@ -10,7 +10,7 @@ import {
 } from "./normalized-official-job.js";
 import { isCompanyDomainEmail } from "./official-account-manual-adapter.js";
 
-export const UNIVERSITY_EMPLOYMENT_ADAPTER_VERSION = "0.1.0";
+export const UNIVERSITY_EMPLOYMENT_ADAPTER_VERSION = "0.1.1";
 export const UNIVERSITY_EMPLOYMENT_NORMALIZER_VERSION = "0.1.0";
 
 /**
@@ -175,6 +175,28 @@ const universityEmploymentSourceList: UniversityEmploymentSource[] = [
       url: "https://www.dytechlab.com/careers",
     },
   },
+  {
+    sourceKey: "unity-drive-internships",
+    companyLegalName: "深圳一清创新科技有限公司",
+    companyDisplayName: "一清创新",
+    officialDomain: "unity-drive.com",
+    pageFormat: "nankai-correcruit",
+    pageUrls: [
+      "https://career.nankai.edu.cn/correcruit/content/id/115887.html",
+      "https://career.nankai.edu.cn/correcruit/content/id/115886.html",
+      "https://career.nankai.edu.cn/correcruit/content/id/115885.html",
+    ],
+    application: { type: "company_email" },
+  },
+  {
+    sourceKey: "triple-stone-internships",
+    companyLegalName: "广东三石园科技有限公司",
+    companyDisplayName: "三石园科技",
+    officialDomain: "triple-stone.com",
+    pageFormat: "nankai-correcruit",
+    pageUrls: ["https://career.nankai.edu.cn/correcruit/content/id/116046.html"],
+    application: { type: "company_email" },
+  },
 ];
 
 export function resolveUniversityEmploymentSource(sourceKey: string): UniversityEmploymentSource {
@@ -284,6 +306,37 @@ function splitRequirements(bodyLines: string[]): {
   };
 }
 
+function splitNankaiDescription(descriptionLines: string[]): {
+  responsibilities: string[];
+  requirements: string[];
+} {
+  const responsibilityMarkerIndex = descriptionLines.findIndex((line) =>
+    /^(?:主要工作内容|岗位职责|实习职责|职位职责|工作职责)(?:[：:]|[（(])/u.test(
+      line.normalize("NFKC"),
+    ),
+  );
+  const jobLines =
+    responsibilityMarkerIndex < 0
+      ? descriptionLines
+      : descriptionLines.slice(responsibilityMarkerIndex + 1);
+  const requirementMarkerIndex = jobLines.findIndex((line) =>
+    /^(?:任职要求|职位要求|针对对象|专业要求)(?:[：:]|$)/u.test(line.normalize("NFKC")),
+  );
+  if (requirementMarkerIndex < 0) {
+    return { responsibilities: jobLines, requirements: [] };
+  }
+  const requirementLines = jobLines.slice(requirementMarkerIndex);
+  const contactIndex = requirementLines.findIndex(
+    (line, index) =>
+      index > 0 &&
+      /^(?:联系方式|联系电话|投递邮箱|公司官网)(?:[：:]|$)/u.test(line.normalize("NFKC")),
+  );
+  return {
+    responsibilities: jobLines.slice(0, requirementMarkerIndex),
+    requirements: contactIndex < 0 ? requirementLines : requirementLines.slice(0, contactIndex),
+  };
+}
+
 // 官方地区原文形如“北京市”“广东省 - 深圳市”“浙江省杭州市滨江区”；取市级并去“市”后缀。
 export function normalizeUniversityLocation(value: string): string | undefined {
   const segments = value
@@ -319,7 +372,8 @@ export function parseNankaiCorrecruitPage(html: string, pageUrl: string): Univer
     throw new Error("UNIVERSITY_EMPLOYMENT_REQUIREMENTS_SECTION_MISSING");
   }
   const requirementLines = lines.slice(requirementStart + 1, descriptionStart);
-  const responsibilityLines = sectionBetween(lines, descriptionStart, ["实习信息", "友情链接"]);
+  const descriptionLines = sectionBetween(lines, descriptionStart, ["实习信息", "友情链接"]);
+  const descriptionSections = splitNankaiDescription(descriptionLines);
 
   const educationText = labelValue(lines, "学历要求：");
   const headcountText = labelValue(lines, "招聘人数：");
@@ -338,11 +392,12 @@ export function parseNankaiCorrecruitPage(html: string, pageUrl: string): Univer
     headcountText,
     publishedAt,
     deadline: undefined,
-    responsibilities: responsibilityLines.join("\n"),
+    responsibilities: descriptionSections.responsibilities.join("\n"),
     requirements: [
       ...(educationText ? [`学历要求：${educationText}`] : []),
       ...(headcountText ? [`招聘人数：${headcountText}`] : []),
       ...requirementLines,
+      ...descriptionSections.requirements,
     ].join("\n"),
     emails: collectEmails([labelValue(lines, "职位投递邮箱：") ?? ""]),
     applicationUrlOnPage: labelValue(lines, "职位投递网址链接："),

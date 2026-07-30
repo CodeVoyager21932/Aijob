@@ -113,6 +113,8 @@ describe("university employment source registry", () => {
       "dingwei-consulting-internships",
       "sharecapital-internships",
       "dtl-quant-internships",
+      "unity-drive-internships",
+      "triple-stone-internships",
     ]);
     expect(resolveUniversityEmploymentSource("supvan-info-internships").pageUrls).toHaveLength(6);
     expect(resolveUniversityEmploymentSource("jcquant-internships").pageUrls).toHaveLength(1);
@@ -274,6 +276,65 @@ describe("nankai correcruit detail page (supvan-info)", () => {
         pageEvidenceRef: "fetch",
       }),
     ).toThrowError("UNIVERSITY_EMPLOYMENT_APPLY_URL_MISMATCH");
+  });
+});
+
+describe("nankai correcruit SME batch 07 sources", () => {
+  it("normalizes oneclear roles with the company-domain application email", async () => {
+    const html = await htmlFixture("university-employment-nankai-unity-drive.synthetic.html");
+    const pageUrl = "https://career.nankai.edu.cn/correcruit/content/id/115887.html";
+    const source = resolveUniversityEmploymentSource("unity-drive-internships");
+    const job = parseNankaiCorrecruitPage(html, pageUrl);
+    const normalized = normalizeUniversityEmploymentJob({
+      source,
+      job,
+      pageEvidenceRef: "fetch-unity-drive",
+    });
+
+    expect(job).toMatchObject({
+      sourceJobId: "nankai-115887",
+      companyName: "深圳一清创新科技有限公司",
+      title: "定位算法",
+    });
+    expect(normalized.companyName).toBe("一清创新");
+    expect(normalized.structuredFields).toMatchObject({
+      applicationEmail: "synthetic@unity-drive.com",
+      publishedAt: { state: "known", value: "2026-05-28" },
+    });
+    expect(normalized.responsibilities).toContain("无人车定位算法");
+    expect(normalized.responsibilities).not.toContain("任职要求");
+    expect(normalized.requirements).toContain("可连续实习六个月");
+  });
+
+  it("normalizes the triple-stone summer internship and fails on a foreign email", async () => {
+    const html = await htmlFixture("university-employment-nankai-triple-stone.synthetic.html");
+    const pageUrl = "https://career.nankai.edu.cn/correcruit/content/id/116046.html";
+    const source = resolveUniversityEmploymentSource("triple-stone-internships");
+    const job = parseNankaiCorrecruitPage(html, pageUrl);
+    const normalized = normalizeUniversityEmploymentJob({
+      source,
+      job,
+      pageEvidenceRef: "fetch-triple-stone",
+    });
+
+    expect(normalized.companyName).toBe("三石园科技");
+    expect(normalized.structuredFields).toMatchObject({
+      applicationEmail: "synthetic@triple-stone.com",
+    });
+    expect(normalized.responsibilities).toBe("参与新员工培训并深入生产一线学习工艺流程。");
+    expect(normalized.responsibilities).not.toContain("针对对象");
+    expect(normalized.requirements).toContain("针对对象：2027届、2028届毕业生");
+    expect(normalized.requirements).toContain("专业不限");
+    expect(() =>
+      normalizeUniversityEmploymentJob({
+        source,
+        job: {
+          ...job,
+          emails: [{ email: "synthetic@qq.com", sourceText: "职位投递邮箱：synthetic@qq.com" }],
+        },
+        pageEvidenceRef: "fetch-triple-stone",
+      }),
+    ).toThrowError("UNIVERSITY_EMPLOYMENT_COMPANY_EMAIL_UNVERIFIED");
   });
 });
 

@@ -1,0 +1,188 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "unity-drive-internships",
+  "sourceType": "university_employment_site",
+  "organization": {
+    "slug": "unity-drive",
+    "name": "深圳一清创新科技有限公司",
+    "officialDomain": "unity-drive.com",
+    "scale": {
+      "band": "small",
+      "evidenceUrl": "https://www.unity-drive.com/about.html",
+      "evidenceText": "一清创新官网公司简介当前源码明确显示团队总人数 180+。",
+      "lastVerifiedAt": "2026-07-30T00:00:00.000Z"
+    }
+  },
+  "candidate": {
+    "name": "南开就业网·一清创新算法实习",
+    "entrypointUrl": "https://career.nankai.edu.cn/correcruit/content/id/115887.html",
+    "provenanceLevel": "university_published",
+    "acquisitionMode": "deterministic_html",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-local-probe",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "三页均由南开就业网以深圳一清创新科技有限公司主体发布，投递邮箱使用官网同域 unity-drive.com。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "定位、规控、感知三条实习岗位均含完整职责与任职要求。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "冻结详情页可无登录、Cookie、验证码或动态令牌读取。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "三页均明确使用企业域名邮箱 yangshuo@unity-drive.com。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "未取得第三方长期复制与公开聚合授权，只进入 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "三张南开详情页结构已冻结，仍待连续运行验证。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 15,
+        "status": "provisional",
+        "note": "首批三条自动驾驶算法实习。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 17,
+        "status": "provisional",
+        "note": "南开岗位详情为服务端渲染确定性结构。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 9,
+        "status": "provisional",
+        "note": "三页均于 2026-05-28 发布。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 8,
+        "status": "provisional",
+        "note": "补充 small 自动驾驶算法岗位。"
+      }
+    },
+    "evidenceNotes": [
+      "一清创新官网当前源码显示团队 180+，按固定口径归类 small。",
+      "仅冻结三张已核验详情页，不遍历列表或跟随其他链接。",
+      "本配置不构成来源批准或公开发布授权。"
+    ]
+  },
+  "policy": {
+    "version": "2",
+    "status": "pending_review",
+    "adapterKey": "university-employment-detail-html",
+    "adapterVersion": "0.1.1",
+    "entrypoints": [
+      "https://career.nankai.edu.cn/correcruit/content/id/115887.html",
+      "https://career.nankai.edu.cn/correcruit/content/id/115886.html",
+      "https://career.nankai.edu.cn/correcruit/content/id/115885.html"
+    ],
+    "crawlInterval": {
+      "enabled": false,
+      "minimumHours": 168
+    },
+    "reviewedAt": "2026-07-30",
+    "policyNotes": [
+      "仅允许维护者显式执行低频本地技术探测。",
+      "只读取三张冻结详情页，不遍历列表或跟随其他招聘链接。",
+      "主体、实习标记、申请邮箱或正文结构变化时立即暂停。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.nankai.edu.cn",
+        "port": 443,
+        "pathPrefix": "/correcruit/content/id/115887.html",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      },
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.nankai.edu.cn",
+        "port": 443,
+        "pathPrefix": "/correcruit/content/id/115886.html",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      },
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.nankai.edu.cn",
+        "port": 443,
+        "pathPrefix": "/correcruit/content/id/115885.html",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.nankai.edu.cn",
+        "port": 443,
+        "pathPrefix": "/correcruit/content/id/115887.html",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      },
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.nankai.edu.cn",
+        "port": 443,
+        "pathPrefix": "/correcruit/content/id/115886.html",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      },
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.nankai.edu.cn",
+        "port": 443,
+        "pathPrefix": "/correcruit/content/id/115885.html",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 3,
+      "maxPages": 3,
+      "maxRequests": 10,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {},
+    "queryStreams": [
+      {
+        "key": "algorithm-internships",
+        "label": "一清创新算法实习",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 3
+      }
+    ]
+  }
+}

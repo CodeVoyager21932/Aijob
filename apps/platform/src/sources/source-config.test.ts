@@ -75,6 +75,7 @@ describe("controlled local source configurations", () => {
       "kunlunxin-internships",
       "meituan-official",
       "nankai-tal-2027",
+      "onerobotics-internships",
       "pudutech-internships",
       "sharecapital-internships",
       "shengumedia-internships",
@@ -82,6 +83,8 @@ describe("controlled local source configurations", () => {
       "spirit-ai-feishu-manual",
       "supvan-info-internships",
       "tencent-campus",
+      "triple-stone-internships",
+      "unity-drive-internships",
     ]);
   });
 
@@ -99,6 +102,7 @@ describe("controlled local source configurations", () => {
     ["jcquant-internships", "university-employment-detail-html", true],
     ["jd-campus-internships", "jd-campus-public-api", true],
     ["kunlunxin-internships", "university-employment-detail-html", false],
+    ["onerobotics-internships", "beisen-zhiye-public-api", true],
     ["pudutech-internships", "beisen-zhiye-public-api", true],
     ["sharecapital-internships", "university-employment-detail-html", true],
     ["shengumedia-internships", "university-employment-detail-html", true],
@@ -106,6 +110,8 @@ describe("controlled local source configurations", () => {
     ["spirit-ai-feishu-manual", "official-account-manual-snapshot", false],
     ["supvan-info-internships", "university-employment-detail-html", true],
     ["tencent-campus", "tencent-public-api", true],
+    ["triple-stone-internships", "university-employment-detail-html", true],
+    ["unity-drive-internships", "university-employment-detail-html", true],
     ["meituan-official", "meituan-public-api", true],
     ["nankai-tal-2027", "nankai-tal-deterministic-html", true],
   ] as const)(
@@ -233,14 +239,15 @@ describe("controlled local source configurations", () => {
   });
 
   it.each([
-    ["huice-campus-internships", "huicecom.zhiye.com", "/campus/jobs"],
-    ["adaps-photonics-internships", "adaps-ph.zhiye.com", "/intern/jobs"],
-    ["pudutech-internships", "pudutech.zhiye.com", "/intern/jobs"],
+    ["huice-campus-internships", "huicecom.zhiye.com", "/campus/jobs", 2],
+    ["adaps-photonics-internships", "adaps-ph.zhiye.com", "/intern/jobs", 2],
+    ["pudutech-internships", "pudutech.zhiye.com", "/intern/jobs", 2],
+    ["onerobotics-internships", "woanhome.zhiye.com", "/intern/jobs", 1],
   ] as const)(
     "limits %s to its own Beisen tenant list API and official jobs page",
-    async (sourceKey, host, jobsPagePath) => {
+    async (sourceKey, host, jobsPagePath, policyVersion) => {
       const config = await loadSourceConfig(sourceKey);
-      expect(config.policy.version).toBe(2);
+      expect(config.policy.version).toBe(policyVersion);
       expect(config.localProbe.requestBudget).toEqual({
         maxItems: 30,
         maxPages: 3,
@@ -331,12 +338,28 @@ describe("controlled local source configurations", () => {
       { host: "www.dytechlab.com", pathPrefix: "/careers" },
       { maxItems: 8, maxPages: 1, maxRequests: 10, minimumIntervalMs: 2000 },
     ],
+    [
+      "unity-drive-internships",
+      "career.nankai.edu.cn",
+      "/correcruit/content/id/115887.html",
+      [] as string[],
+      { host: "career.nankai.edu.cn", pathPrefix: "/correcruit/content/id/115887.html" },
+      { maxItems: 3, maxPages: 3, maxRequests: 10, minimumIntervalMs: 2000 },
+    ],
+    [
+      "triple-stone-internships",
+      "career.nankai.edu.cn",
+      "/correcruit/content/id/116046.html",
+      [] as string[],
+      { host: "career.nankai.edu.cn", pathPrefix: "/correcruit/content/id/116046.html" },
+      { maxItems: 1, maxPages: 1, maxRequests: 10, minimumIntervalMs: 2000 },
+    ],
   ] as const)(
     "limits %s to its frozen university detail pages",
     async (sourceKey, fetchHost, firstFetchPath, queryParameters, applyTarget, budget) => {
       const config = await loadSourceConfig(sourceKey);
       const expectedPolicyVersion =
-        sourceKey === "kunlunxin-internships" || sourceKey === "dtl-quant-internships" ? 2 : 1;
+        sourceKey === "kunlunxin-internships" || sourceKey === "dtl-quant-internships" ? 3 : 2;
       expect(config.policy.version).toBe(expectedPolicyVersion);
       expect(config.localProbe.requestBudget).toEqual(budget);
       expect(config.policy.fetchTargets[0]).toMatchObject({
@@ -346,13 +369,15 @@ describe("controlled local source configurations", () => {
         allowedQueryParameters: [...queryParameters],
       });
       expect(config.policy.fetchTargets.every((target) => target.host === fetchHost)).toBe(true);
-      expect(config.policy.applyTargets).toEqual([
+      expect(config.policy.applyTargets).toEqual(
+        expect.arrayContaining([
         expect.objectContaining({
           method: "GET",
           host: applyTarget.host,
           pathPrefix: applyTarget.pathPrefix,
         }),
-      ]);
+        ]),
+      );
     },
   );
 
@@ -407,6 +432,27 @@ describe("controlled local source configurations", () => {
     ] as const) {
       const config = await loadSourceConfig(sourceKey);
       expect(config.organization.scale.band).toBe("unknown");
+    }
+  });
+
+  it("records batch-07 SME scale evidence without using platform estimates", async () => {
+    const expected = [
+      [
+        "onerobotics-internships",
+        "medium",
+        "https://www.hkexnews.hk/listedco/listconews/sehk/2026/0429/2026042904445_c.pdf",
+      ],
+      ["unity-drive-internships", "small", "https://www.unity-drive.com/about.html"],
+      ["triple-stone-internships", "medium", "https://www.triple-stone.cn/about-us/"],
+    ] as const;
+
+    for (const [sourceKey, band, evidenceUrl] of expected) {
+      const config = await loadSourceConfig(sourceKey);
+      expect(config.organization.scale).toMatchObject({
+        band,
+        evidenceUrl,
+        lastVerifiedAt: "2026-07-30T00:00:00.000Z",
+      });
     }
   });
 

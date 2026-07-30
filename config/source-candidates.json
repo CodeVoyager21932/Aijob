@@ -23,7 +23,7 @@
     {
       "companyKey": "xiaoyong-private-fund",
       "displayName": "上海孝庸私募基金管理有限公司",
-      "assessmentStatus": "not_assessed",
+      "assessmentStatus": "paused",
       "sourceKeys": [],
       "scaleBand": "unknown",
       "scaleEvidenceRef": null
@@ -31,7 +31,7 @@
     {
       "companyKey": "joinocean-shipping",
       "displayName": "上海津洋航运",
-      "assessmentStatus": "not_assessed",
+      "assessmentStatus": "paused",
       "sourceKeys": [],
       "scaleBand": "unknown",
       "scaleEvidenceRef": null
@@ -39,33 +39,33 @@
     {
       "companyKey": "sixie-investment",
       "displayName": "上海思勰投资管理有限公司",
-      "assessmentStatus": "not_assessed",
+      "assessmentStatus": "paused",
       "sourceKeys": [],
-      "scaleBand": "unknown",
-      "scaleEvidenceRef": null
+      "scaleBand": "small",
+      "scaleEvidenceRef": "https://www.sixiecapital.com/"
     },
     {
       "companyKey": "isv-tech",
       "displayName": "易思维",
-      "assessmentStatus": "not_assessed",
+      "assessmentStatus": "paused",
       "sourceKeys": [],
-      "scaleBand": "unknown",
-      "scaleEvidenceRef": null
+      "scaleBand": "medium",
+      "scaleEvidenceRef": "https://www.sse.com.cn/disclosure/bond/announcement/company/c/new/2026-04-18/688816_20260418_QXS6.pdf"
     },
     {
       "companyKey": "spacemit",
       "displayName": "杭州进迭时空科技有限公司",
-      "assessmentStatus": "not_assessed",
+      "assessmentStatus": "paused",
       "sourceKeys": [],
-      "scaleBand": "unknown",
-      "scaleEvidenceRef": null
+      "scaleBand": "medium",
+      "scaleEvidenceRef": "https://www.zjsjw.gov.cn/toutiao/202602/t20260219_23955871.shtml"
     }
   ],
   "reserveBatch": [
     {
       "companyKey": "entropy-ai-chip",
       "displayName": "北京熵旋芯智科技有限公司",
-      "assessmentStatus": "not_assessed",
+      "assessmentStatus": "paused",
       "sourceKeys": [],
       "scaleBand": "unknown",
       "scaleEvidenceRef": null
@@ -73,7 +73,7 @@
     {
       "companyKey": "yuhengxing",
       "displayName": "北京玉衡星科技有限公司",
-      "assessmentStatus": "not_assessed",
+      "assessmentStatus": "paused",
       "sourceKeys": [],
       "scaleBand": "unknown",
       "scaleEvidenceRef": null
@@ -81,7 +81,7 @@
     {
       "companyKey": "yuanli-lingji",
       "displayName": "北京原力灵机智能科技有限公司",
-      "assessmentStatus": "not_assessed",
+      "assessmentStatus": "paused",
       "sourceKeys": [],
       "scaleBand": "unknown",
       "scaleEvidenceRef": null
@@ -89,31 +89,31 @@
     {
       "companyKey": "smartmore",
       "displayName": "深圳市思谋科技有限公司",
-      "assessmentStatus": "not_assessed",
+      "assessmentStatus": "paused",
       "sourceKeys": [],
-      "scaleBand": "unknown",
-      "scaleEvidenceRef": null
+      "scaleBand": "medium",
+      "scaleEvidenceRef": "https://cn.smartmore.com/tech.html"
     },
     {
       "companyKey": "woolley-robot",
-      "displayName": "深圳市卧安机器人有限公司",
-      "assessmentStatus": "not_assessed",
-      "sourceKeys": [],
-      "scaleBand": "unknown",
-      "scaleEvidenceRef": null
+      "displayName": "卧安机器人（深圳）股份有限公司",
+      "assessmentStatus": "configured_pending_review",
+      "sourceKeys": ["onerobotics-internships"],
+      "scaleBand": "medium",
+      "scaleEvidenceRef": "https://www.hkexnews.hk/listedco/listconews/sehk/2026/0429/2026042904445_c.pdf"
     },
     {
       "companyKey": "deeproute",
       "displayName": "深圳一清创新科技有限公司",
-      "assessmentStatus": "not_assessed",
-      "sourceKeys": [],
-      "scaleBand": "unknown",
-      "scaleEvidenceRef": null
+      "assessmentStatus": "configured_pending_review",
+      "sourceKeys": ["unity-drive-internships"],
+      "scaleBand": "small",
+      "scaleEvidenceRef": "https://www.unity-drive.com/about.html"
     },
     {
       "companyKey": "uniview-ai",
       "displayName": "杭州宇泛智能科技股份有限公司",
-      "assessmentStatus": "not_assessed",
+      "assessmentStatus": "paused",
       "sourceKeys": [],
       "scaleBand": "unknown",
       "scaleEvidenceRef": null
@@ -121,7 +121,7 @@
     {
       "companyKey": "wuhan-huajing",
       "displayName": "武汉华瑾科技有限公司",
-      "assessmentStatus": "not_assessed",
+      "assessmentStatus": "paused",
       "sourceKeys": [],
       "scaleBand": "unknown",
       "scaleEvidenceRef": null
@@ -129,7 +129,7 @@
     {
       "companyKey": "dulishuo",
       "displayName": "独立说教育科技北京有限公司",
-      "assessmentStatus": "not_assessed",
+      "assessmentStatus": "paused",
       "sourceKeys": [],
       "scaleBand": "unknown",
       "scaleEvidenceRef": null
@@ -137,7 +137,7 @@
     {
       "companyKey": "tianjin-yidisi",
       "displayName": "天津易迪思信息科技有限公司",
-      "assessmentStatus": "not_assessed",
+      "assessmentStatus": "paused",
       "sourceKeys": [],
       "scaleBand": "unknown",
       "scaleEvidenceRef": null
@@ -145,7 +145,7 @@
     {
       "companyKey": "weibu-online",
       "displayName": "北京微步在线科技有限公司",
-      "assessmentStatus": "not_assessed",
+      "assessmentStatus": "paused",
       "sourceKeys": [],
       "scaleBand": "unknown",
       "scaleEvidenceRef": null
@@ -153,23 +153,23 @@
     {
       "companyKey": "zhangshang-xianji",
       "displayName": "北京掌上先机网络科技有限公司",
-      "assessmentStatus": "not_assessed",
-      "sourceKeys": [],
-      "scaleBand": "unknown",
-      "scaleEvidenceRef": null
+      "assessmentStatus": "rejected",
+      "sourceKeys": ["huice-campus-internships"],
+      "scaleBand": "large",
+      "scaleEvidenceRef": "https://career.nankai.edu.cn/correcruit/content/id/114173.html"
     },
     {
       "companyKey": "sanshiyuan",
       "displayName": "广东三石园科技有限公司",
-      "assessmentStatus": "not_assessed",
-      "sourceKeys": [],
-      "scaleBand": "unknown",
-      "scaleEvidenceRef": null
+      "assessmentStatus": "configured_pending_review",
+      "sourceKeys": ["triple-stone-internships"],
+      "scaleBand": "medium",
+      "scaleEvidenceRef": "https://www.triple-stone.cn/about-us/"
     },
     {
       "companyKey": "hunan-douan",
       "displayName": "湖南斗安智能科技有限公司",
-      "assessmentStatus": "not_assessed",
+      "assessmentStatus": "paused",
       "sourceKeys": [],
       "scaleBand": "unknown",
       "scaleEvidenceRef": null
@@ -177,7 +177,7 @@
     {
       "companyKey": "guangzhou-touwen",
       "displayName": "广州头文科技有限公司",
-      "assessmentStatus": "not_assessed",
+      "assessmentStatus": "paused",
       "sourceKeys": [],
       "scaleBand": "unknown",
       "scaleEvidenceRef": null

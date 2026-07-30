@@ -40,5 +40,15 @@ describe("source candidate registry", () => {
         .filter((candidate) => candidate.scaleBand !== "unknown")
         .every((candidate) => candidate.scaleEvidenceRef !== null),
     ).toBe(true);
+    expect(
+      candidates
+        .filter((candidate) => candidate.assessmentStatus === "configured_pending_review")
+        .map((candidate) => candidate.companyKey),
+    ).toEqual(["woolley-robot", "deeproute", "sanshiyuan"]);
+    expect(
+      candidates
+        .filter((candidate) => candidate.assessmentStatus === "configured_pending_review")
+        .every((candidate) => candidate.sourceKeys.length === 1),
+    ).toBe(true);
   });
 });

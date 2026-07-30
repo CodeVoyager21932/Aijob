@@ -76,6 +76,16 @@ const beisenZhiyeTenantList: BeisenZhiyeTenant[] = [
     jobsPagePath: "/intern/jobs",
     reportedTotalKey: "intern-jobads",
   },
+  {
+    sourceKey: "onerobotics-internships",
+    companyName: "卧安机器人",
+    host: "woanhome.zhiye.com",
+    portalId: "8db50333-7ab7-4960-8f87-ddd9468f4766",
+    category: "3",
+    categoryLabel: "实习",
+    jobsPagePath: "/intern/jobs",
+    reportedTotalKey: "intern-jobads",
+  },
 ];
 
 export const BEISEN_ZHIYE_DISPLAY_FIELDS = [

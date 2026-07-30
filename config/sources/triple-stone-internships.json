@@ -1,15 +1,21 @@
 {
   "schemaVersion": "1.0.0",
-  "sourceKey": "dingwei-consulting-internships",
+  "sourceKey": "triple-stone-internships",
   "sourceType": "university_employment_site",
   "organization": {
-    "slug": "dingwei-consulting",
-    "name": "北京鼎帷管理顾问有限公司",
-    "officialDomain": "dwmcts.com"
+    "slug": "triple-stone",
+    "name": "广东三石园科技有限公司",
+    "officialDomain": "triple-stone.com",
+    "scale": {
+      "band": "medium",
+      "evidenceUrl": "https://www.triple-stone.cn/about-us/",
+      "evidenceText": "三石园科技官网公司简介显示公司员工总数 1400+。",
+      "lastVerifiedAt": "2026-07-30T00:00:00.000Z"
+    }
   },
   "candidate": {
-    "name": "浙江大学就业网·北京鼎帷新媒体运营实习",
-    "entrypointUrl": "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4F7B3CC147F24EB6E0653A68DD0E9B18",
+    "name": "南开就业网·三石园科技 2027 届实习",
+    "entrypointUrl": "https://career.nankai.edu.cn/correcruit/content/id/116046.html",
     "provenanceLevel": "university_published",
     "acquisitionMode": "deterministic_html",
     "candidateStatus": "local_probe_only",
@@ -17,11 +23,11 @@
     "hardGates": {
       "officialIdentity": {
         "status": "pass",
-        "note": "浙江大学就业网主体、公司官网名称和 dwmcts.com 域名相互一致。"
+        "note": "南开详情页发布主体与三石园官网主体一致，投递邮箱与官网英文域名一致。"
       },
       "targetSupply": {
         "status": "pass",
-        "note": "页面明确提供新媒体策划运营实习生岗位、完整职责与要求，截止 2026-12-31。"
+        "note": "页面明确 2027/2028 届暑期实习对象、主要工作内容、专业要求和实习时间。"
       },
       "noAuthBypass": {
         "status": "pass",
@@ -29,23 +35,23 @@
       },
       "officialApplyLink": {
         "status": "pass",
-        "note": "正文原文明示 dwzp@dwmcts.com 为简历投递邮箱，域名与公司官网一致。"
+        "note": "页面与官网均明确使用 HR1@triple-stone.com。"
       },
       "accessPolicyAccepted": {
         "status": "fail",
-        "note": "未取得第三方长期复制与公开聚合授权，仅进入 local_mvp。"
+        "note": "未取得第三方长期复制与公开聚合授权，只进入 local_mvp。"
       },
       "stableIdentityAndFields": {
         "status": "pending",
-        "note": "正文投递邮箱优先于一般联系邮箱；结构已冻结，仍待连续运行验证。"
+        "note": "单张南开详情页结构已冻结，仍待连续运行验证。"
       }
     },
     "scores": {
       "targetSupply": {
         "weight": 30,
-        "score": 6,
+        "score": 7,
         "status": "provisional",
-        "note": "首批一条新媒体运营实习。"
+        "note": "首批一条跨专业暑期实习。"
       },
       "policyAccess": {
         "weight": 25,
@@ -55,25 +61,26 @@
       },
       "structure": {
         "weight": 20,
-        "score": 14,
+        "score": 16,
         "status": "provisional",
-        "note": "浙江大学详情页和申请邮箱均可确定性解析。"
+        "note": "南开岗位详情为服务端渲染确定性结构。"
       },
       "freshnessMaintenance": {
         "weight": 15,
-        "score": 10,
+        "score": 9,
         "status": "provisional",
-        "note": "发布时间和截止日期明确。"
+        "note": "页面于 2026-06-10 发布，实习时间为 2026 年 7–8 月。"
       },
       "diversity": {
         "weight": 10,
-        "score": 9,
+        "score": 8,
         "status": "provisional",
-        "note": "补充咨询 SME 候选与产品运营轨道。"
+        "note": "补充 medium 光通信制造企业与跨专业岗位。"
       }
     },
     "evidenceNotes": [
-      "官网未披露可映射到固定口径的员工总数，规模保持 unknown。",
+      "三石园官网当前公司简介显示 1400+ 员工，按固定口径归类 medium。",
+      "只读取一张冻结详情页，不遍历列表或跟随其他链接。",
       "本配置不构成来源批准或公开发布授权。"
     ]
   },
@@ -82,39 +89,37 @@
     "status": "pending_review",
     "adapterKey": "university-employment-detail-html",
     "adapterVersion": "0.1.1",
-    "entrypoints": [
-      "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4F7B3CC147F24EB6E0653A68DD0E9B18"
-    ],
+    "entrypoints": ["https://career.nankai.edu.cn/correcruit/content/id/116046.html"],
     "crawlInterval": {
       "enabled": false,
       "minimumHours": 168
     },
-    "reviewedAt": "2026-07-29",
+    "reviewedAt": "2026-07-30",
     "policyNotes": [
       "仅允许维护者显式执行低频本地技术探测。",
-      "只读取冻结详情页，不跟随更多职位链接。",
+      "只读取一张冻结详情页，不遍历列表或跟随其他招聘链接。",
       "主体、实习标记、申请邮箱或正文结构变化时立即暂停。"
     ],
     "fetchTargets": [
       {
         "method": "GET",
         "scheme": "https",
-        "host": "www.career.zju.edu.cn",
+        "host": "career.nankai.edu.cn",
         "port": 443,
-        "pathPrefix": "/jyxt/sczp/zpztgl/ckZpgwXq.zf",
+        "pathPrefix": "/correcruit/content/id/116046.html",
         "allowRedirects": false,
-        "allowedQueryParameters": ["zpxxbh"]
+        "allowedQueryParameters": []
       }
     ],
     "applyTargets": [
       {
         "method": "GET",
         "scheme": "https",
-        "host": "www.career.zju.edu.cn",
+        "host": "career.nankai.edu.cn",
         "port": 443,
-        "pathPrefix": "/jyxt/sczp/zpztgl/ckZpgwXq.zf",
+        "pathPrefix": "/correcruit/content/id/116046.html",
         "allowRedirects": false,
-        "allowedQueryParameters": ["zpxxbh"]
+        "allowedQueryParameters": []
       }
     ]
   },
@@ -132,8 +137,8 @@
     "requestDefaults": {},
     "queryStreams": [
       {
-        "key": "dingwei-new-media-intern",
-        "label": "北京鼎帷新媒体运营实习",
+        "key": "summer-internship",
+        "label": "三石园科技暑期实习",
         "keyword": "",
         "positionFamilyIds": [],
         "targetItems": 1

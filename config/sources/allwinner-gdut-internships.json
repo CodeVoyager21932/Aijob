@@ -86,10 +86,10 @@
     ]
   },
   "policy": {
-    "version": "3",
+    "version": "4",
     "status": "paused",
     "adapterKey": "university-employment-detail-html",
-    "adapterVersion": "0.1.0",
+    "adapterVersion": "0.1.1",
     "entrypoints": ["https://career.gdut.edu.cn/campus/view/id/1020713"],
     "crawlInterval": {
       "enabled": false,

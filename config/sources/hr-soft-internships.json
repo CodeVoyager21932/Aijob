@@ -88,10 +88,10 @@
     ]
   },
   "policy": {
-    "version": "1",
+    "version": "2",
     "status": "pending_review",
     "adapterKey": "university-employment-detail-html",
-    "adapterVersion": "0.1.0",
+    "adapterVersion": "0.1.1",
     "entrypoints": [
       "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4DE5B03172671701E0653A68DD0E9B18"
     ],

@@ -84,10 +84,10 @@
     ]
   },
   "policy": {
-    "version": "1",
+    "version": "2",
     "status": "pending_review",
     "adapterKey": "university-employment-detail-html",
-    "adapterVersion": "0.1.0",
+    "adapterVersion": "0.1.1",
     "entrypoints": ["https://career.cuhk.edu.cn/job/view/id/467309"],
     "crawlInterval": {
       "enabled": false,

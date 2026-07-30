@@ -18,7 +18,7 @@
     "format": "biome format --write .",
     "infra:down": "docker compose -f infra/compose.yaml down",
     "infra:up": "docker compose -f infra/compose.yaml up -d --wait",
-    "lint": "biome check .",
+    "lint": "biome lint .",
     "local:bootstrap": "pnpm --filter @aijob/platform cli local-bootstrap",
     "source:assess": "pnpm --filter @aijob/platform cli source-assess",
     "source:candidates": "pnpm --filter @aijob/platform cli source-candidates",

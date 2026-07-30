@@ -29,12 +29,17 @@ describe("Beisen zhiye adapter", () => {
       ["adaps-photonics-internships", "adaps-ph.zhiye.com"],
       ["pudutech-internships", "pudutech.zhiye.com"],
       ["shining3d-internships", "shining3d.zhiye.com"],
+      ["onerobotics-internships", "woanhome.zhiye.com"],
     ]);
     expect(resolveBeisenZhiyeTenant("huice-campus-internships").category).toBe("2");
     expect(resolveBeisenZhiyeTenant("adaps-photonics-internships").category).toBe("3");
     expect(resolveBeisenZhiyeTenant("pudutech-internships").category).toBe("3");
     expect(resolveBeisenZhiyeTenant("shining3d-internships")).toMatchObject({
       portalId: "957a969f-e192-4ab2-ae07-44c35064f1ab",
+      category: "3",
+    });
+    expect(resolveBeisenZhiyeTenant("onerobotics-internships")).toMatchObject({
+      portalId: "8db50333-7ab7-4960-8f87-ddd9468f4766",
       category: "3",
     });
     expect(() => resolveBeisenZhiyeTenant("unknown-tenant")).toThrow(
@@ -195,6 +200,9 @@ describe("Beisen zhiye adapter", () => {
     );
     expect(buildBeisenZhiyeApplyUrl(resolveBeisenZhiyeTenant("adaps-photonics-internships"))).toBe(
       "https://adaps-ph.zhiye.com/intern/jobs",
+    );
+    expect(buildBeisenZhiyeApplyUrl(resolveBeisenZhiyeTenant("onerobotics-internships"))).toBe(
+      "https://woanhome.zhiye.com/intern/jobs",
     );
   });
 });
