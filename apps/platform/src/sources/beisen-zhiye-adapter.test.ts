@@ -106,7 +106,7 @@ describe("Beisen zhiye adapter", () => {
     );
   });
 
-  it("keeps a stated deadline and treats unset Beisen dates as unknown", async () => {
+  it("keeps a stated deadline and treats Beisen sentinel dates as unknown", async () => {
     const page = parseBeisenZhiyeListPage(await jsonFixture());
     const tenant = resolveBeisenZhiyeTenant("adaps-photonics-internships");
     const withDeadline = page.jobs.find((job) => job.JobAdId === 900002);
@@ -125,6 +125,14 @@ describe("Beisen zhiye adapter", () => {
     });
     expect(normalized.structuredFields.publishedAt.state).toBe("unknown");
     expect(normalized.locations.state).toBe("unknown");
+
+    const sentinelDeadline = normalizeBeisenZhiyeJobAd({
+      tenant,
+      job: { ...withDeadline, EndTime: "2222-02-02T00:00:00" },
+      listItemIndex: 1,
+      pageEvidenceRef: "fetch-beisen-list",
+    });
+    expect(sentinelDeadline.structuredFields.deadline.state).toBe("unknown");
   });
 
   it("keeps a title-marked internship with conflicting Kind but records a review reason", async () => {

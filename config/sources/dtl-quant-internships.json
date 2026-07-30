@@ -79,8 +79,8 @@
     ]
   },
   "policy": {
-    "version": "1",
-    "status": "pending_review",
+    "version": "2",
+    "status": "paused",
     "adapterKey": "university-employment-detail-html",
     "adapterVersion": "0.1.0",
     "entrypoints": ["https://career.nankai.edu.cn/correcruit/content/id/116147.html"],
@@ -118,7 +118,7 @@
     ]
   },
   "localProbe": {
-    "enabled": true,
+    "enabled": false,
     "environment": "local",
     "requestBudget": {
       "maxItems": 8,

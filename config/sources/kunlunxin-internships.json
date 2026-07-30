@@ -78,8 +78,8 @@
     ]
   },
   "policy": {
-    "version": "1",
-    "status": "pending_review",
+    "version": "2",
+    "status": "paused",
     "adapterKey": "university-employment-detail-html",
     "adapterVersion": "0.1.0",
     "entrypoints": [
@@ -119,7 +119,7 @@
     ]
   },
   "localProbe": {
-    "enabled": true,
+    "enabled": false,
     "environment": "local",
     "requestBudget": {
       "maxItems": 1,

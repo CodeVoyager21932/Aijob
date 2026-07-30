@@ -87,18 +87,18 @@ describe("controlled local source configurations", () => {
 
   it.each([
     ["adaps-photonics-internships", "beisen-zhiye-public-api", true],
-    ["allwinner-gdut-internships", "university-employment-detail-html", true],
+    ["allwinner-gdut-internships", "university-employment-detail-html", false],
     ["baidu-internships", "baidu-ssr-deterministic-html", true],
     ["bytedance-campus-manual", "bytedance-manual-browser-snapshot", false],
     ["citics-shanghai-summer-internship", "university-employment-detail-html", true],
     ["dingwei-consulting-internships", "university-employment-detail-html", true],
-    ["dtl-quant-internships", "university-employment-detail-html", true],
+    ["dtl-quant-internships", "university-employment-detail-html", false],
     ["fanruan-trainee-internships", "fanruan-trainee-public-api", true],
     ["hr-soft-internships", "university-employment-detail-html", true],
     ["huice-campus-internships", "beisen-zhiye-public-api", true],
     ["jcquant-internships", "university-employment-detail-html", true],
     ["jd-campus-internships", "jd-campus-public-api", true],
-    ["kunlunxin-internships", "university-employment-detail-html", true],
+    ["kunlunxin-internships", "university-employment-detail-html", false],
     ["pudutech-internships", "beisen-zhiye-public-api", true],
     ["sharecapital-internships", "university-employment-detail-html", true],
     ["shengumedia-internships", "university-employment-detail-html", true],
@@ -108,23 +108,33 @@ describe("controlled local source configurations", () => {
     ["tencent-campus", "tencent-public-api", true],
     ["meituan-official", "meituan-public-api", true],
     ["nankai-tal-2027", "nankai-tal-deterministic-html", true],
-  ] as const)("keeps %s pending and local-only", async (sourceKey, adapterKey, probeEnabled) => {
-    const config = await loadSourceConfig(sourceKey);
-    const assessment = assessSource(config);
+  ] as const)(
+    "keeps %s in its expected local-only policy state",
+    async (sourceKey, adapterKey, probeEnabled) => {
+      const config = await loadSourceConfig(sourceKey);
+      const assessment = assessSource(config);
+      const expectedPolicyStatus = [
+        "allwinner-gdut-internships",
+        "dtl-quant-internships",
+        "kunlunxin-internships",
+      ].includes(sourceKey)
+        ? "paused"
+        : "pending_review";
 
-    expect(config.sourceKey).toBe(sourceKey);
-    expect(config.policy.status).toBe("pending_review");
-    expect(config.policy.adapterKey).toBe(adapterKey);
-    expect(config.policy.adapterVersion).toBe(officialSourceAdapterVersions[adapterKey]);
-    expect(config.localProbe.enabled).toBe(probeEnabled);
-    expect(config.localProbe.requestBudget.maxRequests).toBeGreaterThanOrEqual(
-      config.localProbe.requestBudget.maxPages,
-    );
-    expect(config.policy.fetchTargets.every((target) => !target.allowRedirects)).toBe(true);
-    expect(config.policy.applyTargets.every((target) => !target.allowRedirects)).toBe(true);
-    expect(assessment.hardGatesPassed).toBe(false);
-    expect(assessment.decision).toBe("ineligible");
-  });
+      expect(config.sourceKey).toBe(sourceKey);
+      expect(config.policy.status).toBe(expectedPolicyStatus);
+      expect(config.policy.adapterKey).toBe(adapterKey);
+      expect(config.policy.adapterVersion).toBe(officialSourceAdapterVersions[adapterKey]);
+      expect(config.localProbe.enabled).toBe(probeEnabled);
+      expect(config.localProbe.requestBudget.maxRequests).toBeGreaterThanOrEqual(
+        config.localProbe.requestBudget.maxPages,
+      );
+      expect(config.policy.fetchTargets.every((target) => !target.allowRedirects)).toBe(true);
+      expect(config.policy.applyTargets.every((target) => !target.allowRedirects)).toBe(true);
+      expect(assessment.hardGatesPassed).toBe(false);
+      expect(assessment.decision).toBe("ineligible");
+    },
+  );
 
   it("limits the university source to one exact page and the verified Moka tenant", async () => {
     const config = await loadSourceConfig("nankai-tal-2027");
@@ -325,7 +335,9 @@ describe("controlled local source configurations", () => {
     "limits %s to its frozen university detail pages",
     async (sourceKey, fetchHost, firstFetchPath, queryParameters, applyTarget, budget) => {
       const config = await loadSourceConfig(sourceKey);
-      expect(config.policy.version).toBe(1);
+      const expectedPolicyVersion =
+        sourceKey === "kunlunxin-internships" || sourceKey === "dtl-quant-internships" ? 2 : 1;
+      expect(config.policy.version).toBe(expectedPolicyVersion);
       expect(config.localProbe.requestBudget).toEqual(budget);
       expect(config.policy.fetchTargets[0]).toMatchObject({
         method: "GET",

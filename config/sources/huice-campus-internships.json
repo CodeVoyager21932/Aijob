@@ -92,7 +92,7 @@
     "version": "2",
     "status": "pending_review",
     "adapterKey": "beisen-zhiye-public-api",
-    "adapterVersion": "0.1.1",
+    "adapterVersion": "0.1.2",
     "entrypoints": ["https://huicecom.zhiye.com/Campus"],
     "crawlInterval": {
       "enabled": false,

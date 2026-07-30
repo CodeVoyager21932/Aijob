@@ -21,3 +21,13 @@
 - DTL 的量化研究、软件工程、GPU、交易与人力岗位按标题、职责和官方类目分类，不因公司属于私募基金而统一归入技术或金融。
 - 浙江大学适配器改为优先使用正文明确投递邮箱，避免一般联系人邮箱覆盖招聘邮箱。
 - 所有来源保持 `pending_review`、`local_mvp` only；失败来源没有写入岗位修订，公开 `/v1/jobs` 保持 0。
+
+## 4. 2026-07-30 后续恢复
+
+> 本节追加后续事实，不改写上方首次执行记录。治理和恢复边界以 ADR-0025 为准。
+
+- 分享投资恢复成功：run `37b9c82a-efa8-448d-9507-e41045d2b510`，1 请求、1/1/0；同小时重放 `reused=true`。
+- 北京鼎帷恢复成功：run `58ba1576-fb92-4775-8a5d-7bda868d912b`，1 请求、1/1/0；同小时重放 `reused=true`。
+- 昆仑芯不再是传输失败：请求成功后触发 `UNIVERSITY_EMPLOYMENT_COMPANY_MISMATCH`，按主体硬冲突暂停。
+- DTL 不再是传输失败：页面触发 `UNIVERSITY_EMPLOYMENT_NOT_INTERNSHIP_SECTION`，按活动性/结构硬冲突暂停。
+- 恢复详情、逐岗抽检和目录统计见 [G2 SME 扩容恢复记录](g2-sme-expansion-recovery-2026-07-30.md)。

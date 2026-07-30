@@ -8,8 +8,8 @@ import {
   unknown,
 } from "./normalized-official-job.js";
 
-export const BEISEN_ZHIYE_ADAPTER_VERSION = "0.1.1";
-export const BEISEN_ZHIYE_NORMALIZER_VERSION = "0.1.1";
+export const BEISEN_ZHIYE_ADAPTER_VERSION = "0.1.2";
+export const BEISEN_ZHIYE_NORMALIZER_VERSION = "0.1.2";
 
 /**
  * 北森智业（zhiye.com）招聘门户共享适配器。
@@ -190,7 +190,7 @@ function captureMinimum(value: string, patterns: RegExp[]): number | undefined {
   return undefined;
 }
 
-const unsetBeisenDate = /^0001-01-01/;
+const unsetBeisenDate = /^(?:0001-01-01|2222-02-02)/;
 
 function beisenDateOnly(value: string | null | undefined): string | undefined {
   if (!value || unsetBeisenDate.test(value)) return undefined;
