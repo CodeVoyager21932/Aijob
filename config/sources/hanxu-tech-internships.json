@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "hanxu-tech-internships",
+  "sourceType": "university_employment_site",
+  "organization": {
+    "slug": "hanxu-tech",
+    "name": "寒序科技（北京）有限公司",
+    "officialDomain": "icy.tech",
+    "scale": {
+      "band": "small",
+      "evidenceUrl": "https://sie.pku.edu.cn/xwgg/xwdt/09fd2cf34e034555949484ebe6a15177.htm",
+      "evidenceText": "北京大学创新创业学院 2026-03-17 官方报道明确寒序科技共有 20 余人。",
+      "lastVerifiedAt": "2026-07-31T00:00:00.000Z"
+    }
+  },
+  "candidate": {
+    "name": "浙江大学就业网·寒序科技实习",
+    "entrypointUrl": "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4CCE42B8467C9601E0653A68DD0E9B18",
+    "provenanceLevel": "university_published",
+    "acquisitionMode": "deterministic_html",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-local-probe",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "浙大详情页发布主体、icy.tech 官网主体和企业域名邮箱一致。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "两张冻结详情页工作性质均明确为实习，并同时提供职责、任职要求和 2026-12-31 截止日期。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "冻结详情页可匿名读取，不需要登录、验证码、Cookie、CSRF 或动态签名。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "两页均明示寒序科技 Moka 校园招聘入口；icycampus@icy.tech 只作为同主体联系信息佐证。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "未取得第三方长期复制与公开聚合授权，只进入 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "浙大详情页结构已冻结，仍待连续运行验证。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 8,
+        "status": "provisional",
+        "note": "首批两条跨研究、投资和政策方向的明确实习。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 16,
+        "status": "provisional",
+        "note": "两张浙大岗位详情页为服务端渲染确定性结构。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 11,
+        "status": "provisional",
+        "note": "发布日期与 2026-12-31 截止日期明确。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 9,
+        "status": "provisional",
+        "note": "补充 small 芯片企业及研究咨询、金融职能岗位。"
+      }
+    },
+    "evidenceNotes": [
+      "规模证据来自北京大学创新创业学院官方报道，不采用招聘平台的 50 人以下档案字段。",
+      "只读取两张工作性质明确为实习的冻结详情页；全职或全职/实习混合岗位不纳入。",
+      "本配置不构成来源批准或公开发布授权。"
+    ]
+  },
+  "policy": {
+    "version": "1",
+    "status": "pending_review",
+    "adapterKey": "university-employment-detail-html",
+    "adapterVersion": "0.1.2",
+    "entrypoints": [
+      "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4CCE42B8467C9601E0653A68DD0E9B18",
+      "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4CCEE37BBB2DB309E0653A68DD0E9B18"
+    ],
+    "crawlInterval": {
+      "enabled": false,
+      "minimumHours": 168
+    },
+    "reviewedAt": "2026-07-31",
+    "policyNotes": [
+      "仅允许维护者显式执行低频本地技术探测。",
+      "只读取两张冻结详情页，不遍历企业岗位列表或跟随其他职位。",
+      "主体、纯实习标记、申请邮箱或正文结构变化时立即暂停。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "www.career.zju.edu.cn",
+        "port": 443,
+        "pathPrefix": "/jyxt/sczp/zpztgl/ckZpgwXq.zf",
+        "allowRedirects": false,
+        "allowedQueryParameters": ["zpxxbh"]
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "app.mokahr.com",
+        "port": 443,
+        "pathPrefix": "/campus-recruitment/hanxu/144645",
+        "allowRedirects": false,
+        "allowedQueryParameters": ["locale"]
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 2,
+      "maxPages": 2,
+      "maxRequests": 10,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {},
+    "queryStreams": [
+      {
+        "key": "hanxu-explicit-internships",
+        "label": "寒序科技明确实习岗位",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 2
+      }
+    ]
+  }
+}

@@ -68,6 +68,7 @@ describe("controlled local source configurations", () => {
       "dingwei-consulting-internships",
       "dtl-quant-internships",
       "fanruan-trainee-internships",
+      "hanxu-tech-internships",
       "hr-soft-internships",
       "huice-campus-internships",
       "jcquant-internships",
@@ -97,6 +98,7 @@ describe("controlled local source configurations", () => {
     ["dingwei-consulting-internships", "university-employment-detail-html", true],
     ["dtl-quant-internships", "university-employment-detail-html", false],
     ["fanruan-trainee-internships", "fanruan-trainee-public-api", true],
+    ["hanxu-tech-internships", "university-employment-detail-html", true],
     ["hr-soft-internships", "university-employment-detail-html", true],
     ["huice-campus-internships", "beisen-zhiye-public-api", true],
     ["jcquant-internships", "university-employment-detail-html", true],
@@ -354,12 +356,24 @@ describe("controlled local source configurations", () => {
       { host: "career.nankai.edu.cn", pathPrefix: "/correcruit/content/id/116046.html" },
       { maxItems: 1, maxPages: 1, maxRequests: 10, minimumIntervalMs: 2000 },
     ],
+    [
+      "hanxu-tech-internships",
+      "www.career.zju.edu.cn",
+      "/jyxt/sczp/zpztgl/ckZpgwXq.zf",
+      ["zpxxbh"],
+      { host: "app.mokahr.com", pathPrefix: "/campus-recruitment/hanxu/144645" },
+      { maxItems: 2, maxPages: 2, maxRequests: 10, minimumIntervalMs: 2000 },
+    ],
   ] as const)(
     "limits %s to its frozen university detail pages",
     async (sourceKey, fetchHost, firstFetchPath, queryParameters, applyTarget, budget) => {
       const config = await loadSourceConfig(sourceKey);
       const expectedPolicyVersion =
-        sourceKey === "kunlunxin-internships" || sourceKey === "dtl-quant-internships" ? 3 : 2;
+        sourceKey === "hanxu-tech-internships"
+          ? 1
+          : sourceKey === "kunlunxin-internships" || sourceKey === "dtl-quant-internships"
+            ? 4
+            : 3;
       expect(config.policy.version).toBe(expectedPolicyVersion);
       expect(config.localProbe.requestBudget).toEqual(budget);
       expect(config.policy.fetchTargets[0]).toMatchObject({
@@ -454,6 +468,24 @@ describe("controlled local source configurations", () => {
         lastVerifiedAt: "2026-07-30T00:00:00.000Z",
       });
     }
+  });
+
+  it("records the official small-team evidence for Hanxu Tech", async () => {
+    const config = await loadSourceConfig("hanxu-tech-internships");
+    expect(config.organization.scale).toMatchObject({
+      band: "small",
+      evidenceUrl:
+        "https://sie.pku.edu.cn/xwgg/xwdt/09fd2cf34e034555949484ebe6a15177.htm",
+      lastVerifiedAt: "2026-07-31T00:00:00.000Z",
+    });
+    expect(config.policy.applyTargets).toEqual([
+      expect.objectContaining({
+        method: "GET",
+        host: "app.mokahr.com",
+        pathPrefix: "/campus-recruitment/hanxu/144645",
+        allowedQueryParameters: ["locale"],
+      }),
+    ]);
   });
 
   it("keeps ByteDance browser snapshots manual, internship-only and unable to live probe", async () => {

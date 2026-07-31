@@ -44,11 +44,60 @@ describe("source candidate registry", () => {
       candidates
         .filter((candidate) => candidate.assessmentStatus === "configured_pending_review")
         .map((candidate) => candidate.companyKey),
-    ).toEqual(["woolley-robot", "deeproute", "sanshiyuan"]);
+    ).toEqual(["woolley-robot", "deeproute", "sanshiyuan", "hanxu-tech"]);
     expect(
       candidates
         .filter((candidate) => candidate.assessmentStatus === "configured_pending_review")
         .every((candidate) => candidate.sourceKeys.length === 1),
     ).toBe(true);
+
+    const batch0702Keys = [
+      "hanxu-tech",
+      "zhiyue-deep-space",
+      "qingda-keyue",
+      "aoguan-software",
+      "lisound-hearing-aids",
+    ];
+    expect(
+      candidates
+        .filter((candidate) => batch0702Keys.includes(candidate.companyKey))
+        .map((candidate) => ({
+          companyKey: candidate.companyKey,
+          assessmentStatus: candidate.assessmentStatus,
+          sourceKeys: candidate.sourceKeys,
+          scaleBand: candidate.scaleBand,
+        })),
+    ).toEqual([
+      {
+        companyKey: "hanxu-tech",
+        assessmentStatus: "configured_pending_review",
+        sourceKeys: ["hanxu-tech-internships"],
+        scaleBand: "small",
+      },
+      {
+        companyKey: "zhiyue-deep-space",
+        assessmentStatus: "paused",
+        sourceKeys: [],
+        scaleBand: "unknown",
+      },
+      {
+        companyKey: "qingda-keyue",
+        assessmentStatus: "paused",
+        sourceKeys: [],
+        scaleBand: "medium",
+      },
+      {
+        companyKey: "aoguan-software",
+        assessmentStatus: "paused",
+        sourceKeys: [],
+        scaleBand: "small",
+      },
+      {
+        companyKey: "lisound-hearing-aids",
+        assessmentStatus: "paused",
+        sourceKeys: [],
+        scaleBand: "unknown",
+      },
+    ]);
   });
 });

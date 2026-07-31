@@ -181,6 +181,46 @@
       "sourceKeys": [],
       "scaleBand": "unknown",
       "scaleEvidenceRef": null
+    },
+    {
+      "companyKey": "hanxu-tech",
+      "displayName": "寒序科技（北京）有限公司",
+      "assessmentStatus": "configured_pending_review",
+      "sourceKeys": ["hanxu-tech-internships"],
+      "scaleBand": "small",
+      "scaleEvidenceRef": "https://sie.pku.edu.cn/xwgg/xwdt/09fd2cf34e034555949484ebe6a15177.htm"
+    },
+    {
+      "companyKey": "zhiyue-deep-space",
+      "displayName": "广州智跃深空人工智能科技有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
+    },
+    {
+      "companyKey": "qingda-keyue",
+      "displayName": "北京清大科越股份有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "medium",
+      "scaleEvidenceRef": "https://static.sse.com.cn/stock/disclosure/announcement/c/202212/001280_20221230_IZTQ.pdf"
+    },
+    {
+      "companyKey": "aoguan-software",
+      "displayName": "傲冠软件",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "small",
+      "scaleEvidenceRef": "https://www.neeq.com.cn/disclosure/2025/2025-01-08/5a1129cc649b45ebb6fc9c1a1f62da89.pdf"
+    },
+    {
+      "companyKey": "lisound-hearing-aids",
+      "displayName": "丽声助听器（福州）有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     }
   ]
 }

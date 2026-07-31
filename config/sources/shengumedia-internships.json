@@ -81,10 +81,10 @@
     ]
   },
   "policy": {
-    "version": "2",
+    "version": "3",
     "status": "pending_review",
     "adapterKey": "university-employment-detail-html",
-    "adapterVersion": "0.1.1",
+    "adapterVersion": "0.1.2",
     "entrypoints": ["https://career.cuhk.edu.cn/job/view/id/467659"],
     "crawlInterval": {
       "enabled": false,
