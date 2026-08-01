@@ -249,18 +249,19 @@ program
 program
   .command("source-refresh-disable")
   .description("Disable new local scheduled source refresh work")
-  .action(() => {
+  .action(async () => {
     const appConfig = loadAppConfig();
-    console.info(
-      JSON.stringify(
-        disableLocalSourceRefresh({
-          appEnv: appConfig.appEnv,
-          workspaceRoot: appConfig.workspaceRoot,
-        }),
-        null,
-        2,
-      ),
-    );
+    const db = createDatabase(appConfig.databaseUrl);
+    try {
+      const control = await disableLocalSourceRefresh({
+        db,
+        appEnv: appConfig.appEnv,
+        workspaceRoot: appConfig.workspaceRoot,
+      });
+      console.info(JSON.stringify(control, null, 2));
+    } finally {
+      await db.destroy();
+    }
   });
 
 program

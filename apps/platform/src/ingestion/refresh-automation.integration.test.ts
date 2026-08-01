@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { JobSearchQuerySchema } from "@aijob/contracts";
 import { createDatabase, migrateToLatest } from "@aijob/database";
 import { sql } from "kysely";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createCatalogRepository } from "../catalog/repository.js";
 import { writeLocalRefreshControl } from "../sources/local-refresh-control.js";
 import { listSourceKeys, loadSourceConfig } from "../sources/source-config.js";
@@ -13,9 +13,14 @@ import {
   COLLECTOR_ADVISORY_LOCK_KEY,
   runCollectorWorker,
   runOneCollectorCycle,
+  waitForCollectorIdle,
 } from "../workers/collector-worker.js";
 import { applyDirectSourceJobClosures, updateSourceJobActivityAfterRun } from "./job-activity.js";
-import { lockScheduledPolicyForAcceptance, reconcileAcceptedScheduledCatalog } from "./probe.js";
+import {
+  lockScheduledPolicyForAcceptance,
+  type ProbeResult,
+  reconcileAcceptedScheduledCatalog,
+} from "./probe.js";
 import {
   refreshFreshnessAndSnapshotReminders,
   selectDueSourceRefreshes,
@@ -190,6 +195,41 @@ describeWithDatabase("source refresh automation PostgreSQL integration", () => {
       })
       .execute();
     return recordId;
+  }
+
+  async function loadUnusedScheduledSourceConfigs(count: number) {
+    const configs = [];
+    for (const sourceKey of await listSourceKeys()) {
+      const config = await loadSourceConfig(sourceKey);
+      if (
+        !config.policy.crawlInterval.enabled ||
+        config.policy.refreshCoverage === "manual_snapshot"
+      ) {
+        continue;
+      }
+      const existing = await db
+        .selectFrom("source_control.sources")
+        .select("id")
+        .where("source_key", "=", sourceKey)
+        .executeTakeFirst();
+      if (existing) continue;
+      configs.push(config);
+      if (configs.length === count) return configs;
+    }
+    throw new Error(`missing ${count} unused scheduled source configurations`);
+  }
+
+  function fakeProbeResult(): ProbeResult {
+    return {
+      reused: false,
+      taskId: randomUUID(),
+      runId: randomUUID(),
+      completion: "partial",
+      discoveredCount: 1,
+      normalizedCount: 1,
+      rejectedCount: 0,
+      errors: [],
+    };
   }
 
   beforeAll(async () => {
@@ -917,6 +957,196 @@ describeWithDatabase("source refresh automation PostgreSQL integration", () => {
         },
       }),
     ).toMatchObject({ state: "circuit_open_or_not_due" });
+  });
+
+  it("isolates an exhausted scheduled task so the next due source can run", async () => {
+    await db
+      .updateTable("source_control.source_runtime_states")
+      .set({ next_due_at: null })
+      .where("source_id", "in", sourceIds)
+      .execute();
+    const [deadConfig, followingConfig] = await loadUnusedScheduledSourceConfigs(2);
+    if (!deadConfig || !followingConfig) throw new Error("missing scheduled source fixtures");
+    const now = new Date("2030-01-01T12:00:00.000Z");
+    const deadSource = await createSource({
+      sourceKey: deadConfig.sourceKey,
+      policyVersion: deadConfig.policy.version,
+      adapterVersion: deadConfig.policy.adapterVersion,
+      nextDueAt: new Date("2030-01-01T10:00:00.000Z"),
+    });
+    const followingSource = await createSource({
+      sourceKey: followingConfig.sourceKey,
+      policyVersion: followingConfig.policy.version,
+      adapterVersion: followingConfig.policy.adapterVersion,
+      nextDueAt: new Date("2030-01-01T11:00:00.000Z"),
+    });
+    writeLocalRefreshControl({ rootDirectory: workspaceRoot, enabled: true });
+
+    const executeRefresh = vi.fn(async (input: { sourceKey: string }) => {
+      if (input.sourceKey === deadSource.sourceKey) throw new Error("PROBE_TASK_DEAD");
+      return fakeProbeResult();
+    });
+    expect(
+      await runOneCollectorCycle({
+        db,
+        now,
+        config: {
+          appEnv: "local",
+          enableSourceProbe: true,
+          snapshotDir: workspaceRoot,
+          probeRequestIntervalMs: 2_000,
+          workspaceRoot,
+        },
+        executeRefresh,
+      }),
+    ).toMatchObject({
+      state: "source_deferred",
+      sourceKey: deadSource.sourceKey,
+      errorCode: "PROBE_TASK_DEAD",
+    });
+    expect(
+      await db
+        .selectFrom("source_control.source_runtime_states")
+        .select([
+          "freshness_state",
+          "automation_paused",
+          "automation_pause_reason",
+          "consecutive_failures",
+          "last_error_code",
+          "next_due_at",
+        ])
+        .where("source_id", "=", deadSource.sourceId)
+        .executeTakeFirstOrThrow(),
+    ).toEqual({
+      freshness_state: "stale",
+      automation_paused: false,
+      automation_pause_reason: null,
+      consecutive_failures: 1,
+      last_error_code: "PROBE_TASK_DEAD",
+      next_due_at: new Date(
+        now.getTime() + deadConfig.policy.crawlInterval.minimumHours * 60 * 60 * 1_000,
+      ),
+    });
+
+    expect(
+      await runOneCollectorCycle({
+        db,
+        now,
+        config: {
+          appEnv: "local",
+          enableSourceProbe: true,
+          snapshotDir: workspaceRoot,
+          probeRequestIntervalMs: 2_000,
+          workspaceRoot,
+        },
+        executeRefresh,
+      }),
+    ).toMatchObject({ state: "ran", sourceKey: followingSource.sourceKey });
+    expect(executeRefresh).toHaveBeenCalledTimes(2);
+    await db
+      .updateTable("source_control.source_runtime_states")
+      .set({ next_due_at: null })
+      .where("source_id", "=", followingSource.sourceId)
+      .execute();
+  });
+
+  it("waits for the active collector cycle before disable can return", async () => {
+    await db
+      .updateTable("source_control.source_runtime_states")
+      .set({ next_due_at: null })
+      .where("source_id", "in", sourceIds)
+      .execute();
+    const [sourceConfig] = await loadUnusedScheduledSourceConfigs(1);
+    if (!sourceConfig) throw new Error("missing scheduled source fixture");
+    const now = new Date("2030-01-02T12:00:00.000Z");
+    await createSource({
+      sourceKey: sourceConfig.sourceKey,
+      policyVersion: sourceConfig.policy.version,
+      adapterVersion: sourceConfig.policy.adapterVersion,
+      nextDueAt: new Date("2030-01-02T11:00:00.000Z"),
+    });
+
+    let refreshControlReads = 0;
+    const executeBeforeFinalCheck = vi.fn(async () => fakeProbeResult());
+    await expect(
+      runOneCollectorCycle({
+        db,
+        now,
+        config: {
+          appEnv: "local",
+          enableSourceProbe: true,
+          snapshotDir: workspaceRoot,
+          probeRequestIntervalMs: 2_000,
+          workspaceRoot,
+        },
+        readRefreshControl: () => ({
+          version: 1,
+          enabled: refreshControlReads++ < 2,
+          updatedAt: now.toISOString(),
+        }),
+        executeRefresh: executeBeforeFinalCheck,
+      }),
+    ).resolves.toMatchObject({ state: "disabled" });
+    expect(refreshControlReads).toBe(3);
+    expect(executeBeforeFinalCheck).not.toHaveBeenCalled();
+
+    writeLocalRefreshControl({ rootDirectory: workspaceRoot, enabled: true });
+
+    let markExecutionStarted: (() => void) | undefined;
+    const executionStarted = new Promise<void>((resolve) => {
+      markExecutionStarted = resolve;
+    });
+    let finishExecution: (() => void) | undefined;
+    const executionCanFinish = new Promise<void>((resolve) => {
+      finishExecution = resolve;
+    });
+    const cycle = runOneCollectorCycle({
+      db,
+      now,
+      config: {
+        appEnv: "local",
+        enableSourceProbe: true,
+        snapshotDir: workspaceRoot,
+        probeRequestIntervalMs: 2_000,
+        workspaceRoot,
+      },
+      executeRefresh: async () => {
+        markExecutionStarted?.();
+        await executionCanFinish;
+        return fakeProbeResult();
+      },
+    });
+    await executionStarted;
+
+    writeLocalRefreshControl({ rootDirectory: workspaceRoot, enabled: false });
+    const barrier = waitForCollectorIdle(db).then(() => "released" as const);
+    expect(
+      await Promise.race([
+        barrier,
+        new Promise<"waiting">((resolve) => setTimeout(() => resolve("waiting"), 50)),
+      ]),
+    ).toBe("waiting");
+
+    finishExecution?.();
+    await expect(cycle).resolves.toMatchObject({ state: "ran" });
+    await expect(barrier).resolves.toBe("released");
+
+    const executeAfterDisable = vi.fn(async () => fakeProbeResult());
+    await expect(
+      runOneCollectorCycle({
+        db,
+        now,
+        config: {
+          appEnv: "local",
+          enableSourceProbe: true,
+          snapshotDir: workspaceRoot,
+          probeRequestIntervalMs: 2_000,
+          workspaceRoot,
+        },
+        executeRefresh: executeAfterDisable,
+      }),
+    ).resolves.toMatchObject({ state: "disabled" });
+    expect(executeAfterDisable).not.toHaveBeenCalled();
   });
 
   it("uses a PostgreSQL advisory lock for global collector single concurrency", async () => {

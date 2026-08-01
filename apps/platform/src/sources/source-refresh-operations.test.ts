@@ -2,6 +2,7 @@ import type { Database } from "@aijob/database";
 import type { Kysely } from "kysely";
 import { describe, expect, it, vi } from "vitest";
 import {
+  disableLocalSourceRefresh,
   enableLocalSourceRefresh,
   getLocalSourceRefreshStatus,
   requestLocalSourceRefresh,
@@ -10,11 +11,41 @@ import {
 const db = {} as Kysely<Database>;
 
 describe("local source refresh operations", () => {
-  it("writes the enable switch only after every enabled source registers", async () => {
+  it("waits for the collector barrier after disabling the local switch", async () => {
     const events: string[] = [];
-    const writeControl = vi.fn(() => {
-      events.push("write");
-      return { version: 1 as const, enabled: true, updatedAt: "2026-08-01T00:00:00.000Z" };
+    const control = await disableLocalSourceRefresh({
+      db,
+      appEnv: "local",
+      workspaceRoot: "C:/workspace",
+      now: new Date("2026-08-01T00:00:00.000Z"),
+      dependencies: {
+        writeLocalRefreshControl: (input) => {
+          events.push(input.enabled ? "enable" : "disable");
+          return {
+            version: 1,
+            enabled: input.enabled,
+            updatedAt: "2026-08-01T00:00:00.000Z",
+          };
+        },
+        waitForCollectorIdle: async () => {
+          events.push("idle");
+        },
+      },
+    });
+
+    expect(events).toEqual(["disable", "idle"]);
+    expect(control.enabled).toBe(false);
+  });
+
+  it("keeps the switch disabled when any enabled source fails to register", async () => {
+    const events: string[] = [];
+    const writeControl = vi.fn((input: { enabled: boolean }) => {
+      events.push(input.enabled ? "enable" : "disable");
+      return {
+        version: 1 as const,
+        enabled: input.enabled,
+        updatedAt: "2026-08-01T00:00:00.000Z",
+      };
     });
 
     await expect(
@@ -24,6 +55,9 @@ describe("local source refresh operations", () => {
         workspaceRoot: "C:/workspace",
         dependencies: {
           listSourceKeys: async () => ["shining3d-internships", "onerobotics-internships"],
+          waitForCollectorIdle: async () => {
+            events.push("idle");
+          },
           registerSourceConfig: async (_db, config) => {
             events.push(config.sourceKey);
             if (config.sourceKey === "onerobotics-internships") {
@@ -41,8 +75,12 @@ describe("local source refresh operations", () => {
       }),
     ).rejects.toThrow("REGISTRATION_FAILED");
 
-    expect(events).toEqual(["shining3d-internships", "onerobotics-internships"]);
-    expect(writeControl).not.toHaveBeenCalled();
+    expect(events).toEqual(["disable", "idle", "shining3d-internships", "onerobotics-internships"]);
+    expect(writeControl).toHaveBeenCalledOnce();
+    expect(writeControl).toHaveBeenCalledWith({
+      rootDirectory: "C:/workspace",
+      enabled: false,
+    });
   });
 
   it("stably spreads due deterministic sources before enabling the local switch", async () => {
@@ -71,6 +109,9 @@ describe("local source refresh operations", () => {
           "onerobotics-internships",
           "bytedance-campus-manual",
         ],
+        waitForCollectorIdle: async () => {
+          events.push("idle");
+        },
         registerSourceConfig: async (_db, config) => {
           events.push(config.sourceKey);
           return {
@@ -81,9 +122,9 @@ describe("local source refresh operations", () => {
           };
         },
         staggerDueSourceRefreshes: staggerDue,
-        writeLocalRefreshControl: () => {
-          events.push("write");
-          return { version: 1, enabled: true, updatedAt: now.toISOString() };
+        writeLocalRefreshControl: (input) => {
+          events.push(input.enabled ? "enable" : "disable");
+          return { version: 1, enabled: input.enabled, updatedAt: now.toISOString() };
         },
       },
     });
@@ -107,8 +148,10 @@ describe("local source refresh operations", () => {
         },
       ],
     });
+    expect(events[0]).toBe("disable");
+    expect(events[1]).toBe("idle");
     expect(events.at(-2)).toBe("stagger");
-    expect(events.at(-1)).toBe("write");
+    expect(events.at(-1)).toBe("enable");
     expect(result).toMatchObject({
       staggerHours: 24,
       staggeredSources: [{ sourceKey: "shining3d-internships" }],

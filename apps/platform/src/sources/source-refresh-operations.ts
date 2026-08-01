@@ -4,6 +4,7 @@ import {
   loadSourceRefreshStatus,
   requestImmediateSourceRefresh,
 } from "../ingestion/refresh-scheduler.js";
+import { waitForCollectorIdle } from "../workers/collector-worker.js";
 import { readLocalRefreshControl, writeLocalRefreshControl } from "./local-refresh-control.js";
 import { listSourceKeys, loadSourceConfig } from "./source-config.js";
 import {
@@ -23,6 +24,7 @@ interface SourceRefreshOperationDependencies {
   loadSourceRefreshStatus: typeof loadSourceRefreshStatus;
   requestImmediateSourceRefresh: typeof requestImmediateSourceRefresh;
   staggerDueSourceRefreshes: typeof staggerDueSourceRefreshes;
+  waitForCollectorIdle: typeof waitForCollectorIdle;
 }
 
 const defaultDependencies: SourceRefreshOperationDependencies = {
@@ -34,6 +36,7 @@ const defaultDependencies: SourceRefreshOperationDependencies = {
   loadSourceRefreshStatus,
   requestImmediateSourceRefresh,
   staggerDueSourceRefreshes,
+  waitForCollectorIdle,
 };
 
 function dependencies(
@@ -58,6 +61,13 @@ export async function enableLocalSourceRefresh(input: {
   const staggerHours = input.staggerHours ?? 0;
   assertSourceRefreshStaggerHours(staggerHours);
   const deps = dependencies(input.dependencies);
+  const controlTime = input.now;
+  deps.writeLocalRefreshControl({
+    rootDirectory: input.workspaceRoot,
+    enabled: false,
+    ...(controlTime ? { now: controlTime } : {}),
+  });
+  await deps.waitForCollectorIdle(input.db);
   const configs = await Promise.all(
     (await deps.listSourceKeys()).map((sourceKey) => deps.loadSourceConfig(sourceKey)),
   );
@@ -93,23 +103,27 @@ export async function enableLocalSourceRefresh(input: {
   const control = deps.writeLocalRefreshControl({
     rootDirectory: input.workspaceRoot,
     enabled: true,
-    ...(input.now ? { now: input.now } : {}),
+    ...(controlTime ? { now: controlTime } : {}),
   });
   return { control, registeredSources, staggerHours, staggeredSources };
 }
 
-export function disableLocalSourceRefresh(input: {
+export async function disableLocalSourceRefresh(input: {
+  db: Kysely<Database>;
   appEnv: AppEnvironment;
   workspaceRoot: string;
   now?: Date;
   dependencies?: Partial<SourceRefreshOperationDependencies>;
 }) {
   assertLocalEnvironment(input.appEnv);
-  return dependencies(input.dependencies).writeLocalRefreshControl({
+  const deps = dependencies(input.dependencies);
+  const control = deps.writeLocalRefreshControl({
     rootDirectory: input.workspaceRoot,
     enabled: false,
     ...(input.now ? { now: input.now } : {}),
   });
+  await deps.waitForCollectorIdle(input.db);
+  return control;
 }
 
 export async function getLocalSourceRefreshStatus(input: {

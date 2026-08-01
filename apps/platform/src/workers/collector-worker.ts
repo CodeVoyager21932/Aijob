@@ -25,6 +25,7 @@ export interface CollectorCycleResult {
     | "environment_blocked"
     | "collector_busy"
     | "circuit_open_or_not_due"
+    | "source_deferred"
     | "source_paused"
     | "ran";
   sourceKey?: string;
@@ -74,6 +75,17 @@ async function withCollectorExecutionLock<T>(
   });
 }
 
+export async function waitForCollectorIdle(db: Kysely<Database>): Promise<void> {
+  await db.connection().execute(async (connection) => {
+    await sql`SELECT pg_advisory_lock(${COLLECTOR_ADVISORY_LOCK_KEY})`.execute(connection);
+    try {
+      return;
+    } finally {
+      await sql`SELECT pg_advisory_unlock(${COLLECTOR_ADVISORY_LOCK_KEY})`.execute(connection);
+    }
+  });
+}
+
 async function pauseStaleSourceRuntime(input: {
   db: Kysely<Database>;
   sourceId: string;
@@ -90,6 +102,30 @@ async function pauseStaleSourceRuntime(input: {
       consecutive_failures: sql`consecutive_failures + 1`,
       last_error_code: input.errorCode,
       next_due_at: null,
+      updated_at: input.now,
+    })
+    .where("source_id", "=", input.sourceId)
+    .where("policy_version", "=", input.policyVersion)
+    .execute();
+}
+
+async function deferDeadSourceRuntime(input: {
+  db: Kysely<Database>;
+  sourceId: string;
+  policyVersion: number;
+  minimumHours: number;
+  errorCode: string;
+  now: Date;
+}): Promise<void> {
+  await input.db
+    .updateTable("source_control.source_runtime_states")
+    .set({
+      freshness_state: "stale",
+      automation_paused: false,
+      automation_pause_reason: null,
+      consecutive_failures: sql`consecutive_failures + 1`,
+      last_error_code: input.errorCode,
+      next_due_at: new Date(input.now.getTime() + input.minimumHours * 60 * 60 * 1_000),
       updated_at: input.now,
     })
     .where("source_id", "=", input.sourceId)
@@ -149,14 +185,33 @@ export async function runOneCollectorCycle(input: {
       return { state: "source_paused" as const, sourceKey: due.sourceKey, errorCode };
     }
 
+    if (!readRefreshControl(input.config.workspaceRoot).enabled) {
+      return { state: "disabled" as const };
+    }
+
     const executeRefresh = input.executeRefresh ?? runScheduledSourceRefresh;
-    const result = await executeRefresh({
-      db: connection,
-      runtime: input.config,
-      sourceKey: due.sourceKey,
-      limit: sourceConfig.localProbe.requestBudget.maxItems,
-      dueWindow: due.nextDueAt.toISOString(),
-    });
+    let result: ProbeResult;
+    try {
+      result = await executeRefresh({
+        db: connection,
+        runtime: input.config,
+        sourceKey: due.sourceKey,
+        limit: sourceConfig.localProbe.requestBudget.maxItems,
+        dueWindow: due.nextDueAt.toISOString(),
+      });
+    } catch (error) {
+      const errorCode = error instanceof Error ? error.message : String(error);
+      if (errorCode !== "PROBE_TASK_DEAD") throw error;
+      await deferDeadSourceRuntime({
+        db: connection,
+        sourceId: due.sourceId,
+        policyVersion: due.policyVersion,
+        minimumHours: sourceConfig.policy.crawlInterval.minimumHours,
+        errorCode,
+        now,
+      });
+      return { state: "source_deferred" as const, sourceKey: due.sourceKey, errorCode };
+    }
     await openCircuitForTransportFailures(connection, now);
     return { state: "ran" as const, sourceKey: due.sourceKey, result };
   });
