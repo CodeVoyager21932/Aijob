@@ -82,21 +82,21 @@
     ]
   },
   "policy": {
-    "version": "4",
+    "version": "5",
     "status": "pending_review",
     "adapterKey": "university-employment-detail-html",
     "adapterVersion": "0.1.3",
     "entrypoints": ["https://career.cuhk.edu.cn/job/view/id/466931"],
     "crawlInterval": {
-      "enabled": false,
+      "enabled": true,
       "minimumHours": 168
     },
     "refreshCoverage": "tracked_records",
     "absencePolicy": "none",
-    "reviewedAt": "2026-07-26",
+    "reviewedAt": "2026-08-01",
     "policyNotes": [
-      "accessPolicyAccepted 未通过，仅允许维护者显式执行低频本地技术探测。",
-      "只允许读取冻结的单一详情页，禁止跟随页面其他链接、递归抓取高校网站、定时调度或自动公开。",
+      "ADR-0026 仅允许本机 collector-worker 按 168 小时间隔重新读取冻结的单一详情页；不得用于 CI、公开或远程环境。",
+      "只允许读取冻结的单一详情页，禁止跟随页面其他链接、递归抓取高校网站或自动公开。",
       "投递方式为企业域名邮箱，只展示复制邮箱与查看官方原文，不自动发送邮件。",
       "页面结构变化、招聘过期、邮箱或官网域名变化时必须进入复核。"
     ],

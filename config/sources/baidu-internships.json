@@ -81,21 +81,21 @@
     ]
   },
   "policy": {
-    "version": "2",
+    "version": "3",
     "status": "pending_review",
     "adapterKey": "baidu-ssr-deterministic-html",
     "adapterVersion": "0.1.1",
     "entrypoints": ["https://talent.baidu.com/jobs/list?recruitType=INTERN"],
     "crawlInterval": {
-      "enabled": false,
+      "enabled": true,
       "minimumHours": 24
     },
     "refreshCoverage": "tracked_records",
     "absencePolicy": "none",
-    "reviewedAt": "2026-07-20",
+    "reviewedAt": "2026-08-01",
     "policyNotes": [
-      "accessPolicyAccepted 未通过，仅允许维护者显式执行单页本地技术探测。",
-      "禁止定时全量采集、生产调度、自动发布和公开展示。",
+      "ADR-0026 仅允许本机 collector-worker 按 24 小时间隔执行单页低频刷新；不得用于 CI、公开或远程环境。",
+      "来源继续为 pending_review，只能进入本机目录；禁止自动发布和公开展示。",
       "禁止登录、验证码绕过、浏览器自动化、推荐码和未登记网络目标。",
       "只读取首屏 SSR 数据；若页面改为客户端动态加载、出现验证码或结构变化，立即暂停并复核。",
       "v2 将适配器升级至 0.1.1，使用字符串感知的平衡花括号解析 SSR JSON，兼容同一脚本中的后续官方初始化语句；字段范围和网络目标不变。"

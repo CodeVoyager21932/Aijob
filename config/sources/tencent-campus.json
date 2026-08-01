@@ -81,21 +81,21 @@
     ]
   },
   "policy": {
-    "version": "5",
+    "version": "6",
     "status": "pending_review",
     "adapterKey": "tencent-public-api",
     "adapterVersion": "0.2.0",
     "entrypoints": ["https://join.qq.com/post.html?query=p_104"],
     "crawlInterval": {
-      "enabled": false,
+      "enabled": true,
       "minimumHours": 24
     },
     "refreshCoverage": "tracked_records",
     "absencePolicy": "none",
-    "reviewedAt": "2026-07-17",
+    "reviewedAt": "2026-08-01",
     "policyNotes": [
-      "accessPolicyAccepted 硬门槛未通过，只允许显式 Local 技术探测。",
-      "禁止定时全量采集、生产调度、自动发布和公开展示。",
+      "ADR-0026 仅允许本机 collector-worker 按 24 小时间隔执行单来源低频刷新；不得用于 CI、公开或远程环境。",
+      "来源继续为 pending_review，只能进入本机目录；禁止自动发布和公开展示。",
       "禁止登录、验证码绕过、浏览器自动化和未登记网络目标。",
       "若条款、授权、展示范围或接口边界变化，必须创建新的不可变 policy version。",
       "v2 修正双查询流去重后的分页补足语义；访问与发布边界不变。",
