@@ -1,4 +1,4 @@
-# 当前项目交接：G2 SME 批次 07-03 已完成，继续批次 07-04
+# 当前项目交接：G2 自动刷新灰度，随后继续批次 07-04
 
 > 交接日期：2026-08-01
 >
@@ -10,7 +10,7 @@
 
 ## 1. 当前唯一目标
 
-coco 已在 P7 终局判定中选择继续扩容，并通过 ADR-0025 把企业目标从 20–30 家调整为 30–40 家；300–500 条可见岗位、SME 企业 60% 和 SME 岗位 50% 保持不变。批次 07-03 已完成：望尘科技 1 条体育游戏策划实习在 2026-07-31 截止前通过，SKT 思珂特教育、GURU Game、广州深蓝互动和浙江白鹭资产按硬门槛暂停；望尘于次日按截止日转为 v3 `paused` 并从当前目录下架。目录现为 198 总供给、134 可见、23 家企业，SME 为 7/23 家与 20/134 岗位。**当前唯一目标是按冻结排序规则继续批次 07-04，只推进 2026-08-01 仍活动的候选；企业达到 40 家立即停止。** 产品证据保持 `E0`，G0/G1 暂停。
+coco 已在 P7 终局判定中选择继续扩容，并通过 ADR-0025 把企业目标从 20–30 家调整为 30–40 家；300–500 条可见岗位、SME 企业 60% 和 SME 岗位 50% 保持不变。批次 07-03 已完成，目录现为 198 总供给、134 可见、23 家企业，SME 为 7/23 家与 20/134 岗位。为避免继续依赖维护者逐家重跑，coco 已批准 [ADR-0026](../decisions/0026-local-automatic-source-refresh.md)。**当前唯一目标是完成先临三维、卧安机器人、硕方信息三来源真实灰度；通过后分散启用其余合格来源，再按冻结排序规则继续批次 07-04。** 企业达到 40 家立即停止；产品证据保持 `E0`，G0/G1 暂停。
 
 2026-07-26 coco 作出四项决定并已全部执行：
 
@@ -51,8 +51,11 @@ coco 已在 P7 终局判定中选择继续扩容，并通过 ADR-0025 把企业�
 
 ## 2. 已确认工程事实
 
+- ADR-0026 自动刷新基础设施已实现：独立 `collector-worker` 随 `pnpm dev` 启动；`.data/source-refresh.local.json` 缺失时默认关闭；配置显式授权后按 PostgreSQL `next_due_at` 稳定排序，并以数据库 advisory lock 保证全局单并发、每小时最多 3 个不同来源和一小时传输层熔断执行 `scheduled` 任务。浏览器来源只生成提醒，不触网。
+- 来源契约新增 `full_scope`、`tracked_records`、`manual_snapshot` 与连续未见策略；计划批次必须先通过接受门，硬冲突自动暂停且保留上一可用目录。接受运行在目录物化成功前保持到期，重启只补物化、不重复触网；冻结高校详情页本次保存的 404/410 证据可关闭对应岗位。截止日期按上海自然日即时下架，`uncertain` 继续可见；目录、配额、匹配、推荐和洞察统一排除 `closed`。
+- 运维命令为 `source:refresh-enable/disable/status/now`，扩大多来源时可用 `source:refresh-enable --stagger-hours 24` 稳定分散当前到期任务。首次启用、扩大范围、恢复暂停与浏览器快照仍需人工明确操作；CI、测试、构建、Alpha 和 Production 均不访问真实来源。ADR-0023/0024 仍为提案。
 - 当前目录：总供给 198 条、可见 134 条、23 家企业；批次 07-03 望尘 1 条在截止前导入，2026-08-01 转 `paused` 后不再计入当前目录；被压缩 64 条保留全部不可变版本并在目录页公开"X/供给 Y"。
-- 通过来源均为 `pending_review`、只能进入本机 `local_mvp`；全志、昆仑芯、DTL 已转 `paused`；公开 `/v1/jobs` 保持 0 条。
+- 通过来源均为 `pending_review`、只能进入本机 `local_mvp`；全志、昆仑芯、DTL 与望尘已转 `paused`；公开 `/v1/jobs` 保持 0 条。
 - P0 提额运行：硕方 run `f4d022fa-d7ff-4004-a990-d29cc113797c` 为 6 请求、6/6/0，同小时重放 `reused=true`；千寻 run `b26d6015-da9e-4a28-93f5-5cd96233da5a` 为 `request_count=0`、22/22/0，同快照重放 `reused=true` 且 0 新修订。快照哈希为 `46aca0c1…3a93127`。
 - 共享适配器 `university-employment-detail-html` 已升至 0.1.3：在既有南开 correcruit / 港中深 jobview / 浙大 jyxt 契约上，继续保持职责与要求确定性分段，并新增浙大“（二）任职要求”、公开“招聘链接”、NFKC 主体比较、“每周可保证 N 个工作日”识别和港中深页脚截断；company_email 继续要求企业同域与原句同时成立。
 - ADR-0021 配额机制：`catalog.company_quota_selections`（迁移 016）由物化在同一事务整表重写；择优为优先轨道（product/operations/engineering/data_ai 的 known 值）在前、组内按 created_at 与 id 稳定排序；目录 `loadLocalRows` 与洞察样本 SQL 按 `selected` 过滤，推荐候选集经目录搜索自然继承，历史冻结运行不回溯；未物化修订不受配额影响（兼容既有容量测试路径）。
@@ -73,13 +76,15 @@ coco 已在 P7 终局判定中选择继续扩容，并通过 ADR-0025 把企业�
 - 2026-07-30 批次 07-01 工程门：隔离库全量 401 项测试（platform 308、web 57、config 16、contracts 15、database 5）、全仓 TypeScript、生产构建、`pnpm lint`（279 文件）与 `git diff --check` 通过。
 - 2026-07-31 批次 07-02 工程门：隔离库全量 406 项测试（platform 313、web 57、config 16、contracts 15、database 5）、全仓 TypeScript、生产构建、`pnpm lint`（280 文件）与 `git diff --check` 通过。
 - 2026-07-31 批次 07-03 工程门：隔离库全量 412 项测试（platform 319、web 57、config 16、contracts 15、database 5）、全仓 TypeScript、生产构建、`pnpm lint`（281 文件）与 `git diff --check` 通过。
+- 2026-08-01 自动刷新基础设施工程门：隔离库全量 457 项测试（platform 363、web 57、config 16、contracts 15、database 6）、全仓 TypeScript、生产构建、`pnpm lint`（300 文件）与 `git diff --check` 通过；总开关保持关闭，未访问真实来源。详见[验收记录](../evidence/ingestion/source-refresh-automation-2026-08-01.md)。
 
 ## 3. 当前未完成项
 
-1. 固定 20 家队列与批次 07-01/07-02/07-03 已核验完毕；下一批继续从千家台账按 `active_explicit → active_needs_recheck`、岗位数降序、截止升序、候选 ID 升序筛选，每批最多 5 家，且不得沿用已截止页面的活动性结论。
-2. 目录硬指标仍未达：134 / 300 可见、23 / 30 家企业、SME 企业 30.43% / 60%、SME 岗位 14.93% / 50%。
-3. 企业达到 40 家仍不达标时停止扩容并回到 P7，不降低规模证据或字段标准。
-4. 空库恢复命令已实现，但尚未完成到当前目录统计的最终一致性断言；G0/G1、公开 AI 与公开岗位目录继续关闭。
+1. 自动刷新只启用三家灰度来源与两个人工快照提醒来源；必须先完成一次计划运行、重启幂等、零硬冲突与正确物化，才启用其余活动确定性来源。
+2. 固定 20 家队列与批次 07-01/07-02/07-03 已核验完毕；自动刷新稳定后，下一批继续从千家台账按 `active_explicit → active_needs_recheck`、岗位数降序、截止升序、候选 ID 升序筛选，每批最多 5 家，且不得沿用已截止页面的活动性结论。
+3. 目录硬指标仍未达：134 / 300 可见、23 / 30 家企业、SME 企业 30.43% / 60%、SME 岗位 14.93% / 50%。
+4. 企业达到 40 家仍不达标时停止扩容并回到 P7，不降低规模证据或字段标准。
+5. 空库恢复命令已实现，但尚未完成到当前目录统计的最终一致性断言；G0/G1、公开 AI 与公开岗位目录继续关闭。
 
 ## 4. 关键实现位置
 
@@ -89,7 +94,8 @@ coco 已在 P7 终局判定中选择继续扩容，并通过 ADR-0025 把企业�
 - 匿名 owner 与安全：`apps/platform/src/identity/`、`apps/platform/src/profile/`
 - 简历：`apps/platform/src/resume/`；匹配与推荐：`apps/platform/src/matching/`；JD 洞察：`apps/platform/src/insights/`
 - 优化与 DOCX：`apps/platform/src/tailoring/`、`apps/platform/src/ai/`；决定与删除：`apps/platform/src/decisions/`
-- 数据迁移：`packages/database/src/migrations/004_local_complete_mvp.ts` 至 `016_company_quota_selections.ts`
+- 自动刷新：`apps/platform/src/workers/collector-worker.ts`、`apps/platform/src/ingestion/refresh-scheduler.ts`、`apps/platform/src/ingestion/job-activity.ts`、`apps/platform/src/sources/source-refresh-operations.ts`
+- 数据迁移：`packages/database/src/migrations/004_local_complete_mvp.ts` 至 `017_source_refresh_automation.ts`
 
 ## 5. 本地恢复
 

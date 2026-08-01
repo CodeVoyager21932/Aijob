@@ -85,18 +85,20 @@
     ]
   },
   "policy": {
-    "version": "1",
+    "version": "2",
     "status": "pending_review",
     "adapterKey": "beisen-zhiye-public-api",
     "adapterVersion": "0.1.2",
     "entrypoints": ["https://woanhome.zhiye.com/intern/jobs"],
     "crawlInterval": {
-      "enabled": false,
+      "enabled": true,
       "minimumHours": 24
     },
-    "reviewedAt": "2026-07-30",
+    "refreshCoverage": "full_scope",
+    "absencePolicy": "close_after_two_complete_absences",
+    "reviewedAt": "2026-08-01",
     "policyNotes": [
-      "仅允许维护者显式执行低频本地技术探测。",
+      "ADR-0026 仅允许本机 collector-worker 按 24 小时间隔执行单来源低频刷新；不得用于 CI、公开或远程环境。",
       "禁止登录、验证码绕过、Cookie、代理或浏览器自动化生产采集。",
       "Category、PortalId、主体或字段结构变化时立即暂停。"
     ],

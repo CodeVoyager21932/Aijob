@@ -66,9 +66,9 @@ pnpm ai:configure
 
 然后打开 <http://127.0.0.1:5173/jobs> 使用正式产品闭环。简历入口为 <http://127.0.0.1:5173/resume>，推荐为 <http://127.0.0.1:5173/recommendations>，岗位洞察为 <http://127.0.0.1:5173/insights>，数据删除为 <http://127.0.0.1:5173/data-control>。`/research/*` 仅保留为历史研究原型，`/internal-preview/jobs` 用于内部字段复核。
 
-`source:probe` 会按来源配置低频读取已登记官方来源并写入本地数据库，只能由维护者明确运行；它不登录、不处理验证码，也不使用浏览器自动化。日常测试与 CI 不调用真实招聘站。停止本地数据库可运行 `pnpm infra:down`。
+`source:probe` 仍用于来源首次核验、范围变化和暂停恢复等人工操作。按 ADR-0026 显式配置的确定性来源可在本机自动刷新：首次运行 `pnpm source:refresh-enable` 开启本地总开关，`pnpm source:refresh-status` 查看最近运行、下次到期、失败与快照待办，`pnpm source:refresh-now [source-key]` 按同一队列和预算安排一次到期任务，`pnpm source:refresh-disable` 立即停止创建新网络任务。扩大到多来源前可运行 `pnpm source:refresh-enable --stagger-hours 24`，把当前已到期的确定性来源按稳定哈希分散到 24 小时内；未来已经排期的来源不会被重复移动。`pnpm dev` 已包含独立 collector 入口；总开关缺失时默认关闭。日常测试、CI、构建、Alpha 和 Production 不调用真实招聘站。停止本地数据库可运行 `pnpm infra:down`。
 
-`browser_required` 来源不进入 `source:probe`。coco 明确批准的人工浏览器或认证公众号快照只能保存在 Git 忽略的 `.data/browser-imports/`，再用 `pnpm source:import-browser-snapshot <source-key> --file <path>` 离线导入；该命令没有招聘站网络请求能力。只接受明确实习岗位；公众号投递方式还必须是白名单官方 HTTPS 页面或带原句的企业域名邮箱，个人邮箱、二维码-only、正式校招全职和社会招聘会被整批拒绝。
+`browser_required` 来源不进入 `source:probe` 或自动网络刷新。来源到期后只在 Worker 日志和 `source:refresh-status` 中生成快照提醒。coco 明确批准的人工浏览器或认证公众号快照只能保存在 Git 忽略的 `.data/browser-imports/`，再用 `pnpm source:import-browser-snapshot <source-key> --file <path>` 离线导入；成功导入新快照会清除提醒并更新下次到期时间，该命令没有招聘站网络请求能力。只接受明确实习岗位；公众号投递方式还必须是白名单官方 HTTPS 页面或带原句的企业域名邮箱，个人邮箱、二维码-only、正式校招全职和社会招聘会被整批拒绝。
 
 日常代码检查：
 
@@ -80,7 +80,7 @@ pnpm build
 ## 核心链路
 
 ```text
-16 个已登记官方来源的岗位
+27 个已登记来源配置中的本地岗位
   -> 快照、清洗、去重、结构化和来源追溯
   -> PDF / DOCX / 文本简历与隐私检查
   -> 用户确认事实、偏好与经历证据

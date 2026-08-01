@@ -39,6 +39,41 @@ describeWithDatabase("official account zero-network manual import", () => {
         .execute();
       const revisionIds = revisions.map(({ id }) => id);
       if (revisionIds.length > 0) {
+        const catalogRows = await db
+          .selectFrom("catalog.published_job_version_revision_links as link")
+          .innerJoin(
+            "catalog.published_job_versions as version",
+            "version.id",
+            "link.published_job_version_id",
+          )
+          .select(["version.id as versionId", "version.published_job_id as jobId"])
+          .where("link.source_job_revision_id", "in", revisionIds)
+          .execute();
+        const versionIds = [...new Set(catalogRows.map(({ versionId }) => versionId))];
+        const jobIds = [...new Set(catalogRows.map(({ jobId }) => jobId))];
+        if (versionIds.length > 0) {
+          await db
+            .updateTable("catalog.published_job_versions")
+            .set({ active_requirement_set_id: null })
+            .where("id", "in", versionIds)
+            .execute();
+          await db
+            .deleteFrom("catalog.job_requirement_sets")
+            .where("published_job_version_id", "in", versionIds)
+            .execute();
+        }
+        if (jobIds.length > 0) {
+          await db
+            .updateTable("catalog.published_jobs")
+            .set({ current_version_id: null })
+            .where("id", "in", jobIds)
+            .execute();
+          await db
+            .deleteFrom("catalog.published_job_versions")
+            .where("published_job_id", "in", jobIds)
+            .execute();
+          await db.deleteFrom("catalog.published_jobs").where("id", "in", jobIds).execute();
+        }
         await db
           .deleteFrom("ingestion.source_job_revision_evidence")
           .where("revision_id", "in", revisionIds)

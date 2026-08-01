@@ -90,6 +90,8 @@
       "enabled": false,
       "minimumHours": 24
     },
+    "refreshCoverage": "tracked_records",
+    "absencePolicy": "none",
     "reviewedAt": "2026-07-17",
     "policyNotes": [
       "accessPolicyAccepted 硬门槛未通过，只允许显式 Local 技术探测。",

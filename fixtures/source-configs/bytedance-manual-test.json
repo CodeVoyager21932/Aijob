@@ -43,6 +43,8 @@
     "adapterVersion": "0.1.1",
     "entrypoints": ["https://jobs.bytedance.com/campus/position"],
     "crawlInterval": { "enabled": false, "minimumHours": 168 },
+    "refreshCoverage": "manual_snapshot",
+    "absencePolicy": "none",
     "reviewedAt": "2026-07-21",
     "policyNotes": ["仅测试人工快照的零网络导入。"],
     "fetchTargets": [

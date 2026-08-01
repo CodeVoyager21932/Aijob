@@ -17,6 +17,12 @@ import { runSourceProbe } from "./ingestion/probe.js";
 import { runLocalBootstrap } from "./local-bootstrap.js";
 import { loadSourceCandidateRegistry } from "./sources/source-candidates.js";
 import { assessSource, listSourceKeys, loadSourceConfig } from "./sources/source-config.js";
+import {
+  disableLocalSourceRefresh,
+  enableLocalSourceRefresh,
+  getLocalSourceRefreshStatus,
+  requestLocalSourceRefresh,
+} from "./sources/source-refresh-operations.js";
 import { registerSourceConfig } from "./sources/source-registry.js";
 
 const program = new Command();
@@ -206,6 +212,102 @@ program
           2,
         ),
       );
+    } finally {
+      await db.destroy();
+    }
+  });
+
+program
+  .command("source-refresh-enable")
+  .description("Enable explicitly configured local source refresh schedules")
+  .option(
+    "--stagger-hours <hours>",
+    "Spread currently due deterministic sources across a stable 1-24 hour window",
+    "0",
+  )
+  .action(async (options: { staggerHours: string }) => {
+    const appConfig = loadAppConfig();
+    const db = createDatabase(appConfig.databaseUrl);
+    try {
+      console.info(
+        JSON.stringify(
+          await enableLocalSourceRefresh({
+            db,
+            appEnv: appConfig.appEnv,
+            workspaceRoot: appConfig.workspaceRoot,
+            staggerHours: Number(options.staggerHours),
+          }),
+          null,
+          2,
+        ),
+      );
+    } finally {
+      await db.destroy();
+    }
+  });
+
+program
+  .command("source-refresh-disable")
+  .description("Disable new local scheduled source refresh work")
+  .action(() => {
+    const appConfig = loadAppConfig();
+    console.info(
+      JSON.stringify(
+        disableLocalSourceRefresh({
+          appEnv: appConfig.appEnv,
+          workspaceRoot: appConfig.workspaceRoot,
+        }),
+        null,
+        2,
+      ),
+    );
+  });
+
+program
+  .command("source-refresh-status")
+  .description("Show read-only local source refresh state and snapshot reminders")
+  .action(async () => {
+    const appConfig = loadAppConfig();
+    const db = createDatabase(appConfig.databaseUrl);
+    try {
+      console.info(
+        JSON.stringify(
+          await getLocalSourceRefreshStatus({
+            db,
+            appEnv: appConfig.appEnv,
+            workspaceRoot: appConfig.workspaceRoot,
+          }),
+          null,
+          2,
+        ),
+      );
+    } finally {
+      await db.destroy();
+    }
+  });
+
+program
+  .command("source-refresh-now")
+  .description("Mark one or all configured sources due for the scheduled collector")
+  .argument("[source-key]", "Configured source key; omit to request every enabled source")
+  .action(async (sourceKey: string | undefined) => {
+    const appConfig = loadAppConfig();
+    const db = createDatabase(appConfig.databaseUrl);
+    try {
+      const result = await requestLocalSourceRefresh({
+        db,
+        appEnv: appConfig.appEnv,
+        workspaceRoot: appConfig.workspaceRoot,
+        ...(sourceKey ? { sourceKey } : {}),
+      });
+      if (
+        result &&
+        "sources" in result &&
+        result.sources.some((source) => "error" in source && source.error)
+      ) {
+        process.exitCode = 1;
+      }
+      console.info(JSON.stringify(result, null, 2));
     } finally {
       await db.destroy();
     }

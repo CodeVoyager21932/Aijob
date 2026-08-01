@@ -13,6 +13,7 @@ export class NetworkPolicyError extends Error {
   constructor(
     public readonly code: string,
     message: string,
+    public readonly response?: SafeHttpResult,
   ) {
     super(message);
     this.name = "NetworkPolicyError";
@@ -472,6 +473,7 @@ export async function safeRequestJson(
         throw new NetworkPolicyError(
           `UPSTREAM_HTTP_${result.status}`,
           `Upstream returned HTTP ${result.status}`,
+          result,
         );
       }
 
@@ -498,6 +500,7 @@ export async function safeRequestJson(
     throw new NetworkPolicyError(
       `UPSTREAM_HTTP_${lastResult.status}`,
       `Upstream returned HTTP ${lastResult.status}`,
+      lastResult,
     );
   }
   throw lastError;
@@ -523,6 +526,7 @@ export async function safeRequestHtml(
         throw new NetworkPolicyError(
           `UPSTREAM_HTTP_${result.status}`,
           `Upstream returned HTTP ${result.status}`,
+          result,
         );
       }
 
@@ -549,6 +553,7 @@ export async function safeRequestHtml(
     throw new NetworkPolicyError(
       `UPSTREAM_HTTP_${lastResult.status}`,
       `Upstream returned HTTP ${lastResult.status}`,
+      lastResult,
     );
   }
   throw lastError;

@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { Database } from "@aijob/database";
-import type { Kysely } from "kysely";
+import { type Kysely, sql, type Transaction } from "kysely";
 import { ZodError, z } from "zod";
+import { materializeLocalCatalog } from "../catalog/materialize.js";
 import { canonicalJson, hashCanonicalJson } from "../lib/canonical-json.js";
 import {
   BAIDU_INTERNSHIPS_ADAPTER_VERSION,
@@ -83,6 +84,11 @@ import {
   UNIVERSITY_EMPLOYMENT_NORMALIZER_VERSION,
 } from "../sources/university-employment-adapter.js";
 import {
+  applyDirectSourceJobClosures,
+  type DirectClosureReason,
+  updateSourceJobActivityAfterRun,
+} from "./job-activity.js";
+import {
   assertActiveTaskLease,
   markFetchSchemaError,
   persistNormalizedOfficialJob,
@@ -112,7 +118,7 @@ export interface ProbeResult {
   reused: boolean;
   taskId: string;
   runId: string;
-  completion: "partial" | "failed";
+  completion: "complete" | "partial" | "failed";
   discoveredCount: number;
   normalizedCount: number;
   rejectedCount: number;
@@ -200,6 +206,57 @@ export function isRetryableProbeErrorCode(code: string): boolean {
   return retryableProbeErrorCodes.has(code) || /^UPSTREAM_HTTP_(408|429|5\d\d)$/.test(code);
 }
 
+const safeSoftRefreshRejectionCodes = new Set([
+  "BEISEN_NOT_EXPLICIT_INTERNSHIP",
+  "FANRUAN_NOT_EXPLICIT_INTERNSHIP",
+  "UNIVERSITY_EMPLOYMENT_NOT_EXPLICIT_INTERNSHIP",
+  "UNIVERSITY_EMPLOYMENT_NOT_INTERNSHIP_SECTION",
+]);
+
+export function isSafeSoftRefreshRejectionCode(code: string): boolean {
+  return safeSoftRefreshRejectionCodes.has(code);
+}
+
+export function isHardRefreshConflictCode(code: string): boolean {
+  return !isRetryableProbeErrorCode(code) && !isSafeSoftRefreshRejectionCode(code);
+}
+
+export function scheduledRefreshRejectionCode(input: {
+  code: string;
+  runMode: "probe" | "scheduled";
+  refreshCoverage: SourceConfig["policy"]["refreshCoverage"];
+  recordAlreadyTracked: boolean;
+}): string {
+  return input.runMode === "scheduled" &&
+    input.refreshCoverage === "tracked_records" &&
+    input.recordAlreadyTracked &&
+    isSafeSoftRefreshRejectionCode(input.code)
+    ? "TRACKED_RECORD_NOT_INTERNSHIP"
+    : input.code;
+}
+
+export function isRefreshCountAnomaly(previousCount: number, currentCount: number): boolean {
+  if (previousCount < 4 || currentCount < 0) return false;
+  return currentCount < Math.ceil(previousCount / 4) || currentCount > previousCount * 4;
+}
+
+export function isSourcePolicyStatusAuthorizedForRun(
+  status: SourceConfig["policy"]["status"],
+  runMode: "probe" | "scheduled",
+): boolean {
+  return runMode === "scheduled"
+    ? status === "pending_review" || status === "approved"
+    : status === "pending_review";
+}
+
+export function directClosureReasonForErrorCode(code: string): DirectClosureReason | undefined {
+  return code === "UPSTREAM_HTTP_404"
+    ? "http_404"
+    : code === "UPSTREAM_HTTP_410"
+      ? "http_410"
+      : undefined;
+}
+
 export function calculateTaskFailureTransition(input: {
   attempt: number;
   maxAttempts: number;
@@ -257,6 +314,85 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+async function trackedRecordAwareRejectionCode(input: {
+  db: Kysely<Database>;
+  sourceId: string;
+  sourceConfig: SourceConfig;
+  runMode: "probe" | "scheduled";
+  code: string;
+  sourceJobId?: string;
+  canonicalSourceUrl?: string;
+}): Promise<string> {
+  if (
+    input.runMode !== "scheduled" ||
+    input.sourceConfig.policy.refreshCoverage !== "tracked_records" ||
+    !isSafeSoftRefreshRejectionCode(input.code)
+  ) {
+    return input.code;
+  }
+
+  let recordAlreadyTracked = false;
+  if (input.sourceJobId) {
+    recordAlreadyTracked = Boolean(
+      await input.db
+        .selectFrom("ingestion.source_job_records")
+        .select("id")
+        .where("source_id", "=", input.sourceId)
+        .where("source_job_id", "=", input.sourceJobId)
+        .executeTakeFirst(),
+    );
+  } else if (input.canonicalSourceUrl) {
+    recordAlreadyTracked = Boolean(
+      await input.db
+        .selectFrom("ingestion.source_job_records")
+        .select("id")
+        .where("source_id", "=", input.sourceId)
+        .where("canonical_source_url", "=", input.canonicalSourceUrl)
+        .executeTakeFirst(),
+    );
+  }
+
+  return scheduledRefreshRejectionCode({
+    code: input.code,
+    runMode: input.runMode,
+    refreshCoverage: input.sourceConfig.policy.refreshCoverage,
+    recordAlreadyTracked,
+  });
+}
+
+export async function lockScheduledPolicyForAcceptance(input: {
+  transaction: Transaction<Database>;
+  sourceId: string;
+  policyVersion: number;
+  adapterKey: string;
+  adapterVersion: string;
+}): Promise<boolean> {
+  const source = await input.transaction
+    .selectFrom("source_control.sources")
+    .select("current_policy_version")
+    .where("id", "=", input.sourceId)
+    .forUpdate()
+    .executeTakeFirstOrThrow();
+  const policy = await input.transaction
+    .selectFrom("source_control.source_policy_versions")
+    .select(["adapter_key", "adapter_version"])
+    .where("source_id", "=", input.sourceId)
+    .where("version", "=", source.current_policy_version)
+    .executeTakeFirstOrThrow();
+  const runtime = await input.transaction
+    .selectFrom("source_control.source_runtime_states")
+    .select("policy_version")
+    .where("source_id", "=", input.sourceId)
+    .executeTakeFirstOrThrow();
+
+  return (
+    source.current_policy_version === input.policyVersion &&
+    runtime.policy_version === input.policyVersion &&
+    policy.adapter_key === input.adapterKey &&
+    policy.adapter_version === input.adapterVersion
+  );
+}
+
 async function persistHttpResponse(input: {
   db: Kysely<Database>;
   runtime: ProbeRuntimeConfig;
@@ -265,6 +401,8 @@ async function persistHttpResponse(input: {
   crawlRunId: string;
   response: SafeHttpResult;
   lease: TaskLease;
+  fetchResult?: "success" | "http_error" | "schema_error" | "network_error" | "policy_error";
+  errorCode?: string | null;
 }): Promise<string> {
   const snapshot = await storeSnapshot(
     input.runtime.snapshotDir,
@@ -279,7 +417,50 @@ async function persistHttpResponse(input: {
     response: input.response,
     snapshot,
     lease: input.lease,
+    ...(input.fetchResult ? { fetchResult: input.fetchResult } : {}),
+    ...(input.errorCode !== undefined ? { errorCode: input.errorCode } : {}),
   });
+}
+
+export async function reconcileAcceptedScheduledCatalog(input: {
+  db: Kysely<Database>;
+  sourceId: string;
+  policyVersion: number;
+  minimumHours: number;
+  completedAt: Date;
+  materializeCatalog?: typeof materializeLocalCatalog;
+}): Promise<void> {
+  try {
+    await (input.materializeCatalog ?? materializeLocalCatalog)(input.db);
+  } catch (error) {
+    await input.db
+      .updateTable("source_control.source_runtime_states")
+      .set({
+        freshness_state: "due",
+        consecutive_failures: sql`consecutive_failures + 1`,
+        last_error_code: "CATALOG_MATERIALIZATION_FAILED",
+        updated_at: new Date(),
+      })
+      .where("source_id", "=", input.sourceId)
+      .where("policy_version", "=", input.policyVersion)
+      .execute();
+    throw error;
+  }
+
+  await input.db
+    .updateTable("source_control.source_runtime_states")
+    .set({
+      freshness_state: "fresh",
+      consecutive_failures: 0,
+      last_error_code: null,
+      next_due_at: new Date(input.completedAt.getTime() + input.minimumHours * 60 * 60 * 1_000),
+      automation_paused: false,
+      automation_pause_reason: null,
+      updated_at: new Date(),
+    })
+    .where("source_id", "=", input.sourceId)
+    .where("policy_version", "=", input.policyVersion)
+    .execute();
 }
 
 async function createOrClaimProbeTask(input: {
@@ -287,6 +468,8 @@ async function createOrClaimProbeTask(input: {
   sourceId: string;
   config: SourceConfig;
   limit: number;
+  runMode: "probe" | "scheduled";
+  window: string;
 }): Promise<
   | { reused: true; taskId: string; runId: string }
   | {
@@ -299,14 +482,13 @@ async function createOrClaimProbeTask(input: {
       backoffPolicy: TaskBackoffPolicy;
     }
 > {
-  const { db, sourceId, config, limit } = input;
-  const window = new Date().toISOString().slice(0, 13);
+  const { db, sourceId, config, limit, runMode, window } = input;
   const idempotencyKey = hashCanonicalJson({
     taskType: "crawl",
     sourceId,
     policyVersion: config.policy.version,
     adapterVersion: config.policy.adapterVersion,
-    runMode: "probe",
+    runMode,
     window,
     queryStreams: config.localProbe.queryStreams,
     requestBudget: config.localProbe.requestBudget,
@@ -322,7 +504,7 @@ async function createOrClaimProbeTask(input: {
       source_id: sourceId,
       policy_version: config.policy.version,
       adapter_version: config.policy.adapterVersion,
-      run_mode: "probe",
+      run_mode: runMode,
       idempotency_key: idempotencyKey,
       status: "queued",
       attempt: 0,
@@ -680,6 +862,7 @@ interface AdapterProbeInput {
   limit: number;
   errors: ProbeResult["errors"];
   budgetUsage: ProbeBudgetUsage;
+  runMode: "probe" | "scheduled";
 }
 
 interface AdapterProbeOutput {
@@ -689,6 +872,8 @@ interface AdapterProbeOutput {
   requestCount: number;
   reportedTotals: Record<string, number>;
   failureErrorCodes: string[];
+  scopeExhausted: boolean;
+  directClosures?: Array<{ recordIds: string[]; reason: DirectClosureReason }>;
 }
 
 function probeLease(input: AdapterProbeInput): TaskLease {
@@ -863,6 +1048,7 @@ async function runMeituanAdapterProbe(input: AdapterProbeInput): Promise<Adapter
         lease: probeLease(input),
         adapterVersion: MEITUAN_ADAPTER_VERSION,
         normalizerVersion: MEITUAN_NORMALIZER_VERSION,
+        deferLastSeenUpdate: input.runMode === "scheduled",
       });
       normalizedCount += 1;
     } catch (error) {
@@ -881,6 +1067,7 @@ async function runMeituanAdapterProbe(input: AdapterProbeInput): Promise<Adapter
     requestCount: input.budgetUsage.requests,
     reportedTotals,
     failureErrorCodes,
+    scopeExhausted: expectedTotal !== undefined && candidates.size >= expectedTotal,
   };
 }
 
@@ -934,6 +1121,7 @@ async function runNankaiTalAdapterProbe(input: AdapterProbeInput): Promise<Adapt
         lease: probeLease(input),
         adapterVersion: NANKAI_TAL_ADAPTER_VERSION,
         normalizerVersion: NANKAI_TAL_NORMALIZER_VERSION,
+        deferLastSeenUpdate: input.runMode === "scheduled",
       });
       normalizedCount += 1;
     } catch (error) {
@@ -952,6 +1140,7 @@ async function runNankaiTalAdapterProbe(input: AdapterProbeInput): Promise<Adapt
     requestCount: input.budgetUsage.requests,
     reportedTotals: { "operations-roles": page.roles.length },
     failureErrorCodes,
+    scopeExhausted: roles.length === page.roles.length,
   };
 }
 
@@ -1007,6 +1196,7 @@ async function runBaiduInternshipsAdapterProbe(
         lease: probeLease(input),
         adapterVersion: BAIDU_INTERNSHIPS_ADAPTER_VERSION,
         normalizerVersion: BAIDU_INTERNSHIPS_NORMALIZER_VERSION,
+        deferLastSeenUpdate: input.runMode === "scheduled",
       });
       normalizedCount += 1;
     } catch (error) {
@@ -1025,6 +1215,7 @@ async function runBaiduInternshipsAdapterProbe(
     requestCount: input.budgetUsage.requests,
     reportedTotals: { "all-function-internships": page.total },
     failureErrorCodes,
+    scopeExhausted: jobs.length === page.jobs.length && page.jobs.length >= page.total,
   };
 }
 
@@ -1084,6 +1275,7 @@ async function runJdCampusInternshipsAdapterProbe(
         lease: probeLease(input),
         adapterVersion: JD_CAMPUS_INTERNSHIPS_ADAPTER_VERSION,
         normalizerVersion: JD_CAMPUS_INTERNSHIPS_NORMALIZER_VERSION,
+        deferLastSeenUpdate: input.runMode === "scheduled",
       });
       normalizedCount += 1;
     } catch (error) {
@@ -1102,6 +1294,7 @@ async function runJdCampusInternshipsAdapterProbe(
     requestCount: input.budgetUsage.requests,
     reportedTotals: { "all-function-internships": page.total },
     failureErrorCodes,
+    scopeExhausted: jobs.length === page.jobs.length && page.jobs.length >= page.total,
   };
 }
 
@@ -1112,7 +1305,9 @@ async function runFanruanTraineeAdapterProbe(
   const failureErrorCodes: string[] = [];
   const reportedTotals: Record<string, number> = {};
   let filteredNonInternship = 0;
+  let trackedInternshipConflicts = 0;
   let page = 1;
+  let scopeExhausted = false;
 
   for (;;) {
     const response = await safeRequestHtml(
@@ -1149,6 +1344,19 @@ async function runFanruanTraineeAdapterProbe(
     for (const [listItemIndex, job] of parsed.jobs.entries()) {
       if (!isFanruanInternship(job)) {
         filteredNonInternship += 1;
+        const code = await trackedRecordAwareRejectionCode({
+          db: input.db,
+          sourceId: input.sourceId,
+          sourceConfig: input.sourceConfig,
+          runMode: input.runMode,
+          code: "FANRUAN_NOT_EXPLICIT_INTERNSHIP",
+          sourceJobId: job.id,
+        });
+        if (code === "TRACKED_RECORD_NOT_INTERNSHIP") {
+          trackedInternshipConflicts += 1;
+          failureErrorCodes.push(code);
+          input.errors.push({ code, message: `tracked job ${job.id} is no longer an internship` });
+        }
         continue;
       }
       if (candidates.length < input.limit) {
@@ -1156,11 +1364,9 @@ async function runFanruanTraineeAdapterProbe(
       }
     }
 
-    if (
-      candidates.length >= input.limit ||
-      page >= parsed.pageTotal ||
-      parsed.jobs.length < parsed.pageSize
-    ) {
+    const reachedReportedEnd = page >= parsed.pageTotal || parsed.jobs.length < parsed.pageSize;
+    if (candidates.length >= input.limit || reachedReportedEnd) {
+      scopeExhausted = reachedReportedEnd;
       break;
     }
     page += 1;
@@ -1170,7 +1376,7 @@ async function runFanruanTraineeAdapterProbe(
   reportedTotals["non-internship-filtered"] = filteredNonInternship;
 
   let normalizedCount = 0;
-  let rejectedCount = 0;
+  let rejectedCount = trackedInternshipConflicts;
   for (const candidate of candidates) {
     try {
       const normalized = normalizeFanruanTraineeJob({
@@ -1190,6 +1396,7 @@ async function runFanruanTraineeAdapterProbe(
         lease: probeLease(input),
         adapterVersion: FANRUAN_TRAINEE_ADAPTER_VERSION,
         normalizerVersion: FANRUAN_TRAINEE_NORMALIZER_VERSION,
+        deferLastSeenUpdate: input.runMode === "scheduled",
       });
       normalizedCount += 1;
     } catch (error) {
@@ -1208,6 +1415,7 @@ async function runFanruanTraineeAdapterProbe(
     requestCount: input.budgetUsage.requests,
     reportedTotals,
     failureErrorCodes,
+    scopeExhausted,
   };
 }
 
@@ -1217,8 +1425,10 @@ async function runBeisenZhiyeAdapterProbe(input: AdapterProbeInput): Promise<Ada
   const failureErrorCodes: string[] = [];
   const reportedTotals: Record<string, number> = {};
   let filteredNonInternship = 0;
+  let trackedInternshipConflicts = 0;
   const pageSize = 30;
   let pageIndex = 0;
+  let scopeExhausted = false;
 
   for (;;) {
     const response = await safeRequestJson(
@@ -1255,6 +1465,23 @@ async function runBeisenZhiyeAdapterProbe(input: AdapterProbeInput): Promise<Ada
     for (const [listItemIndex, job] of parsed.jobs.entries()) {
       if (!isBeisenExplicitInternship(job)) {
         filteredNonInternship += 1;
+        const sourceJobId = String(job.JobAdId);
+        const code = await trackedRecordAwareRejectionCode({
+          db: input.db,
+          sourceId: input.sourceId,
+          sourceConfig: input.sourceConfig,
+          runMode: input.runMode,
+          code: "BEISEN_NOT_EXPLICIT_INTERNSHIP",
+          sourceJobId,
+        });
+        if (code === "TRACKED_RECORD_NOT_INTERNSHIP") {
+          trackedInternshipConflicts += 1;
+          failureErrorCodes.push(code);
+          input.errors.push({
+            code,
+            message: `tracked job ${sourceJobId} is no longer an internship`,
+          });
+        }
         continue;
       }
       if (candidates.length < input.limit) {
@@ -1263,11 +1490,9 @@ async function runBeisenZhiyeAdapterProbe(input: AdapterProbeInput): Promise<Ada
     }
 
     const consumed = (pageIndex + 1) * pageSize;
-    if (
-      candidates.length >= input.limit ||
-      consumed >= parsed.total ||
-      parsed.jobs.length < pageSize
-    ) {
+    const reachedReportedEnd = consumed >= parsed.total || parsed.jobs.length < pageSize;
+    if (candidates.length >= input.limit || reachedReportedEnd) {
+      scopeExhausted = reachedReportedEnd;
       break;
     }
     pageIndex += 1;
@@ -1277,7 +1502,7 @@ async function runBeisenZhiyeAdapterProbe(input: AdapterProbeInput): Promise<Ada
   reportedTotals["non-internship-filtered"] = filteredNonInternship;
 
   let normalizedCount = 0;
-  let rejectedCount = 0;
+  let rejectedCount = trackedInternshipConflicts;
   for (const candidate of candidates) {
     try {
       const normalized = normalizeBeisenZhiyeJobAd({
@@ -1298,6 +1523,7 @@ async function runBeisenZhiyeAdapterProbe(input: AdapterProbeInput): Promise<Ada
         lease: probeLease(input),
         adapterVersion: BEISEN_ZHIYE_ADAPTER_VERSION,
         normalizerVersion: BEISEN_ZHIYE_NORMALIZER_VERSION,
+        deferLastSeenUpdate: input.runMode === "scheduled",
       });
       normalizedCount += 1;
     } catch (error) {
@@ -1316,6 +1542,7 @@ async function runBeisenZhiyeAdapterProbe(input: AdapterProbeInput): Promise<Ada
     requestCount: input.budgetUsage.requests,
     reportedTotals,
     failureErrorCodes,
+    scopeExhausted,
   };
 }
 
@@ -1328,6 +1555,8 @@ async function runUniversityEmploymentAdapterProbe(
   let normalizedCount = 0;
   let rejectedCount = 0;
   let discoveredCount = 0;
+  let visitedPageCount = 0;
+  const directClosures: NonNullable<AdapterProbeOutput["directClosures"]> = [];
 
   for (const [pageIndex, pageUrl] of pages.entries()) {
     if (discoveredCount >= input.limit) break;
@@ -1335,18 +1564,47 @@ async function runUniversityEmploymentAdapterProbe(
       await updateHeartbeat(input.db, input.taskId, input.leaseOwner, input.fencingToken);
       await delay(requestInterval(input));
     }
-    const response = await safeRequestHtml(
-      { method: "GET", url: pageUrl },
-      input.sourceConfig.policy.fetchTargets,
-      probeRequestOptions(
-        {
-          sourceConfig: input.sourceConfig,
-          budgetUsage: input.budgetUsage,
-          minimumIntervalMs: requestInterval(input),
-        },
-        "page",
-      ),
-    );
+    let response: Awaited<ReturnType<typeof safeRequestHtml>>;
+    try {
+      response = await safeRequestHtml(
+        { method: "GET", url: pageUrl },
+        input.sourceConfig.policy.fetchTargets,
+        probeRequestOptions(
+          {
+            sourceConfig: input.sourceConfig,
+            budgetUsage: input.budgetUsage,
+            minimumIntervalMs: requestInterval(input),
+          },
+          "page",
+        ),
+      );
+    } catch (error) {
+      if (!(error instanceof NetworkPolicyError)) throw error;
+      const directReason = directClosureReasonForErrorCode(error.code);
+      if (input.runMode !== "scheduled" || !directReason || !error.response) throw error;
+
+      const records = await input.db
+        .selectFrom("ingestion.source_job_records")
+        .select("id")
+        .where("source_id", "=", input.sourceId)
+        .where("canonical_source_url", "=", pageUrl)
+        .execute();
+      if (records.length === 0) throw error;
+
+      await persistHttpResponse({
+        ...input,
+        crawlRunId: input.crawlRunId,
+        response: error.response,
+        lease: probeLease(input),
+        fetchResult: "http_error",
+        errorCode: error.code,
+      });
+      visitedPageCount += 1;
+      discoveredCount += records.length;
+      directClosures.push({ recordIds: records.map(({ id }) => id), reason: directReason });
+      continue;
+    }
+    visitedPageCount += 1;
     const fetchId = await persistHttpResponse({
       ...input,
       crawlRunId: input.crawlRunId,
@@ -1361,7 +1619,16 @@ async function runUniversityEmploymentAdapterProbe(
         pageUrl,
       }).slice(0, input.limit - discoveredCount);
     } catch (error) {
-      await markFetchSchemaError(input.db, fetchId, "UPSTREAM_SCHEMA_CHANGED", probeLease(input));
+      const code = await trackedRecordAwareRejectionCode({
+        db: input.db,
+        sourceId: input.sourceId,
+        sourceConfig: input.sourceConfig,
+        runMode: input.runMode,
+        code: errorCode(error),
+        canonicalSourceUrl: pageUrl,
+      });
+      await markFetchSchemaError(input.db, fetchId, code, probeLease(input));
+      if (code !== errorCode(error)) throw new Error(code);
       throw error;
     }
     discoveredCount += jobs.length;
@@ -1391,10 +1658,18 @@ async function runUniversityEmploymentAdapterProbe(
           lease: probeLease(input),
           adapterVersion: UNIVERSITY_EMPLOYMENT_ADAPTER_VERSION,
           normalizerVersion: UNIVERSITY_EMPLOYMENT_NORMALIZER_VERSION,
+          deferLastSeenUpdate: input.runMode === "scheduled",
         });
         normalizedCount += 1;
       } catch (error) {
-        const code = errorCode(error);
+        const code = await trackedRecordAwareRejectionCode({
+          db: input.db,
+          sourceId: input.sourceId,
+          sourceConfig: input.sourceConfig,
+          runMode: input.runMode,
+          code: errorCode(error),
+          sourceJobId: job.sourceJobId,
+        });
         if (code === "TASK_LEASE_LOST") throw error;
         rejectedCount += 1;
         failureErrorCodes.push(code);
@@ -1410,14 +1685,18 @@ async function runUniversityEmploymentAdapterProbe(
     requestCount: input.budgetUsage.requests,
     reportedTotals: { "university-detail-pages": source.pageUrls.length },
     failureErrorCodes,
+    scopeExhausted: visitedPageCount === source.pageUrls.length,
+    directClosures,
   };
 }
 
-export async function runSourceProbe(input: {
+async function runSourceCrawl(input: {
   db: Kysely<Database>;
   runtime: ProbeRuntimeConfig;
   sourceKey: string;
   limit: number;
+  runMode: "probe" | "scheduled";
+  window: string;
 }): Promise<ProbeResult> {
   if (input.runtime.appEnv !== "local" || !input.runtime.enableSourceProbe) {
     throw new Error("SOURCE_PROBE_LOCAL_ONLY");
@@ -1425,13 +1704,24 @@ export async function runSourceProbe(input: {
 
   const sourceConfig = await loadSourceConfig(input.sourceKey);
   const assessment = assessSource(sourceConfig);
+  const policyStatusAllowed = isSourcePolicyStatusAuthorizedForRun(
+    sourceConfig.policy.status,
+    input.runMode,
+  );
   if (
-    sourceConfig.policy.status !== "pending_review" ||
-    assessment.hardGatesPassed ||
+    !policyStatusAllowed ||
+    (input.runMode === "probe" && assessment.hardGatesPassed) ||
     !sourceConfig.localProbe.enabled ||
     sourceConfig.candidate.acquisitionMode === "browser_required"
   ) {
     throw new Error("INVALID_LOCAL_PROBE_EXCEPTION");
+  }
+  if (
+    input.runMode === "scheduled" &&
+    (!sourceConfig.policy.crawlInterval.enabled ||
+      sourceConfig.policy.refreshCoverage === "manual_snapshot")
+  ) {
+    throw new Error("SOURCE_SCHEDULED_REFRESH_NOT_AUTHORIZED");
   }
   if (input.limit < 1 || input.limit > sourceConfig.localProbe.requestBudget.maxItems) {
     throw new Error("PROBE_LIMIT_OUT_OF_RANGE");
@@ -1450,11 +1740,21 @@ export async function runSourceProbe(input: {
   }
 
   const registered = await registerSourceConfig(input.db, sourceConfig);
+  if (input.runMode === "scheduled") {
+    const runtimeState = await input.db
+      .selectFrom("source_control.source_runtime_states")
+      .select(["automation_paused"])
+      .where("source_id", "=", registered.sourceId)
+      .executeTakeFirstOrThrow();
+    if (runtimeState.automation_paused) throw new Error("SOURCE_AUTOMATION_PAUSED");
+  }
   const claimed = await createOrClaimProbeTask({
     db: input.db,
     sourceId: registered.sourceId,
     config: sourceConfig,
     limit: input.limit,
+    runMode: input.runMode,
+    window: input.window,
   });
 
   if (claimed.reused) {
@@ -1463,11 +1763,25 @@ export async function runSourceProbe(input: {
       .selectAll()
       .where("id", "=", claimed.runId)
       .executeTakeFirstOrThrow();
+    if (input.runMode === "scheduled" && run.automation_acceptance === "accepted") {
+      await reconcileAcceptedScheduledCatalog({
+        db: input.db,
+        sourceId: registered.sourceId,
+        policyVersion: sourceConfig.policy.version,
+        minimumHours: sourceConfig.policy.crawlInterval.minimumHours,
+        completedAt: new Date(run.finished_at ?? run.started_at),
+      });
+    }
     return {
       reused: true,
       taskId: claimed.taskId,
       runId: claimed.runId,
-      completion: run.completion === "failed" ? "failed" : "partial",
+      completion:
+        run.completion === "complete"
+          ? "complete"
+          : run.completion === "failed"
+            ? "failed"
+            : "partial",
       discoveredCount: run.discovered_count,
       normalizedCount: run.normalized_count,
       rejectedCount: run.rejected_count,
@@ -1481,6 +1795,7 @@ export async function runSourceProbe(input: {
     fencingToken: claimed.fencingToken,
   };
   const runId = randomUUID();
+  const runStartedAt = new Date();
   await input.db.transaction().execute(async (transaction) => {
     await assertActiveTaskLease(transaction, lease);
     await transaction
@@ -1491,7 +1806,8 @@ export async function runSourceProbe(input: {
         source_id: registered.sourceId,
         policy_version: sourceConfig.policy.version,
         adapter_version: sourceConfig.policy.adapterVersion,
-        run_mode: "probe",
+        run_mode: input.runMode,
+        automation_acceptance: input.runMode === "scheduled" ? "pending" : "not_applicable",
         completion: null,
         reported_totals: canonicalJson({}),
         request_count: 0,
@@ -1499,6 +1815,7 @@ export async function runSourceProbe(input: {
         normalized_count: 0,
         rejected_count: 0,
         error_summary: canonicalJson([]),
+        started_at: runStartedAt,
         finished_at: null,
       })
       .execute();
@@ -1511,8 +1828,22 @@ export async function runSourceProbe(input: {
   let normalizedCount = 0;
   let rejectedCount = 0;
   let requestCount = 0;
-  let completion: "partial" | "failed" = "failed";
+  let completion: "complete" | "partial" | "failed" = "failed";
+  let scopeExhausted = false;
+  let directClosures: NonNullable<AdapterProbeOutput["directClosures"]> = [];
   const budgetUsage: ProbeBudgetUsage = { requests: 0, pages: 0 };
+  const baselineRecordCount =
+    input.runMode === "scheduled"
+      ? Number(
+          (
+            await input.db
+              .selectFrom("ingestion.source_job_records")
+              .select(({ fn }) => fn.countAll<number>().as("count"))
+              .where("source_id", "=", registered.sourceId)
+              .executeTakeFirstOrThrow()
+          ).count,
+        )
+      : 0;
 
   try {
     const adapterInput: AdapterProbeInput = {
@@ -1527,6 +1858,7 @@ export async function runSourceProbe(input: {
       limit: input.limit,
       errors,
       budgetUsage,
+      runMode: input.runMode,
     };
 
     if (sourceConfig.policy.adapterKey === "tencent-public-api") {
@@ -1571,6 +1903,7 @@ export async function runSourceProbe(input: {
             detailFetchId: detail.fetchId,
             observedAt: new Date(),
             lease,
+            deferLastSeenUpdate: input.runMode === "scheduled",
           });
           normalizedCount += 1;
         } catch (error) {
@@ -1606,8 +1939,24 @@ export async function runSourceProbe(input: {
       requestCount = output.requestCount;
       Object.assign(reportedTotals, output.reportedTotals);
       failureErrorCodes.push(...output.failureErrorCodes);
+      scopeExhausted = output.scopeExhausted;
+      directClosures = output.directClosures ?? [];
     }
-    completion = normalizedCount > 0 ? "partial" : "failed";
+    const directClosureCount = directClosures.reduce(
+      (total, closure) => total + closure.recordIds.length,
+      0,
+    );
+    if (directClosureCount > 0) reportedTotals["direct-closed-records"] = directClosureCount;
+    completion =
+      normalizedCount + directClosureCount > 0
+        ? input.runMode === "scheduled" &&
+          sourceConfig.policy.refreshCoverage === "full_scope" &&
+          scopeExhausted &&
+          rejectedCount === 0 &&
+          failureErrorCodes.length === 0
+          ? "complete"
+          : "partial"
+        : "failed";
     requestCount = budgetUsage.requests;
   } catch (error) {
     const code = errorCode(error);
@@ -1617,9 +1966,50 @@ export async function runSourceProbe(input: {
     requestCount = budgetUsage.requests;
   }
 
+  const hardConflictCodes = [
+    ...new Set(errors.map(({ code }) => code).filter(isHardRefreshConflictCode)),
+  ];
+  if (input.runMode === "scheduled") {
+    const previousAcceptedRun = await input.db
+      .selectFrom("ingestion.crawl_runs")
+      .select("normalized_count")
+      .where("source_id", "=", registered.sourceId)
+      .where("run_mode", "=", "scheduled")
+      .where("automation_acceptance", "=", "accepted")
+      .where("id", "!=", runId)
+      .orderBy("finished_at", "desc")
+      .executeTakeFirst();
+    const previousComparableCount = previousAcceptedRun?.normalized_count ?? baselineRecordCount;
+    const currentComparableCount =
+      normalizedCount +
+      directClosures.reduce((total, closure) => total + closure.recordIds.length, 0);
+    const emptySuccessfulResponse =
+      currentComparableCount === 0 && requestCount > 0 && failureErrorCodes.length === 0;
+    if (
+      emptySuccessfulResponse ||
+      (failureErrorCodes.length === 0 &&
+        isRefreshCountAnomaly(previousComparableCount, currentComparableCount))
+    ) {
+      hardConflictCodes.push("UPSTREAM_COUNT_ANOMALY");
+      errors.push({
+        code: "UPSTREAM_COUNT_ANOMALY",
+        message: `normalized count changed from ${previousComparableCount} to ${currentComparableCount}`,
+      });
+    }
+  }
+
   const now = new Date();
-  const failureTransition =
-    completion === "failed"
+  const scheduledRetryableFailure =
+    input.runMode === "scheduled" && failureErrorCodes.some(isRetryableProbeErrorCode);
+  const automationAcceptanceCandidate =
+    input.runMode === "scheduled" &&
+    completion !== "failed" &&
+    hardConflictCodes.length === 0 &&
+    !scheduledRetryableFailure;
+  const automationPauseCandidate = input.runMode === "scheduled" && hardConflictCodes.length > 0;
+  const taskFailed = completion === "failed" || scheduledRetryableFailure;
+  const baseFailureTransition =
+    taskFailed && !automationPauseCandidate
       ? calculateTaskFailureTransition({
           attempt: claimed.attempt,
           maxAttempts: claimed.maxAttempts,
@@ -1628,13 +2018,38 @@ export async function runSourceProbe(input: {
           now,
         })
       : undefined;
-  const taskStatus = failureTransition?.status ?? "succeeded";
-  const taskError =
-    completion === "failed" && failureErrorCodes.length
-      ? errors.find((error) => error.code === failureErrorCodes[0])
-      : undefined;
-  await input.db.transaction().execute(async (transaction) => {
+  const automationAccepted = await input.db.transaction().execute(async (transaction) => {
     await assertActiveTaskLease(transaction, lease);
+    const scheduledPolicyCurrent =
+      input.runMode !== "scheduled" ||
+      (await lockScheduledPolicyForAcceptance({
+        transaction,
+        sourceId: registered.sourceId,
+        policyVersion: sourceConfig.policy.version,
+        adapterKey: sourceConfig.policy.adapterKey,
+        adapterVersion: sourceConfig.policy.adapterVersion,
+      }));
+    const stalePolicyRejected = input.runMode === "scheduled" && !scheduledPolicyCurrent;
+    if (stalePolicyRejected) {
+      errors.push({
+        code: "SCHEDULED_TASK_POLICY_STALE",
+        message: "source policy or adapter changed while the scheduled run was in progress",
+      });
+    }
+    const transactionAutomationAccepted = automationAcceptanceCandidate && scheduledPolicyCurrent;
+    const transactionAutomationPaused = automationPauseCandidate && scheduledPolicyCurrent;
+    const failureTransition = stalePolicyRejected ? undefined : baseFailureTransition;
+    const taskStatus = stalePolicyRejected
+      ? "dead"
+      : transactionAutomationPaused
+        ? "dead"
+        : (failureTransition?.status ?? "succeeded");
+    const taskError = stalePolicyRejected
+      ? errors.find((error) => error.code === "SCHEDULED_TASK_POLICY_STALE")
+      : (taskFailed || transactionAutomationPaused) &&
+          (hardConflictCodes.length > 0 || failureErrorCodes.length > 0)
+        ? errors.find((error) => error.code === (hardConflictCodes[0] ?? failureErrorCodes[0]))
+        : undefined;
     await transaction
       .updateTable("ingestion.crawl_runs")
       .set({
@@ -1645,6 +2060,12 @@ export async function runSourceProbe(input: {
         normalized_count: normalizedCount,
         rejected_count: rejectedCount,
         error_summary: canonicalJson(errors),
+        automation_acceptance:
+          input.runMode === "scheduled"
+            ? transactionAutomationAccepted
+              ? "accepted"
+              : "rejected"
+            : "not_applicable",
         finished_at: now,
       })
       .where("id", "=", runId)
@@ -1670,7 +2091,90 @@ export async function runSourceProbe(input: {
     if (Number(taskUpdate.numUpdatedRows) !== 1) {
       throw new Error("TASK_LEASE_LOST");
     }
+
+    if (input.runMode === "scheduled" && scheduledPolicyCurrent) {
+      if (transactionAutomationAccepted) {
+        await updateSourceJobActivityAfterRun({
+          db: transaction,
+          sourceId: registered.sourceId,
+          runId,
+          observedAt: now,
+          completion,
+          refreshCoverage: sourceConfig.policy.refreshCoverage,
+          absencePolicy: sourceConfig.policy.absencePolicy,
+          minimumHours: sourceConfig.policy.crawlInterval.minimumHours,
+        });
+        for (const closure of directClosures) {
+          await applyDirectSourceJobClosures({
+            db: transaction,
+            recordIds: closure.recordIds,
+            runId,
+            reason: closure.reason,
+            observedAt: now,
+          });
+        }
+        const runtimeUpdate = await transaction
+          .updateTable("source_control.source_runtime_states")
+          .set({
+            freshness_state: "due",
+            last_complete_run_at: completion === "complete" ? now : undefined,
+            last_successful_run_at: now,
+            last_scheduled_run_at: now,
+            consecutive_failures: 0,
+            last_error_code: null,
+            next_due_at: new Date(input.window),
+            automation_paused: false,
+            automation_pause_reason: null,
+            updated_at: now,
+          })
+          .where("source_id", "=", registered.sourceId)
+          .where("policy_version", "=", sourceConfig.policy.version)
+          .executeTakeFirst();
+        if (Number(runtimeUpdate.numUpdatedRows) !== 1) {
+          throw new Error("SOURCE_RUNTIME_POLICY_STALE");
+        }
+      } else {
+        const runtimeUpdate = await transaction
+          .updateTable("source_control.source_runtime_states")
+          .set({
+            freshness_state: transactionAutomationPaused ? "stale" : "due",
+            last_scheduled_run_at: now,
+            consecutive_failures: sql`consecutive_failures + 1`,
+            last_error_code: taskError?.code ?? "SOURCE_REFRESH_FAILED",
+            next_due_at: transactionAutomationPaused
+              ? null
+              : failureTransition?.status === "queued"
+                ? new Date(input.window)
+                : new Date(
+                    now.getTime() +
+                      sourceConfig.policy.crawlInterval.minimumHours * 60 * 60 * 1_000,
+                  ),
+            automation_paused: transactionAutomationPaused,
+            automation_pause_reason: transactionAutomationPaused
+              ? (hardConflictCodes[0] ?? "SOURCE_REFRESH_HARD_CONFLICT")
+              : null,
+            updated_at: now,
+          })
+          .where("source_id", "=", registered.sourceId)
+          .where("policy_version", "=", sourceConfig.policy.version)
+          .executeTakeFirst();
+        if (Number(runtimeUpdate.numUpdatedRows) !== 1) {
+          throw new Error("SOURCE_RUNTIME_POLICY_STALE");
+        }
+      }
+    }
+    return transactionAutomationAccepted;
   });
+
+  if (automationAccepted) {
+    await reconcileAcceptedScheduledCatalog({
+      db: input.db,
+      sourceId: registered.sourceId,
+      policyVersion: sourceConfig.policy.version,
+      minimumHours: sourceConfig.policy.crawlInterval.minimumHours,
+      completedAt: now,
+    });
+  }
 
   return {
     reused: false,
@@ -1682,4 +2186,27 @@ export async function runSourceProbe(input: {
     rejectedCount,
     errors,
   };
+}
+
+export async function runSourceProbe(input: {
+  db: Kysely<Database>;
+  runtime: ProbeRuntimeConfig;
+  sourceKey: string;
+  limit: number;
+}): Promise<ProbeResult> {
+  return runSourceCrawl({
+    ...input,
+    runMode: "probe",
+    window: new Date().toISOString().slice(0, 13),
+  });
+}
+
+export async function runScheduledSourceRefresh(input: {
+  db: Kysely<Database>;
+  runtime: ProbeRuntimeConfig;
+  sourceKey: string;
+  limit: number;
+  dueWindow: string;
+}): Promise<ProbeResult> {
+  return runSourceCrawl({ ...input, runMode: "scheduled", window: input.dueWindow });
 }

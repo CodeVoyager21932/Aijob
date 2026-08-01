@@ -50,6 +50,51 @@ export function assertPolicyVersionCanAdvance(
   }
 }
 
+function persistedCrawlInterval(config: SourceConfig): string | null {
+  return config.policy.crawlInterval.enabled
+    ? `${config.policy.crawlInterval.minimumHours}h`
+    : null;
+}
+
+export function sourceRuntimeRegistrationUpdate(input: {
+  policyVersion: number;
+  policyAdvanced: boolean;
+  scheduleEnabled: boolean;
+  previousCrawlInterval: string | null | undefined;
+  now: Date;
+}): {
+  policy_version: number;
+  updated_at: Date;
+  next_due_at?: Date | null;
+  freshness_state?: string;
+  automation_paused?: boolean;
+  automation_pause_reason?: string | null;
+  consecutive_failures?: number;
+  last_error_code?: string | null;
+  manual_snapshot_required?: boolean;
+  manual_snapshot_due_at?: Date | null;
+} {
+  const update: ReturnType<typeof sourceRuntimeRegistrationUpdate> = {
+    policy_version: input.policyVersion,
+    updated_at: input.now,
+  };
+  if (input.policyAdvanced && input.scheduleEnabled) {
+    update.next_due_at = input.now;
+    update.freshness_state = "due";
+    update.automation_paused = false;
+    update.automation_pause_reason = null;
+    update.consecutive_failures = 0;
+    update.last_error_code = null;
+    update.manual_snapshot_required = false;
+    update.manual_snapshot_due_at = null;
+  } else if (input.policyAdvanced && !input.scheduleEnabled) {
+    update.next_due_at = null;
+    update.manual_snapshot_required = false;
+    update.manual_snapshot_due_at = null;
+  }
+  return update;
+}
+
 function policyComparable(
   config: SourceConfig,
   targetSets: {
@@ -64,7 +109,9 @@ function policyComparable(
     adapter_key: config.policy.adapterKey,
     adapter_version: config.policy.adapterVersion,
     entrypoints: config.policy.entrypoints,
-    crawl_interval: config.policy.crawlInterval,
+    crawl_interval: persistedCrawlInterval(config),
+    refresh_coverage: config.policy.refreshCoverage,
+    absence_policy: config.policy.absencePolicy,
     policy_notes: config.policy.policyNotes,
     reviewed_at: config.policy.reviewedAt,
     fetch_targets: JSON.parse(policyTargetSetComparable(targetSets.fetchTargets)),
@@ -186,6 +233,16 @@ export async function registerSourceConfig(
       .where("source_key", "=", config.sourceKey)
       .forUpdate()
       .executeTakeFirst();
+    const previousPolicy = existingSource
+      ? await transaction
+          .selectFrom("source_control.source_policy_versions")
+          .select(["crawl_interval"])
+          .where("source_id", "=", existingSource.id)
+          .where("version", "=", existingSource.current_policy_version)
+          .executeTakeFirst()
+      : undefined;
+    const policyAdvanced =
+      existingSource === undefined || config.policy.version > existingSource.current_policy_version;
 
     const source = existingSource
       ? await (async () => {
@@ -264,6 +321,8 @@ export async function registerSourceConfig(
         adapter_version: existingPolicy.adapter_version,
         entrypoints: existingPolicy.entrypoints,
         crawl_interval: existingPolicy.crawl_interval,
+        refresh_coverage: existingPolicy.refresh_coverage,
+        absence_policy: existingPolicy.absence_policy,
         policy_notes: existingPolicy.policy_notes,
         reviewed_at: existingPolicy.reviewed_at?.toISOString() ?? null,
         fetch_targets: JSON.parse(policyTargetSetComparable(existingFetchTargets)),
@@ -290,7 +349,9 @@ export async function registerSourceConfig(
           adapter_key: config.policy.adapterKey,
           adapter_version: config.policy.adapterVersion,
           entrypoints: canonicalJson(config.policy.entrypoints),
-          crawl_interval: config.policy.crawlInterval,
+          crawl_interval: persistedCrawlInterval(config),
+          refresh_coverage: config.policy.refreshCoverage,
+          absence_policy: config.policy.absencePolicy,
           policy_notes: config.policy.policyNotes,
           reviewed_at: config.policy.reviewedAt ? new Date(config.policy.reviewedAt) : null,
         })
@@ -359,6 +420,15 @@ export async function registerSourceConfig(
         .execute();
     }
 
+    const registeredAt = new Date();
+    const runtimeUpdate = sourceRuntimeRegistrationUpdate({
+      policyVersion: config.policy.version,
+      policyAdvanced,
+      scheduleEnabled: config.policy.crawlInterval.enabled,
+      previousCrawlInterval: previousPolicy?.crawl_interval,
+      now: registeredAt,
+    });
+
     await transaction
       .insertInto("source_control.source_runtime_states")
       .values({
@@ -368,14 +438,9 @@ export async function registerSourceConfig(
         last_complete_run_at: null,
         consecutive_failures: 0,
         last_error_code: null,
-        next_due_at: null,
+        next_due_at: config.policy.crawlInterval.enabled ? registeredAt : null,
       })
-      .onConflict((conflict) =>
-        conflict.column("source_id").doUpdateSet({
-          policy_version: config.policy.version,
-          updated_at: new Date(),
-        }),
-      )
+      .onConflict((conflict) => conflict.column("source_id").doUpdateSet(runtimeUpdate))
       .execute();
 
     return {

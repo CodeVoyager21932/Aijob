@@ -27,7 +27,13 @@ function enforceOfficialAccountBoundary(
   value: {
     sourceType: string;
     candidate: { provenanceLevel: string; acquisitionMode: string };
-    policy: { status: string; adapterKey: string; crawlInterval: unknown };
+    policy: {
+      status: string;
+      adapterKey: string;
+      crawlInterval: { enabled: boolean; minimumHours: number };
+      refreshCoverage: "full_scope" | "tracked_records" | "manual_snapshot";
+      absencePolicy: "none" | "close_after_two_complete_absences";
+    };
     localProbe: { enabled: boolean };
   },
   context: z.RefinementCtx,
@@ -69,11 +75,51 @@ function enforceSourceBoundaries(
   value: Parameters<typeof enforceOfficialAccountBoundary>[0],
   context: z.RefinementCtx,
 ): void {
+  if (
+    value.candidate.acquisitionMode === "browser_required" &&
+    value.policy.refreshCoverage !== "manual_snapshot"
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["policy", "refreshCoverage"],
+      message: "browser_required sources require manual_snapshot refresh coverage",
+    });
+  }
   if (value.candidate.acquisitionMode === "browser_required" && value.localProbe.enabled) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["localProbe", "enabled"],
       message: "browser_required sources cannot enable network probing",
+    });
+  }
+  if (
+    value.policy.refreshCoverage === "manual_snapshot" &&
+    value.policy.absencePolicy !== "none"
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["policy", "absencePolicy"],
+      message: "manual_snapshot sources cannot close jobs from automated absence",
+    });
+  } else if (
+    value.policy.absencePolicy === "close_after_two_complete_absences" &&
+    value.policy.refreshCoverage !== "full_scope"
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["policy", "absencePolicy"],
+      message: "only full_scope refresh coverage can close jobs from absence",
+    });
+  }
+  if (
+    ["paused", "blocked", "retired"].includes(value.policy.status) &&
+    value.policy.crawlInterval.enabled &&
+    value.policy.refreshCoverage !== "manual_snapshot"
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["policy", "crawlInterval", "enabled"],
+      message: "inactive sources cannot enable deterministic network refresh",
     });
   }
   enforceOfficialAccountBoundary(value, context);
@@ -121,6 +167,14 @@ const requestBudgetSchema = z
     message: "maxRequests must be greater than or equal to maxPages",
   });
 
+const crawlIntervalSchema = z.object({
+  enabled: z.boolean(),
+  minimumHours: z.number().int().positive(),
+});
+
+const refreshCoverageSchema = z.enum(["full_scope", "tracked_records", "manual_snapshot"]);
+const absencePolicySchema = z.enum(["none", "close_after_two_complete_absences"]);
+
 const normalizedSourceConfigSchema = z
   .object({
     schemaVersion: z.literal(1),
@@ -157,7 +211,9 @@ const normalizedSourceConfigSchema = z
       adapterKey: z.string().regex(/^[a-z0-9-]+$/),
       adapterVersion: z.string().min(1),
       entrypoints: z.array(z.string().url()).min(1),
-      crawlInterval: z.string().nullable(),
+      crawlInterval: crawlIntervalSchema,
+      refreshCoverage: refreshCoverageSchema,
+      absencePolicy: absencePolicySchema,
       reviewedAt: z.string().datetime().nullable(),
       policyNotes: z.string().min(1),
       fetchTargets: z.array(targetSchema).min(1),
@@ -219,10 +275,9 @@ const rawSourceConfigSchema = z
       adapterKey: z.string().regex(/^[a-z0-9-]+$/),
       adapterVersion: z.string().min(1),
       entrypoints: z.array(z.string().url()).min(1),
-      crawlInterval: z.object({
-        enabled: z.boolean(),
-        minimumHours: z.number().int().positive(),
-      }),
+      crawlInterval: crawlIntervalSchema,
+      refreshCoverage: refreshCoverageSchema,
+      absencePolicy: absencePolicySchema,
       reviewedAt: z.string().date(),
       policyNotes: z.array(z.string().min(1)).min(1),
       fetchTargets: z.array(targetSchema).min(1),
@@ -312,9 +367,9 @@ export function parseSourceConfigValue(value: unknown, expectedSourceKey?: strin
       adapterKey: raw.policy.adapterKey,
       adapterVersion: raw.policy.adapterVersion,
       entrypoints: raw.policy.entrypoints,
-      crawlInterval: raw.policy.crawlInterval.enabled
-        ? `${raw.policy.crawlInterval.minimumHours}h`
-        : null,
+      crawlInterval: raw.policy.crawlInterval,
+      refreshCoverage: raw.policy.refreshCoverage,
+      absencePolicy: raw.policy.absencePolicy,
       reviewedAt: `${raw.policy.reviewedAt}T00:00:00.000Z`,
       policyNotes: raw.policy.policyNotes.join("\n"),
       fetchTargets: raw.policy.fetchTargets,

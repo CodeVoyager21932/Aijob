@@ -11,6 +11,28 @@ import {
 } from "./source-config.js";
 import { TENCENT_ADAPTER_VERSION } from "./tencent-campus-adapter.js";
 
+interface MutableSourceConfigFixture {
+  sourceType: string;
+  candidate: { acquisitionMode: string };
+  policy: {
+    status: string;
+    adapterKey: string;
+    crawlInterval: { enabled: boolean; minimumHours: number };
+    refreshCoverage: string;
+    absencePolicy: string;
+  };
+  localProbe: { enabled: boolean };
+}
+
+async function sourceConfigFixture(name: string): Promise<MutableSourceConfigFixture> {
+  const fixtureDirectory = fileURLToPath(
+    new URL("../../../../fixtures/source-configs/", import.meta.url),
+  );
+  return JSON.parse(
+    await readFile(path.join(fixtureDirectory, name), "utf8"),
+  ) as MutableSourceConfigFixture;
+}
+
 describe("Tencent source configuration", () => {
   it("keeps a policy-failed source in local-probe-only status", async () => {
     const config = await loadSourceConfig("tencent-campus");
@@ -136,6 +158,10 @@ describe("controlled local source configurations", () => {
       expect(config.policy.status).toBe(expectedPolicyStatus);
       expect(config.policy.adapterKey).toBe(adapterKey);
       expect(config.policy.adapterVersion).toBe(officialSourceAdapterVersions[adapterKey]);
+      expect(config.policy.crawlInterval.minimumHours).toBeGreaterThan(0);
+      expect(["full_scope", "tracked_records", "manual_snapshot"]).toContain(
+        config.policy.refreshCoverage,
+      );
       expect(config.localProbe.enabled).toBe(probeEnabled);
       expect(config.localProbe.requestBudget.maxRequests).toBeGreaterThanOrEqual(
         config.localProbe.requestBudget.maxPages,
@@ -247,7 +273,7 @@ describe("controlled local source configurations", () => {
     ["huice-campus-internships", "huicecom.zhiye.com", "/campus/jobs", 2],
     ["adaps-photonics-internships", "adaps-ph.zhiye.com", "/intern/jobs", 2],
     ["pudutech-internships", "pudutech.zhiye.com", "/intern/jobs", 2],
-    ["onerobotics-internships", "woanhome.zhiye.com", "/intern/jobs", 1],
+    ["onerobotics-internships", "woanhome.zhiye.com", "/intern/jobs", 2],
   ] as const)(
     "limits %s to its own Beisen tenant list API and official jobs page",
     async (sourceKey, host, jobsPagePath, policyVersion) => {
@@ -382,6 +408,8 @@ describe("controlled local source configurations", () => {
       const expectedPolicyVersion =
         sourceKey === "galasports-internships"
           ? 3
+          : sourceKey === "supvan-info-internships"
+            ? 5
           : sourceKey === "hanxu-tech-internships"
             ? 2
           : sourceKey === "kunlunxin-internships" || sourceKey === "dtl-quant-internships"
@@ -501,6 +529,60 @@ describe("controlled local source configurations", () => {
     ]);
   });
 
+  it("enables only the three network canaries and two manual snapshot reminders", async () => {
+    const enabled = [];
+    for (const sourceKey of await listSourceKeys()) {
+      const config = await loadSourceConfig(sourceKey);
+      if (config.policy.crawlInterval.enabled) {
+        enabled.push({
+          sourceKey,
+          version: config.policy.version,
+          coverage: config.policy.refreshCoverage,
+          absencePolicy: config.policy.absencePolicy,
+          minimumHours: config.policy.crawlInterval.minimumHours,
+        });
+      }
+    }
+
+    expect(enabled).toEqual([
+      {
+        sourceKey: "bytedance-campus-manual",
+        version: 3,
+        coverage: "manual_snapshot",
+        absencePolicy: "none",
+        minimumHours: 168,
+      },
+      {
+        sourceKey: "onerobotics-internships",
+        version: 2,
+        coverage: "full_scope",
+        absencePolicy: "close_after_two_complete_absences",
+        minimumHours: 24,
+      },
+      {
+        sourceKey: "shining3d-internships",
+        version: 3,
+        coverage: "full_scope",
+        absencePolicy: "close_after_two_complete_absences",
+        minimumHours: 24,
+      },
+      {
+        sourceKey: "spirit-ai-feishu-manual",
+        version: 4,
+        coverage: "manual_snapshot",
+        absencePolicy: "none",
+        minimumHours: 168,
+      },
+      {
+        sourceKey: "supvan-info-internships",
+        version: 5,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 168,
+      },
+    ]);
+  });
+
   it("records the official medium-scale evidence for Gala Sports", async () => {
     const config = await loadSourceConfig("galasports-internships");
     expect(config.organization).toMatchObject({
@@ -519,6 +601,11 @@ describe("controlled local source configurations", () => {
     const config = await loadSourceConfig("bytedance-campus-manual");
     expect(config.candidate.acquisitionMode).toBe("browser_required");
     expect(config.localProbe.enabled).toBe(false);
+    expect(config.policy).toMatchObject({
+      crawlInterval: { enabled: true, minimumHours: 168 },
+      refreshCoverage: "manual_snapshot",
+      absencePolicy: "none",
+    });
     expect(config.policy.fetchTargets).toEqual([
       expect.objectContaining({
         method: "GET",
@@ -531,22 +618,59 @@ describe("controlled local source configurations", () => {
   });
 
   it("rejects network probing for every browser-required source type", async () => {
-    const fixtureDirectory = fileURLToPath(
-      new URL("../../../../fixtures/source-configs/", import.meta.url),
-    );
-    const fixture = JSON.parse(
-      await readFile(path.join(fixtureDirectory, "official-account-test.json"), "utf8"),
-    ) as {
-      sourceType: string;
-      policy: { adapterKey: string };
-      localProbe: { enabled: boolean };
-    };
+    const fixture = await sourceConfigFixture("official-account-test.json");
     fixture.sourceType = "organization_career_site";
     fixture.policy.adapterKey = "tencent-public-api";
     fixture.localProbe.enabled = true;
     expect(() => parseSourceConfigValue(fixture)).toThrow(
       "browser_required sources cannot enable network probing",
     );
+  });
+
+  it("requires browser sources to use reminder-only refresh coverage", async () => {
+    const fixture = await sourceConfigFixture("bytedance-manual-test.json");
+    fixture.policy.refreshCoverage = "tracked_records";
+
+    expect(() => parseSourceConfigValue(fixture)).toThrow(
+      "browser_required sources require manual_snapshot refresh coverage",
+    );
+  });
+
+  it("allows absence closure only for complete deterministic coverage", async () => {
+    const manual = await sourceConfigFixture("bytedance-manual-test.json");
+    manual.policy.absencePolicy = "close_after_two_complete_absences";
+    expect(() => parseSourceConfigValue(manual)).toThrow(
+      "manual_snapshot sources cannot close jobs from automated absence",
+    );
+
+    const tracked = await sourceConfigFixture("bytedance-manual-test.json");
+    tracked.candidate.acquisitionMode = "deterministic_html";
+    tracked.policy.refreshCoverage = "tracked_records";
+    tracked.policy.absencePolicy = "close_after_two_complete_absences";
+    expect(() => parseSourceConfigValue(tracked)).toThrow(
+      "only full_scope refresh coverage can close jobs from absence",
+    );
+
+    tracked.policy.refreshCoverage = "full_scope";
+    expect(() => parseSourceConfigValue(tracked)).not.toThrow();
+  });
+
+  it("blocks inactive deterministic schedules but permits reminder-only browser schedules", async () => {
+    for (const status of ["paused", "blocked", "retired"]) {
+      const deterministic = await sourceConfigFixture("bytedance-manual-test.json");
+      deterministic.candidate.acquisitionMode = "deterministic_html";
+      deterministic.policy.status = status;
+      deterministic.policy.crawlInterval.enabled = true;
+      deterministic.policy.refreshCoverage = "tracked_records";
+      expect(() => parseSourceConfigValue(deterministic)).toThrow(
+        "inactive sources cannot enable deterministic network refresh",
+      );
+    }
+
+    const reminder = await sourceConfigFixture("bytedance-manual-test.json");
+    reminder.policy.status = "paused";
+    reminder.policy.crawlInterval.enabled = true;
+    expect(() => parseSourceConfigValue(reminder)).not.toThrow();
   });
 
   it("locks official account sources to local manual import with evidenced company scale", async () => {
@@ -569,6 +693,8 @@ describe("controlled local source configurations", () => {
       policy: {
         status: "pending_review",
         adapterKey: "official-account-manual-snapshot",
+        refreshCoverage: "manual_snapshot",
+        absencePolicy: "none",
       },
       localProbe: { enabled: false },
     });

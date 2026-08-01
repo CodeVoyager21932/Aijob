@@ -53,6 +53,8 @@ export async function recordFetchedResponse(input: {
   response: SafeHttpResult;
   snapshot: StoredSnapshot;
   lease: TaskLease;
+  fetchResult?: "success" | "http_error" | "schema_error" | "network_error" | "policy_error";
+  errorCode?: string | null;
 }): Promise<string> {
   const { db, sourceId, crawlRunId, response, snapshot, lease } = input;
   return db.transaction().execute(async (transaction) => {
@@ -104,8 +106,14 @@ export async function recordFetchedResponse(input: {
         http_status: response.status,
         content_type: response.contentType,
         response_headers: canonicalJson(response.responseHeaders),
-        fetch_result: "success",
-        error_code: null,
+        fetch_result:
+          input.fetchResult ??
+          (response.status >= 200 && response.status < 300 ? "success" : "http_error"),
+        error_code:
+          input.errorCode ??
+          (response.status >= 200 && response.status < 300
+            ? null
+            : `UPSTREAM_HTTP_${response.status}`),
       })
       .execute();
     return fetchId;
@@ -142,6 +150,7 @@ export interface PersistNormalizedOfficialJobInput {
   adapterVersion: string;
   normalizerVersion: string;
   importMode?: "collector" | "manual";
+  deferLastSeenUpdate?: boolean;
 }
 
 export async function persistNormalizedOfficialJob(
@@ -164,7 +173,9 @@ export async function persistNormalizedOfficialJob(
       .onConflict((conflict) =>
         conflict.columns(["source_id", "source_job_id"]).doUpdateSet({
           canonical_source_url: normalized.sourceUrl,
-          last_seen_at: sql`greatest(ingestion.source_job_records.last_seen_at, ${observedAt})`,
+          last_seen_at: input.deferLastSeenUpdate
+            ? sql`ingestion.source_job_records.last_seen_at`
+            : sql`greatest(ingestion.source_job_records.last_seen_at, ${observedAt})`,
         }),
       )
       .returningAll()
@@ -270,10 +281,14 @@ export async function persistNormalizedTencentJob(input: {
   detailFetchId: string;
   observedAt: Date;
   lease: TaskLease;
+  deferLastSeenUpdate?: boolean;
 }): Promise<{ recordId: string; revisionId: string; createdRevision: boolean }> {
   return persistNormalizedOfficialJob({
     ...input,
     adapterVersion: TENCENT_ADAPTER_VERSION,
     normalizerVersion: TENCENT_NORMALIZER_VERSION,
+    ...(input.deferLastSeenUpdate === undefined
+      ? {}
+      : { deferLastSeenUpdate: input.deferLastSeenUpdate }),
   });
 }

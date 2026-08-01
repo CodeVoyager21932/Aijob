@@ -318,7 +318,10 @@ async function loadLocalRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[]
       preview.structured_fields,
       preview.ingestion_state,
       preview.publication_state,
-      preview.activity_state,
+      CASE
+        WHEN published.published_job_version_id IS NULL THEN preview.activity_state
+        ELSE COALESCE(activity.effective_activity_state, preview.activity_state)
+      END AS activity_state,
       preview.source_url,
       preview.apply_url,
       preview.import_mode,
@@ -353,9 +356,15 @@ async function loadLocalRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[]
       AND projection.requirement_set_id = published.active_requirement_set_id
     LEFT JOIN catalog.company_quota_selections AS quota
       ON quota.published_job_id = published.published_job_id
+    LEFT JOIN catalog.current_job_effective_activity AS activity
+      ON activity.published_job_version_id = published.published_job_version_id
     WHERE preview.ingestion_state = 'validated'
       AND preview.publication_state IN ('review', 'published')
       AND preview.policy_status IN ('pending_review', 'approved')
+      AND CASE
+        WHEN published.published_job_version_id IS NULL THEN preview.activity_state
+        ELSE COALESCE(activity.effective_activity_state, preview.activity_state)
+      END <> 'closed'
       -- ADR-0021：被单家配额压缩的岗位只在读取层隐藏，缺口另行公开分母。
       AND (published.published_job_id IS NULL OR COALESCE(quota.selected, TRUE))
   `.execute(db);
@@ -429,7 +438,7 @@ async function loadPublicRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[
       version.structured_fields,
       revision.ingestion_state,
       revision.publication_state,
-      version.activity_state,
+      activity.effective_activity_state AS activity_state,
       version.source_url,
       version.apply_url,
       revision.import_mode,
@@ -438,7 +447,9 @@ async function loadPublicRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[
       COALESCE(runtime.freshness_state, 'unknown') AS freshness_state
     FROM catalog.published_jobs AS job
     JOIN catalog.published_job_versions AS version
-      ON version.id = job.current_version_id
+      ON version.id = job.public_version_id
+    JOIN catalog.current_job_effective_activity AS activity
+      ON activity.published_job_version_id = version.id
     JOIN catalog.job_condition_projections AS projection
       ON projection.published_job_version_id = version.id
       AND projection.requirement_set_id = version.active_requirement_set_id
@@ -458,6 +469,7 @@ async function loadPublicRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[
     WHERE policy.policy_status = 'approved'
       AND revision.ingestion_state = 'validated'
       AND revision.publication_state = 'published'
+      AND activity.effective_activity_state <> 'closed'
   `.execute(db);
   return result.rows;
 }
