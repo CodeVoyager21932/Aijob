@@ -10,7 +10,7 @@ import {
 } from "./normalized-official-job.js";
 import { isCompanyDomainEmail } from "./official-account-manual-adapter.js";
 
-export const UNIVERSITY_EMPLOYMENT_ADAPTER_VERSION = "0.1.2";
+export const UNIVERSITY_EMPLOYMENT_ADAPTER_VERSION = "0.1.3";
 export const UNIVERSITY_EMPLOYMENT_NORMALIZER_VERSION = "0.1.0";
 
 /**
@@ -41,6 +41,8 @@ export interface UniversityEmploymentSource {
   sourceKey: string;
   companyLegalName: string;
   companyDisplayName: string;
+  /** Evidence-backed page names accepted in addition to the exact legal name. */
+  companyPageAliases?: string[];
   officialDomain: string;
   pageFormat: UniversityEmploymentPageFormat;
   /** 冻结的详情页列表（每页一岗），按主证据页优先、官方列表顺序排列。 */
@@ -82,6 +84,16 @@ const universityEmploymentSourceList: UniversityEmploymentSource[] = [
     officialDomain: "jcquant.vip",
     pageFormat: "cuhk-jobview",
     pageUrls: ["https://career.cuhk.edu.cn/job/view/id/466931"],
+    application: { type: "company_email" },
+  },
+  {
+    sourceKey: "galasports-internships",
+    companyLegalName: "深圳市望尘科技有限公司",
+    companyDisplayName: "望尘科技",
+    companyPageAliases: ["望尘科技"],
+    officialDomain: "galasports.com",
+    pageFormat: "cuhk-jobview",
+    pageUrls: ["https://career.cuhk.edu.cn/job/view/id/468689"],
     application: { type: "company_email" },
   },
   {
@@ -443,7 +455,11 @@ export function parseCuhkJobViewPage(html: string, pageUrl: string): UniversityE
 
   const bodyStart = lines.findIndex((line) => line === "工作内容描述");
   if (bodyStart < 0) throw new Error("UNIVERSITY_EMPLOYMENT_BODY_SECTION_MISSING");
-  const bodyLines = sectionBetween(lines, bodyStart, ["其他信息"]);
+  const bodyLines = sectionBetween(lines, bodyStart, [
+    "其他信息",
+    "招生网",
+    "香港中文大学（深圳）© 版权所有",
+  ]);
   const { responsibilities, requirements } = splitRequirements(bodyLines);
 
   return {
@@ -778,9 +794,11 @@ export function normalizeUniversityEmploymentJob(input: {
   pageEvidenceRef: string;
 }): NormalizedOfficialJob {
   const { source, job, pageEvidenceRef } = input;
-  if (
-    job.companyName.normalize("NFKC").trim() !== source.companyLegalName.normalize("NFKC").trim()
-  ) {
+  const pageCompanyName = job.companyName.normalize("NFKC").trim();
+  const acceptedCompanyNames = [source.companyLegalName, ...(source.companyPageAliases ?? [])].map(
+    (name) => name.normalize("NFKC").trim(),
+  );
+  if (!acceptedCompanyNames.includes(pageCompanyName)) {
     throw new Error("UNIVERSITY_EMPLOYMENT_COMPANY_MISMATCH");
   }
   if (!job.employmentTypeText.normalize("NFKC").includes("实习")) {

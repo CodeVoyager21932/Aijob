@@ -99,5 +99,48 @@ describe("source candidate registry", () => {
         scaleBand: "unknown",
       },
     ]);
+
+    const batch0703Keys = ["skt-education", "guru-game", "bluepoch", "galasports", "egret-asset"];
+    expect(
+      candidates
+        .filter((candidate) => batch0703Keys.includes(candidate.companyKey))
+        .map((candidate) => ({
+          companyKey: candidate.companyKey,
+          assessmentStatus: candidate.assessmentStatus,
+          sourceKeys: candidate.sourceKeys,
+          scaleBand: candidate.scaleBand,
+        })),
+    ).toEqual([
+      {
+        companyKey: "skt-education",
+        assessmentStatus: "paused",
+        sourceKeys: [],
+        scaleBand: "unknown",
+      },
+      {
+        companyKey: "guru-game",
+        assessmentStatus: "paused",
+        sourceKeys: [],
+        scaleBand: "unknown",
+      },
+      {
+        companyKey: "bluepoch",
+        assessmentStatus: "paused",
+        sourceKeys: [],
+        scaleBand: "unknown",
+      },
+      {
+        companyKey: "galasports",
+        assessmentStatus: "paused",
+        sourceKeys: ["galasports-internships"],
+        scaleBand: "medium",
+      },
+      {
+        companyKey: "egret-asset",
+        assessmentStatus: "paused",
+        sourceKeys: [],
+        scaleBand: "unknown",
+      },
+    ]);
   });
 });

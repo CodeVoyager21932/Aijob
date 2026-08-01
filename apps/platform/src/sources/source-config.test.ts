@@ -68,6 +68,7 @@ describe("controlled local source configurations", () => {
       "dingwei-consulting-internships",
       "dtl-quant-internships",
       "fanruan-trainee-internships",
+      "galasports-internships",
       "hanxu-tech-internships",
       "hr-soft-internships",
       "huice-campus-internships",
@@ -98,6 +99,7 @@ describe("controlled local source configurations", () => {
     ["dingwei-consulting-internships", "university-employment-detail-html", true],
     ["dtl-quant-internships", "university-employment-detail-html", false],
     ["fanruan-trainee-internships", "fanruan-trainee-public-api", true],
+    ["galasports-internships", "university-employment-detail-html", false],
     ["hanxu-tech-internships", "university-employment-detail-html", true],
     ["hr-soft-internships", "university-employment-detail-html", true],
     ["huice-campus-internships", "beisen-zhiye-public-api", true],
@@ -124,6 +126,7 @@ describe("controlled local source configurations", () => {
       const expectedPolicyStatus = [
         "allwinner-gdut-internships",
         "dtl-quant-internships",
+        "galasports-internships",
         "kunlunxin-internships",
       ].includes(sourceKey)
         ? "paused"
@@ -293,6 +296,14 @@ describe("controlled local source configurations", () => {
       { maxItems: 1, maxPages: 1, maxRequests: 2, minimumIntervalMs: 2000 },
     ],
     [
+      "galasports-internships",
+      "career.cuhk.edu.cn",
+      "/job/view/id/468689",
+      [] as string[],
+      { host: "career.cuhk.edu.cn", pathPrefix: "/job/view/id/468689" },
+      { maxItems: 1, maxPages: 1, maxRequests: 2, minimumIntervalMs: 2000 },
+    ],
+    [
       "shengumedia-internships",
       "career.cuhk.edu.cn",
       "/job/view/id/467659",
@@ -369,11 +380,13 @@ describe("controlled local source configurations", () => {
     async (sourceKey, fetchHost, firstFetchPath, queryParameters, applyTarget, budget) => {
       const config = await loadSourceConfig(sourceKey);
       const expectedPolicyVersion =
-        sourceKey === "hanxu-tech-internships"
-          ? 1
+        sourceKey === "galasports-internships"
+          ? 3
+          : sourceKey === "hanxu-tech-internships"
+            ? 2
           : sourceKey === "kunlunxin-internships" || sourceKey === "dtl-quant-internships"
-            ? 4
-            : 3;
+            ? 5
+            : 4;
       expect(config.policy.version).toBe(expectedPolicyVersion);
       expect(config.localProbe.requestBudget).toEqual(budget);
       expect(config.policy.fetchTargets[0]).toMatchObject({
@@ -486,6 +499,20 @@ describe("controlled local source configurations", () => {
         allowedQueryParameters: ["locale"],
       }),
     ]);
+  });
+
+  it("records the official medium-scale evidence for Gala Sports", async () => {
+    const config = await loadSourceConfig("galasports-internships");
+    expect(config.organization).toMatchObject({
+      slug: "galasports",
+      name: "深圳市望尘科技有限公司",
+      officialDomain: "galasports.com",
+      scale: {
+        band: "medium",
+        evidenceUrl: "https://www.galasports.com/about.html",
+        lastVerifiedAt: "2026-07-31T00:00:00.000Z",
+      },
+    });
   });
 
   it("keeps ByteDance browser snapshots manual, internship-only and unable to live probe", async () => {

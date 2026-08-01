@@ -21,6 +21,7 @@ async function htmlFixture(name: string): Promise<string> {
 
 const NANKAI_PAGE_URL = "https://career.nankai.edu.cn/correcruit/content/id/116240.html";
 const CUHK_PAGE_URL = "https://career.cuhk.edu.cn/job/view/id/466931";
+const GALASPORTS_CUHK_PAGE_URL = "https://career.cuhk.edu.cn/job/view/id/468689";
 const ZJU_PAGE_URL =
   "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4DE5B03172671701E0653A68DD0E9B18";
 const HANXU_ZJU_PAGE_URL =
@@ -107,6 +108,7 @@ describe("university employment source registry", () => {
     expect(sources.map((source) => source.sourceKey)).toEqual([
       "supvan-info-internships",
       "jcquant-internships",
+      "galasports-internships",
       "shengumedia-internships",
       "hr-soft-internships",
       "allwinner-gdut-internships",
@@ -121,6 +123,9 @@ describe("university employment source registry", () => {
     ]);
     expect(resolveUniversityEmploymentSource("supvan-info-internships").pageUrls).toHaveLength(6);
     expect(resolveUniversityEmploymentSource("jcquant-internships").pageUrls).toHaveLength(1);
+    expect(resolveUniversityEmploymentSource("galasports-internships").pageUrls).toEqual([
+      GALASPORTS_CUHK_PAGE_URL,
+    ]);
     expect(resolveUniversityEmploymentSource("hanxu-tech-internships").pageUrls).toEqual([
       HANXU_ZJU_PAGE_URL,
       "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4CCEE37BBB2DB309E0653A68DD0E9B18",
@@ -438,6 +443,85 @@ describe("cuhk job view detail page (jcquant)", () => {
     );
     expect(() =>
       normalizeUniversityEmploymentJob({ source, job: wrongCompany, pageEvidenceRef: "fetch" }),
+    ).toThrowError("UNIVERSITY_EMPLOYMENT_COMPANY_MISMATCH");
+  });
+});
+
+describe("cuhk job view detail page (galasports)", () => {
+  it("normalizes the sports-game planning internship and company-domain email", async () => {
+    const html = await htmlFixture("university-employment-cuhk-galasports.synthetic.html");
+    const source = resolveUniversityEmploymentSource("galasports-internships");
+    expect(source).toMatchObject({
+      companyLegalName: "深圳市望尘科技有限公司",
+      companyPageAliases: ["望尘科技"],
+    });
+    const job = parseCuhkJobViewPage(html, GALASPORTS_CUHK_PAGE_URL);
+
+    expect(job).toMatchObject({
+      sourceJobId: "cuhk-468689",
+      companyName: "望尘科技",
+      title: "望尘科技体育游戏策划实习岗位",
+      employmentTypeText: "实习",
+      publishedAt: "2026-07-02",
+      deadline: "2026-07-31",
+    });
+    expect(job.responsibilities).toContain("负责体育游戏玩法和系统的设计");
+    expect(job.requirements).toContain("热爱体育");
+    expect(job.requirements).not.toContain("招生网");
+    expect(job.emails).toEqual([
+      {
+        email: "huangtingting@galasports.com",
+        sourceText: "简历作品可直接发邮箱huangtingting@galasports.com",
+      },
+    ]);
+
+    const normalized = normalizeUniversityEmploymentJob({
+      source,
+      job,
+      pageEvidenceRef: "fetch-cuhk-468689",
+    });
+    expect(normalized.companyName).toBe("望尘科技");
+    expect(normalized.jobFamily).toMatchObject({ state: "known", value: "other" });
+    expect(normalized.structuredFields).toMatchObject({
+      applicationEmail: "huangtingting@galasports.com",
+      deadline: { state: "known", value: "2026-07-31" },
+    });
+    expect(normalized.qualityFlags).not.toContainEqual(
+      expect.objectContaining({ code: "SOURCE_KIND_CONFLICT" }),
+    );
+  });
+
+  it("fails closed when the application email leaves the official domain", async () => {
+    const html = await htmlFixture("university-employment-cuhk-galasports.synthetic.html");
+    const source = resolveUniversityEmploymentSource("galasports-internships");
+    const job = parseCuhkJobViewPage(
+      html.replaceAll("huangtingting@galasports.com", "huangtingting@qq.com"),
+      GALASPORTS_CUHK_PAGE_URL,
+    );
+
+    expect(() =>
+      normalizeUniversityEmploymentJob({
+        source,
+        job,
+        pageEvidenceRef: "fetch-cuhk-468689",
+      }),
+    ).toThrowError("UNIVERSITY_EMPLOYMENT_COMPANY_EMAIL_UNVERIFIED");
+  });
+
+  it("fails closed when the page name is not an evidenced legal name or alias", async () => {
+    const html = await htmlFixture("university-employment-cuhk-galasports.synthetic.html");
+    const source = resolveUniversityEmploymentSource("galasports-internships");
+    const job = parseCuhkJobViewPage(
+      html.replaceAll("望尘科技", "其他游戏公司"),
+      GALASPORTS_CUHK_PAGE_URL,
+    );
+
+    expect(() =>
+      normalizeUniversityEmploymentJob({
+        source,
+        job,
+        pageEvidenceRef: "fetch-cuhk-468689",
+      }),
     ).toThrowError("UNIVERSITY_EMPLOYMENT_COMPANY_MISMATCH");
   });
 });

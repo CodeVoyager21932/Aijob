@@ -221,6 +221,46 @@
       "sourceKeys": [],
       "scaleBand": "unknown",
       "scaleEvidenceRef": null
+    },
+    {
+      "companyKey": "skt-education",
+      "displayName": "SKT思珂特教育",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
+    },
+    {
+      "companyKey": "guru-game",
+      "displayName": "GURU Game",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
+    },
+    {
+      "companyKey": "bluepoch",
+      "displayName": "广州深蓝互动网络科技有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
+    },
+    {
+      "companyKey": "galasports",
+      "displayName": "深圳市望尘科技有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": ["galasports-internships"],
+      "scaleBand": "medium",
+      "scaleEvidenceRef": "https://www.galasports.com/about.html"
+    },
+    {
+      "companyKey": "egret-asset",
+      "displayName": "浙江白鹭资产管理股份有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     }
   ]
 }
