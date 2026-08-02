@@ -63,6 +63,7 @@ export function registerMatchingRoutes(
         owner,
         body,
         idempotencyKey(request.headers),
+        { enableLocalMvp: options.enableLocalMvp },
       );
       return reply.code(202).send(result);
     } catch (error) {
@@ -73,7 +74,9 @@ export function registerMatchingRoutes(
   app.get("/v1/match-runs/:runId", async (request, reply) => {
     const owner = requireOwnerContext(request);
     const { runId } = ParamsSchema.parse(request.params);
-    const result = await getMatchRun(options.db, owner, runId);
+    const result = await getMatchRun(options.db, owner, runId, {
+      enableLocalMvp: options.enableLocalMvp,
+    });
     if (!result) {
       return sendApiProblem(
         request,

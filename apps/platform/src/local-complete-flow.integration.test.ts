@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { lockLocalCatalogMaterialization } from "./catalog/materialize.js";
 import { putJobDecision } from "./decisions/service.js";
 import { createAnonymousSession } from "./identity/session-repository.js";
+import { createJobInsightRun } from "./insights/service.js";
 import {
   enqueueMatchRun,
   enqueueRecommendationRun,
@@ -282,6 +283,7 @@ describeWithDatabase("complete local MVP service journey", () => {
   afterAll(async () => {
     if (ownerId) {
       await db.deleteFrom("matching.resume_exports").where("owner_id", "=", ownerId).execute();
+      await db.deleteFrom("matching.job_insight_runs").where("owner_id", "=", ownerId).execute();
       await db
         .deleteFrom("matching.recommendation_items")
         .where("owner_id", "=", ownerId)
@@ -521,6 +523,11 @@ describeWithDatabase("complete local MVP service journey", () => {
           preferenceRevisionId: preferences.id,
           evidenceRevisionId: evidence.id,
         };
+        await expect(
+          enqueueMatchRun(db, owner, matchRequest, `public-match-${ids.organization}`, {
+            enableLocalMvp: false,
+          }),
+        ).rejects.toMatchObject({ code: "JOB_REQUIREMENTS_NOT_READY" });
         const [match, concurrentMatch] = await Promise.all([
           enqueueMatchRun(db, owner, matchRequest, `match-${ids.organization}`),
           enqueueMatchRun(db, owner, matchRequest, `match-${ids.organization}`),
@@ -536,6 +543,7 @@ describeWithDatabase("complete local MVP service journey", () => {
             preference: { status: "fits" },
           },
         });
+        expect(await getMatchRun(db, owner, match.id, { enableLocalMvp: false })).toBeNull();
 
         const recommendationRequest = {
           profileFactRevisionId: facts.id,
@@ -604,6 +612,96 @@ describeWithDatabase("complete local MVP service journey", () => {
           catalogState: "current",
           items: [{ catalogState: "current", lastVerifiedAt: frozenLastVerifiedAt }],
         });
+
+        await db
+          .insertInto("ingestion.source_job_activity_states")
+          .values({
+            source_job_record_id: ids.sourceRecord,
+            absence_state: "uncertain",
+            direct_state: "active",
+            consecutive_complete_absences: 1,
+            last_seen_run_id: null,
+            last_absent_run_id: null,
+            last_absent_at: new Date(),
+            closed_reason: null,
+          })
+          .execute();
+        expect(
+          await enqueueMatchRun(db, owner, matchRequest, `uncertain-match-${ids.organization}`),
+        ).toMatchObject({ status: "queued" });
+        expect(
+          await enqueueRecommendationRun(
+            db,
+            owner,
+            recommendationRequest,
+            `uncertain-recommendation-${ids.organization}`,
+            { enableLocalMvp: true },
+          ),
+        ).toMatchObject({ status: "queued" });
+        const uncertainInsight = await createJobInsightRun({
+          db,
+          owner,
+          request: {
+            scope: { jobFamily: "product", cities: [], companyScaleBands: [] },
+            evidenceRevisionId: null,
+          },
+          idempotencyKey: `uncertain-insight-${ids.organization}`,
+          enableLocalMvp: true,
+        });
+        expect(uncertainInsight.candidateJobVersionIds).toContain(ids.publishedVersion);
+        expect(
+          await getRecommendationRun(db, owner, recommendation.id, { enableLocalMvp: true }),
+        ).toMatchObject({ catalogState: "current", items: [{ catalogState: "current" }] });
+
+        await db
+          .updateTable("ingestion.source_job_activity_states")
+          .set({
+            absence_state: "closed",
+            consecutive_complete_absences: 2,
+            closed_reason: "two_complete_absences",
+          })
+          .where("source_job_record_id", "=", ids.sourceRecord)
+          .executeTakeFirstOrThrow();
+        expect(
+          await getRecommendationRun(db, owner, recommendation.id, { enableLocalMvp: true }),
+        ).toMatchObject({ catalogState: "invalid", items: [{ catalogState: "invalid" }] });
+        await expect(
+          enqueueMatchRun(db, owner, matchRequest, `closed-match-${ids.organization}`),
+        ).rejects.toMatchObject({ code: "JOB_REQUIREMENTS_NOT_READY" });
+        await expect(
+          enqueueRecommendationRun(
+            db,
+            owner,
+            recommendationRequest,
+            `closed-recommendation-${ids.organization}`,
+            { enableLocalMvp: true },
+          ),
+        ).rejects.toMatchObject({ code: "CANDIDATE_JOB_NOT_IN_CURRENT_CATALOG" });
+        const closedInsight = await createJobInsightRun({
+          db,
+          owner,
+          request: {
+            scope: { jobFamily: "product", cities: [], companyScaleBands: [] },
+            evidenceRevisionId: null,
+          },
+          idempotencyKey: `closed-insight-${ids.organization}`,
+          enableLocalMvp: true,
+        });
+        expect(closedInsight.candidateJobVersionIds).not.toContain(ids.publishedVersion);
+
+        await db
+          .updateTable("ingestion.source_job_activity_states")
+          .set({
+            absence_state: "active",
+            consecutive_complete_absences: 0,
+            last_absent_at: null,
+            closed_reason: null,
+          })
+          .where("source_job_record_id", "=", ids.sourceRecord)
+          .executeTakeFirstOrThrow();
+        expect(
+          await getRecommendationRun(db, owner, recommendation.id, { enableLocalMvp: true }),
+        ).toMatchObject({ catalogState: "current", items: [{ catalogState: "current" }] });
 
         const legacyRecommendationId = randomUUID();
         await db

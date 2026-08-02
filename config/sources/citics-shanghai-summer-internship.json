@@ -80,18 +80,20 @@
     ]
   },
   "policy": {
-    "version": "2",
+    "version": "6",
     "status": "pending_review",
     "adapterKey": "university-employment-detail-html",
-    "adapterVersion": "0.1.0",
+    "adapterVersion": "0.1.3",
     "entrypoints": ["https://career.cuhk.edu.cn/job/view/id/468515"],
     "crawlInterval": {
-      "enabled": false,
+      "enabled": true,
       "minimumHours": 168
     },
-    "reviewedAt": "2026-07-29",
+    "refreshCoverage": "tracked_records",
+    "absencePolicy": "none",
+    "reviewedAt": "2026-08-01",
     "policyNotes": [
-      "仅允许维护者显式执行冻结高校详情页的低频本地探测。",
+      "ADR-0026 仅允许本机 collector-worker 按 168 小时间隔重新读取冻结高校详情页；不得用于 CI、公开或远程环境。",
       "官方 ATS 仅作为用户申请导航目标，探测进程不登录、不提交、不读取账号状态。",
       "上海分公司主体、岗位编号、职责要求或截止日期变化时立即暂停。"
     ],

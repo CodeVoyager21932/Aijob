@@ -151,7 +151,7 @@ describeWithDatabase("catalog materialization revision links", () => {
       id: input.id,
       source_job_record_id: ids.record,
       revision_content_hash: input.revisionHash,
-      import_mode: "collector",
+      import_mode: "manual",
       adapter_version: input.adapterVersion,
       normalizer_version: input.normalizerVersion,
       company_name: "Semantic Link Test Company",
@@ -439,7 +439,7 @@ describeWithDatabase("catalog company quota selections (ADR-0021)", () => {
           id: randomUUID(),
           source_job_record_id: input.recordId,
           revision_content_hash: randomUUID().replaceAll("-", "").padEnd(64, "0"),
-          import_mode: "collector",
+          import_mode: "manual",
           adapter_version: "1",
           normalizer_version: "1",
           company_name: input.companyName,
@@ -545,5 +545,105 @@ describeWithDatabase("catalog company quota selections (ADR-0021)", () => {
       supply: 12,
       selected: 10,
     });
+
+    const trackedSelection = largeRows.find((row) => row.selected);
+    if (!trackedSelection) throw new Error("missing selected quota fixture");
+    const trackedJob = await db
+      .selectFrom("catalog.published_jobs as job")
+      .innerJoin(
+        "catalog.published_job_versions as version",
+        "version.id",
+        "job.current_version_id",
+      )
+      .innerJoin(
+        "ingestion.source_job_revisions as revision",
+        "revision.id",
+        "version.source_job_revision_id",
+      )
+      .select(["job.id as jobId", "version.title", "revision.source_job_record_id as recordId"])
+      .where("job.id", "=", trackedSelection.published_job_id)
+      .executeTakeFirstOrThrow();
+    const trackedRecordId = trackedJob.recordId;
+    const versionCountBefore = Number(
+      (
+        await db
+          .selectFrom("catalog.published_job_versions")
+          .select(({ fn }) => fn.countAll().as("count"))
+          .where("published_job_id", "=", trackedJob.jobId)
+          .executeTakeFirstOrThrow()
+      ).count,
+    );
+
+    await db
+      .insertInto("ingestion.source_job_activity_states")
+      .values({
+        source_job_record_id: trackedRecordId,
+        absence_state: "uncertain",
+        direct_state: "active",
+        consecutive_complete_absences: 1,
+        last_seen_run_id: null,
+        last_absent_run_id: null,
+        last_absent_at: new Date(),
+        closed_reason: null,
+      })
+      .execute();
+    await materializeLocalCatalog(db);
+    const uncertain = await catalog.search(
+      JobSearchQuerySchema.parse({ keyword: trackedJob.title, limit: 10 }),
+    );
+    expect(uncertain.items).toHaveLength(1);
+    expect(uncertain.items[0]).toMatchObject({
+      activityState: "uncertain",
+      displayStatus: "unknown",
+    });
+
+    await db
+      .updateTable("ingestion.source_job_activity_states")
+      .set({
+        absence_state: "closed",
+        consecutive_complete_absences: 2,
+        closed_reason: "two_complete_absences",
+      })
+      .where("source_job_record_id", "=", trackedRecordId)
+      .executeTakeFirstOrThrow();
+    await materializeLocalCatalog(db);
+    expect(
+      await catalog.search(JobSearchQuerySchema.parse({ keyword: trackedJob.title, limit: 10 })),
+    ).toMatchObject({ items: [] });
+    expect(
+      await db
+        .selectFrom("catalog.company_quota_selections")
+        .select("published_job_id")
+        .where("published_job_id", "=", trackedJob.jobId)
+        .executeTakeFirst(),
+    ).toBeUndefined();
+    expect(
+      Number(
+        (
+          await db
+            .selectFrom("catalog.published_job_versions")
+            .select(({ fn }) => fn.countAll().as("count"))
+            .where("published_job_id", "=", trackedJob.jobId)
+            .executeTakeFirstOrThrow()
+        ).count,
+      ),
+    ).toBe(versionCountBefore);
+
+    await db
+      .updateTable("ingestion.source_job_activity_states")
+      .set({
+        absence_state: "active",
+        consecutive_complete_absences: 0,
+        last_absent_at: null,
+        closed_reason: null,
+      })
+      .where("source_job_record_id", "=", trackedRecordId)
+      .executeTakeFirstOrThrow();
+    await materializeLocalCatalog(db);
+    const restored = await catalog.search(
+      JobSearchQuerySchema.parse({ keyword: trackedJob.title, limit: 10 }),
+    );
+    expect(restored.items).toHaveLength(1);
+    expect(restored.items[0]).toMatchObject({ activityState: "active" });
   }, 30_000);
 });

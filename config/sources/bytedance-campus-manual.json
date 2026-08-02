@@ -81,18 +81,21 @@
     ]
   },
   "policy": {
-    "version": "2",
+    "version": "3",
     "status": "pending_review",
     "adapterKey": "bytedance-manual-browser-snapshot",
     "adapterVersion": "0.1.1",
     "entrypoints": ["https://jobs.bytedance.com/campus/position"],
     "crawlInterval": {
-      "enabled": false,
+      "enabled": true,
       "minimumHours": 168
     },
-    "reviewedAt": "2026-07-21",
+    "refreshCoverage": "manual_snapshot",
+    "absencePolicy": "none",
+    "reviewedAt": "2026-08-01",
     "policyNotes": [
       "只允许 coco 明确启动的人工浏览器可见 DOM 快照；导入 CLI 本身不得触网。",
+      "ADR-0026 本地定时器只生成 manual_snapshot_required 提醒，不访问招聘站、不自动浏览或导入快照。",
       "禁止自动翻页、自动详情遍历、动态签名生成、登录、Cookie、验证码、代理和生产 Playwright。",
       "快照只允许明确实习岗位，任一正式校招全职或社会招聘条目会导致整批拒绝。",
       "来源仍为 pending_review，只能进入本机目录。"

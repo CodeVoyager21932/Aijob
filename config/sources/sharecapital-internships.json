@@ -84,18 +84,20 @@
     ]
   },
   "policy": {
-    "version": "1",
+    "version": "5",
     "status": "pending_review",
     "adapterKey": "university-employment-detail-html",
-    "adapterVersion": "0.1.0",
+    "adapterVersion": "0.1.3",
     "entrypoints": ["https://career.cuhk.edu.cn/job/view/id/467309"],
     "crawlInterval": {
-      "enabled": false,
+      "enabled": true,
       "minimumHours": 168
     },
-    "reviewedAt": "2026-07-29",
+    "refreshCoverage": "tracked_records",
+    "absencePolicy": "none",
+    "reviewedAt": "2026-08-01",
     "policyNotes": [
-      "仅允许维护者显式执行低频本地技术探测。",
+      "ADR-0026 仅允许本机 collector-worker 按 168 小时间隔重新读取冻结详情页；不得用于 CI、公开或远程环境。",
       "只读取冻结详情页，不跟随其他招聘链接。",
       "主体、实习标记、申请邮箱或正文结构变化时立即暂停。"
     ],

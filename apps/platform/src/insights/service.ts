@@ -377,6 +377,9 @@ async function loadInsightRecords(
   scope: JobInsightScope,
   enableLocalMvp: boolean,
 ): Promise<InsightJobRecord[]> {
+  const versionPointer = sql.ref(
+    enableLocalMvp ? "job.current_version_id" : "job.public_version_id",
+  );
   const result = await sql<InsightDatabaseRow>`
     SELECT
       job.id AS job_id,
@@ -395,7 +398,9 @@ async function loadInsightRecords(
       revision.publication_state
     FROM catalog.published_jobs AS job
     JOIN catalog.published_job_versions AS version
-      ON version.id = job.current_version_id
+      ON version.id = ${versionPointer}
+    JOIN catalog.current_job_effective_activity AS activity
+      ON activity.published_job_version_id = version.id
     LEFT JOIN catalog.job_requirement_sets AS requirement_set
       ON requirement_set.id = version.active_requirement_set_id
     LEFT JOIN catalog.job_condition_projections AS projection
@@ -414,7 +419,7 @@ async function loadInsightRecords(
       AND policy.version = source.current_policy_version
     LEFT JOIN catalog.company_quota_selections AS quota
       ON quota.published_job_id = job.id
-    WHERE version.activity_state = 'active'
+    WHERE activity.effective_activity_state <> 'closed'
       AND revision.ingestion_state = 'validated'
       -- ADR-0021：洞察样本与可见目录一致，被配额压缩的岗位不进入分母。
       AND COALESCE(quota.selected, TRUE)

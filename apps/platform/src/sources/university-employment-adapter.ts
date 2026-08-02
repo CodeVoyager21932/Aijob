@@ -10,7 +10,7 @@ import {
 } from "./normalized-official-job.js";
 import { isCompanyDomainEmail } from "./official-account-manual-adapter.js";
 
-export const UNIVERSITY_EMPLOYMENT_ADAPTER_VERSION = "0.1.0";
+export const UNIVERSITY_EMPLOYMENT_ADAPTER_VERSION = "0.1.3";
 export const UNIVERSITY_EMPLOYMENT_NORMALIZER_VERSION = "0.1.0";
 
 /**
@@ -41,6 +41,8 @@ export interface UniversityEmploymentSource {
   sourceKey: string;
   companyLegalName: string;
   companyDisplayName: string;
+  /** Evidence-backed page names accepted in addition to the exact legal name. */
+  companyPageAliases?: string[];
   officialDomain: string;
   pageFormat: UniversityEmploymentPageFormat;
   /** 冻结的详情页列表（每页一岗），按主证据页优先、官方列表顺序排列。 */
@@ -82,6 +84,16 @@ const universityEmploymentSourceList: UniversityEmploymentSource[] = [
     officialDomain: "jcquant.vip",
     pageFormat: "cuhk-jobview",
     pageUrls: ["https://career.cuhk.edu.cn/job/view/id/466931"],
+    application: { type: "company_email" },
+  },
+  {
+    sourceKey: "galasports-internships",
+    companyLegalName: "深圳市望尘科技有限公司",
+    companyDisplayName: "望尘科技",
+    companyPageAliases: ["望尘科技"],
+    officialDomain: "galasports.com",
+    pageFormat: "cuhk-jobview",
+    pageUrls: ["https://career.cuhk.edu.cn/job/view/id/468689"],
     application: { type: "company_email" },
   },
   {
@@ -155,6 +167,21 @@ const universityEmploymentSourceList: UniversityEmploymentSource[] = [
     application: { type: "company_email" },
   },
   {
+    sourceKey: "hanxu-tech-internships",
+    companyLegalName: "寒序科技（北京）有限公司",
+    companyDisplayName: "寒序科技",
+    officialDomain: "icy.tech",
+    pageFormat: "zju-jyxt",
+    pageUrls: [
+      "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4CCE42B8467C9601E0653A68DD0E9B18",
+      "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4CCEE37BBB2DB309E0653A68DD0E9B18",
+    ],
+    application: {
+      type: "official_url",
+      url: "https://app.mokahr.com/campus-recruitment/hanxu/144645?locale=zh-CN#/",
+    },
+  },
+  {
     sourceKey: "sharecapital-internships",
     companyLegalName: "深圳市分享成长投资管理有限公司",
     companyDisplayName: "分享投资",
@@ -174,6 +201,28 @@ const universityEmploymentSourceList: UniversityEmploymentSource[] = [
       type: "official_url",
       url: "https://www.dytechlab.com/careers",
     },
+  },
+  {
+    sourceKey: "unity-drive-internships",
+    companyLegalName: "深圳一清创新科技有限公司",
+    companyDisplayName: "一清创新",
+    officialDomain: "unity-drive.com",
+    pageFormat: "nankai-correcruit",
+    pageUrls: [
+      "https://career.nankai.edu.cn/correcruit/content/id/115887.html",
+      "https://career.nankai.edu.cn/correcruit/content/id/115886.html",
+      "https://career.nankai.edu.cn/correcruit/content/id/115885.html",
+    ],
+    application: { type: "company_email" },
+  },
+  {
+    sourceKey: "triple-stone-internships",
+    companyLegalName: "广东三石园科技有限公司",
+    companyDisplayName: "三石园科技",
+    officialDomain: "triple-stone.com",
+    pageFormat: "nankai-correcruit",
+    pageUrls: ["https://career.nankai.edu.cn/correcruit/content/id/116046.html"],
+    application: { type: "company_email" },
   },
 ];
 
@@ -268,19 +317,55 @@ function splitRequirements(bodyLines: string[]): {
   requirements: string;
 } {
   const markerIndex = bodyLines.findIndex((line) =>
-    /^(?:[【[]?\s*(?:任职要求|职位要求)|\d+[.、]\s*要求)/.test(line.normalize("NFKC")),
+    /^(?:(?:[（(][一二三四五六七八九十]+[）)]|[【[])?\s*(?:任职要求|职位要求)|\d+[.、]\s*要求)/u.test(
+      line.normalize("NFKC"),
+    ),
   );
   if (markerIndex < 0) throw new Error("UNIVERSITY_EMPLOYMENT_REQUIREMENTS_SECTION_MISSING");
   const requirementLines = bodyLines.slice(markerIndex);
   const stopIndex = requirementLines.findIndex(
     (line, index) =>
-      index > 0 && /^(?:关于我们|申请方式|企业简介|其他信息)$/u.test(line.normalize("NFKC")),
+      index > 0 &&
+      /^(?:(?:关于我们|申请方式|企业简介|其他信息)$|(?:职位类别|专业要求|招聘链接)[：:])/u.test(
+        line.normalize("NFKC"),
+      ),
   );
   return {
     responsibilities: bodyLines.slice(0, markerIndex).join("\n"),
     requirements: (stopIndex < 0 ? requirementLines : requirementLines.slice(0, stopIndex)).join(
       "\n",
     ),
+  };
+}
+
+function splitNankaiDescription(descriptionLines: string[]): {
+  responsibilities: string[];
+  requirements: string[];
+} {
+  const responsibilityMarkerIndex = descriptionLines.findIndex((line) =>
+    /^(?:主要工作内容|岗位职责|实习职责|职位职责|工作职责)(?:[：:]|[（(])/u.test(
+      line.normalize("NFKC"),
+    ),
+  );
+  const jobLines =
+    responsibilityMarkerIndex < 0
+      ? descriptionLines
+      : descriptionLines.slice(responsibilityMarkerIndex + 1);
+  const requirementMarkerIndex = jobLines.findIndex((line) =>
+    /^(?:任职要求|职位要求|针对对象|专业要求)(?:[：:]|$)/u.test(line.normalize("NFKC")),
+  );
+  if (requirementMarkerIndex < 0) {
+    return { responsibilities: jobLines, requirements: [] };
+  }
+  const requirementLines = jobLines.slice(requirementMarkerIndex);
+  const contactIndex = requirementLines.findIndex(
+    (line, index) =>
+      index > 0 &&
+      /^(?:联系方式|联系电话|投递邮箱|公司官网)(?:[：:]|$)/u.test(line.normalize("NFKC")),
+  );
+  return {
+    responsibilities: jobLines.slice(0, requirementMarkerIndex),
+    requirements: contactIndex < 0 ? requirementLines : requirementLines.slice(0, contactIndex),
   };
 }
 
@@ -319,7 +404,8 @@ export function parseNankaiCorrecruitPage(html: string, pageUrl: string): Univer
     throw new Error("UNIVERSITY_EMPLOYMENT_REQUIREMENTS_SECTION_MISSING");
   }
   const requirementLines = lines.slice(requirementStart + 1, descriptionStart);
-  const responsibilityLines = sectionBetween(lines, descriptionStart, ["实习信息", "友情链接"]);
+  const descriptionLines = sectionBetween(lines, descriptionStart, ["实习信息", "友情链接"]);
+  const descriptionSections = splitNankaiDescription(descriptionLines);
 
   const educationText = labelValue(lines, "学历要求：");
   const headcountText = labelValue(lines, "招聘人数：");
@@ -338,11 +424,12 @@ export function parseNankaiCorrecruitPage(html: string, pageUrl: string): Univer
     headcountText,
     publishedAt,
     deadline: undefined,
-    responsibilities: responsibilityLines.join("\n"),
+    responsibilities: descriptionSections.responsibilities.join("\n"),
     requirements: [
       ...(educationText ? [`学历要求：${educationText}`] : []),
       ...(headcountText ? [`招聘人数：${headcountText}`] : []),
       ...requirementLines,
+      ...descriptionSections.requirements,
     ].join("\n"),
     emails: collectEmails([labelValue(lines, "职位投递邮箱：") ?? ""]),
     applicationUrlOnPage: labelValue(lines, "职位投递网址链接："),
@@ -368,7 +455,11 @@ export function parseCuhkJobViewPage(html: string, pageUrl: string): UniversityE
 
   const bodyStart = lines.findIndex((line) => line === "工作内容描述");
   if (bodyStart < 0) throw new Error("UNIVERSITY_EMPLOYMENT_BODY_SECTION_MISSING");
-  const bodyLines = sectionBetween(lines, bodyStart, ["其他信息"]);
+  const bodyLines = sectionBetween(lines, bodyStart, [
+    "其他信息",
+    "招生网",
+    "香港中文大学（深圳）© 版权所有",
+  ]);
   const { responsibilities, requirements } = splitRequirements(bodyLines);
 
   return {
@@ -429,6 +520,9 @@ export function parseZjuJyxtPage(html: string, pageUrl: string): UniversityEmplo
   const contactEmailLines = contactLines.filter((line) => line.startsWith("电子邮箱："));
 
   const educationText = tokens[3];
+  const applicationUrlOnPage = html
+    .match(/<a\b[^>]*\bhref="(https:\/\/[^"]+)"[^>]*>\s*招聘链接\s*:/i)?.[1]
+    ?.replace(/&amp;/gi, "&");
   return {
     sourceJobId: pageIdentity("zju-jyxt", pageUrl),
     pageUrl,
@@ -448,7 +542,7 @@ export function parseZjuJyxtPage(html: string, pageUrl: string): UniversityEmplo
     emails: collectEmails(
       applicationEmailLines.length > 0 ? applicationEmailLines : contactEmailLines,
     ),
-    applicationUrlOnPage: undefined,
+    applicationUrlOnPage,
     hasMultiCitySupplement: bodyLines.some((line) => line.includes("工作城市：")),
   };
 }
@@ -700,7 +794,11 @@ export function normalizeUniversityEmploymentJob(input: {
   pageEvidenceRef: string;
 }): NormalizedOfficialJob {
   const { source, job, pageEvidenceRef } = input;
-  if (job.companyName.normalize("NFKC").trim() !== source.companyLegalName) {
+  const pageCompanyName = job.companyName.normalize("NFKC").trim();
+  const acceptedCompanyNames = [source.companyLegalName, ...(source.companyPageAliases ?? [])].map(
+    (name) => name.normalize("NFKC").trim(),
+  );
+  if (!acceptedCompanyNames.includes(pageCompanyName)) {
     throw new Error("UNIVERSITY_EMPLOYMENT_COMPANY_MISMATCH");
   }
   if (!job.employmentTypeText.normalize("NFKC").includes("实习")) {
@@ -798,6 +896,7 @@ export function normalizeUniversityEmploymentJob(input: {
     /(\d+)\s*个?月(?:以上|及以上)/u,
   ]);
   const weeklyAttendanceDays = captureMinimum(combinedText, [
+    /每周(?:可保证|保证|可工作|工作)?\s*(\d+)\s*个?工作日(?:以上|及以上)?/u,
     /每周(?:至少|不少于|可实习|到岗|出勤)?\s*(\d+)\s*天/u,
     /一周(?:至少|不少于|可实习|到岗)?\s*(\d+)\s*天/u,
   ]);

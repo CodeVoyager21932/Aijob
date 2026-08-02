@@ -127,7 +127,12 @@ export async function readLocalBootstrapCatalogStats(
   const selectedRows = quotaRows.filter((row) => row.selected);
   const publicJobsRow = await db
     .selectFrom("catalog.published_jobs as job")
-    .innerJoin("catalog.published_job_versions as version", "version.id", "job.current_version_id")
+    .innerJoin("catalog.published_job_versions as version", "version.id", "job.public_version_id")
+    .innerJoin(
+      "catalog.current_job_effective_activity as activity",
+      "activity.published_job_version_id",
+      "version.id",
+    )
     .innerJoin(
       "ingestion.source_job_revisions as revision",
       "revision.id",
@@ -145,6 +150,7 @@ export async function readLocalBootstrapCatalogStats(
     .where("policy.policy_status", "=", "approved")
     .where("revision.ingestion_state", "=", "validated")
     .where("revision.publication_state", "=", "published")
+    .where("activity.effective_activity_state", "!=", "closed")
     .executeTakeFirstOrThrow();
   return {
     totalSupply: Number(totalSupplyRow.count),

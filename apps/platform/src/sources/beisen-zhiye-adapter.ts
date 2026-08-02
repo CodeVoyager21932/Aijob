@@ -8,8 +8,8 @@ import {
   unknown,
 } from "./normalized-official-job.js";
 
-export const BEISEN_ZHIYE_ADAPTER_VERSION = "0.1.1";
-export const BEISEN_ZHIYE_NORMALIZER_VERSION = "0.1.1";
+export const BEISEN_ZHIYE_ADAPTER_VERSION = "0.1.2";
+export const BEISEN_ZHIYE_NORMALIZER_VERSION = "0.1.2";
 
 /**
  * 北森智业（zhiye.com）招聘门户共享适配器。
@@ -71,6 +71,16 @@ const beisenZhiyeTenantList: BeisenZhiyeTenant[] = [
     companyName: "先临三维",
     host: "shining3d.zhiye.com",
     portalId: "957a969f-e192-4ab2-ae07-44c35064f1ab",
+    category: "3",
+    categoryLabel: "实习",
+    jobsPagePath: "/intern/jobs",
+    reportedTotalKey: "intern-jobads",
+  },
+  {
+    sourceKey: "onerobotics-internships",
+    companyName: "卧安机器人",
+    host: "woanhome.zhiye.com",
+    portalId: "8db50333-7ab7-4960-8f87-ddd9468f4766",
     category: "3",
     categoryLabel: "实习",
     jobsPagePath: "/intern/jobs",
@@ -190,7 +200,7 @@ function captureMinimum(value: string, patterns: RegExp[]): number | undefined {
   return undefined;
 }
 
-const unsetBeisenDate = /^0001-01-01/;
+const unsetBeisenDate = /^(?:0001-01-01|2222-02-02)/;
 
 function beisenDateOnly(value: string | null | undefined): string | undefined {
   if (!value || unsetBeisenDate.test(value)) return undefined;

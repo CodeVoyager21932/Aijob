@@ -29,12 +29,17 @@ describe("Beisen zhiye adapter", () => {
       ["adaps-photonics-internships", "adaps-ph.zhiye.com"],
       ["pudutech-internships", "pudutech.zhiye.com"],
       ["shining3d-internships", "shining3d.zhiye.com"],
+      ["onerobotics-internships", "woanhome.zhiye.com"],
     ]);
     expect(resolveBeisenZhiyeTenant("huice-campus-internships").category).toBe("2");
     expect(resolveBeisenZhiyeTenant("adaps-photonics-internships").category).toBe("3");
     expect(resolveBeisenZhiyeTenant("pudutech-internships").category).toBe("3");
     expect(resolveBeisenZhiyeTenant("shining3d-internships")).toMatchObject({
       portalId: "957a969f-e192-4ab2-ae07-44c35064f1ab",
+      category: "3",
+    });
+    expect(resolveBeisenZhiyeTenant("onerobotics-internships")).toMatchObject({
+      portalId: "8db50333-7ab7-4960-8f87-ddd9468f4766",
       category: "3",
     });
     expect(() => resolveBeisenZhiyeTenant("unknown-tenant")).toThrow(
@@ -106,7 +111,7 @@ describe("Beisen zhiye adapter", () => {
     );
   });
 
-  it("keeps a stated deadline and treats unset Beisen dates as unknown", async () => {
+  it("keeps a stated deadline and treats Beisen sentinel dates as unknown", async () => {
     const page = parseBeisenZhiyeListPage(await jsonFixture());
     const tenant = resolveBeisenZhiyeTenant("adaps-photonics-internships");
     const withDeadline = page.jobs.find((job) => job.JobAdId === 900002);
@@ -125,6 +130,14 @@ describe("Beisen zhiye adapter", () => {
     });
     expect(normalized.structuredFields.publishedAt.state).toBe("unknown");
     expect(normalized.locations.state).toBe("unknown");
+
+    const sentinelDeadline = normalizeBeisenZhiyeJobAd({
+      tenant,
+      job: { ...withDeadline, EndTime: "2222-02-02T00:00:00" },
+      listItemIndex: 1,
+      pageEvidenceRef: "fetch-beisen-list",
+    });
+    expect(sentinelDeadline.structuredFields.deadline.state).toBe("unknown");
   });
 
   it("keeps a title-marked internship with conflicting Kind but records a review reason", async () => {
@@ -187,6 +200,9 @@ describe("Beisen zhiye adapter", () => {
     );
     expect(buildBeisenZhiyeApplyUrl(resolveBeisenZhiyeTenant("adaps-photonics-internships"))).toBe(
       "https://adaps-ph.zhiye.com/intern/jobs",
+    );
+    expect(buildBeisenZhiyeApplyUrl(resolveBeisenZhiyeTenant("onerobotics-internships"))).toBe(
+      "https://woanhome.zhiye.com/intern/jobs",
     );
   });
 });

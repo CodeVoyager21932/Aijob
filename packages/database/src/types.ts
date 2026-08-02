@@ -71,6 +71,8 @@ export interface SourcePolicyVersionTable {
   adapter_version: string;
   entrypoints: JsonValue;
   crawl_interval: string | null;
+  refresh_coverage: Generated<string>;
+  absence_policy: Generated<string>;
   policy_notes: string;
   reviewed_at: Timestamp | null;
   created_at: Generated<Timestamp>;
@@ -98,6 +100,19 @@ export interface SourceRuntimeStateTable {
   consecutive_failures: number;
   last_error_code: string | null;
   next_due_at: Timestamp | null;
+  automation_paused: Generated<boolean>;
+  automation_pause_reason: Generated<string | null>;
+  manual_snapshot_required: Generated<boolean>;
+  manual_snapshot_due_at: Generated<Timestamp | null>;
+  last_successful_run_at: Generated<Timestamp | null>;
+  last_scheduled_run_at: Generated<Timestamp | null>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface RefreshCircuitBreakerTable {
+  id: string;
+  open_until: Timestamp | null;
+  reason: string | null;
   updated_at: Generated<Timestamp>;
 }
 
@@ -143,6 +158,7 @@ export interface CrawlRunTable {
   normalized_count: number;
   rejected_count: number;
   error_summary: JsonValue;
+  automation_acceptance: Generated<string>;
   started_at: Generated<Timestamp>;
   finished_at: Timestamp | null;
 }
@@ -182,6 +198,20 @@ export interface SourceJobRecordTable {
   canonical_source_url: string;
   first_seen_at: Timestamp;
   last_seen_at: Timestamp;
+}
+
+export interface SourceJobActivityStateTable {
+  source_job_record_id: string;
+  absence_state: Generated<string>;
+  direct_state: Generated<string>;
+  direct_reason: Generated<string | null>;
+  direct_evidence_run_id: Generated<string | null>;
+  consecutive_complete_absences: Generated<number>;
+  last_seen_run_id: string | null;
+  last_absent_run_id: string | null;
+  last_absent_at: Timestamp | null;
+  closed_reason: string | null;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface SourceJobRevisionTable {
@@ -251,6 +281,7 @@ export interface ReviewItemTable {
 export interface PublishedJobTable {
   id: string;
   current_version_id: string | null;
+  public_version_id: Generated<string | null>;
   created_at: Generated<Timestamp>;
 }
 
@@ -624,6 +655,13 @@ export interface InternalJobPreviewView {
   last_verified_at: Timestamp;
 }
 
+export interface CurrentJobEffectiveActivityView {
+  published_job_id: string;
+  published_job_version_id: string;
+  source_job_record_id: string;
+  effective_activity_state: string;
+}
+
 // ADR-0021：目录物化确定性计算的单家配额选择；整表由物化重写，属派生状态。
 export interface CompanyQuotaSelectionTable {
   published_job_id: string;
@@ -645,11 +683,13 @@ export interface Database {
   "source_control.source_fetch_targets": SourceTargetTable;
   "source_control.source_apply_targets": SourceTargetTable;
   "source_control.source_runtime_states": SourceRuntimeStateTable;
+  "source_control.refresh_circuit_breaker": RefreshCircuitBreakerTable;
   "task_queue.tasks": TaskTable;
   "ingestion.crawl_runs": CrawlRunTable;
   "ingestion.snapshot_objects": SnapshotObjectTable;
   "ingestion.crawl_fetches": CrawlFetchTable;
   "ingestion.source_job_records": SourceJobRecordTable;
+  "ingestion.source_job_activity_states": SourceJobActivityStateTable;
   "ingestion.source_job_revisions": SourceJobRevisionTable;
   "ingestion.source_job_revision_evidence": SourceJobRevisionEvidenceTable;
   "ingestion.review_items": ReviewItemTable;
@@ -659,6 +699,7 @@ export interface Database {
   "catalog.job_requirement_sets": JobRequirementSetTable;
   "catalog.job_condition_projections": JobConditionProjectionTable;
   "catalog.internal_job_previews": InternalJobPreviewView;
+  "catalog.current_job_effective_activity": CurrentJobEffectiveActivityView;
   "catalog.company_quota_selections": CompanyQuotaSelectionTable;
   "identity.owners": OwnerTable;
   "identity.owner_sessions": OwnerSessionTable;

@@ -21,8 +21,11 @@ async function htmlFixture(name: string): Promise<string> {
 
 const NANKAI_PAGE_URL = "https://career.nankai.edu.cn/correcruit/content/id/116240.html";
 const CUHK_PAGE_URL = "https://career.cuhk.edu.cn/job/view/id/466931";
+const GALASPORTS_CUHK_PAGE_URL = "https://career.cuhk.edu.cn/job/view/id/468689";
 const ZJU_PAGE_URL =
   "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4DE5B03172671701E0653A68DD0E9B18";
+const HANXU_ZJU_PAGE_URL =
+  "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4CCE42B8467C9601E0653A68DD0E9B18";
 const GDUT_PAGE_URL = "https://career.gdut.edu.cn/campus/view/id/1020713";
 
 function gdutHtmlFixture(companyName = "珠海全志科技股份有限公司"): string {
@@ -105,17 +108,28 @@ describe("university employment source registry", () => {
     expect(sources.map((source) => source.sourceKey)).toEqual([
       "supvan-info-internships",
       "jcquant-internships",
+      "galasports-internships",
       "shengumedia-internships",
       "hr-soft-internships",
       "allwinner-gdut-internships",
       "citics-shanghai-summer-internship",
       "kunlunxin-internships",
       "dingwei-consulting-internships",
+      "hanxu-tech-internships",
       "sharecapital-internships",
       "dtl-quant-internships",
+      "unity-drive-internships",
+      "triple-stone-internships",
     ]);
     expect(resolveUniversityEmploymentSource("supvan-info-internships").pageUrls).toHaveLength(6);
     expect(resolveUniversityEmploymentSource("jcquant-internships").pageUrls).toHaveLength(1);
+    expect(resolveUniversityEmploymentSource("galasports-internships").pageUrls).toEqual([
+      GALASPORTS_CUHK_PAGE_URL,
+    ]);
+    expect(resolveUniversityEmploymentSource("hanxu-tech-internships").pageUrls).toEqual([
+      HANXU_ZJU_PAGE_URL,
+      "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4CCEE37BBB2DB309E0653A68DD0E9B18",
+    ]);
     expect(() => resolveUniversityEmploymentSource("unknown-source")).toThrowError(
       "UNIVERSITY_EMPLOYMENT_SOURCE_NOT_CONFIGURED",
     );
@@ -277,6 +291,65 @@ describe("nankai correcruit detail page (supvan-info)", () => {
   });
 });
 
+describe("nankai correcruit SME batch 07 sources", () => {
+  it("normalizes oneclear roles with the company-domain application email", async () => {
+    const html = await htmlFixture("university-employment-nankai-unity-drive.synthetic.html");
+    const pageUrl = "https://career.nankai.edu.cn/correcruit/content/id/115887.html";
+    const source = resolveUniversityEmploymentSource("unity-drive-internships");
+    const job = parseNankaiCorrecruitPage(html, pageUrl);
+    const normalized = normalizeUniversityEmploymentJob({
+      source,
+      job,
+      pageEvidenceRef: "fetch-unity-drive",
+    });
+
+    expect(job).toMatchObject({
+      sourceJobId: "nankai-115887",
+      companyName: "深圳一清创新科技有限公司",
+      title: "定位算法",
+    });
+    expect(normalized.companyName).toBe("一清创新");
+    expect(normalized.structuredFields).toMatchObject({
+      applicationEmail: "synthetic@unity-drive.com",
+      publishedAt: { state: "known", value: "2026-05-28" },
+    });
+    expect(normalized.responsibilities).toContain("无人车定位算法");
+    expect(normalized.responsibilities).not.toContain("任职要求");
+    expect(normalized.requirements).toContain("可连续实习六个月");
+  });
+
+  it("normalizes the triple-stone summer internship and fails on a foreign email", async () => {
+    const html = await htmlFixture("university-employment-nankai-triple-stone.synthetic.html");
+    const pageUrl = "https://career.nankai.edu.cn/correcruit/content/id/116046.html";
+    const source = resolveUniversityEmploymentSource("triple-stone-internships");
+    const job = parseNankaiCorrecruitPage(html, pageUrl);
+    const normalized = normalizeUniversityEmploymentJob({
+      source,
+      job,
+      pageEvidenceRef: "fetch-triple-stone",
+    });
+
+    expect(normalized.companyName).toBe("三石园科技");
+    expect(normalized.structuredFields).toMatchObject({
+      applicationEmail: "synthetic@triple-stone.com",
+    });
+    expect(normalized.responsibilities).toBe("参与新员工培训并深入生产一线学习工艺流程。");
+    expect(normalized.responsibilities).not.toContain("针对对象");
+    expect(normalized.requirements).toContain("针对对象：2027届、2028届毕业生");
+    expect(normalized.requirements).toContain("专业不限");
+    expect(() =>
+      normalizeUniversityEmploymentJob({
+        source,
+        job: {
+          ...job,
+          emails: [{ email: "synthetic@qq.com", sourceText: "职位投递邮箱：synthetic@qq.com" }],
+        },
+        pageEvidenceRef: "fetch-triple-stone",
+      }),
+    ).toThrowError("UNIVERSITY_EMPLOYMENT_COMPANY_EMAIL_UNVERIFIED");
+  });
+});
+
 describe("nankai correcruit multi-role page (dtl)", () => {
   it("splits the frozen brochure into eight internship jobs", () => {
     const jobs = parseDtlNankaiPage(
@@ -374,6 +447,85 @@ describe("cuhk job view detail page (jcquant)", () => {
   });
 });
 
+describe("cuhk job view detail page (galasports)", () => {
+  it("normalizes the sports-game planning internship and company-domain email", async () => {
+    const html = await htmlFixture("university-employment-cuhk-galasports.synthetic.html");
+    const source = resolveUniversityEmploymentSource("galasports-internships");
+    expect(source).toMatchObject({
+      companyLegalName: "深圳市望尘科技有限公司",
+      companyPageAliases: ["望尘科技"],
+    });
+    const job = parseCuhkJobViewPage(html, GALASPORTS_CUHK_PAGE_URL);
+
+    expect(job).toMatchObject({
+      sourceJobId: "cuhk-468689",
+      companyName: "望尘科技",
+      title: "望尘科技体育游戏策划实习岗位",
+      employmentTypeText: "实习",
+      publishedAt: "2026-07-02",
+      deadline: "2026-07-31",
+    });
+    expect(job.responsibilities).toContain("负责体育游戏玩法和系统的设计");
+    expect(job.requirements).toContain("热爱体育");
+    expect(job.requirements).not.toContain("招生网");
+    expect(job.emails).toEqual([
+      {
+        email: "huangtingting@galasports.com",
+        sourceText: "简历作品可直接发邮箱huangtingting@galasports.com",
+      },
+    ]);
+
+    const normalized = normalizeUniversityEmploymentJob({
+      source,
+      job,
+      pageEvidenceRef: "fetch-cuhk-468689",
+    });
+    expect(normalized.companyName).toBe("望尘科技");
+    expect(normalized.jobFamily).toMatchObject({ state: "known", value: "other" });
+    expect(normalized.structuredFields).toMatchObject({
+      applicationEmail: "huangtingting@galasports.com",
+      deadline: { state: "known", value: "2026-07-31" },
+    });
+    expect(normalized.qualityFlags).not.toContainEqual(
+      expect.objectContaining({ code: "SOURCE_KIND_CONFLICT" }),
+    );
+  });
+
+  it("fails closed when the application email leaves the official domain", async () => {
+    const html = await htmlFixture("university-employment-cuhk-galasports.synthetic.html");
+    const source = resolveUniversityEmploymentSource("galasports-internships");
+    const job = parseCuhkJobViewPage(
+      html.replaceAll("huangtingting@galasports.com", "huangtingting@qq.com"),
+      GALASPORTS_CUHK_PAGE_URL,
+    );
+
+    expect(() =>
+      normalizeUniversityEmploymentJob({
+        source,
+        job,
+        pageEvidenceRef: "fetch-cuhk-468689",
+      }),
+    ).toThrowError("UNIVERSITY_EMPLOYMENT_COMPANY_EMAIL_UNVERIFIED");
+  });
+
+  it("fails closed when the page name is not an evidenced legal name or alias", async () => {
+    const html = await htmlFixture("university-employment-cuhk-galasports.synthetic.html");
+    const source = resolveUniversityEmploymentSource("galasports-internships");
+    const job = parseCuhkJobViewPage(
+      html.replaceAll("望尘科技", "其他游戏公司"),
+      GALASPORTS_CUHK_PAGE_URL,
+    );
+
+    expect(() =>
+      normalizeUniversityEmploymentJob({
+        source,
+        job,
+        pageEvidenceRef: "fetch-cuhk-468689",
+      }),
+    ).toThrowError("UNIVERSITY_EMPLOYMENT_COMPANY_MISMATCH");
+  });
+});
+
 describe("cuhk job view detail page (citics shanghai)", () => {
   it("accepts the numbered requirement section and a browser-verified official ATS job", async () => {
     const html = await htmlFixture("university-employment-cuhk-citics.synthetic.html");
@@ -460,5 +612,59 @@ describe("zju jyxt detail page (hr-soft)", () => {
     const html = await htmlFixture("university-employment-zju.synthetic.html");
     const job = parseUniversityEmploymentPage({ format: "zju-jyxt", html, pageUrl: ZJU_PAGE_URL });
     expect(job.title).toBe("商务助理");
+  });
+});
+
+describe("zju jyxt detail page (hanxu tech)", () => {
+  it("parses parenthesized requirement headings and the explicit official Moka link", async () => {
+    const html = await htmlFixture("university-employment-zju-hanxu.synthetic.html");
+    const source = resolveUniversityEmploymentSource("hanxu-tech-internships");
+    const job = parseZjuJyxtPage(html, HANXU_ZJU_PAGE_URL);
+
+    expect(job).toMatchObject({
+      sourceJobId: "zju-4CCE42B8467C9601E0653A68DD0E9B18",
+      companyName: "寒序科技（北京）有限公司",
+      title: "战略与投融资部门实习生",
+      employmentTypeText: "实习",
+      publishedAt: "2026-03-13",
+      deadline: "2026-12-31",
+      applicationUrlOnPage:
+        "https://app.mokahr.com/campus-recruitment/hanxu/144645?locale=zh-CN#/",
+    });
+    expect(job.responsibilities).toContain("完善商业计划书和投融资材料");
+    expect(job.requirements).toContain("每周可保证3个工作日以上");
+    expect(job.requirements).not.toContain("职位类别");
+
+    const normalized = normalizeUniversityEmploymentJob({
+      source,
+      job,
+      pageEvidenceRef: "fetch-hanxu",
+    });
+    expect(normalized.applyUrl).toBe(
+      "https://app.mokahr.com/campus-recruitment/hanxu/144645?locale=zh-CN#/",
+    );
+    expect(normalized.locations).toMatchObject({ state: "known", value: ["北京"] });
+    expect(normalized.structuredFields.durationMonths).toMatchObject({
+      state: "known",
+      value: 3,
+    });
+    expect(normalized.structuredFields.weeklyAttendanceDays).toMatchObject({
+      state: "known",
+      value: 3,
+    });
+  });
+
+  it("rejects non-internship pages and missing parenthesized requirement sections", async () => {
+    const html = await htmlFixture("university-employment-zju-hanxu.synthetic.html");
+
+    expect(() =>
+      parseZjuJyxtPage(html.replace("<span>实习</span>", "<span>全职</span>"), HANXU_ZJU_PAGE_URL),
+    ).toThrowError("UNIVERSITY_EMPLOYMENT_NOT_EXPLICIT_INTERNSHIP");
+    expect(() =>
+      parseZjuJyxtPage(
+        html.replace("（二）任职要求", "（二）岗位条件"),
+        HANXU_ZJU_PAGE_URL,
+      ),
+    ).toThrowError("UNIVERSITY_EMPLOYMENT_REQUIREMENTS_SECTION_MISSING");
   });
 });

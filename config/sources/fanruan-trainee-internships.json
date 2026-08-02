@@ -88,19 +88,21 @@
     ]
   },
   "policy": {
-    "version": "2",
+    "version": "3",
     "status": "pending_review",
     "adapterKey": "fanruan-trainee-public-api",
     "adapterVersion": "0.1.0",
     "entrypoints": ["https://join.fanruan.com/trainee"],
     "crawlInterval": {
-      "enabled": false,
+      "enabled": true,
       "minimumHours": 24
     },
-    "reviewedAt": "2026-07-26",
+    "refreshCoverage": "tracked_records",
+    "absencePolicy": "none",
+    "reviewedAt": "2026-08-01",
     "policyNotes": [
-      "accessPolicyAccepted 未通过，仅允许维护者显式执行低频本地技术探测。",
-      "禁止定时全量采集、生产调度、自动发布和公开展示。",
+      "ADR-0026 仅允许本机 collector-worker 按 24 小时间隔执行单来源低频刷新；不得用于 CI、公开或远程环境。",
+      "来源继续为 pending_review，只能进入本机目录；禁止自动发布和公开展示。",
       "禁止登录、验证码绕过、Cookie、代理和浏览器自动化生产采集。",
       "mode 非实习、社招或兼职岗位一律拒绝；若接口失效、出现验证或重定向，立即暂停并复核。"
     ],

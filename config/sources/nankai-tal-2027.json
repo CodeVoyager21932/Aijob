@@ -80,19 +80,21 @@
     ]
   },
   "policy": {
-    "version": "2",
+    "version": "3",
     "status": "pending_review",
     "adapterKey": "nankai-tal-deterministic-html",
     "adapterVersion": "0.1.0",
     "entrypoints": ["https://career.nankai.edu.cn/correcruit/content/id/115842.html"],
     "crawlInterval": {
-      "enabled": false,
+      "enabled": true,
       "minimumHours": 24
     },
-    "reviewedAt": "2026-07-18",
+    "refreshCoverage": "tracked_records",
+    "absencePolicy": "none",
+    "reviewedAt": "2026-08-01",
     "policyNotes": [
-      "accessPolicyAccepted 未通过，仅允许维护者显式执行单页本地技术探测。",
-      "禁止跟随页面其他链接、递归抓取高校网站、定时调度或自动公开。",
+      "ADR-0026 仅允许本机 collector-worker 按 24 小时间隔重新读取冻结的单一详情页；不得用于 CI、公开或远程环境。",
+      "禁止跟随页面其他链接、递归抓取高校网站或自动公开。",
       "Moka 链接只作为用户导航目标校验，不由采集进程请求。",
       "页面结构变化、招聘过期或申请链接变化时必须进入复核。",
       "v2 将 sourceKey 与可复用 adapterKey 解耦，并将单页、单请求和最小间隔写成显式请求预算；访问范围不变。"

@@ -238,9 +238,19 @@ async function materializeRevision(
       conflict.columns(["published_job_version_id", "source_job_revision_id"]).doNothing(),
     )
     .execute();
+  if (revision.publication_state === "published") {
+    await transaction
+      .updateTable("catalog.published_job_versions")
+      .set({ source_job_revision_id: revision.id })
+      .where("id", "=", version.id)
+      .execute();
+  }
   await transaction
     .updateTable("catalog.published_jobs")
-    .set({ current_version_id: version.id })
+    .set({
+      current_version_id: version.id,
+      ...(revision.publication_state === "published" ? { public_version_id: version.id } : {}),
+    })
     .where("id", "=", publishedJobId)
     .execute();
 
@@ -450,6 +460,12 @@ export async function applyCompanyQuotaSelections(
       "version.job_family as jobFamily",
       "organization.scale_band as scaleBand",
     ])
+    .where(sql<boolean>`EXISTS (
+      SELECT 1
+      FROM catalog.current_job_effective_activity AS activity
+      WHERE activity.published_job_version_id = version.id
+        AND activity.effective_activity_state <> 'closed'
+    )`)
     .execute();
 
   const byCompany = new Map<string, typeof rows>();

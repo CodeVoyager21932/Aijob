@@ -8,9 +8,11 @@
     "cli": "tsx src/cli.ts",
     "db:migrate": "tsx src/migrate.ts",
     "dev": "tsx watch src/dev.ts",
+    "dev:collector-worker": "tsx watch src/collector-worker.ts",
     "dev:web-api": "tsx watch src/server.ts",
     "dev:match-worker": "tsx watch src/match-worker.ts",
     "start": "node dist/server.js",
+    "start:collector-worker": "node dist/collector-worker.js",
     "start:match-worker": "node dist/match-worker.js",
     "test": "vitest run --no-file-parallelism",
     "typecheck": "tsc -p tsconfig.json --noEmit"

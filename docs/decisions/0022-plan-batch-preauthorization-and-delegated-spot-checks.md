@@ -5,6 +5,7 @@
 - 决策者：coco
 - 关联：[ADR-0017](0017-local-sme-expansion-and-official-account-boundary.md)、[ADR-0021](0021-compress-large-company-quota-and-publish-sme-gap.md)、[G2 收束执行计划](../plans/g2-closeout-plan-2026-07-26.md)、[分层收录清单](../evidence/ingestion/import-candidate-list-2026-07-26.md)
 - 替代：调整 [ADR-0017](0017-local-sme-expansion-and-official-account-boundary.md) 第 4 条的逐批审批方式与"后续动作"中的人工抽检执行方式；其余边界继续有效
+- 后续调整：[ADR-0025](0025-extend-g2-sme-company-cap-and-batch-authorization.md) 将相同治理方式延续到批次 07+，并增加 40 家停止线
 
 ## 背景
 

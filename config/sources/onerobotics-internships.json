@@ -1,0 +1,154 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "onerobotics-internships",
+  "sourceType": "organization_career_site",
+  "organization": {
+    "slug": "onerobotics",
+    "name": "卧安机器人（深圳）股份有限公司",
+    "officialDomain": "onerobot.com",
+    "scale": {
+      "band": "medium",
+      "evidenceUrl": "https://www.hkexnews.hk/listedco/listconews/sehk/2026/0429/2026042904445_c.pdf",
+      "evidenceText": "卧安机器人 2025 年年报披露，截至 2025 年 12 月 31 日集团雇员人数为 644 名。",
+      "lastVerifiedAt": "2026-07-30T00:00:00.000Z"
+    }
+  },
+  "candidate": {
+    "name": "卧安机器人官方 2027 届实习招聘",
+    "entrypointUrl": "https://woanhome.zhiye.com/intern/jobs",
+    "provenanceLevel": "organization_owned",
+    "acquisitionMode": "public_api",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-local-probe",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "卧安机器人官网招聘页与官方北森租户 woanhome.zhiye.com 相互链接，主体与港交所披露一致。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "2027 届实习计划仍开放，官方北森实习分类提供岗位级职责与任职要求。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "入口 HTML 与列表 API 可匿名访问，无登录、验证码、Cookie、CSRF 或动态签名依赖。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "申请入口固定指向卧安机器人官方北森实习列表页。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "robots.txt 为 Allow: /，但没有第三方长期复制和公开聚合授权，仅进入本机 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "PortalId、Category=3、字段列表及无状态 POST 契约已冻结，仍待连续运行验证。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 20,
+        "status": "provisional",
+        "note": "当前 2027 届实习计划覆盖研发与产品相关岗位。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 18,
+        "status": "provisional",
+        "note": "北森公共 JSON 契约提供稳定 ID、职责、要求、地区和时间字段。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 10,
+        "status": "provisional",
+        "note": "官方实习分类和发布时间支持低频复核。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 8,
+        "status": "provisional",
+        "note": "补充 medium 机器人企业岗位。"
+      }
+    },
+    "evidenceNotes": [
+      "2026-07-30 读取官方入口与 robots.txt，冻结 PortalId 8db50333-7ab7-4960-8f87-ddd9468f4766。",
+      "港交所 2025 年年报披露 644 名雇员，按固定口径归类 medium。",
+      "本配置不构成来源批准或公开发布授权。"
+    ]
+  },
+  "policy": {
+    "version": "2",
+    "status": "pending_review",
+    "adapterKey": "beisen-zhiye-public-api",
+    "adapterVersion": "0.1.2",
+    "entrypoints": ["https://woanhome.zhiye.com/intern/jobs"],
+    "crawlInterval": {
+      "enabled": true,
+      "minimumHours": 24
+    },
+    "refreshCoverage": "full_scope",
+    "absencePolicy": "close_after_two_complete_absences",
+    "reviewedAt": "2026-08-01",
+    "policyNotes": [
+      "ADR-0026 仅允许本机 collector-worker 按 24 小时间隔执行单来源低频刷新；不得用于 CI、公开或远程环境。",
+      "禁止登录、验证码绕过、Cookie、代理或浏览器自动化生产采集。",
+      "Category、PortalId、主体或字段结构变化时立即暂停。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "POST",
+        "scheme": "https",
+        "host": "woanhome.zhiye.com",
+        "port": 443,
+        "pathPrefix": "/api/Jobad/GetJobAdPageList",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "woanhome.zhiye.com",
+        "port": 443,
+        "pathPrefix": "/intern/jobs",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 30,
+      "maxPages": 3,
+      "maxRequests": 40,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {
+      "category": "3",
+      "pageIndex": 0,
+      "pageSize": 30
+    },
+    "queryStreams": [
+      {
+        "key": "intern-jobs",
+        "label": "卧安机器人实习",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 30
+      }
+    ]
+  }
+}

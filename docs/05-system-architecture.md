@@ -16,6 +16,8 @@ match-worker
 
 > 2026-07-29 R1 实现状态：上述内容仍是已接受的目标架构，不等于全部运行时边界已经落地。当前已有独立 `web-api` 与 `match-worker` 入口，采集仍主要由受控 CLI 执行；数据库角色、受限任务函数、独立 collector 身份和 OpenAPI artifact 尚未完成。收口方案见 [R1 架构审视](evidence/r1/architecture-review-2026-07-29.md)与 [ADR-0023 提案](decisions/0023-enforce-runtime-and-database-role-boundaries.md)。
 
+> 2026-08-02 后续实现状态：按 [ADR-0026](decisions/0026-local-automatic-source-refresh.md) 已落地独立 `collector-worker` 入口、本机总开关、PostgreSQL 到期调度与 `scheduled` 运行；只有本机配置显式启用且未暂停的确定性来源可以定时刷新。ADR-0023 的数据库角色拆分、独立数据库身份与受限函数，以及 OpenAPI artifact 仍未实施，不能把进程入口落地写成最小权限边界已经完成。
+
 ## 2. 系统上下文
 
 ```mermaid
@@ -25,7 +27,7 @@ flowchart LR
     O["维护者"] --> C["internal ops CLI"]
     C --> P
     P --> CW["collector-worker"]
-    CW --> S["批准的企业/高校公开来源"]
+    CW --> S["本机配置显式启用且未暂停的企业/高校公开来源"]
     CW --> B[("岗位快照 Bucket\n仅公开岗位响应正文")]
     CW --> P
     P --> MW["match-worker"]
@@ -105,7 +107,7 @@ MVP 使用一个 PostgreSQL 16 实例（本地由 Docker Desktop 运行，后续
 
 ### 5.2 `collector-worker`
 
-- 从 PostgreSQL 领取 `CrawlTask`，读取已批准 `SourcePolicy`。
+- 从 PostgreSQL 领取 `CrawlTask`，读取与本机配置版本一致、显式启用且未暂停的 `SourcePolicy`；计划刷新授权不等于来源获准公开。
 - 只向精确允许的采集目标出站。
 - 只用 collector 专用身份和前缀读写岗位快照 Bucket；先上传并校验正文，再写入运行、快照元数据、来源修订和待发布岗位版本。
 - 无 `profile`、`matching` 和模型权限；不能修改来源审批。
@@ -124,7 +126,7 @@ MVP 使用一个 PostgreSQL 16 实例（本地由 Docker Desktop 运行，后续
 ### 5.4 `internal ops CLI`
 
 - 通过维护者身份登记、批准、暂停来源和处理岗位复核队列。
-- CLI 保留受控结构化人工导入作为采集失败回退；扩容后的完整 MVP 主目录包含 20–30 家企业、300–500 条全部职能实习岗位，并满足中小企业占比。人工记录必须保存来源 URL、最后核验时间、复核人和字段级证据，且经过与自动采集相同的字段、投递方式、不可变版本和发布复核。
+- CLI 保留受控结构化人工导入作为采集失败回退；扩容后的完整 MVP 主目录包含 30–40 家企业、300–500 条全部职能实习岗位，并满足中小企业占比。人工记录必须保存来源 URL、最后核验时间、复核人和字段级证据，且经过与自动采集相同的字段、投递方式、不可变版本和发布复核。
 - 查看脱敏运行质量、删除状态和审计记录。
 - 所有写操作记录原因、操作者、时间及前后值。
 - 默认无简历原文读取权限，不在公网监听端口。
@@ -221,9 +223,9 @@ URL 写日志前移除查询和片段；owner 只使用不可逆内部引用。�
 至少区分：
 
 - Local Fixture/Test：固定夹具和合成数据，不访问真实来源或个人简历。
-- Local MVP：只在 coco 电脑运行；真实来源探测由维护者明确启动，用户只处理自己主动提交的材料，允许 `local_mvp` 目录和本地显式 AI。
+- Local MVP：只在 coco 电脑运行；来源首次启用、扩大范围、恢复暂停和浏览器快照由维护者明确操作，按 ADR-0026 显式启用的确定性来源随后可在本机定时刷新；用户只处理自己主动提交的材料，允许 `local_mvp` 目录和本地显式 AI。
 - Preview/Test：脱敏/合成数据，验证迁移、权限和端到端流程，不访问真实招聘站。
-- Production Alpha：邀请用户和批准来源，最小权限运行。
+- Production Alpha：邀请用户和批准来源，最小权限运行；当前禁止真实来源自动刷新，未来启用服务器调度需独立 Gate、ADR 与部署开关。
 
 同一构建产物以不同命令启动三个进程。生产使用 TLS 入口、独立服务账号和出站策略；数据库迁移作为受控发布步骤运行，不能由每个实例启动时并发执行。
 

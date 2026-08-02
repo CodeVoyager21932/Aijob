@@ -1,158 +1,266 @@
 {
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "2.0.0",
   "scope": "local_all_function_internships",
   "evidenceLevel": "E0",
-  "targetActiveJobs": {
-    "minimum": 100,
-    "maximum": 200
+  "targets": {
+    "visibleJobs": {
+      "minimum": 300,
+      "maximum": 500
+    },
+    "companies": {
+      "minimum": 30,
+      "maximum": 40
+    },
+    "minimumSmeCompanyRatio": 0.6,
+    "minimumSmeVisibleJobRatio": 0.5
+  },
+  "batchPolicy": {
+    "maxCompanies": 5,
+    "initialJobsPerCompany": 5
   },
   "liveProbeRequiresExplicitApproval": true,
   "priorityBatch": [
     {
-      "companyKey": "tencent",
-      "displayName": "腾讯",
-      "assessmentStatus": "configured_pending_review",
-      "sourceKeys": ["tencent-campus"]
-    },
-    {
-      "companyKey": "meituan",
-      "displayName": "美团",
-      "assessmentStatus": "configured_pending_review",
-      "sourceKeys": ["meituan-official"]
-    },
-    {
-      "companyKey": "tal",
-      "displayName": "好未来",
-      "assessmentStatus": "configured_pending_review",
-      "sourceKeys": ["nankai-tal-2027"]
-    },
-    {
-      "companyKey": "bytedance",
-      "displayName": "字节跳动",
-      "assessmentStatus": "configured_pending_review",
-      "sourceKeys": ["bytedance-campus-manual"]
-    },
-    {
-      "companyKey": "alibaba",
-      "displayName": "阿里巴巴",
+      "companyKey": "xiaoyong-private-fund",
+      "displayName": "上海孝庸私募基金管理有限公司",
       "assessmentStatus": "paused",
-      "sourceKeys": []
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "jd",
-      "displayName": "京东",
-      "assessmentStatus": "configured_pending_review",
-      "sourceKeys": ["jd-campus-internships"]
+      "companyKey": "joinocean-shipping",
+      "displayName": "上海津洋航运",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "baidu",
-      "displayName": "百度",
-      "assessmentStatus": "configured_pending_review",
-      "sourceKeys": ["baidu-internships"]
+      "companyKey": "sixie-investment",
+      "displayName": "上海思勰投资管理有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "small",
+      "scaleEvidenceRef": "https://www.sixiecapital.com/"
     },
     {
-      "companyKey": "huawei",
-      "displayName": "华为",
-      "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "companyKey": "isv-tech",
+      "displayName": "易思维",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "medium",
+      "scaleEvidenceRef": "https://www.sse.com.cn/disclosure/bond/announcement/company/c/new/2026-04-18/688816_20260418_QXS6.pdf"
     },
     {
-      "companyKey": "xiaomi",
-      "displayName": "小米",
-      "assessmentStatus": "not_assessed",
-      "sourceKeys": []
-    },
-    {
-      "companyKey": "didi",
-      "displayName": "滴滴",
-      "assessmentStatus": "not_assessed",
-      "sourceKeys": []
-    },
-    {
-      "companyKey": "kuaishou",
-      "displayName": "快手",
-      "assessmentStatus": "not_assessed",
-      "sourceKeys": []
-    },
-    {
-      "companyKey": "netease",
-      "displayName": "网易",
-      "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "companyKey": "spacemit",
+      "displayName": "杭州进迭时空科技有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "medium",
+      "scaleEvidenceRef": "https://www.zjsjw.gov.cn/toutiao/202602/t20260219_23955871.shtml"
     }
   ],
   "reserveBatch": [
     {
-      "companyKey": "pdd",
-      "displayName": "拼多多",
-      "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "companyKey": "entropy-ai-chip",
+      "displayName": "北京熵旋芯智科技有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "xiaohongshu",
-      "displayName": "小红书",
-      "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "companyKey": "yuhengxing",
+      "displayName": "北京玉衡星科技有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "bilibili",
-      "displayName": "哔哩哔哩",
-      "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "companyKey": "yuanli-lingji",
+      "displayName": "北京原力灵机智能科技有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "trip",
-      "displayName": "携程",
-      "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "companyKey": "smartmore",
+      "displayName": "深圳市思谋科技有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "medium",
+      "scaleEvidenceRef": "https://cn.smartmore.com/tech.html"
     },
     {
-      "companyKey": "ant",
-      "displayName": "蚂蚁集团",
-      "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "companyKey": "woolley-robot",
+      "displayName": "卧安机器人（深圳）股份有限公司",
+      "assessmentStatus": "configured_pending_review",
+      "sourceKeys": ["onerobotics-internships"],
+      "scaleBand": "medium",
+      "scaleEvidenceRef": "https://www.hkexnews.hk/listedco/listconews/sehk/2026/0429/2026042904445_c.pdf"
     },
     {
-      "companyKey": "oppo",
-      "displayName": "OPPO",
-      "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "companyKey": "deeproute",
+      "displayName": "深圳一清创新科技有限公司",
+      "assessmentStatus": "configured_pending_review",
+      "sourceKeys": ["unity-drive-internships"],
+      "scaleBand": "small",
+      "scaleEvidenceRef": "https://www.unity-drive.com/about.html"
     },
     {
-      "companyKey": "vivo",
-      "displayName": "vivo",
-      "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "companyKey": "uniview-ai",
+      "displayName": "杭州宇泛智能科技股份有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "lenovo",
-      "displayName": "联想",
-      "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "companyKey": "wuhan-huajing",
+      "displayName": "武汉华瑾科技有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "byd",
-      "displayName": "比亚迪",
-      "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "companyKey": "dulishuo",
+      "displayName": "独立说教育科技北京有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "li-auto",
-      "displayName": "理想汽车",
-      "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "companyKey": "tianjin-yidisi",
+      "displayName": "天津易迪思信息科技有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "nio",
-      "displayName": "蔚来",
-      "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "companyKey": "weibu-online",
+      "displayName": "北京微步在线科技有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     },
     {
-      "companyKey": "dji",
-      "displayName": "大疆",
-      "assessmentStatus": "not_assessed",
-      "sourceKeys": []
+      "companyKey": "zhangshang-xianji",
+      "displayName": "北京掌上先机网络科技有限公司",
+      "assessmentStatus": "rejected",
+      "sourceKeys": ["huice-campus-internships"],
+      "scaleBand": "large",
+      "scaleEvidenceRef": "https://career.nankai.edu.cn/correcruit/content/id/114173.html"
+    },
+    {
+      "companyKey": "sanshiyuan",
+      "displayName": "广东三石园科技有限公司",
+      "assessmentStatus": "configured_pending_review",
+      "sourceKeys": ["triple-stone-internships"],
+      "scaleBand": "medium",
+      "scaleEvidenceRef": "https://www.triple-stone.cn/about-us/"
+    },
+    {
+      "companyKey": "hunan-douan",
+      "displayName": "湖南斗安智能科技有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
+    },
+    {
+      "companyKey": "guangzhou-touwen",
+      "displayName": "广州头文科技有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
+    },
+    {
+      "companyKey": "hanxu-tech",
+      "displayName": "寒序科技（北京）有限公司",
+      "assessmentStatus": "configured_pending_review",
+      "sourceKeys": ["hanxu-tech-internships"],
+      "scaleBand": "small",
+      "scaleEvidenceRef": "https://sie.pku.edu.cn/xwgg/xwdt/09fd2cf34e034555949484ebe6a15177.htm"
+    },
+    {
+      "companyKey": "zhiyue-deep-space",
+      "displayName": "广州智跃深空人工智能科技有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
+    },
+    {
+      "companyKey": "qingda-keyue",
+      "displayName": "北京清大科越股份有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "medium",
+      "scaleEvidenceRef": "https://static.sse.com.cn/stock/disclosure/announcement/c/202212/001280_20221230_IZTQ.pdf"
+    },
+    {
+      "companyKey": "aoguan-software",
+      "displayName": "傲冠软件",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "small",
+      "scaleEvidenceRef": "https://www.neeq.com.cn/disclosure/2025/2025-01-08/5a1129cc649b45ebb6fc9c1a1f62da89.pdf"
+    },
+    {
+      "companyKey": "lisound-hearing-aids",
+      "displayName": "丽声助听器（福州）有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
+    },
+    {
+      "companyKey": "skt-education",
+      "displayName": "SKT思珂特教育",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
+    },
+    {
+      "companyKey": "guru-game",
+      "displayName": "GURU Game",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
+    },
+    {
+      "companyKey": "bluepoch",
+      "displayName": "广州深蓝互动网络科技有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
+    },
+    {
+      "companyKey": "galasports",
+      "displayName": "深圳市望尘科技有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": ["galasports-internships"],
+      "scaleBand": "medium",
+      "scaleEvidenceRef": "https://www.galasports.com/about.html"
+    },
+    {
+      "companyKey": "egret-asset",
+      "displayName": "浙江白鹭资产管理股份有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null
     }
   ]
 }

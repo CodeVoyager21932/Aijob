@@ -3,6 +3,7 @@ import { readFile, realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 import type { Database } from "@aijob/database";
 import type { Kysely } from "kysely";
+import { materializeLocalCatalog } from "../catalog/materialize.js";
 import { canonicalJson, hashCanonicalJson, sha256 } from "../lib/canonical-json.js";
 import {
   BYTEDANCE_MANUAL_BROWSER_ADAPTER_VERSION,
@@ -19,6 +20,7 @@ import {
 import { assertConfiguredAdapterVersion } from "../sources/official-source-adapters.js";
 import { loadSourceConfig } from "../sources/source-config.js";
 import { registerSourceConfig } from "../sources/source-registry.js";
+import { updateSourceJobActivityAfterRun } from "./job-activity.js";
 import {
   assertActiveTaskLease,
   persistNormalizedOfficialJob,
@@ -30,6 +32,8 @@ import { storeSnapshot } from "./snapshot-store.js";
 const MAX_MANUAL_SNAPSHOT_BYTES = 2 * 1024 * 1024;
 const MANUAL_IMPORT_ROOT = ".data/browser-imports";
 const MANUAL_IMPORT_PIPELINE_VERSION = "2";
+
+type CatalogMaterializer = (db: Kysely<Database>) => Promise<unknown>;
 
 export interface ManualBrowserImportResult {
   reused: boolean;
@@ -79,6 +83,51 @@ function stableErrorCode(error: unknown): string {
   return "MANUAL_BROWSER_IMPORT_FAILED";
 }
 
+async function materializeAndConfirmManualSnapshot(input: {
+  db: Kysely<Database>;
+  sourceId: string;
+  minimumHours: number;
+  scheduleEnabled: boolean;
+  materializeCatalog: CatalogMaterializer;
+}): Promise<void> {
+  try {
+    await input.materializeCatalog(input.db);
+  } catch (error) {
+    const failedAt = new Date();
+    await input.db
+      .updateTable("source_control.source_runtime_states")
+      .set({
+        freshness_state: "due",
+        last_error_code: "CATALOG_MATERIALIZATION_FAILED",
+        updated_at: failedAt,
+      })
+      .where("source_id", "=", input.sourceId)
+      .execute();
+    throw error;
+  }
+
+  const confirmedAt = new Date();
+  const nextDueAt = input.scheduleEnabled
+    ? new Date(confirmedAt.getTime() + input.minimumHours * 60 * 60 * 1_000)
+    : null;
+  await input.db.transaction().execute(async (transaction) => {
+    await transaction
+      .updateTable("source_control.source_runtime_states")
+      .set({
+        freshness_state: "fresh",
+        consecutive_failures: 0,
+        last_error_code: null,
+        next_due_at: nextDueAt,
+        manual_snapshot_required: false,
+        manual_snapshot_due_at: null,
+        last_successful_run_at: confirmedAt,
+        updated_at: confirmedAt,
+      })
+      .where("source_id", "=", input.sourceId)
+      .execute();
+  });
+}
+
 export async function importManualBrowserSnapshot(input: {
   db: Kysely<Database>;
   appEnv: "local" | "test" | "alpha" | "production";
@@ -88,11 +137,13 @@ export async function importManualBrowserSnapshot(input: {
   sourceKey: string;
   filePath: string;
   sourceConfigDirectory?: string;
+  materializeCatalog?: CatalogMaterializer;
 }): Promise<ManualBrowserImportResult> {
   if ((input.appEnv !== "local" && input.appEnv !== "test") || !input.enableLocalMvp) {
     throw new Error("MANUAL_BROWSER_IMPORT_LOCAL_ONLY");
   }
   const sourceConfig = await loadSourceConfig(input.sourceKey, input.sourceConfigDirectory);
+  const materializeCatalog = input.materializeCatalog ?? materializeLocalCatalog;
   if (
     sourceConfig.policy.status !== "pending_review" ||
     sourceConfig.candidate.acquisitionMode !== "browser_required" ||
@@ -182,6 +233,13 @@ export async function importManualBrowserSnapshot(input: {
       .where("task_id", "=", existingTask.id)
       .orderBy("started_at", "desc")
       .executeTakeFirstOrThrow();
+    await materializeAndConfirmManualSnapshot({
+      db: input.db,
+      sourceId: registered.sourceId,
+      minimumHours: sourceConfig.policy.crawlInterval.minimumHours,
+      scheduleEnabled: sourceConfig.policy.crawlInterval.enabled,
+      materializeCatalog,
+    });
     return {
       reused: true,
       taskId: existingTask.id,
@@ -320,6 +378,16 @@ export async function importManualBrowserSnapshot(input: {
         })
         .where("id", "=", taskId)
         .execute();
+      await updateSourceJobActivityAfterRun({
+        db: transaction,
+        sourceId: registered.sourceId,
+        runId,
+        observedAt: finishedAt,
+        completion: "partial",
+        refreshCoverage: sourceConfig.policy.refreshCoverage,
+        absencePolicy: sourceConfig.policy.absencePolicy,
+        minimumHours: sourceConfig.policy.crawlInterval.minimumHours,
+      });
     });
   } catch (error) {
     const failedAt = new Date();
@@ -358,6 +426,14 @@ export async function importManualBrowserSnapshot(input: {
     });
     throw error;
   }
+
+  await materializeAndConfirmManualSnapshot({
+    db: input.db,
+    sourceId: registered.sourceId,
+    minimumHours: sourceConfig.policy.crawlInterval.minimumHours,
+    scheduleEnabled: sourceConfig.policy.crawlInterval.enabled,
+    materializeCatalog,
+  });
 
   return {
     reused: false,

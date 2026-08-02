@@ -28,3 +28,12 @@
 - 新增全志高校静态载荷解析、先临北森租户注册、中信港中深详情适配与负例测试。
 - 2026-07-30 重物化：`eligibleRevisions=178`、`createdVersions=1`、`quotaSelectedJobs=114`、`quotaSuppressedJobs=64`、疑似重复 0。
 - 目录实际为总供给 178、可见 114、16 家企业；中小证据仍只有红海云 1 家/1 条可见岗位，因为全志和先临没有通过真实首批。
+
+## 5. 2026-07-30 后续恢复
+
+> 本节追加后续事实，不改写上方首次执行记录。治理和恢复边界以 ADR-0025 为准。
+
+- 先临三维恢复成功并按实际合格分母扩至 8 条：run `1888ea25-50cf-4e3f-ba0e-7c8177d7ab5a`，1 请求、8/8/0；同小时重放 `reused=true`。
+- 上游八岗共用 `EndTime=2222-02-02` 占位值；北森适配器 0.1.2 将其诚实映射为截止未说明，政策升至 v2，重新导入后八岗最新修订均为 `deadline.state=unknown`。
+- 全志请求已恢复，但静态载荷触发 `UNIVERSITY_EMPLOYMENT_GDUT_STATIC_PAYLOAD_INVALID`；来源从传输暂停转为结构硬暂停，政策升至 v3 并关闭真实探测。
+- 恢复详情、逐岗抽检和目录统计见 [G2 SME 扩容恢复记录](g2-sme-expansion-recovery-2026-07-30.md)。

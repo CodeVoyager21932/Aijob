@@ -15,7 +15,7 @@ import {
   ResumeEvidenceSchema,
 } from "@aijob/contracts";
 import type { Database, JsonValue } from "@aijob/database";
-import type { Kysely, Selectable, Transaction } from "kysely";
+import { type Kysely, type Selectable, sql, type Transaction } from "kysely";
 import { z } from "zod";
 import { assertActiveOwnerEpoch, type OwnerScope } from "../identity/session-repository.js";
 import { hashCanonicalJson } from "../lib/canonical-json.js";
@@ -118,9 +118,18 @@ async function assertOwnerRevision(
   }
 }
 
-async function requirementSetForVersion(db: DbExecutor, versionId: string) {
+export interface MatchCatalogOptions {
+  enableLocalMvp: boolean;
+}
+
+async function requirementSetForVersion(
+  db: DbExecutor,
+  versionId: string,
+  options: MatchCatalogOptions,
+) {
   const row = await db
     .selectFrom("catalog.published_job_versions as version")
+    .innerJoin("catalog.published_jobs as job", "job.id", "version.published_job_id")
     .innerJoin(
       "catalog.job_requirement_sets as requirements",
       "requirements.id",
@@ -128,6 +137,17 @@ async function requirementSetForVersion(db: DbExecutor, versionId: string) {
     )
     .selectAll("requirements")
     .where("version.id", "=", versionId)
+    .whereRef(
+      options.enableLocalMvp ? "job.current_version_id" : "job.public_version_id",
+      "=",
+      "version.id",
+    )
+    .where(sql<boolean>`EXISTS (
+      SELECT 1
+      FROM catalog.current_job_effective_activity AS activity
+      WHERE activity.published_job_version_id = version.id
+        AND activity.effective_activity_state <> 'closed'
+    )`)
     .executeTakeFirst();
   if (!row) {
     throw new ServiceError(
@@ -178,6 +198,7 @@ export async function enqueueMatchRun(
     evidenceRevisionId: string;
   },
   idempotencyKey: string,
+  options: MatchCatalogOptions = { enableLocalMvp: true },
 ): Promise<MatchRun> {
   if (!idempotencyKey.trim()) {
     throw new ServiceError(400, "IDEMPOTENCY_KEY_REQUIRED", "创建匹配任务时必须提供幂等键。");
@@ -206,6 +227,7 @@ export async function enqueueMatchRun(
     const requirementSet = await requirementSetForVersion(
       transaction,
       request.publishedJobVersionId,
+      options,
     );
     const id = randomUUID();
     const created = await transaction
@@ -282,14 +304,31 @@ export async function getMatchRun(
   db: Kysely<Database>,
   owner: OwnerContext,
   runId: string,
+  options: MatchCatalogOptions = { enableLocalMvp: true },
 ): Promise<MatchRun | null> {
-  const row = await db
-    .selectFrom("matching.match_runs")
-    .selectAll()
-    .where("id", "=", runId)
-    .where("owner_id", "=", owner.ownerId)
-    .where("owner_epoch", "=", owner.ownerEpoch)
-    .executeTakeFirst();
+  let query = db
+    .selectFrom("matching.match_runs as run")
+    .innerJoin(
+      "catalog.published_job_versions as version",
+      "version.id",
+      "run.published_job_version_id",
+    )
+    .selectAll("run")
+    .where("run.id", "=", runId)
+    .where("run.owner_id", "=", owner.ownerId)
+    .where("run.owner_epoch", "=", owner.ownerEpoch);
+  if (!options.enableLocalMvp) {
+    query = query.where(sql<boolean>`EXISTS (
+      SELECT 1
+      FROM catalog.published_job_version_revision_links AS link
+      JOIN ingestion.source_job_revisions AS revision
+        ON revision.id = link.source_job_revision_id
+      WHERE link.published_job_version_id = version.id
+        AND revision.ingestion_state = 'validated'
+        AND revision.publication_state = 'published'
+    )`);
+  }
+  const row = await query.executeTakeFirst();
   return row ? mapMatchRun(row) : null;
 }
 
@@ -480,38 +519,45 @@ async function currentCatalogCandidateSnapshots(
     .selectFrom("catalog.published_job_versions as version")
     .innerJoin("catalog.published_jobs as job", "job.id", "version.published_job_id")
     .innerJoin(
-      "catalog.published_job_version_revision_links as link",
-      "link.published_job_version_id",
-      "version.id",
-    )
-    .innerJoin(
       "ingestion.source_job_revisions as revision",
       "revision.id",
-      "link.source_job_revision_id",
+      "version.source_job_revision_id",
     )
     .innerJoin(
       "ingestion.source_job_records as record",
       "record.id",
       "revision.source_job_record_id",
     )
-    .innerJoin("catalog.internal_job_previews as preview", "preview.revision_id", "revision.id")
+    .innerJoin("source_control.sources as source", "source.id", "record.source_id")
+    .innerJoin("source_control.source_policy_versions as policy", (join) =>
+      join
+        .onRef("policy.source_id", "=", "source.id")
+        .onRef("policy.version", "=", "source.current_policy_version"),
+    )
     .select(({ fn }) => [
       "version.id as publishedJobVersionId",
       fn.max("record.last_seen_at").as("lastVerifiedAt"),
     ])
     .where("version.id", "in", candidateIds)
-    .whereRef("job.current_version_id", "=", "version.id")
-    .where("version.activity_state", "=", "active")
-    .where("preview.activity_state", "=", "active")
-    .where("preview.ingestion_state", "=", "validated")
+    .where(sql<boolean>`EXISTS (
+      SELECT 1
+      FROM catalog.current_job_effective_activity AS activity
+      WHERE activity.published_job_version_id = version.id
+        AND activity.effective_activity_state <> 'closed'
+    )`)
+    .where("revision.ingestion_state", "=", "validated")
     .groupBy("version.id");
   query = enableLocalMvp
     ? query
-        .where("preview.publication_state", "in", ["review", "published"])
-        .where("preview.policy_status", "in", ["pending_review", "approved"])
+        .whereRef("job.current_version_id", "=", "version.id")
+        .where("revision.ingestion_state", "=", "validated")
+        .where("revision.publication_state", "in", ["review", "published"])
+        .where("policy.policy_status", "in", ["pending_review", "approved"])
     : query
-        .where("preview.publication_state", "=", "published")
-        .where("preview.policy_status", "=", "approved");
+        .whereRef("job.public_version_id", "=", "version.id")
+        .where("revision.ingestion_state", "=", "validated")
+        .where("revision.publication_state", "=", "published")
+        .where("policy.policy_status", "=", "approved");
   const rows = await query.execute();
   const snapshots = new Map(
     rows.map((row) => [
@@ -545,35 +591,54 @@ async function recommendationCatalogContext(
   let query = db
     .selectFrom("catalog.published_job_versions as candidate")
     .innerJoin("catalog.published_jobs as job", "job.id", "candidate.published_job_id")
-    .leftJoin("catalog.published_job_versions as current", "current.id", "job.current_version_id")
-    .innerJoin(
-      "catalog.published_job_version_revision_links as link",
-      "link.published_job_version_id",
+    .leftJoin(
+      "catalog.published_job_versions as current",
       "current.id",
+      enableLocalMvp ? "job.current_version_id" : "job.public_version_id",
     )
     .innerJoin(
-      "catalog.internal_job_previews as preview",
-      "preview.revision_id",
-      "link.source_job_revision_id",
+      "ingestion.source_job_revisions as currentRevision",
+      "currentRevision.id",
+      "current.source_job_revision_id",
+    )
+    .innerJoin(
+      "ingestion.source_job_records as currentRecord",
+      "currentRecord.id",
+      "currentRevision.source_job_record_id",
+    )
+    .innerJoin(
+      "source_control.sources as currentSource",
+      "currentSource.id",
+      "currentRecord.source_id",
+    )
+    .innerJoin("source_control.source_policy_versions as currentPolicy", (join) =>
+      join
+        .onRef("currentPolicy.source_id", "=", "currentSource.id")
+        .onRef("currentPolicy.version", "=", "currentSource.current_policy_version"),
     )
     .select([
       "candidate.id as candidateId",
       "current.id as currentVersionId",
       "current.active_requirement_set_id as currentRequirementSetId",
-      "current.activity_state as currentActivityState",
-      "preview.activity_state as previewActivityState",
-      "preview.ingestion_state as ingestionState",
-      "preview.publication_state as publicationState",
-      "preview.policy_status as policyStatus",
+      sql<string | null>`(
+        SELECT activity.effective_activity_state
+        FROM catalog.current_job_effective_activity AS activity
+        WHERE activity.published_job_version_id = current.id
+        LIMIT 1
+      )`.as("effectiveActivityState"),
+      "currentRevision.ingestion_state as ingestionState",
+      "currentRevision.publication_state as publicationState",
+      "currentPolicy.policy_status as policyStatus",
     ])
     .where("candidate.id", "in", candidateIds);
   query = enableLocalMvp
     ? query
-        .where("preview.publication_state", "in", ["review", "published"])
-        .where("preview.policy_status", "in", ["pending_review", "approved"])
+        .where("currentRevision.publication_state", "in", ["review", "published"])
+        .where("currentPolicy.policy_status", "in", ["pending_review", "approved"])
     : query
-        .where("preview.publication_state", "=", "published")
-        .where("preview.policy_status", "=", "approved");
+        .where("currentRevision.ingestion_state", "=", "validated")
+        .where("currentRevision.publication_state", "=", "published")
+        .where("currentPolicy.policy_status", "=", "approved");
   const rows = await query.execute();
 
   const rowsByCandidate = new Map(rows.map((candidate) => [candidate.candidateId, candidate]));
@@ -584,8 +649,8 @@ async function recommendationCatalogContext(
       !snapshots.has(candidateId) ||
       !candidate ||
       candidate.currentVersionId === null ||
-      candidate.currentActivityState !== "active" ||
-      candidate.previewActivityState !== "active" ||
+      (candidate.effectiveActivityState !== "active" &&
+        candidate.effectiveActivityState !== "uncertain") ||
       candidate.ingestionState !== "validated" ||
       (enableLocalMvp
         ? candidate.publicationState !== "review" && candidate.publicationState !== "published"

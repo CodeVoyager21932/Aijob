@@ -11,6 +11,28 @@ import {
 } from "./source-config.js";
 import { TENCENT_ADAPTER_VERSION } from "./tencent-campus-adapter.js";
 
+interface MutableSourceConfigFixture {
+  sourceType: string;
+  candidate: { acquisitionMode: string };
+  policy: {
+    status: string;
+    adapterKey: string;
+    crawlInterval: { enabled: boolean; minimumHours: number };
+    refreshCoverage: string;
+    absencePolicy: string;
+  };
+  localProbe: { enabled: boolean };
+}
+
+async function sourceConfigFixture(name: string): Promise<MutableSourceConfigFixture> {
+  const fixtureDirectory = fileURLToPath(
+    new URL("../../../../fixtures/source-configs/", import.meta.url),
+  );
+  return JSON.parse(
+    await readFile(path.join(fixtureDirectory, name), "utf8"),
+  ) as MutableSourceConfigFixture;
+}
+
 describe("Tencent source configuration", () => {
   it("keeps a policy-failed source in local-probe-only status", async () => {
     const config = await loadSourceConfig("tencent-campus");
@@ -68,6 +90,8 @@ describe("controlled local source configurations", () => {
       "dingwei-consulting-internships",
       "dtl-quant-internships",
       "fanruan-trainee-internships",
+      "galasports-internships",
+      "hanxu-tech-internships",
       "hr-soft-internships",
       "huice-campus-internships",
       "jcquant-internships",
@@ -75,6 +99,7 @@ describe("controlled local source configurations", () => {
       "kunlunxin-internships",
       "meituan-official",
       "nankai-tal-2027",
+      "onerobotics-internships",
       "pudutech-internships",
       "sharecapital-internships",
       "shengumedia-internships",
@@ -82,23 +107,28 @@ describe("controlled local source configurations", () => {
       "spirit-ai-feishu-manual",
       "supvan-info-internships",
       "tencent-campus",
+      "triple-stone-internships",
+      "unity-drive-internships",
     ]);
   });
 
   it.each([
     ["adaps-photonics-internships", "beisen-zhiye-public-api", true],
-    ["allwinner-gdut-internships", "university-employment-detail-html", true],
+    ["allwinner-gdut-internships", "university-employment-detail-html", false],
     ["baidu-internships", "baidu-ssr-deterministic-html", true],
     ["bytedance-campus-manual", "bytedance-manual-browser-snapshot", false],
     ["citics-shanghai-summer-internship", "university-employment-detail-html", true],
     ["dingwei-consulting-internships", "university-employment-detail-html", true],
-    ["dtl-quant-internships", "university-employment-detail-html", true],
+    ["dtl-quant-internships", "university-employment-detail-html", false],
     ["fanruan-trainee-internships", "fanruan-trainee-public-api", true],
+    ["galasports-internships", "university-employment-detail-html", false],
+    ["hanxu-tech-internships", "university-employment-detail-html", true],
     ["hr-soft-internships", "university-employment-detail-html", true],
     ["huice-campus-internships", "beisen-zhiye-public-api", true],
     ["jcquant-internships", "university-employment-detail-html", true],
     ["jd-campus-internships", "jd-campus-public-api", true],
-    ["kunlunxin-internships", "university-employment-detail-html", true],
+    ["kunlunxin-internships", "university-employment-detail-html", false],
+    ["onerobotics-internships", "beisen-zhiye-public-api", true],
     ["pudutech-internships", "beisen-zhiye-public-api", true],
     ["sharecapital-internships", "university-employment-detail-html", true],
     ["shengumedia-internships", "university-employment-detail-html", true],
@@ -106,25 +136,42 @@ describe("controlled local source configurations", () => {
     ["spirit-ai-feishu-manual", "official-account-manual-snapshot", false],
     ["supvan-info-internships", "university-employment-detail-html", true],
     ["tencent-campus", "tencent-public-api", true],
+    ["triple-stone-internships", "university-employment-detail-html", true],
+    ["unity-drive-internships", "university-employment-detail-html", true],
     ["meituan-official", "meituan-public-api", true],
     ["nankai-tal-2027", "nankai-tal-deterministic-html", true],
-  ] as const)("keeps %s pending and local-only", async (sourceKey, adapterKey, probeEnabled) => {
-    const config = await loadSourceConfig(sourceKey);
-    const assessment = assessSource(config);
+  ] as const)(
+    "keeps %s in its expected local-only policy state",
+    async (sourceKey, adapterKey, probeEnabled) => {
+      const config = await loadSourceConfig(sourceKey);
+      const assessment = assessSource(config);
+      const expectedPolicyStatus = [
+        "allwinner-gdut-internships",
+        "dtl-quant-internships",
+        "galasports-internships",
+        "kunlunxin-internships",
+      ].includes(sourceKey)
+        ? "paused"
+        : "pending_review";
 
-    expect(config.sourceKey).toBe(sourceKey);
-    expect(config.policy.status).toBe("pending_review");
-    expect(config.policy.adapterKey).toBe(adapterKey);
-    expect(config.policy.adapterVersion).toBe(officialSourceAdapterVersions[adapterKey]);
-    expect(config.localProbe.enabled).toBe(probeEnabled);
-    expect(config.localProbe.requestBudget.maxRequests).toBeGreaterThanOrEqual(
-      config.localProbe.requestBudget.maxPages,
-    );
-    expect(config.policy.fetchTargets.every((target) => !target.allowRedirects)).toBe(true);
-    expect(config.policy.applyTargets.every((target) => !target.allowRedirects)).toBe(true);
-    expect(assessment.hardGatesPassed).toBe(false);
-    expect(assessment.decision).toBe("ineligible");
-  });
+      expect(config.sourceKey).toBe(sourceKey);
+      expect(config.policy.status).toBe(expectedPolicyStatus);
+      expect(config.policy.adapterKey).toBe(adapterKey);
+      expect(config.policy.adapterVersion).toBe(officialSourceAdapterVersions[adapterKey]);
+      expect(config.policy.crawlInterval.minimumHours).toBeGreaterThan(0);
+      expect(["full_scope", "tracked_records", "manual_snapshot"]).toContain(
+        config.policy.refreshCoverage,
+      );
+      expect(config.localProbe.enabled).toBe(probeEnabled);
+      expect(config.localProbe.requestBudget.maxRequests).toBeGreaterThanOrEqual(
+        config.localProbe.requestBudget.maxPages,
+      );
+      expect(config.policy.fetchTargets.every((target) => !target.allowRedirects)).toBe(true);
+      expect(config.policy.applyTargets.every((target) => !target.allowRedirects)).toBe(true);
+      expect(assessment.hardGatesPassed).toBe(false);
+      expect(assessment.decision).toBe("ineligible");
+    },
+  );
 
   it("limits the university source to one exact page and the verified Moka tenant", async () => {
     const config = await loadSourceConfig("nankai-tal-2027");
@@ -223,14 +270,15 @@ describe("controlled local source configurations", () => {
   });
 
   it.each([
-    ["huice-campus-internships", "huicecom.zhiye.com", "/campus/jobs"],
-    ["adaps-photonics-internships", "adaps-ph.zhiye.com", "/intern/jobs"],
-    ["pudutech-internships", "pudutech.zhiye.com", "/intern/jobs"],
+    ["huice-campus-internships", "huicecom.zhiye.com", "/campus/jobs", 3],
+    ["adaps-photonics-internships", "adaps-ph.zhiye.com", "/intern/jobs", 3],
+    ["pudutech-internships", "pudutech.zhiye.com", "/intern/jobs", 3],
+    ["onerobotics-internships", "woanhome.zhiye.com", "/intern/jobs", 2],
   ] as const)(
     "limits %s to its own Beisen tenant list API and official jobs page",
-    async (sourceKey, host, jobsPagePath) => {
+    async (sourceKey, host, jobsPagePath, policyVersion) => {
       const config = await loadSourceConfig(sourceKey);
-      expect(config.policy.version).toBe(2);
+      expect(config.policy.version).toBe(policyVersion);
       expect(config.localProbe.requestBudget).toEqual({
         maxItems: 30,
         maxPages: 3,
@@ -264,6 +312,7 @@ describe("controlled local source configurations", () => {
       [] as string[],
       { host: "www.supvan.com", pathPrefix: "/joinUs" },
       { maxItems: 6, maxPages: 6, maxRequests: 10, minimumIntervalMs: 2000 },
+      5,
     ],
     [
       "jcquant-internships",
@@ -272,6 +321,16 @@ describe("controlled local source configurations", () => {
       [] as string[],
       { host: "career.cuhk.edu.cn", pathPrefix: "/job/view/id/466931" },
       { maxItems: 1, maxPages: 1, maxRequests: 2, minimumIntervalMs: 2000 },
+      5,
+    ],
+    [
+      "galasports-internships",
+      "career.cuhk.edu.cn",
+      "/job/view/id/468689",
+      [] as string[],
+      { host: "career.cuhk.edu.cn", pathPrefix: "/job/view/id/468689" },
+      { maxItems: 1, maxPages: 1, maxRequests: 2, minimumIntervalMs: 2000 },
+      3,
     ],
     [
       "shengumedia-internships",
@@ -280,6 +339,7 @@ describe("controlled local source configurations", () => {
       [] as string[],
       { host: "career.cuhk.edu.cn", pathPrefix: "/job/view/id/467659" },
       { maxItems: 1, maxPages: 1, maxRequests: 2, minimumIntervalMs: 2000 },
+      5,
     ],
     [
       "hr-soft-internships",
@@ -288,6 +348,7 @@ describe("controlled local source configurations", () => {
       ["zpxxbh"],
       { host: "www.career.zju.edu.cn", pathPrefix: "/jyxt/sczp/zpztgl/ckZpgwXq.zf" },
       { maxItems: 1, maxPages: 1, maxRequests: 2, minimumIntervalMs: 2000 },
+      5,
     ],
     [
       "kunlunxin-internships",
@@ -296,6 +357,7 @@ describe("controlled local source configurations", () => {
       ["zpxxbh"],
       { host: "www.career.zju.edu.cn", pathPrefix: "/jyxt/sczp/zpztgl/ckZpgwXq.zf" },
       { maxItems: 1, maxPages: 1, maxRequests: 10, minimumIntervalMs: 2000 },
+      5,
     ],
     [
       "dingwei-consulting-internships",
@@ -304,6 +366,7 @@ describe("controlled local source configurations", () => {
       ["zpxxbh"],
       { host: "www.career.zju.edu.cn", pathPrefix: "/jyxt/sczp/zpztgl/ckZpgwXq.zf" },
       { maxItems: 1, maxPages: 1, maxRequests: 10, minimumIntervalMs: 2000 },
+      5,
     ],
     [
       "sharecapital-internships",
@@ -312,6 +375,7 @@ describe("controlled local source configurations", () => {
       [] as string[],
       { host: "career.cuhk.edu.cn", pathPrefix: "/job/view/id/467309" },
       { maxItems: 1, maxPages: 1, maxRequests: 10, minimumIntervalMs: 2000 },
+      5,
     ],
     [
       "dtl-quant-internships",
@@ -320,12 +384,48 @@ describe("controlled local source configurations", () => {
       [] as string[],
       { host: "www.dytechlab.com", pathPrefix: "/careers" },
       { maxItems: 8, maxPages: 1, maxRequests: 10, minimumIntervalMs: 2000 },
+      5,
+    ],
+    [
+      "unity-drive-internships",
+      "career.nankai.edu.cn",
+      "/correcruit/content/id/115887.html",
+      [] as string[],
+      { host: "career.nankai.edu.cn", pathPrefix: "/correcruit/content/id/115887.html" },
+      { maxItems: 3, maxPages: 3, maxRequests: 10, minimumIntervalMs: 2000 },
+      5,
+    ],
+    [
+      "triple-stone-internships",
+      "career.nankai.edu.cn",
+      "/correcruit/content/id/116046.html",
+      [] as string[],
+      { host: "career.nankai.edu.cn", pathPrefix: "/correcruit/content/id/116046.html" },
+      { maxItems: 1, maxPages: 1, maxRequests: 10, minimumIntervalMs: 2000 },
+      5,
+    ],
+    [
+      "hanxu-tech-internships",
+      "www.career.zju.edu.cn",
+      "/jyxt/sczp/zpztgl/ckZpgwXq.zf",
+      ["zpxxbh"],
+      { host: "app.mokahr.com", pathPrefix: "/campus-recruitment/hanxu/144645" },
+      { maxItems: 2, maxPages: 2, maxRequests: 10, minimumIntervalMs: 2000 },
+      3,
     ],
   ] as const)(
     "limits %s to its frozen university detail pages",
-    async (sourceKey, fetchHost, firstFetchPath, queryParameters, applyTarget, budget) => {
+    async (
+      sourceKey,
+      fetchHost,
+      firstFetchPath,
+      queryParameters,
+      applyTarget,
+      budget,
+      policyVersion,
+    ) => {
       const config = await loadSourceConfig(sourceKey);
-      expect(config.policy.version).toBe(1);
+      expect(config.policy.version).toBe(policyVersion);
       expect(config.localProbe.requestBudget).toEqual(budget);
       expect(config.policy.fetchTargets[0]).toMatchObject({
         method: "GET",
@@ -334,13 +434,15 @@ describe("controlled local source configurations", () => {
         allowedQueryParameters: [...queryParameters],
       });
       expect(config.policy.fetchTargets.every((target) => target.host === fetchHost)).toBe(true);
-      expect(config.policy.applyTargets).toEqual([
-        expect.objectContaining({
-          method: "GET",
-          host: applyTarget.host,
-          pathPrefix: applyTarget.pathPrefix,
-        }),
-      ]);
+      expect(config.policy.applyTargets).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            method: "GET",
+            host: applyTarget.host,
+            pathPrefix: applyTarget.pathPrefix,
+          }),
+        ]),
+      );
     },
   );
 
@@ -398,10 +500,293 @@ describe("controlled local source configurations", () => {
     }
   });
 
+  it("records batch-07 SME scale evidence without using platform estimates", async () => {
+    const expected = [
+      [
+        "onerobotics-internships",
+        "medium",
+        "https://www.hkexnews.hk/listedco/listconews/sehk/2026/0429/2026042904445_c.pdf",
+      ],
+      ["unity-drive-internships", "small", "https://www.unity-drive.com/about.html"],
+      ["triple-stone-internships", "medium", "https://www.triple-stone.cn/about-us/"],
+    ] as const;
+
+    for (const [sourceKey, band, evidenceUrl] of expected) {
+      const config = await loadSourceConfig(sourceKey);
+      expect(config.organization.scale).toMatchObject({
+        band,
+        evidenceUrl,
+        lastVerifiedAt: "2026-07-30T00:00:00.000Z",
+      });
+    }
+  });
+
+  it("records the official small-team evidence for Hanxu Tech", async () => {
+    const config = await loadSourceConfig("hanxu-tech-internships");
+    expect(config.organization.scale).toMatchObject({
+      band: "small",
+      evidenceUrl: "https://sie.pku.edu.cn/xwgg/xwdt/09fd2cf34e034555949484ebe6a15177.htm",
+      lastVerifiedAt: "2026-07-31T00:00:00.000Z",
+    });
+    expect(config.policy.applyTargets).toEqual([
+      expect.objectContaining({
+        method: "GET",
+        host: "app.mokahr.com",
+        pathPrefix: "/campus-recruitment/hanxu/144645",
+        allowedQueryParameters: ["locale"],
+      }),
+    ]);
+  });
+
+  it("enables 21 deterministic sources and two reminders while keeping four sources paused", async () => {
+    const deterministic = [];
+    const reminders = [];
+    const paused = [];
+    const unexpectedlyDisabled = [];
+    for (const sourceKey of await listSourceKeys()) {
+      const config = await loadSourceConfig(sourceKey);
+      if (config.policy.status === "paused") {
+        paused.push({
+          sourceKey,
+          version: config.policy.version,
+          crawlEnabled: config.policy.crawlInterval.enabled,
+          localProbeEnabled: config.localProbe.enabled,
+        });
+      } else if (!config.policy.crawlInterval.enabled) {
+        unexpectedlyDisabled.push(sourceKey);
+      } else if (config.policy.refreshCoverage === "manual_snapshot") {
+        reminders.push({
+          sourceKey,
+          version: config.policy.version,
+          minimumHours: config.policy.crawlInterval.minimumHours,
+          localProbeEnabled: config.localProbe.enabled,
+        });
+      } else {
+        deterministic.push({
+          sourceKey,
+          version: config.policy.version,
+          coverage: config.policy.refreshCoverage,
+          absencePolicy: config.policy.absencePolicy,
+          minimumHours: config.policy.crawlInterval.minimumHours,
+        });
+      }
+    }
+
+    expect(deterministic).toEqual([
+      {
+        sourceKey: "adaps-photonics-internships",
+        version: 3,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 24,
+      },
+      {
+        sourceKey: "baidu-internships",
+        version: 3,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 24,
+      },
+      {
+        sourceKey: "citics-shanghai-summer-internship",
+        version: 6,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 168,
+      },
+      {
+        sourceKey: "dingwei-consulting-internships",
+        version: 5,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 168,
+      },
+      {
+        sourceKey: "fanruan-trainee-internships",
+        version: 3,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 24,
+      },
+      {
+        sourceKey: "hanxu-tech-internships",
+        version: 3,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 168,
+      },
+      {
+        sourceKey: "hr-soft-internships",
+        version: 5,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 168,
+      },
+      {
+        sourceKey: "huice-campus-internships",
+        version: 3,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 24,
+      },
+      {
+        sourceKey: "jcquant-internships",
+        version: 5,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 168,
+      },
+      {
+        sourceKey: "jd-campus-internships",
+        version: 2,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 24,
+      },
+      {
+        sourceKey: "meituan-official",
+        version: 4,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 24,
+      },
+      {
+        sourceKey: "nankai-tal-2027",
+        version: 3,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 24,
+      },
+      {
+        sourceKey: "onerobotics-internships",
+        version: 2,
+        coverage: "full_scope",
+        absencePolicy: "close_after_two_complete_absences",
+        minimumHours: 24,
+      },
+      {
+        sourceKey: "pudutech-internships",
+        version: 3,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 24,
+      },
+      {
+        sourceKey: "sharecapital-internships",
+        version: 5,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 168,
+      },
+      {
+        sourceKey: "shengumedia-internships",
+        version: 5,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 168,
+      },
+      {
+        sourceKey: "shining3d-internships",
+        version: 3,
+        coverage: "full_scope",
+        absencePolicy: "close_after_two_complete_absences",
+        minimumHours: 24,
+      },
+      {
+        sourceKey: "supvan-info-internships",
+        version: 5,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 168,
+      },
+      {
+        sourceKey: "tencent-campus",
+        version: 6,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 24,
+      },
+      {
+        sourceKey: "triple-stone-internships",
+        version: 5,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 168,
+      },
+      {
+        sourceKey: "unity-drive-internships",
+        version: 5,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 168,
+      },
+    ]);
+    expect(reminders).toEqual([
+      {
+        sourceKey: "bytedance-campus-manual",
+        version: 3,
+        minimumHours: 168,
+        localProbeEnabled: false,
+      },
+      {
+        sourceKey: "spirit-ai-feishu-manual",
+        version: 4,
+        minimumHours: 168,
+        localProbeEnabled: false,
+      },
+    ]);
+    expect(paused).toEqual([
+      {
+        sourceKey: "allwinner-gdut-internships",
+        version: 6,
+        crawlEnabled: false,
+        localProbeEnabled: false,
+      },
+      {
+        sourceKey: "dtl-quant-internships",
+        version: 5,
+        crawlEnabled: false,
+        localProbeEnabled: false,
+      },
+      {
+        sourceKey: "galasports-internships",
+        version: 3,
+        crawlEnabled: false,
+        localProbeEnabled: false,
+      },
+      {
+        sourceKey: "kunlunxin-internships",
+        version: 5,
+        crawlEnabled: false,
+        localProbeEnabled: false,
+      },
+    ]);
+    expect(unexpectedlyDisabled).toEqual([]);
+  });
+
+  it("records the official medium-scale evidence for Gala Sports", async () => {
+    const config = await loadSourceConfig("galasports-internships");
+    expect(config.organization).toMatchObject({
+      slug: "galasports",
+      name: "深圳市望尘科技有限公司",
+      officialDomain: "galasports.com",
+      scale: {
+        band: "medium",
+        evidenceUrl: "https://www.galasports.com/about.html",
+        lastVerifiedAt: "2026-07-31T00:00:00.000Z",
+      },
+    });
+  });
+
   it("keeps ByteDance browser snapshots manual, internship-only and unable to live probe", async () => {
     const config = await loadSourceConfig("bytedance-campus-manual");
     expect(config.candidate.acquisitionMode).toBe("browser_required");
     expect(config.localProbe.enabled).toBe(false);
+    expect(config.policy).toMatchObject({
+      crawlInterval: { enabled: true, minimumHours: 168 },
+      refreshCoverage: "manual_snapshot",
+      absencePolicy: "none",
+    });
     expect(config.policy.fetchTargets).toEqual([
       expect.objectContaining({
         method: "GET",
@@ -414,22 +799,59 @@ describe("controlled local source configurations", () => {
   });
 
   it("rejects network probing for every browser-required source type", async () => {
-    const fixtureDirectory = fileURLToPath(
-      new URL("../../../../fixtures/source-configs/", import.meta.url),
-    );
-    const fixture = JSON.parse(
-      await readFile(path.join(fixtureDirectory, "official-account-test.json"), "utf8"),
-    ) as {
-      sourceType: string;
-      policy: { adapterKey: string };
-      localProbe: { enabled: boolean };
-    };
+    const fixture = await sourceConfigFixture("official-account-test.json");
     fixture.sourceType = "organization_career_site";
     fixture.policy.adapterKey = "tencent-public-api";
     fixture.localProbe.enabled = true;
     expect(() => parseSourceConfigValue(fixture)).toThrow(
       "browser_required sources cannot enable network probing",
     );
+  });
+
+  it("requires browser sources to use reminder-only refresh coverage", async () => {
+    const fixture = await sourceConfigFixture("bytedance-manual-test.json");
+    fixture.policy.refreshCoverage = "tracked_records";
+
+    expect(() => parseSourceConfigValue(fixture)).toThrow(
+      "browser_required sources require manual_snapshot refresh coverage",
+    );
+  });
+
+  it("allows absence closure only for complete deterministic coverage", async () => {
+    const manual = await sourceConfigFixture("bytedance-manual-test.json");
+    manual.policy.absencePolicy = "close_after_two_complete_absences";
+    expect(() => parseSourceConfigValue(manual)).toThrow(
+      "manual_snapshot sources cannot close jobs from automated absence",
+    );
+
+    const tracked = await sourceConfigFixture("bytedance-manual-test.json");
+    tracked.candidate.acquisitionMode = "deterministic_html";
+    tracked.policy.refreshCoverage = "tracked_records";
+    tracked.policy.absencePolicy = "close_after_two_complete_absences";
+    expect(() => parseSourceConfigValue(tracked)).toThrow(
+      "only full_scope refresh coverage can close jobs from absence",
+    );
+
+    tracked.policy.refreshCoverage = "full_scope";
+    expect(() => parseSourceConfigValue(tracked)).not.toThrow();
+  });
+
+  it("blocks inactive deterministic schedules but permits reminder-only browser schedules", async () => {
+    for (const status of ["paused", "blocked", "retired"]) {
+      const deterministic = await sourceConfigFixture("bytedance-manual-test.json");
+      deterministic.candidate.acquisitionMode = "deterministic_html";
+      deterministic.policy.status = status;
+      deterministic.policy.crawlInterval.enabled = true;
+      deterministic.policy.refreshCoverage = "tracked_records";
+      expect(() => parseSourceConfigValue(deterministic)).toThrow(
+        "inactive sources cannot enable deterministic network refresh",
+      );
+    }
+
+    const reminder = await sourceConfigFixture("bytedance-manual-test.json");
+    reminder.policy.status = "paused";
+    reminder.policy.crawlInterval.enabled = true;
+    expect(() => parseSourceConfigValue(reminder)).not.toThrow();
   });
 
   it("locks official account sources to local manual import with evidenced company scale", async () => {
@@ -452,6 +874,8 @@ describe("controlled local source configurations", () => {
       policy: {
         status: "pending_review",
         adapterKey: "official-account-manual-snapshot",
+        refreshCoverage: "manual_snapshot",
+        absencePolicy: "none",
       },
       localProbe: { enabled: false },
     });
