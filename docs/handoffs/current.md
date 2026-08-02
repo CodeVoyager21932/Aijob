@@ -2,7 +2,7 @@
 
 > 交接日期：2026-08-02
 >
-> 当前分支：`codex/g2-sme-expansion`
+> 当前主线：`main`（PR #2 已合并；后续工作从最新 `origin/main` 新建 `codex/` 分支）
 >
 > 动态事实源：[MVP 路线与当前决策面板](../06-mvp-roadmap.md)
 >
