@@ -82,6 +82,7 @@ coco 已在 P7 终局判定中选择继续扩容，并通过 ADR-0025 把企业�
 - 2026-08-01 自动刷新基础设施初始工程门：隔离库全量 457 项测试（platform 363、web 57、config 16、contracts 15、database 6）、全仓 TypeScript、生产构建、`pnpm lint`（300 文件）与 `git diff --check` 通过；该时点总开关保持关闭，未访问真实来源。
 - 2026-08-01 灰度、全量排期与竞态加固后工程门：隔离库全量 460 项测试（platform 366、web 57、config 16、contracts 15、database 6）、全仓 TypeScript、生产构建、`pnpm lint`（300 文件）与 `git diff --check` 通过。工程门未访问真实来源；真实灰度仅访问三家授权来源。详见[验收记录](../evidence/ingestion/source-refresh-automation-2026-08-01.md)。
 - 2026-08-02 合并前工程门：隔离库全量 460/460、全仓 TypeScript、生产构建、`pnpm lint`（300 文件）与 `git diff --check` 再次通过；工程命令未访问真实来源。同期计划运行观察独立记录在[首轮扩展证据](../evidence/ingestion/source-refresh-first-rollout-observation-2026-08-02.md)。
+- GitHub CI 已配置一次性 PostgreSQL 16 测试服务，预迁移后强制设置 `AIJOB_TEST_DATABASE_URL`，因此 PR 与 `main` 的工程门不再静默跳过 20 个数据库集成测试文件；CI 显式关闭来源探测、本地预览与 AI。PR 分支只由 `pull_request` 触发，合并后由 `main` push 复验，避免同一提交重复运行两套检查。
 
 ## 3. 当前未完成项
 
