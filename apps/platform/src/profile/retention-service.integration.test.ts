@@ -45,6 +45,7 @@ function config(): AppConfig {
     resumeEncryptionKey: encryptionKey,
     resumeMaxBytes: 5 * 1024 * 1024,
     ai: { enabled: false, requestTimeoutMs: 30_000 },
+    identity: { acceptedOrigins: [], alphaInviteCodeHashes: [] },
     workspaceRoot: ".",
   };
 }
@@ -98,12 +99,15 @@ describeWithDatabase("owner, export and tombstone retention", () => {
         source_id: fixture.sourceId,
         version: 1,
         policy_status: "pending_review",
+        config_registered: true,
+        catalog_role: "canonical",
+        runtime_scope: "local",
         provenance_level: "organization_owned",
         acquisition_mode: "deterministic_html",
         adapter_key: "retention-fixture",
         adapter_version: "1",
         entrypoints: JSON.stringify(["https://retention.example.test/jobs"]),
-        crawl_interval: null,
+        crawl_interval: "24h",
         policy_notes: "Offline retention integration fixture.",
         reviewed_at: null,
       })

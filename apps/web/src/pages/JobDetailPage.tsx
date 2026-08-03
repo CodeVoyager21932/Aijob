@@ -329,7 +329,7 @@ export function JobDetailPage() {
               <dd>{formatDateTime(job.source.lastVerifiedAt)}</dd>
             </div>
             <div>
-              <dt>官方原始页</dt>
+              <dt>企业来源页</dt>
               <dd>
                 <a
                   className="text-link"
@@ -449,7 +449,7 @@ export function JobDetailPage() {
                   void markOfficialLinkOpened(job.id).catch(() => undefined);
                 }}
               >
-                打开官方投递链接 ↗
+                前往企业招聘入口 ↗
               </a>
             </div>
           ) : emailMethod ? (
@@ -467,7 +467,7 @@ export function JobDetailPage() {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  查看官方原文 ↗
+                  查看岗位来源 ↗
                 </a>
               </div>
             </div>
@@ -480,7 +480,7 @@ export function JobDetailPage() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                查看官方原文
+                查看岗位来源
               </a>
             </div>
           )}
@@ -547,7 +547,7 @@ function JobText({ title, field }: { title: string; field: JobDetail["responsibi
   const value = displayField(field);
   return (
     <section className="product-panel job-prose">
-      <p className="eyebrow">官方原文</p>
+      <p className="eyebrow">岗位原文</p>
       <h2>{title}</h2>
       {value.state === "known" ? (
         <OfficialJobText text={value.text} />

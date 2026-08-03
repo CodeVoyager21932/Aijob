@@ -22,6 +22,7 @@ function config(overrides: Partial<AppConfig> = {}): AppConfig {
       enabled: false,
       requestTimeoutMs: 30_000,
     },
+    identity: { acceptedOrigins: [], alphaInviteCodeHashes: [] },
     workspaceRoot: ".",
     ...overrides,
   };
@@ -39,7 +40,7 @@ describe("environment route boundary", () => {
     }
   });
 
-  it("does not register preview routes outside local/test", async () => {
+  it("does not register preview routes and protects all Alpha API reads", async () => {
     const app = buildApp({
       config: config({
         appEnv: "alpha",
@@ -49,10 +50,11 @@ describe("environment route boundary", () => {
       db: unusedDb,
     });
     try {
+      expect(app.printRoutes()).not.toContain("internal-preview/jobs");
       const response = await app.inject({ method: "GET", url: "/v1/internal-preview/jobs" });
-      expect(response.statusCode).toBe(404);
+      expect(response.statusCode).toBe(401);
       expect(response.headers["content-type"]).toContain("application/problem+json");
-      expect(response.json()).toMatchObject({ code: "ROUTE_NOT_FOUND" });
+      expect(response.json()).toMatchObject({ code: "SESSION_REQUIRED" });
     } finally {
       await app.close();
     }

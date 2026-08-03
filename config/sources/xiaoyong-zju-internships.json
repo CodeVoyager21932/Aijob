@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "xiaoyong-zju-internships",
   "sourceType": "university_employment_site",
+  "catalogRole": "discovery_only",
+  "runtimeScope": "local",
   "organization": {
     "slug": "xiaoyong-asset",
     "name": "上海孝庸私募基金管理有限公司",
@@ -82,7 +84,7 @@
     ]
   },
   "policy": {
-    "version": "3",
+    "version": "4",
     "status": "pending_review",
     "adapterKey": "university-employment-detail-html",
     "adapterVersion": "0.1.4",
@@ -96,7 +98,7 @@
       "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=50802145F4D82C43E0653A68DD0E9B18",
       "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=50802145F4D92C43E0653A68DD0E9B18"
     ],
-    "crawlInterval": { "enabled": true, "minimumHours": 168 },
+    "crawlInterval": { "enabled": false, "minimumHours": 168 },
     "refreshCoverage": "tracked_records",
     "absencePolicy": "none",
     "reviewedAt": "2026-08-02",

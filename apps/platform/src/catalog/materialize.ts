@@ -397,7 +397,7 @@ async function materializeRevision(
 }
 
 export interface LocalCatalogMaterializationResult {
-  eligibleRevisions: number;
+  materializedRevisions: number;
   createdVersions: number;
   createdRequirementSets: number;
   suspectedDuplicatePairs: number;
@@ -645,7 +645,7 @@ export async function materializeLocalCatalog(
     );
     const quota = await applyCompanyQuotaSelections(transaction);
     return {
-      eligibleRevisions: revisions.length,
+      materializedRevisions: revisions.length,
       createdVersions,
       createdRequirementSets,
       suspectedDuplicatePairs,

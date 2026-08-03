@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "sharecapital-internships",
   "sourceType": "university_employment_site",
+  "catalogRole": "discovery_only",
+  "runtimeScope": "local",
   "organization": {
     "slug": "sharecapital",
     "name": "深圳市分享成长投资管理有限公司",
@@ -84,13 +86,13 @@
     ]
   },
   "policy": {
-    "version": "6",
+    "version": "7",
     "status": "pending_review",
     "adapterKey": "university-employment-detail-html",
     "adapterVersion": "0.1.4",
     "entrypoints": ["https://career.cuhk.edu.cn/job/view/id/467309"],
     "crawlInterval": {
-      "enabled": true,
+      "enabled": false,
       "minimumHours": 168
     },
     "refreshCoverage": "tracked_records",

@@ -408,6 +408,8 @@ async function loadInsightRecords(
       AND projection.requirement_set_id = requirement_set.id
     JOIN ingestion.source_job_revisions AS revision
       ON revision.id = version.source_job_revision_id
+    JOIN catalog.job_version_eligibility AS eligibility
+      ON eligibility.published_job_version_id = version.id
     JOIN ingestion.source_job_records AS record
       ON record.id = revision.source_job_record_id
     JOIN source_control.sources AS source
@@ -419,7 +421,8 @@ async function loadInsightRecords(
       AND policy.version = source.current_policy_version
     LEFT JOIN catalog.company_quota_selections AS quota
       ON quota.published_job_id = job.id
-    WHERE activity.effective_activity_state <> 'closed'
+    WHERE ${enableLocalMvp ? sql`eligibility.eligible_for_local_mvp` : sql`eligibility.eligible_for_alpha`}
+      AND activity.effective_activity_state <> 'closed'
       AND revision.ingestion_state = 'validated'
       -- ADR-0021：洞察样本与可见目录一致，被配额压缩的岗位不进入分母。
       AND COALESCE(quota.selected, TRUE)

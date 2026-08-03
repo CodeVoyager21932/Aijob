@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   CompanyScaleSchema,
+  CreateRecommendationRunRequestSchema,
   CreateResumeTailoringRequestSchema,
   JobDetailSchema,
   MatchRunResultSchema,
+  MAX_RECOMMENDATION_CANDIDATES,
   normalizeCityPreferences,
   ProfileDeletionSchema,
   ResumeAnalysisSubmissionSchema,
@@ -15,6 +17,26 @@ import {
 const unknown = { state: "unknown" as const, reason: "source_not_stated" as const };
 
 describe("local complete MVP contracts", () => {
+  it("accepts the full Private Alpha recommendation buffer and rejects overflow", () => {
+    const request = {
+      profileFactRevisionId: "facts-1",
+      preferenceRevisionId: "preferences-1",
+      evidenceRevisionId: "evidence-1",
+      candidateJobVersionIds: Array.from(
+        { length: MAX_RECOMMENDATION_CANDIDATES },
+        (_, index) => `job-${index}`,
+      ),
+    };
+
+    expect(CreateRecommendationRunRequestSchema.safeParse(request).success).toBe(true);
+    expect(
+      CreateRecommendationRunRequestSchema.safeParse({
+        ...request,
+        candidateJobVersionIds: [...request.candidateJobVersionIds, "job-overflow"],
+      }).success,
+    ).toBe(false);
+  });
+
   it("keeps deletion status wire output free of receipt-only owner fields", () => {
     expect(
       ProfileDeletionSchema.parse({

@@ -328,7 +328,7 @@ async function loadLocalRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[]
       preview.review_reasons,
       preview.last_verified_at,
       COALESCE(runtime.freshness_state, 'unknown') AS freshness_state
-    FROM catalog.internal_job_previews AS preview
+    FROM catalog.current_job_eligibility AS preview
     JOIN source_control.sources AS source
       ON source.id = preview.source_id
     JOIN source_control.organizations AS organization
@@ -358,13 +358,7 @@ async function loadLocalRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[]
       ON quota.published_job_id = published.published_job_id
     LEFT JOIN catalog.current_job_effective_activity AS activity
       ON activity.published_job_version_id = published.published_job_version_id
-    WHERE preview.ingestion_state = 'validated'
-      AND preview.publication_state IN ('review', 'published')
-      AND preview.policy_status IN ('pending_review', 'approved')
-      AND CASE
-        WHEN published.published_job_version_id IS NULL THEN preview.activity_state
-        ELSE COALESCE(activity.effective_activity_state, preview.activity_state)
-      END <> 'closed'
+    WHERE preview.eligible_for_local_mvp
       -- ADR-0021：被单家配额压缩的岗位只在读取层隐藏，缺口另行公开分母。
       AND (published.published_job_id IS NULL OR COALESCE(quota.selected, TRUE))
   `.execute(db);
@@ -448,6 +442,8 @@ async function loadPublicRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[
     FROM catalog.published_jobs AS job
     JOIN catalog.published_job_versions AS version
       ON version.id = job.public_version_id
+    JOIN catalog.job_version_eligibility AS eligibility
+      ON eligibility.published_job_version_id = version.id
     JOIN catalog.current_job_effective_activity AS activity
       ON activity.published_job_version_id = version.id
     JOIN catalog.job_condition_projections AS projection
@@ -466,10 +462,11 @@ async function loadPublicRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[
       AND policy.version = source.current_policy_version
     LEFT JOIN source_control.source_runtime_states AS runtime
       ON runtime.source_id = source.id
-    WHERE policy.policy_status = 'approved'
+    WHERE eligibility.eligible_for_alpha
+      AND policy.policy_status = 'approved'
       AND revision.ingestion_state = 'validated'
       AND revision.publication_state = 'published'
-      AND activity.effective_activity_state <> 'closed'
+      AND activity.effective_activity_state = 'active'
   `.execute(db);
   return result.rows;
 }

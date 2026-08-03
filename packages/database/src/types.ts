@@ -65,6 +65,9 @@ export interface SourcePolicyVersionTable {
   source_id: string;
   version: number;
   policy_status: string;
+  config_registered: Generated<boolean>;
+  catalog_role: Generated<string>;
+  runtime_scope: Generated<string>;
   provenance_level: string;
   acquisition_mode: string;
   adapter_key: string;
@@ -663,6 +666,36 @@ export interface CurrentJobEffectiveActivityView {
   effective_activity_state: string;
 }
 
+export interface CurrentJobEligibilityView extends InternalJobPreviewView {
+  catalog_role: string;
+  runtime_scope: string;
+  freshness_state: string;
+  effective_activity_state: string;
+  blocking_reasons: JsonValue;
+  eligible_for_local_mvp: boolean;
+  eligible_for_alpha: boolean;
+}
+
+export interface JobVersionEligibilityView {
+  published_job_version_id: string;
+  revision_id: string;
+  source_id: string;
+  ingestion_state: string;
+  publication_state: string;
+  policy_status: string;
+  catalog_role: string;
+  runtime_scope: string;
+  freshness_state: string;
+  effective_activity_state: string;
+  responsibilities: string;
+  requirements: string;
+  apply_url: string | null;
+  has_blocking_review: boolean;
+  blocking_reasons: JsonValue;
+  eligible_for_local_mvp: boolean;
+  eligible_for_alpha: boolean;
+}
+
 // ADR-0021：目录物化确定性计算的单家配额选择；整表由物化重写，属派生状态。
 export interface CompanyQuotaSelectionTable {
   published_job_id: string;
@@ -701,6 +734,8 @@ export interface Database {
   "catalog.job_condition_projections": JobConditionProjectionTable;
   "catalog.internal_job_previews": InternalJobPreviewView;
   "catalog.current_job_effective_activity": CurrentJobEffectiveActivityView;
+  "catalog.current_job_eligibility": CurrentJobEligibilityView;
+  "catalog.job_version_eligibility": JobVersionEligibilityView;
   "catalog.company_quota_selections": CompanyQuotaSelectionTable;
   "identity.owners": OwnerTable;
   "identity.owner_sessions": OwnerSessionTable;

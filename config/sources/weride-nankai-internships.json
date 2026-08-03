@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "weride-nankai-internships",
   "sourceType": "university_employment_site",
+  "catalogRole": "discovery_only",
+  "runtimeScope": "local",
   "organization": {
     "slug": "weride-nankai",
     "name": "上海文远知行汽车科技有限公司",
@@ -86,7 +88,7 @@
     ]
   },
   "policy": {
-    "version": "1",
+    "version": "2",
     "status": "pending_review",
     "adapterKey": "university-employment-detail-html",
     "adapterVersion": "0.1.4",
@@ -101,7 +103,7 @@
       "https://career.nankai.edu.cn/correcruit/content/id/116337.html"
     ],
     "crawlInterval": {
-      "enabled": true,
+      "enabled": false,
       "minimumHours": 168
     },
     "refreshCoverage": "tracked_records",

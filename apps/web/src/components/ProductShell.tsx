@@ -46,13 +46,15 @@ export function ProductShell({ children }: PropsWithChildren) {
               </NavLink>
             ))}
           </nav>
-          <span className="environment-pill">本地 MVP</span>
+          <span className="environment-pill">
+            {import.meta.env.MODE === "alpha" ? "Private Alpha" : "本地 MVP"}
+          </span>
         </div>
       </header>
       <aside className="local-notice" role="note">
         <div className="product-shell local-notice__inner">
           <strong>证据优先</strong>
-          <span>本机匿名会话</span>
+          <span>{import.meta.env.MODE === "alpha" ? "匿名邀请会话" : "本机匿名会话"}</span>
           <span>未说明保持未知</span>
           <span>投递回到企业官方页面</span>
         </div>

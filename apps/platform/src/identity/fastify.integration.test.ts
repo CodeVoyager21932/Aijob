@@ -9,6 +9,7 @@ import {
   requireOwnerContext,
   SESSION_COOKIE_NAME,
 } from "./fastify.js";
+import { hashOpaqueToken } from "./session-repository.js";
 
 const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
@@ -115,6 +116,126 @@ describeWithDatabase("anonymous owner Fastify boundary", () => {
       });
       expect(accepted.statusCode).toBe(200);
       expect(accepted.json()).toEqual(bootstrap.json());
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("creates an Alpha session only from an accepted origin with a hashed invite code", async () => {
+    const inviteCode = "alpha-private-invite-2026-08-03";
+    const acceptedOrigin = "https://alpha.aijob.example";
+    const app = Fastify({ logger: false });
+    installAnonymousIdentity(app, {
+      db,
+      appEnv: "alpha",
+      host: "0.0.0.0",
+      acceptedOrigins: [acceptedOrigin],
+      alphaInviteCodeHashes: [hashOpaqueToken(inviteCode)],
+    });
+    app.post("/v1/mutate", async (request) => ({
+      ownerId: requireOwnerContext(request).ownerId,
+    }));
+    app.get("/v1/catalog-preview", async () => ({ visible: true }));
+    app.get("/v1/profile/deletion", async () => ({ status: "receipt-only" }));
+
+    try {
+      const anonymous = await app.inject({ method: "GET", url: "/v1/session" });
+      expect(anonymous.statusCode).toBe(200);
+      expect(anonymous.json()).toEqual({ authenticated: false });
+      expect(anonymous.headers["cache-control"]).toBe("no-store");
+
+      const bypassAttempt = await app.inject({ method: "GET", url: "/v1/catalog-preview" });
+      expect(bypassAttempt.statusCode).toBe(401);
+      expect(bypassAttempt.json()).toMatchObject({ code: "SESSION_REQUIRED" });
+
+      const deletionReceiptStatus = await app.inject({
+        method: "GET",
+        url: "/v1/profile/deletion?receipt=opaque",
+      });
+      expect(deletionReceiptStatus.statusCode).toBe(200);
+
+      const missingOrigin = await app.inject({
+        method: "POST",
+        url: "/v1/session",
+        payload: { inviteCode },
+      });
+      expect(missingOrigin.statusCode).toBe(403);
+      expect(missingOrigin.json()).toMatchObject({ code: "ORIGIN_REJECTED" });
+
+      const wrongOrigin = await app.inject({
+        method: "POST",
+        url: "/v1/session",
+        headers: { origin: "https://attacker.example" },
+        payload: { inviteCode },
+      });
+      expect(wrongOrigin.statusCode).toBe(403);
+      expect(wrongOrigin.json()).toMatchObject({ code: "ORIGIN_REJECTED" });
+
+      const wrongInvite = await app.inject({
+        method: "POST",
+        url: "/v1/session",
+        headers: { origin: acceptedOrigin },
+        payload: { inviteCode: "wrong-private-invite-2026-08-03" },
+      });
+      expect(wrongInvite.statusCode).toBe(403);
+      expect(wrongInvite.json()).toMatchObject({ code: "ALPHA_INVITE_REJECTED" });
+
+      const accepted = await app.inject({
+        method: "POST",
+        url: "/v1/session",
+        headers: { origin: acceptedOrigin },
+        payload: { inviteCode },
+      });
+      expect(accepted.statusCode).toBe(201);
+      expect(accepted.json()).toEqual({ authenticated: true });
+      expect(accepted.headers["cache-control"]).toBe("no-store");
+
+      const setCookie = accepted.headers["set-cookie"];
+      const sessionToken = cookieValue(setCookie, SESSION_COOKIE_NAME);
+      const csrfToken = cookieValue(setCookie, CSRF_COOKIE_NAME);
+      expect(sessionToken).toBeTruthy();
+      expect(csrfToken).toBeTruthy();
+      const cookieHeaders = Array.isArray(setCookie) ? setCookie : [setCookie ?? ""];
+      expect(cookieHeaders.some((header) => /aijob_session=.*HttpOnly/.test(header))).toBe(true);
+      expect(cookieHeaders.every((header) => /Secure/.test(header))).toBe(true);
+
+      const stored = await db
+        .selectFrom("identity.owner_sessions")
+        .select(["owner_id", "token_hash", "csrf_token_hash"])
+        .where("token_hash", "=", hashOpaqueToken(sessionToken as string))
+        .executeTakeFirstOrThrow();
+      ownerIds.push(stored.owner_id);
+      expect(stored.token_hash).toBe(hashOpaqueToken(sessionToken as string));
+      expect(stored.csrf_token_hash).toBe(hashOpaqueToken(csrfToken as string));
+      expect(JSON.stringify(stored)).not.toContain(inviteCode);
+
+      const cookie = `${SESSION_COOKIE_NAME}=${sessionToken}; ${CSRF_COOKIE_NAME}=${csrfToken}`;
+      const authenticated = await app.inject({
+        method: "GET",
+        url: "/v1/session",
+        headers: { cookie },
+      });
+      expect(authenticated.json()).toEqual({ authenticated: true });
+
+      const catalog = await app.inject({
+        method: "GET",
+        url: "/v1/catalog-preview",
+        headers: { cookie },
+      });
+      expect(catalog.statusCode).toBe(200);
+      expect(catalog.json()).toEqual({ visible: true });
+
+      const mutation = await app.inject({
+        method: "POST",
+        url: "/v1/mutate",
+        headers: {
+          origin: acceptedOrigin,
+          cookie,
+          [CSRF_HEADER_NAME]: csrfToken as string,
+        },
+      });
+      expect(mutation.statusCode).toBe(200);
+      expect(mutation.json()).toEqual({ ownerId: stored.owner_id });
     } finally {
       await app.close();
     }

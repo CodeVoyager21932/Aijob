@@ -374,6 +374,43 @@ export function renderStructuredTailoringRewrites(input: {
   });
 }
 
+async function assertTailoringCatalogEligibility(
+  db: DbExecutor,
+  run: TailoringRunRow,
+  config: AppConfig,
+): Promise<void> {
+  const eligible = await db
+    .selectFrom("catalog.published_job_versions as version")
+    .innerJoin("catalog.published_jobs as job", "job.id", "version.published_job_id")
+    .innerJoin(
+      "catalog.job_version_eligibility as eligibility",
+      "eligibility.published_job_version_id",
+      "version.id",
+    )
+    .select("version.id")
+    .where("version.id", "=", run.published_job_version_id)
+    .whereRef(
+      config.enableLocalMvp ? "job.current_version_id" : "job.public_version_id",
+      "=",
+      "version.id",
+    )
+    .where(
+      config.enableLocalMvp
+        ? "eligibility.eligible_for_local_mvp"
+        : "eligibility.eligible_for_alpha",
+      "=",
+      true,
+    )
+    .executeTakeFirst();
+  if (!eligible) {
+    throw new ServiceError(
+      409,
+      "JOB_NOT_IN_CURRENT_CATALOG",
+      "岗位在任务执行前已退出当前可信目录，请重新选择岗位。",
+    );
+  }
+}
+
 async function tailoringInputs(db: DbExecutor, run: TailoringRunRow) {
   if (!run.resume_document_revision_id) {
     throw new ServiceError(
@@ -622,6 +659,12 @@ export async function enqueueTailoringRun(
         .executeTakeFirst(),
       transaction
         .selectFrom("catalog.published_job_versions as version")
+        .innerJoin("catalog.published_jobs as job", "job.id", "version.published_job_id")
+        .innerJoin(
+          "catalog.job_version_eligibility as eligibility",
+          "eligibility.published_job_version_id",
+          "version.id",
+        )
         .innerJoin(
           "catalog.job_requirement_sets as requirements",
           "requirements.id",
@@ -629,6 +672,18 @@ export async function enqueueTailoringRun(
         )
         .selectAll("requirements")
         .where("version.id", "=", request.publishedJobVersionId)
+        .whereRef(
+          config.enableLocalMvp ? "job.current_version_id" : "job.public_version_id",
+          "=",
+          "version.id",
+        )
+        .where(
+          config.enableLocalMvp
+            ? "eligibility.eligible_for_local_mvp"
+            : "eligibility.eligible_for_alpha",
+          "=",
+          true,
+        )
         .executeTakeFirst(),
     ]);
     if (!analysis || analysis.status !== "succeeded") {
@@ -749,6 +804,7 @@ export async function processTailoringRun(
   });
   if (!run || run.status === "deleted" || run.status === "succeeded") return;
   try {
+    await assertTailoringCatalogEligibility(db, run, config);
     const inputs = await tailoringInputs(db, run);
     if (!run.resume_analysis_id) {
       throw new ServiceError(409, "LEGACY_TAILORING_READ_ONLY", "旧版简历优化不能重新生成。");

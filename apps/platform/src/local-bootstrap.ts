@@ -52,6 +52,30 @@ export const localBootstrapManifestSchema = z
 
 export type LocalBootstrapManifest = z.infer<typeof localBootstrapManifestSchema>;
 
+export async function validateLocalBootstrapSources(
+  manifest: LocalBootstrapManifest,
+): Promise<void> {
+  for (const source of manifest.sources) {
+    const config = await loadSourceConfig(source.sourceKey);
+    if (config.catalogRole !== "canonical") {
+      throw new Error(`LOCAL_BOOTSTRAP_SOURCE_NOT_CANONICAL:${source.sourceKey}`);
+    }
+    if (config.runtimeScope !== "local") {
+      throw new Error(`LOCAL_BOOTSTRAP_SOURCE_RUNTIME_REJECTED:${source.sourceKey}`);
+    }
+    if (!["pending_review", "approved"].includes(config.policy.status)) {
+      throw new Error(`LOCAL_BOOTSTRAP_SOURCE_INACTIVE:${source.sourceKey}`);
+    }
+    if (source.mode === "probe") {
+      if (!config.localProbe.enabled || config.candidate.acquisitionMode === "browser_required") {
+        throw new Error(`LOCAL_BOOTSTRAP_PROBE_NOT_ALLOWED:${source.sourceKey}`);
+      }
+    } else if (config.candidate.acquisitionMode !== "browser_required") {
+      throw new Error(`LOCAL_BOOTSTRAP_SNAPSHOT_MODE_MISMATCH:${source.sourceKey}`);
+    }
+  }
+}
+
 function withinDirectory(candidate: string, directory: string): boolean {
   const pathFromRoot = relative(directory, candidate);
   return pathFromRoot === "" || (!pathFromRoot.startsWith(`..${sep}`) && pathFromRoot !== "..");
@@ -114,20 +138,31 @@ export async function readLocalBootstrapCatalogStats(
   db: Kysely<Database>,
 ): Promise<LocalBootstrapCatalogStats> {
   const totalSupplyRow = await db
-    .selectFrom("catalog.internal_job_previews")
+    .selectFrom("catalog.current_job_eligibility")
     .select(({ fn }) => fn.countAll<number>().as("count"))
-    .where("ingestion_state", "=", "validated")
-    .where("publication_state", "in", ["review", "published"])
-    .where("policy_status", "in", ["pending_review", "approved"])
+    .where("catalog.current_job_eligibility.eligible_for_local_mvp", "=", true)
     .executeTakeFirstOrThrow();
   const quotaRows = await db
-    .selectFrom("catalog.company_quota_selections")
-    .select(["company_name", "selected"])
+    .selectFrom("catalog.company_quota_selections as quota")
+    .innerJoin("catalog.published_jobs as job", "job.id", "quota.published_job_id")
+    .innerJoin("catalog.published_job_versions as version", "version.id", "job.current_version_id")
+    .innerJoin(
+      "catalog.current_job_eligibility as eligibility",
+      "eligibility.revision_id",
+      "version.source_job_revision_id",
+    )
+    .select(["quota.company_name", "quota.selected"])
+    .where("eligibility.eligible_for_local_mvp", "=", true)
     .execute();
   const selectedRows = quotaRows.filter((row) => row.selected);
   const publicJobsRow = await db
     .selectFrom("catalog.published_jobs as job")
     .innerJoin("catalog.published_job_versions as version", "version.id", "job.public_version_id")
+    .innerJoin(
+      "catalog.job_version_eligibility as eligibility",
+      "eligibility.published_job_version_id",
+      "version.id",
+    )
     .innerJoin(
       "catalog.current_job_effective_activity as activity",
       "activity.published_job_version_id",
@@ -147,6 +182,7 @@ export async function readLocalBootstrapCatalogStats(
     .innerJoin("source_control.source_policy_versions as policy", "policy.source_id", "source.id")
     .select(({ fn }) => fn.countAll<number>().as("count"))
     .whereRef("policy.version", "=", "source.current_policy_version")
+    .where("eligibility.eligible_for_alpha", "=", true)
     .where("policy.policy_status", "=", "approved")
     .where("revision.ingestion_state", "=", "validated")
     .where("revision.publication_state", "=", "published")
@@ -163,6 +199,7 @@ export async function readLocalBootstrapCatalogStats(
 export async function runLocalBootstrap(input: {
   appConfig: AppConfig;
   manifestPath: string;
+  liveProbeApproved: boolean;
 }): Promise<{
   manifestPath: string;
   sources: Array<{ sourceKey: string; mode: string; reused: boolean }>;
@@ -175,6 +212,13 @@ export async function runLocalBootstrap(input: {
   });
   if (input.appConfig.appEnv !== "local" || !input.appConfig.enableLocalMvp) {
     throw new Error("LOCAL_BOOTSTRAP_LOCAL_ONLY");
+  }
+  await validateLocalBootstrapSources(loaded.manifest);
+  if (
+    loaded.manifest.sources.some((source) => source.mode === "probe") &&
+    !input.liveProbeApproved
+  ) {
+    throw new Error("LOCAL_BOOTSTRAP_LIVE_CONFIRMATION_REQUIRED");
   }
   startInfrastructure(input.appConfig.workspaceRoot);
   const db = createDatabase(input.appConfig.databaseUrl);
@@ -195,6 +239,7 @@ export async function runLocalBootstrap(input: {
           },
           sourceKey: source.sourceKey,
           limit: source.limit,
+          liveProbeApproved: input.liveProbeApproved,
         });
         if (result.completion === "failed") {
           throw new Error(`LOCAL_BOOTSTRAP_SOURCE_FAILED:${source.sourceKey}`);

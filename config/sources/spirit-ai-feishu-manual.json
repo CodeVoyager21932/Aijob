@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "spirit-ai-feishu-manual",
   "sourceType": "official_ats",
+  "catalogRole": "canonical",
+  "runtimeScope": "local",
   "organization": {
     "slug": "spirit-ai",
     "name": "千寻智能",

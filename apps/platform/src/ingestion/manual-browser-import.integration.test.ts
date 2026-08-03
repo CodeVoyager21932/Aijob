@@ -169,7 +169,8 @@ describeWithDatabase("manual browser snapshot import", () => {
         new URL("../../../../fixtures/source-configs/bytedance-manual-test.json", import.meta.url),
         "utf8",
       ),
-    ) as { policy: { crawlInterval: { enabled: boolean } } };
+    ) as { runtimeScope?: string; policy: { crawlInterval: { enabled: boolean } } };
+    configFixture.runtimeScope = "local";
     configFixture.policy.crawlInterval.enabled = true;
     await writeFile(
       join(sourceConfigDirectory, `${sourceKey}.json`),

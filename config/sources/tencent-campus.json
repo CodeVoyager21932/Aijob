@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "tencent-campus",
   "sourceType": "organization_career_site",
+  "catalogRole": "canonical",
+  "runtimeScope": "local",
   "organization": {
     "slug": "tencent",
     "name": "腾讯",
@@ -81,27 +83,28 @@
     ]
   },
   "policy": {
-    "version": "6",
-    "status": "pending_review",
+    "version": "7",
+    "status": "paused",
     "adapterKey": "tencent-public-api",
     "adapterVersion": "0.2.0",
     "entrypoints": ["https://join.qq.com/post.html?query=p_104"],
     "crawlInterval": {
-      "enabled": true,
+      "enabled": false,
       "minimumHours": 24
     },
     "refreshCoverage": "tracked_records",
     "absencePolicy": "none",
-    "reviewedAt": "2026-08-01",
+    "reviewedAt": "2026-08-03",
     "policyNotes": [
       "ADR-0026 仅允许本机 collector-worker 按 24 小时间隔执行单来源低频刷新；不得用于 CI、公开或远程环境。",
-      "来源继续为 pending_review，只能进入本机目录；禁止自动发布和公开展示。",
+      "来源现为 paused；历史修订只保留证据，不进入当前目录，禁止自动发布和公开展示。",
       "禁止登录、验证码绕过、浏览器自动化和未登记网络目标。",
       "若条款、授权、展示范围或接口边界变化，必须创建新的不可变 policy version。",
       "v2 修正双查询流去重后的分页补足语义；访问与发布边界不变。",
       "v3 仅新增细粒度网络目标策略持久化：默认禁止重定向，并固定允许的查询参数；适配器与采集范围不变。",
       "v4 将适配器与规范化版本升至 0.1.2，修订哈希排除每次抓取都会变化的证据引用；岗位业务内容和采集范围不变。",
-      "v5 将岗位职能分类升级为全部职能 v1，将 sourceKey 与 adapterKey 解耦，并显式限制 maxItems、maxPages、maxRequests 和 minimumIntervalMs；冲突与无法归一的岗位继续进入人工复核。"
+      "v5 将岗位职能分类升级为全部职能 v1，将 sourceKey 与 adapterKey 解耦，并显式限制 maxItems、maxPages、maxRequests 和 minimumIntervalMs；冲突与无法归一的岗位继续进入人工复核。",
+      "2026-08-03 可信目录审计发现 14 条历史岗位全部缺少可验证结构字段，其中 9 条另有目标范围待复核；在官方接口契约重验前暂停来源。"
     ],
     "fetchTargets": [
       {
@@ -136,7 +139,7 @@
     ]
   },
   "localProbe": {
-    "enabled": true,
+    "enabled": false,
     "environment": "local",
     "requestBudget": {
       "maxItems": 20,

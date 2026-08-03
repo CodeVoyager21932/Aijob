@@ -87,6 +87,9 @@ describeWithDatabase("source refresh automation PostgreSQL integration", () => {
         source_id: sourceId,
         version: policyVersion,
         policy_status: "pending_review",
+        config_registered: true,
+        catalog_role: "canonical",
+        runtime_scope: "local",
         provenance_level: "organization_owned",
         acquisition_mode: "public_api",
         adapter_key: "refresh-integration",
@@ -369,7 +372,7 @@ describeWithDatabase("source refresh automation PostgreSQL integration", () => {
     await rm(workspaceRoot, { recursive: true, force: true });
   });
 
-  it("uses due time then source key ordering and caps scheduled source selection per hour", async () => {
+  it("caps new sources per hour while allowing same-source idempotent replays", async () => {
     const now = new Date("2026-07-01T12:00:00.000Z");
     const dueAt = new Date("2026-07-01T11:00:00.000Z");
     const sources = await Promise.all(
@@ -392,7 +395,14 @@ describeWithDatabase("source refresh automation PostgreSQL integration", () => {
         startedAt: new Date("2026-07-01T11:30:00.000Z"),
       });
     }
-    expect(await selectDueSourceRefreshes(db, now, 3)).toEqual([]);
+    const replayable = await selectDueSourceRefreshes(db, now, 3);
+    expect(replayable.map(({ sourceKey }) => sourceKey)).toEqual(
+      sources
+        .slice(0, 3)
+        .map(({ sourceKey }) => sourceKey)
+        .sort(),
+    );
+    expect(replayable.map(({ sourceId }) => sourceId)).not.toContain(sources[3]?.sourceId);
   });
 
   it("reminds manual snapshots without scheduling network work", async () => {
@@ -547,7 +557,7 @@ describeWithDatabase("source refresh automation PostgreSQL integration", () => {
       minimumHours: 24,
       completedAt,
       materializeCatalog: async () => ({
-        eligibleRevisions: 0,
+        materializedRevisions: 0,
         createdVersions: 0,
         createdRequirementSets: 0,
         suspectedDuplicatePairs: 0,
@@ -589,6 +599,9 @@ describeWithDatabase("source refresh automation PostgreSQL integration", () => {
           source_id: source.sourceId,
           version: 2,
           policy_status: "pending_review",
+          config_registered: true,
+          catalog_role: "canonical",
+          runtime_scope: "local",
           provenance_level: "organization_owned",
           acquisition_mode: "public_api",
           adapter_key: "refresh-integration-v2",

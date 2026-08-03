@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "guanggu-venture-internships",
   "sourceType": "university_employment_site",
+  "catalogRole": "discovery_only",
+  "runtimeScope": "local",
   "organization": {
     "slug": "guanggu-venture",
     "name": "武汉光谷创新投资有限公司",
@@ -43,7 +45,7 @@
     ]
   },
   "policy": {
-    "version": "2",
+    "version": "3",
     "status": "pending_review",
     "adapterKey": "university-employment-detail-html",
     "adapterVersion": "0.1.4",
@@ -54,7 +56,7 @@
       "application": { "type": "company_email" }
     },
     "entrypoints": ["https://job.hust.edu.cn/zpinfo3/2406395.htm"],
-    "crawlInterval": { "enabled": true, "minimumHours": 168 },
+    "crawlInterval": { "enabled": false, "minimumHours": 168 },
     "refreshCoverage": "tracked_records",
     "absencePolicy": "none",
     "reviewedAt": "2026-08-02",

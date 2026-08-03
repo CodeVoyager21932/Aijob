@@ -1,10 +1,14 @@
 import { toSafeConfigLog } from "@aijob/config";
-import { createDatabase } from "@aijob/database";
+import {
+  assertDatabaseRoleMembership,
+  createDatabase,
+  DatabaseRuntimeRole,
+} from "@aijob/database";
 import { buildApp } from "./app.js";
-import { loadPlatformConfig } from "./config/platform-config.js";
+import { databaseUrlForRuntime, loadPlatformConfig } from "./config/platform-config.js";
 
 const appConfig = loadPlatformConfig();
-const db = createDatabase(appConfig.databaseUrl);
+const db = createDatabase(databaseUrlForRuntime(appConfig, "webApi"));
 const app = buildApp({ config: appConfig, db });
 
 async function shutdown(signal: string): Promise<void> {
@@ -17,6 +21,11 @@ process.once("SIGINT", () => void shutdown("SIGINT"));
 process.once("SIGTERM", () => void shutdown("SIGTERM"));
 
 try {
+  await assertDatabaseRoleMembership({
+    db,
+    role: DatabaseRuntimeRole.webApi,
+    required: appConfig.appEnv === "alpha" || appConfig.appEnv === "production",
+  });
   await app.listen({ host: appConfig.host, port: appConfig.port });
   app.log.info({ config: toSafeConfigLog(appConfig) }, "Aijob platform started");
 } catch (error) {

@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "galasports-internships",
   "sourceType": "university_employment_site",
+  "catalogRole": "discovery_only",
+  "runtimeScope": "local",
   "organization": {
     "slug": "galasports",
     "name": "深圳市望尘科技有限公司",

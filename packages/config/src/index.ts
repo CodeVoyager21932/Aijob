@@ -60,6 +60,30 @@ const EncryptionKeySchema = z
   .string()
   .regex(/^[a-f0-9]{64}$/i, "RESUME_ENCRYPTION_KEY must be a 32-byte hex key");
 
+const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/i, "Expected a SHA-256 hex digest");
+const HttpOriginSchema = z.string().refine(
+  (value) => {
+    try {
+      const parsed = new URL(value);
+      return (
+        (parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.origin === value
+      );
+    } catch {
+      return false;
+    }
+  },
+  { message: "Expected an exact HTTP(S) origin without a path" },
+);
+
+function commaSeparatedValues(value: string | undefined): string[] {
+  return value
+    ? value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : [];
+}
+
 const LOCAL_ENCRYPTION_KEY_RELATIVE_PATH = ".data/resume-encryption.key";
 
 function isFileSystemError(error: unknown, code: string): boolean {
@@ -144,6 +168,14 @@ const RawEnvironmentSchema = z
     AI_MODEL: z.string().trim().min(1).optional(),
     AI_API_KEY: z.string().trim().min(1).optional(),
     AI_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(30_000),
+    ACCEPTED_ORIGINS: z
+      .string()
+      .optional()
+      .transform((value) => commaSeparatedValues(value)),
+    ALPHA_INVITE_CODE_HASHES: z
+      .string()
+      .optional()
+      .transform((value) => commaSeparatedValues(value)),
   })
   .superRefine((environment, context) => {
     const permitsLocalCapabilities =
@@ -199,6 +231,49 @@ const RawEnvironmentSchema = z
         message: "AI_BASE_URL, AI_MODEL and AI_API_KEY are required when ENABLE_AI=true",
       });
     }
+
+    for (const [index, origin] of environment.ACCEPTED_ORIGINS.entries()) {
+      const result = HttpOriginSchema.safeParse(origin);
+      if (!result.success) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["ACCEPTED_ORIGINS", index],
+          message: result.error.issues[0]?.message ?? "Invalid accepted origin",
+        });
+      } else if (environment.APP_ENV === "alpha" && new URL(origin).protocol !== "https:") {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["ACCEPTED_ORIGINS", index],
+          message: "Alpha accepted origins must use HTTPS",
+        });
+      }
+    }
+
+    for (const [index, digest] of environment.ALPHA_INVITE_CODE_HASHES.entries()) {
+      if (!Sha256Schema.safeParse(digest).success) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["ALPHA_INVITE_CODE_HASHES", index],
+          message: "Alpha invite codes must be configured as SHA-256 hex digests",
+        });
+      }
+    }
+
+    if (environment.APP_ENV === "alpha" && environment.ACCEPTED_ORIGINS.length === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["ACCEPTED_ORIGINS"],
+        message: "ACCEPTED_ORIGINS is required in alpha",
+      });
+    }
+
+    if (environment.APP_ENV === "alpha" && environment.ALPHA_INVITE_CODE_HASHES.length === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["ALPHA_INVITE_CODE_HASHES"],
+        message: "ALPHA_INVITE_CODE_HASHES is required in alpha",
+      });
+    }
   });
 
 export const AppConfigSchema = z
@@ -225,6 +300,10 @@ export const AppConfigSchema = z
       model: z.string().min(1).optional(),
       apiKey: z.string().min(1).optional(),
       requestTimeoutMs: z.number().int().min(1_000).max(120_000),
+    }),
+    identity: z.object({
+      acceptedOrigins: z.array(HttpOriginSchema),
+      alphaInviteCodeHashes: z.array(Sha256Schema),
     }),
     workspaceRoot: z.string().min(1),
   })
@@ -297,6 +376,10 @@ export const parseAppConfig = (
       apiKey: parsed.AI_API_KEY,
       requestTimeoutMs: parsed.AI_REQUEST_TIMEOUT_MS,
     },
+    identity: {
+      acceptedOrigins: parsed.ACCEPTED_ORIGINS,
+      alphaInviteCodeHashes: parsed.ALPHA_INVITE_CODE_HASHES,
+    },
     workspaceRoot: rootDirectory,
   });
 
@@ -325,13 +408,17 @@ export const loadAppConfig = (options: LoadAppConfigOptions = {}): AppConfig => 
 
 export const toSafeConfigLog = (
   config: AppConfig,
-): Omit<AppConfig, "databaseUrl" | "resumeEncryptionKey" | "ai"> & {
+): Omit<AppConfig, "databaseUrl" | "resumeEncryptionKey" | "ai" | "identity"> & {
   databaseUrl: "[redacted]";
   resumeEncryptionKey: "[redacted]";
   ai: {
     enabled: boolean;
     providerConfigured: boolean;
     requestTimeoutMs: number;
+  };
+  identity: {
+    acceptedOrigins: readonly string[];
+    alphaInviteCodesConfigured: number;
   };
 } => {
   return {
@@ -342,6 +429,10 @@ export const toSafeConfigLog = (
       enabled: config.ai.enabled,
       providerConfigured: Boolean(config.ai.baseUrl && config.ai.model && config.ai.apiKey),
       requestTimeoutMs: config.ai.requestTimeoutMs,
+    },
+    identity: {
+      acceptedOrigins: config.identity.acceptedOrigins,
+      alphaInviteCodesConfigured: config.identity.alphaInviteCodeHashes.length,
     },
   };
 };

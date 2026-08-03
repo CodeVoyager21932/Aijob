@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "citics-shanghai-summer-internship",
   "sourceType": "university_employment_site",
+  "catalogRole": "discovery_only",
+  "runtimeScope": "local",
   "organization": {
     "slug": "citics-shanghai-branch",
     "name": "中信证券股份有限公司上海分公司",
@@ -80,13 +82,13 @@
     ]
   },
   "policy": {
-    "version": "7",
+    "version": "8",
     "status": "pending_review",
     "adapterKey": "university-employment-detail-html",
     "adapterVersion": "0.1.4",
     "entrypoints": ["https://career.cuhk.edu.cn/job/view/id/468515"],
     "crawlInterval": {
-      "enabled": true,
+      "enabled": false,
       "minimumHours": 168
     },
     "refreshCoverage": "tracked_records",

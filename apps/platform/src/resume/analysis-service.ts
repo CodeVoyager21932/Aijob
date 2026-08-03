@@ -470,6 +470,7 @@ export async function processResumeAnalysis(input: {
   encryptionKey: string;
   lease: OwnerTaskLease;
   now?: Date;
+  signal?: AbortSignal;
 }): Promise<HydratedResumeAnalysisResult> {
   const now = input.now ?? new Date();
   const claimed = await withOwnerTaskLease(input.db, input.lease, async (transaction) => {
@@ -538,6 +539,7 @@ export async function processResumeAnalysis(input: {
         : await parseResumeBuffer({
             kind: analysis.input_kind as "pdf" | "docx",
             buffer: plaintext,
+            ...(input.signal === undefined ? {} : { signal: input.signal }),
           });
     const { result, findings } = buildAnalysisResult(text, input.analysisId);
     const extracted = encryptResumePayload(Buffer.from(text, "utf8"), input.encryptionKey);

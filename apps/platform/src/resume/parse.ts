@@ -1,175 +1,181 @@
-import mammoth from "mammoth";
-import yauzl, { type Entry, type ZipFile } from "yauzl";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { normalizeResumeText, ResumeInputError, type ResumeInputKind } from "./security.js";
 
-const MAX_DOCX_ENTRIES = 250;
-const MAX_DOCX_UNCOMPRESSED_BYTES = 20 * 1024 * 1024;
-const MAX_DOCX_ENTRY_BYTES = 10 * 1024 * 1024;
-const MAX_PDF_PAGES = 30;
 const MAX_RESUME_TEXT_CHARACTERS = 200_000;
 const MIN_USEFUL_TEXT_CHARACTERS = 30;
+const MAX_PARSER_OUTPUT_BYTES = 1024 * 1024;
+const DEFAULT_PARSE_TIMEOUT_MS = 10_000;
+const PARSER_CHILD_PATH = fileURLToPath(new URL("./resume-parser-child.js", import.meta.url));
+const CHILD_ENVIRONMENT_ALLOWLIST = ["SYSTEMROOT", "WINDIR", "TEMP", "TMP", "TZ"] as const;
 
-function rejectUnsafeArchiveEntry(entry: Entry): void {
-  const normalizedName = entry.fileName.replaceAll("\\", "/");
-  if (
-    normalizedName.startsWith("/") ||
-    normalizedName.split("/").includes("..") ||
-    /(^|\/)vbaProject\.bin$/i.test(normalizedName)
-  ) {
-    throw new ResumeInputError("RESUME_ARCHIVE_UNSAFE", "DOCX 包含宏或不安全的归档路径。");
-  }
-  if ((entry.generalPurposeBitFlag & 0x1) !== 0) {
-    throw new ResumeInputError("RESUME_ENCRYPTED", "暂不支持加密 DOCX。");
-  }
-  if (entry.uncompressedSize > MAX_DOCX_ENTRY_BYTES) {
-    throw new ResumeInputError("RESUME_ARCHIVE_UNSAFE", "DOCX 内部单个文件过大。");
-  }
+type ParserOperation = "parse-pdf" | "parse-docx" | "validate-docx";
+
+interface ParserSuccess {
+  ok: true;
+  text?: string;
 }
 
-function closeQuietly(zipFile: ZipFile | undefined): void {
-  try {
-    zipFile?.close();
-  } catch {
-    // Closing is best effort after a validation failure.
-  }
+interface ParserFailure {
+  ok: false;
+  code: string;
+  message: string;
 }
 
-export function validateDocxArchive(buffer: Buffer): Promise<void> {
+function parserFailure(value: unknown): ParserFailure | null {
+  if (!value || Array.isArray(value) || typeof value !== "object") return null;
+  const candidate = value as Record<string, unknown>;
+  return candidate.ok === false &&
+    typeof candidate.code === "string" &&
+    typeof candidate.message === "string"
+    ? { ok: false, code: candidate.code, message: candidate.message }
+    : null;
+}
+
+function parserSuccess(value: unknown): ParserSuccess | null {
+  if (!value || Array.isArray(value) || typeof value !== "object") return null;
+  const candidate = value as Record<string, unknown>;
+  if (candidate.ok !== true) return null;
+  return typeof candidate.text === "string"
+    ? { ok: true, text: candidate.text }
+    : { ok: true };
+}
+
+function mappedParserError(failure: ParserFailure): ResumeInputError {
+  const allowedCodes = new Set([
+    "RESUME_TYPE_MISMATCH",
+    "RESUME_ARCHIVE_UNSAFE",
+    "RESUME_ENCRYPTED",
+    "RESUME_SCANNED_OR_EMPTY",
+    "RESUME_PARSE_FAILED",
+    "RESUME_PARSE_TIMEOUT",
+  ]);
+  const code = allowedCodes.has(failure.code)
+    ? (failure.code as ConstructorParameters<typeof ResumeInputError>[0])
+    : "RESUME_PARSE_FAILED";
+  return new ResumeInputError(code, failure.message);
+}
+
+export function resumeParserEnvironment(
+  environment: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  const filtered: NodeJS.ProcessEnv = {
+    NODE_ENV: "production",
+    NO_COLOR: "1",
+  };
+  for (const allowedName of CHILD_ENVIRONMENT_ALLOWLIST) {
+    const actualName = Object.keys(environment).find(
+      (name) => name.toUpperCase() === allowedName,
+    );
+    if (actualName && environment[actualName] !== undefined) {
+      filtered[allowedName] = environment[actualName];
+    }
+  }
+  return filtered;
+}
+
+export async function runResumeParserProcess(input: {
+  operation: ParserOperation;
+  buffer: Buffer;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+  childPath?: string;
+}): Promise<string | undefined> {
+  if (input.signal?.aborted) throw new Error("RESUME_PARSE_ABORTED");
+  const timeoutMs = input.timeoutMs ?? DEFAULT_PARSE_TIMEOUT_MS;
+
   return new Promise((resolve, reject) => {
-    let zipFile: ZipFile | undefined;
-    let entryCount = 0;
-    let uncompressedBytes = 0;
-    let hasContentTypes = false;
-    let hasDocument = false;
+    const child = spawn(
+      process.execPath,
+      ["--max-old-space-size=192", input.childPath ?? PARSER_CHILD_PATH, input.operation],
+      {
+        env: resumeParserEnvironment(),
+        stdio: ["pipe", "pipe", "pipe"],
+        windowsHide: true,
+      },
+    );
+    const output: Buffer[] = [];
+    let outputBytes = 0;
     let settled = false;
 
-    const finish = (error?: Error) => {
+    const finish = (error?: Error, text?: string) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
-      closeQuietly(zipFile);
+      input.signal?.removeEventListener("abort", abort);
       if (error) reject(error);
-      else resolve();
+      else resolve(text);
     };
-
-    const timeout = setTimeout(
-      () =>
-        finish(new ResumeInputError("RESUME_PARSE_TIMEOUT", "DOCX 安全检查超时，请改用粘贴文本。")),
-      3_000,
-    );
+    const stopChild = () => {
+      if (!child.killed) child.kill();
+    };
+    const abort = () => {
+      stopChild();
+      finish(new Error("RESUME_PARSE_ABORTED"));
+    };
+    const timeout = setTimeout(() => {
+      stopChild();
+      finish(
+        new ResumeInputError(
+          "RESUME_PARSE_TIMEOUT",
+          "简历解析超时，请压缩文件或改用粘贴文本。",
+        ),
+      );
+    }, timeoutMs);
     timeout.unref();
+    input.signal?.addEventListener("abort", abort, { once: true });
+    if (input.signal?.aborted) abort();
 
-    yauzl.fromBuffer(
-      buffer,
-      {
-        lazyEntries: true,
-        autoClose: false,
-        decodeStrings: true,
-        validateEntrySizes: true,
-      },
-      (openError, openedZipFile) => {
-        if (openError || !openedZipFile) {
-          finish(
-            new ResumeInputError(
-              "RESUME_PARSE_FAILED",
-              `DOCX 归档无法读取：${openError?.message ?? "unknown error"}`,
-            ),
-          );
-          return;
-        }
-
-        zipFile = openedZipFile;
-        openedZipFile.on("error", (error) =>
-          finish(new ResumeInputError("RESUME_PARSE_FAILED", `DOCX 读取失败：${error.message}`)),
-        );
-        openedZipFile.on("entry", (entry: Entry) => {
-          try {
-            entryCount += 1;
-            uncompressedBytes += entry.uncompressedSize;
-            if (entryCount > MAX_DOCX_ENTRIES || uncompressedBytes > MAX_DOCX_UNCOMPRESSED_BYTES) {
-              throw new ResumeInputError(
-                "RESUME_ARCHIVE_UNSAFE",
-                "DOCX 解压后的体积或文件数量超过安全上限。",
-              );
-            }
-            rejectUnsafeArchiveEntry(entry);
-            const name = entry.fileName.replaceAll("\\", "/");
-            if (name === "[Content_Types].xml") hasContentTypes = true;
-            if (name === "word/document.xml") hasDocument = true;
-            openedZipFile.readEntry();
-          } catch (error) {
-            finish(
-              error instanceof Error
-                ? error
-                : new ResumeInputError("RESUME_ARCHIVE_UNSAFE", "DOCX 安全检查失败。"),
-            );
-          }
-        });
-        openedZipFile.on("end", () => {
-          if (!hasContentTypes || !hasDocument) {
-            finish(
-              new ResumeInputError(
-                "RESUME_TYPE_MISMATCH",
-                "文件是 ZIP 归档，但不是有效的 DOCX 文档。",
-              ),
-            );
-            return;
-          }
-          finish();
-        });
-        openedZipFile.readEntry();
-      },
-    );
+    child.stdout.on("data", (chunk: Buffer) => {
+      outputBytes += chunk.length;
+      if (outputBytes > MAX_PARSER_OUTPUT_BYTES) {
+        stopChild();
+        finish(new ResumeInputError("RESUME_PARSE_FAILED", "简历解析结果超过安全上限。"));
+        return;
+      }
+      output.push(chunk);
+    });
+    child.stderr.resume();
+    child.on("error", () => {
+      finish(new ResumeInputError("RESUME_PARSE_FAILED", "简历解析子进程无法启动。"));
+    });
+    child.on("close", (exitCode) => {
+      if (settled) return;
+      if (exitCode !== 0) {
+        finish(new ResumeInputError("RESUME_PARSE_FAILED", "简历解析子进程异常退出。"));
+        return;
+      }
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(Buffer.concat(output).toString("utf8"));
+      } catch {
+        finish(new ResumeInputError("RESUME_PARSE_FAILED", "简历解析结果格式无效。"));
+        return;
+      }
+      const failure = parserFailure(parsed);
+      if (failure) {
+        finish(mappedParserError(failure));
+        return;
+      }
+      const success = parserSuccess(parsed);
+      if (!success) {
+        finish(new ResumeInputError("RESUME_PARSE_FAILED", "简历解析结果格式无效。"));
+        return;
+      }
+      finish(undefined, success.text);
+    });
+    child.stdin.on("error", () => {
+      if (!settled) {
+        stopChild();
+        finish(new ResumeInputError("RESUME_PARSE_FAILED", "简历无法发送到隔离解析进程。"));
+      }
+    });
+    child.stdin.end(input.buffer);
   });
 }
 
-async function parseDocx(buffer: Buffer): Promise<string> {
-  await validateDocxArchive(buffer);
-  const result = await mammoth.extractRawText({ buffer });
-  return result.value;
-}
-
-async function parsePdf(buffer: Buffer): Promise<string> {
-  try {
-    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    const loadingTask = pdfjs.getDocument({
-      data: new Uint8Array(buffer),
-      useSystemFonts: true,
-    });
-    const document = await loadingTask.promise;
-    try {
-      if (document.numPages > MAX_PDF_PAGES) {
-        throw new ResumeInputError("RESUME_PARSE_FAILED", "PDF 页数超过 30 页安全上限。");
-      }
-
-      const pages: string[] = [];
-      for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
-        const page = await document.getPage(pageNumber);
-        const content = await page.getTextContent();
-        pages.push(
-          content.items
-            .map((item) => ("str" in item ? item.str : ""))
-            .filter(Boolean)
-            .join(" "),
-        );
-        page.cleanup();
-      }
-      return pages.join("\n\n");
-    } finally {
-      document.cleanup();
-      await loadingTask.destroy();
-    }
-  } catch (error) {
-    if (error instanceof ResumeInputError) throw error;
-    const name = error && typeof error === "object" && "name" in error ? String(error.name) : "";
-    if (name === "PasswordException") {
-      throw new ResumeInputError("RESUME_ENCRYPTED", "暂不支持加密 PDF。");
-    }
-    throw new ResumeInputError(
-      "RESUME_PARSE_FAILED",
-      `PDF 无法解析：${error instanceof Error ? error.message : "unknown error"}`,
-    );
-  }
+export async function validateDocxArchive(buffer: Buffer): Promise<void> {
+  await runResumeParserProcess({ operation: "validate-docx", buffer, timeoutMs: 3_000 });
 }
 
 function usefulResumeText(text: string): string {
@@ -187,28 +193,18 @@ export async function parseResumeBuffer(input: {
   kind: Exclude<ResumeInputKind, "text">;
   buffer: Buffer;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }): Promise<string> {
-  const timeoutMs = input.timeoutMs ?? 10_000;
-  let timeout: NodeJS.Timeout | undefined;
-  try {
-    const parsePromise = input.kind === "pdf" ? parsePdf(input.buffer) : parseDocx(input.buffer);
-    const timeoutPromise = new Promise<never>((_resolve, reject) => {
-      timeout = setTimeout(
-        () =>
-          reject(
-            new ResumeInputError(
-              "RESUME_PARSE_TIMEOUT",
-              "简历解析超时，请压缩文件或改用粘贴文本。",
-            ),
-          ),
-        timeoutMs,
-      );
-      timeout.unref();
-    });
-    return usefulResumeText(await Promise.race([parsePromise, timeoutPromise]));
-  } finally {
-    if (timeout) clearTimeout(timeout);
+  const text = await runResumeParserProcess({
+    operation: input.kind === "pdf" ? "parse-pdf" : "parse-docx",
+    buffer: input.buffer,
+    ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
+    ...(input.signal === undefined ? {} : { signal: input.signal }),
+  });
+  if (text === undefined) {
+    throw new ResumeInputError("RESUME_PARSE_FAILED", "简历解析没有返回文本。");
   }
+  return usefulResumeText(text);
 }
 
 export function parseResumeText(text: string): string {

@@ -28,6 +28,7 @@ function config(): AppConfig {
     resumeEncryptionKey: encryptionKey,
     resumeMaxBytes: 5 * 1024 * 1024,
     ai: { enabled: false, requestTimeoutMs: 30_000 },
+    identity: { acceptedOrigins: [], alphaInviteCodeHashes: [] },
     workspaceRoot: ".",
   };
 }

@@ -104,6 +104,8 @@ function policyComparable(
 ): string {
   return canonicalJson({
     policy_status: config.policy.status,
+    catalog_role: config.catalogRole,
+    runtime_scope: config.runtimeScope,
     provenance_level: config.candidate.provenanceLevel,
     acquisition_mode: config.candidate.acquisitionMode,
     adapter_key: config.policy.adapterKey,
@@ -316,6 +318,8 @@ export async function registerSourceConfig(
         .execute();
       const existingComparable = canonicalJson({
         policy_status: existingPolicy.policy_status,
+        catalog_role: existingPolicy.catalog_role,
+        runtime_scope: existingPolicy.runtime_scope,
         provenance_level: existingPolicy.provenance_level,
         acquisition_mode: existingPolicy.acquisition_mode,
         adapter_key: existingPolicy.adapter_key,
@@ -347,6 +351,14 @@ export async function registerSourceConfig(
           .where("version", "=", config.policy.version)
           .execute();
       }
+      if (!existingPolicy.config_registered) {
+        await transaction
+          .updateTable("source_control.source_policy_versions")
+          .set({ config_registered: true })
+          .where("source_id", "=", source.id)
+          .where("version", "=", config.policy.version)
+          .execute();
+      }
     } else {
       await transaction
         .insertInto("source_control.source_policy_versions")
@@ -354,6 +366,9 @@ export async function registerSourceConfig(
           source_id: source.id,
           version: config.policy.version,
           policy_status: config.policy.status,
+          config_registered: true,
+          catalog_role: config.catalogRole,
+          runtime_scope: config.runtimeScope,
           provenance_level: config.candidate.provenanceLevel,
           acquisition_mode: config.candidate.acquisitionMode,
           adapter_key: config.policy.adapterKey,

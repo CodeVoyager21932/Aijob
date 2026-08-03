@@ -4,7 +4,11 @@ import {
   loadSourceRefreshStatus,
   requestImmediateSourceRefresh,
 } from "../ingestion/refresh-scheduler.js";
-import { waitForCollectorIdle } from "../workers/collector-worker.js";
+import {
+  type CollectorWorkerConfig,
+  runOneCollectorCycle,
+  waitForCollectorIdle,
+} from "../workers/collector-worker.js";
 import { readLocalRefreshControl, writeLocalRefreshControl } from "./local-refresh-control.js";
 import { listSourceKeys, loadSourceConfig } from "./source-config.js";
 import {
@@ -25,6 +29,7 @@ interface SourceRefreshOperationDependencies {
   requestImmediateSourceRefresh: typeof requestImmediateSourceRefresh;
   staggerDueSourceRefreshes: typeof staggerDueSourceRefreshes;
   waitForCollectorIdle: typeof waitForCollectorIdle;
+  runOneCollectorCycle: typeof runOneCollectorCycle;
 }
 
 const defaultDependencies: SourceRefreshOperationDependencies = {
@@ -37,6 +42,7 @@ const defaultDependencies: SourceRefreshOperationDependencies = {
   requestImmediateSourceRefresh,
   staggerDueSourceRefreshes,
   waitForCollectorIdle,
+  runOneCollectorCycle,
 };
 
 function dependencies(
@@ -71,7 +77,12 @@ export async function enableLocalSourceRefresh(input: {
   const configs = await Promise.all(
     (await deps.listSourceKeys()).map((sourceKey) => deps.loadSourceConfig(sourceKey)),
   );
-  const enabledConfigs = configs.filter((config) => config.policy.crawlInterval.enabled);
+  const enabledConfigs = configs.filter(
+    (config) =>
+      config.catalogRole === "canonical" &&
+      config.runtimeScope === "local" &&
+      config.policy.crawlInterval.enabled,
+  );
   if (enabledConfigs.length === 0) throw new Error("NO_SOURCE_REFRESH_CONFIGURED");
 
   const registeredSources = [];
@@ -158,7 +169,11 @@ export async function requestLocalSourceRefresh(input: {
 
   if (input.sourceKey) {
     const config = await deps.loadSourceConfig(input.sourceKey);
-    if (!config.policy.crawlInterval.enabled) {
+    if (
+      config.catalogRole !== "canonical" ||
+      config.runtimeScope !== "local" ||
+      !config.policy.crawlInterval.enabled
+    ) {
       throw new Error("SOURCE_SCHEDULED_REFRESH_NOT_AUTHORIZED");
     }
   }
@@ -170,7 +185,12 @@ export async function requestLocalSourceRefresh(input: {
           (await deps.listSourceKeys()).map((sourceKey) => deps.loadSourceConfig(sourceKey)),
         )
       )
-        .filter((config) => config.policy.crawlInterval.enabled)
+        .filter(
+          (config) =>
+            config.catalogRole === "canonical" &&
+            config.runtimeScope === "local" &&
+            config.policy.crawlInterval.enabled,
+        )
         .map((config) => config.sourceKey);
 
   const results = [];
@@ -194,4 +214,71 @@ export async function requestLocalSourceRefresh(input: {
     }
   }
   return input.sourceKey ? results[0] : { sources: results };
+}
+
+export async function runLocalSourceRefreshOnce(input: {
+  db: Kysely<Database>;
+  appEnv: AppEnvironment;
+  workspaceRoot: string;
+  sourceKey: string;
+  workerConfig: CollectorWorkerConfig;
+  liveProbeApproved: boolean;
+  now?: Date;
+  dependencies?: Partial<SourceRefreshOperationDependencies>;
+}) {
+  assertLocalEnvironment(input.appEnv);
+  if (!input.liveProbeApproved) throw new Error("SOURCE_REFRESH_LIVE_CONFIRMATION_REQUIRED");
+  const deps = dependencies(input.dependencies);
+  const config = await deps.loadSourceConfig(input.sourceKey);
+  if (
+    config.catalogRole !== "canonical" ||
+    config.runtimeScope !== "local" ||
+    !config.policy.crawlInterval.enabled
+  ) {
+    throw new Error("SOURCE_SCHEDULED_REFRESH_NOT_AUTHORIZED");
+  }
+  if (config.policy.refreshCoverage === "manual_snapshot") {
+    throw new Error("SOURCE_REFRESH_REQUIRES_MANUAL_SNAPSHOT");
+  }
+
+  await deps.registerSourceConfig(input.db, config);
+  const previousControl = deps.readLocalRefreshControl(input.workspaceRoot);
+  if (!previousControl.enabled) {
+    deps.writeLocalRefreshControl({
+      rootDirectory: input.workspaceRoot,
+      enabled: false,
+      ...(input.now ? { now: input.now } : {}),
+    });
+    await deps.waitForCollectorIdle(input.db);
+  }
+
+  try {
+    await deps.requestImmediateSourceRefresh({
+      db: input.db,
+      sourceKey: input.sourceKey,
+      ...(input.now ? { now: input.now } : {}),
+    });
+    if (!previousControl.enabled) {
+      deps.writeLocalRefreshControl({
+        rootDirectory: input.workspaceRoot,
+        enabled: true,
+        ...(input.now ? { now: input.now } : {}),
+      });
+    }
+    return await deps.runOneCollectorCycle({
+      db: input.db,
+      config: input.workerConfig,
+      ...(input.now ? { now: input.now } : {}),
+      sourceKeys: [input.sourceKey],
+    });
+  } finally {
+    if (!previousControl.enabled) {
+      deps.writeLocalRefreshControl({
+        rootDirectory: input.workspaceRoot,
+        enabled: false,
+        ...(input.now ? { now: input.now } : {}),
+      });
+      await deps.waitForCollectorIdle(input.db);
+    }
+  }
 }

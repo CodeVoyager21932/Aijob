@@ -87,6 +87,9 @@ async function loadRefreshCapacityProfile(
     )
     .select("policy.crawl_interval as crawlInterval")
     .where("runtime.automation_paused", "=", false)
+    .where("policy.catalog_role", "=", "canonical")
+    .where("policy.runtime_scope", "=", "local")
+    .where("policy.config_registered", "=", true)
     .where("policy.crawl_interval", "is not", null)
     .where("policy.refresh_coverage", "!=", "manual_snapshot")
     .where("policy.policy_status", "in", ["pending_review", "approved"]);
@@ -233,11 +236,8 @@ export async function selectDueSourceRefreshes(
     .where("run_mode", "=", "scheduled")
     .where("started_at", ">=", new Date(now.getTime() - 60 * 60 * 1_000))
     .execute();
-  const capacity = remainingHourlyCapacity(
-    started.map(({ source_id }) => source_id),
-    maximum,
-  );
-  if (capacity === 0) return [];
+  const startedSourceIds = new Set(started.map(({ source_id }) => source_id));
+  let capacity = remainingHourlyCapacity([...startedSourceIds], maximum);
 
   let dueQuery = db
     .selectFrom("source_control.source_runtime_states as runtime")
@@ -255,6 +255,9 @@ export async function selectDueSourceRefreshes(
       "runtime.next_due_at as nextDueAt",
     ])
     .where("runtime.automation_paused", "=", false)
+    .where("policy.catalog_role", "=", "canonical")
+    .where("policy.runtime_scope", "=", "local")
+    .where("policy.config_registered", "=", true)
     .where("runtime.next_due_at", "is not", null)
     .where("runtime.next_due_at", "<=", now)
     .where("policy.crawl_interval", "is not", null)
@@ -265,9 +268,15 @@ export async function selectDueSourceRefreshes(
   if (sourceKeys) {
     dueQuery = dueQuery.where("source.source_key", "in", [...sourceKeys]);
   }
-  const rows = await dueQuery.limit(capacity).execute();
+  const rows = await dueQuery.execute();
+  const selectedRows = rows.filter((row) => {
+    if (startedSourceIds.has(row.sourceId)) return true;
+    if (capacity === 0) return false;
+    capacity -= 1;
+    return true;
+  });
 
-  return rows.flatMap((row) =>
+  return selectedRows.flatMap((row) =>
     row.nextDueAt
       ? [
           {
@@ -288,6 +297,7 @@ export async function requestImmediateSourceRefresh(input: {
   now?: Date;
 }): Promise<{ sourceKey: string; scheduled: boolean; manualSnapshotRequired: boolean }> {
   const now = input.now ?? new Date();
+  const dueWindow = immediateRefreshWindowStart(now);
   const row = await input.db
     .selectFrom("source_control.sources as source")
     .innerJoin("source_control.source_policy_versions as policy", (join) =>
@@ -301,12 +311,21 @@ export async function requestImmediateSourceRefresh(input: {
       "policy.crawl_interval as crawlInterval",
       "policy.refresh_coverage as refreshCoverage",
       "policy.policy_status as policyStatus",
+      "policy.catalog_role as catalogRole",
+      "policy.runtime_scope as runtimeScope",
+      "policy.config_registered as configRegistered",
       "runtime.automation_paused as automationPaused",
     ])
     .where("source.source_key", "=", input.sourceKey)
     .executeTakeFirstOrThrow();
   if (row.automationPaused) throw new Error("SOURCE_AUTOMATION_PAUSED");
-  if (!row.crawlInterval || !["pending_review", "approved"].includes(row.policyStatus)) {
+  if (
+    !row.configRegistered ||
+    row.catalogRole !== "canonical" ||
+    row.runtimeScope !== "local" ||
+    !row.crawlInterval ||
+    !["pending_review", "approved"].includes(row.policyStatus)
+  ) {
     throw new Error("SOURCE_SCHEDULED_REFRESH_NOT_AUTHORIZED");
   }
   const manualSnapshotRequired = row.refreshCoverage === "manual_snapshot";
@@ -314,14 +333,20 @@ export async function requestImmediateSourceRefresh(input: {
     .updateTable("source_control.source_runtime_states")
     .set({
       freshness_state: "due",
-      next_due_at: now,
+      next_due_at: dueWindow,
       manual_snapshot_required: manualSnapshotRequired,
-      manual_snapshot_due_at: manualSnapshotRequired ? now : null,
+      manual_snapshot_due_at: manualSnapshotRequired ? dueWindow : null,
       updated_at: now,
     })
     .where("source_id", "=", row.sourceId)
     .execute();
   return { sourceKey: input.sourceKey, scheduled: !manualSnapshotRequired, manualSnapshotRequired };
+}
+
+export function immediateRefreshWindowStart(now: Date): Date {
+  const windowStart = new Date(now);
+  windowStart.setUTCMinutes(0, 0, 0);
+  return windowStart;
 }
 
 interface RefreshStatusRow {

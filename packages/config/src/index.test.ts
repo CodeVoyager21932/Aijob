@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { isLoopbackHost, parseAppConfig, toSafeConfigLog } from "./index.js";
 
 const explicitTestKey = "ab".repeat(32);
+const alphaInviteHash = "cd".repeat(32);
 
 describe("internal capability network boundary", () => {
   it.each(["127.0.0.1", "127.0.0.42", "::1", "0:0:0:0:0:0:0:1"])(
@@ -96,6 +97,12 @@ describe("internal capability network boundary", () => {
         parseAppConfig({
           APP_ENV: appEnv,
           DATABASE_URL: "postgresql://aijob:aijob@db.example.test:5432/aijob",
+          ...(appEnv === "alpha"
+            ? {
+                ACCEPTED_ORIGINS: "https://alpha.example.test",
+                ALPHA_INVITE_CODE_HASHES: alphaInviteHash,
+              }
+            : {}),
         }),
       ).toThrow(/RESUME_ENCRYPTION_KEY is required/);
 
@@ -104,10 +111,43 @@ describe("internal capability network boundary", () => {
           APP_ENV: appEnv,
           DATABASE_URL: "postgresql://aijob:aijob@db.example.test:5432/aijob",
           RESUME_ENCRYPTION_KEY: explicitTestKey,
+          ...(appEnv === "alpha"
+            ? {
+                ACCEPTED_ORIGINS: "https://alpha.example.test",
+                ALPHA_INVITE_CODE_HASHES: alphaInviteHash,
+              }
+            : {}),
         }).resumeEncryptionKey,
       ).toBe(explicitTestKey);
     },
   );
+
+  it("requires exact HTTPS origins and hashed invite codes in alpha", () => {
+    const base = {
+      APP_ENV: "alpha",
+      DATABASE_URL: "postgresql://aijob:aijob@db.example.test:5432/aijob",
+      RESUME_ENCRYPTION_KEY: explicitTestKey,
+    } as const;
+
+    expect(() => parseAppConfig(base)).toThrow(/ACCEPTED_ORIGINS is required/);
+    expect(() =>
+      parseAppConfig({
+        ...base,
+        ACCEPTED_ORIGINS: "http://alpha.example.test/path",
+        ALPHA_INVITE_CODE_HASHES: "plaintext-code",
+      }),
+    ).toThrow();
+
+    const config = parseAppConfig({
+      ...base,
+      ACCEPTED_ORIGINS: "https://alpha.example.test,https://alpha-alt.example.test",
+      ALPHA_INVITE_CODE_HASHES: `${alphaInviteHash},${"ef".repeat(32)}`,
+    });
+    expect(config.identity).toEqual({
+      acceptedOrigins: ["https://alpha.example.test", "https://alpha-alt.example.test"],
+      alphaInviteCodeHashes: [alphaInviteHash, "ef".repeat(32)],
+    });
+  });
 
   it("creates and reuses one random workspace-local encryption key", () => {
     const rootDirectory = mkdtempSync(join(tmpdir(), "aijob-config-"));
@@ -148,12 +188,16 @@ describe("internal capability network boundary", () => {
       AI_BASE_URL: "https://api.example.test/v1",
       AI_MODEL: "example-model",
       AI_API_KEY: "provider-secret",
+      ACCEPTED_ORIGINS: "https://alpha.example.test",
+      ALPHA_INVITE_CODE_HASHES: alphaInviteHash,
     });
     const logged = JSON.stringify(toSafeConfigLog(config));
     expect(logged).not.toContain(explicitTestKey);
     expect(logged).not.toContain("provider-secret");
     expect(logged).not.toContain("api.example.test");
     expect(logged).not.toContain("example-model");
+    expect(logged).not.toContain(alphaInviteHash);
     expect(logged).toContain("providerConfigured");
+    expect(logged).toContain("alphaInviteCodesConfigured");
   });
 });

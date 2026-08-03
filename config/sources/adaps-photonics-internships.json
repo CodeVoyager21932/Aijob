@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "adaps-photonics-internships",
   "sourceType": "official_ats",
+  "catalogRole": "canonical",
+  "runtimeScope": "local",
   "organization": {
     "slug": "adaps-photonics",
     "name": "杭州灵明光子科技有限公司",

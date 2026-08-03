@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "jcquant-internships",
   "sourceType": "university_employment_site",
+  "catalogRole": "discovery_only",
+  "runtimeScope": "local",
   "organization": {
     "slug": "jcquant",
     "name": "深圳市鲸驰寰宇科技有限公司",
@@ -82,13 +84,13 @@
     ]
   },
   "policy": {
-    "version": "6",
+    "version": "7",
     "status": "pending_review",
     "adapterKey": "university-employment-detail-html",
     "adapterVersion": "0.1.4",
     "entrypoints": ["https://career.cuhk.edu.cn/job/view/id/466931"],
     "crawlInterval": {
-      "enabled": true,
+      "enabled": false,
       "minimumHours": 168
     },
     "refreshCoverage": "tracked_records",

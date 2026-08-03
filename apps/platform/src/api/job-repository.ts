@@ -6,11 +6,11 @@ import type {
   SourceType,
 } from "@aijob/contracts";
 import { JobDetailSchema, JobListResponseSchema } from "@aijob/contracts";
-import type { Database, InternalJobPreviewView, JsonValue } from "@aijob/database";
+import type { CurrentJobEligibilityView, Database, JsonValue } from "@aijob/database";
 import type { Kysely, Selectable } from "kysely";
 import { validateNavigationUrl } from "../ingestion/safe-http.js";
 
-type PreviewRow = Selectable<InternalJobPreviewView>;
+type PreviewRow = Selectable<CurrentJobEligibilityView>;
 
 function toIso(value: Date | string): string {
   return (value instanceof Date ? value : new Date(value)).toISOString();
@@ -184,8 +184,9 @@ export async function listInternalPreviewJobs(
   limit: number,
 ): Promise<JobListResponse> {
   const rows = await db
-    .selectFrom("catalog.internal_job_previews")
+    .selectFrom("catalog.current_job_eligibility")
     .selectAll()
+    .where("eligible_for_local_mvp", "=", true)
     .orderBy("last_verified_at", "desc")
     .orderBy("job_id", "asc")
     .limit(limit)
@@ -201,9 +202,10 @@ export async function getInternalPreviewJob(
   jobId: string,
 ): Promise<JobDetail | null> {
   const row = await db
-    .selectFrom("catalog.internal_job_previews")
+    .selectFrom("catalog.current_job_eligibility")
     .selectAll()
     .where("job_id", "=", jobId)
+    .where("eligible_for_local_mvp", "=", true)
     .executeTakeFirst();
   if (!row) return null;
   const officialLink = await approvedOfficialLink(db, row);

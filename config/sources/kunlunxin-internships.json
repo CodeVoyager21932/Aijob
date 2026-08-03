@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "kunlunxin-internships",
   "sourceType": "university_employment_site",
+  "catalogRole": "discovery_only",
+  "runtimeScope": "local",
   "organization": {
     "slug": "kunlunxin",
     "name": "昆仑芯（北京）科技股份有限公司",

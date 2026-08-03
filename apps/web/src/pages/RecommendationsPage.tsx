@@ -4,11 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   createRecommendationRun,
-  getJobs,
+  getRecommendationCandidateJobs,
   getProfileEvidence,
   getProfileFacts,
   getProfilePreferences,
   getRecommendationRun,
+  recommendationCandidateVersionIds,
   type JobFilters,
 } from "../api/product";
 import {
@@ -59,7 +60,8 @@ export function RecommendationsPage() {
     queries: [
       {
         queryKey: ["product", "jobs", "recommendation-candidates"],
-        queryFn: ({ signal }: { signal: AbortSignal }) => getJobs(allJobsFilters, signal),
+        queryFn: ({ signal }: { signal: AbortSignal }) =>
+          getRecommendationCandidateJobs(allJobsFilters, signal),
       },
       {
         queryKey: ["product", "profile", "facts"],
@@ -88,9 +90,7 @@ export function RecommendationsPage() {
       ) {
         throw new Error("请先上传简历并确认事实、偏好和经历证据。");
       }
-      const candidates = (jobsQuery.data?.items ?? []).flatMap((job) =>
-        job.publishedJobVersionId ? [job.publishedJobVersionId] : [],
-      );
+      const candidates = recommendationCandidateVersionIds(jobsQuery.data ?? []);
       if (candidates.length === 0) {
         throw new Error("当前岗位目录没有可匹配的已发布版本。");
       }
@@ -146,7 +146,7 @@ export function RecommendationsPage() {
   const jobsByVersion = useMemo(
     () =>
       new Map(
-        (jobsQuery.data?.items ?? []).flatMap((job) =>
+        (jobsQuery.data ?? []).flatMap((job) =>
           job.publishedJobVersionId ? [[job.publishedJobVersionId, job] as const] : [],
         ),
       ),
@@ -232,13 +232,16 @@ export function RecommendationsPage() {
           <p>推荐只使用你确认过的事实、偏好和经历证据。</p>
         </ProductEmpty>
       ) : null}
-      {jobsQuery.data?.items.length === 0 ? (
+      {jobsQuery.data?.length === 0 ? (
         <ProductEmpty title="岗位目录当前为空">
           <p>请先运行本地岗位导入和发布流程，再回来生成推荐。</p>
         </ProductEmpty>
       ) : null}
       {createMutation.isError ? (
         <ProductError title="推荐任务没有创建成功" error={createMutation.error} />
+      ) : null}
+      {jobsQuery.isError ? (
+        <ProductError title="完整岗位候选集没有加载成功" error={jobsQuery.error} />
       ) : null}
       {runId && runQuery.isPending ? <ProductLoading label="正在读取推荐任务" /> : null}
       {runQuery.isError ? (
@@ -258,6 +261,7 @@ export function RecommendationsPage() {
         />
       ) : runQuery.data ? (
         <RecommendationResult
+          key={runQuery.data.id}
           run={runQuery.data}
           jobsByVersion={jobsByVersion}
           isRegenerating={createMutation.isPending}
@@ -308,6 +312,8 @@ export function RecommendationResult({
   isRegenerating: boolean;
   onRegenerate: () => void;
 }) {
+  const [visibleCount, setVisibleCount] = useState(100);
+
   if (run.status === "queued" || run.status === "processing") {
     return <ProductLoading label="正在核对资格、证据与偏好" />;
   }
@@ -349,13 +355,16 @@ export function RecommendationResult({
       </ProductEmpty>
     );
   }
+  const visible = current.slice(0, visibleCount);
 
   return (
     <section className="recommendation-result" aria-labelledby="recommendation-heading">
       <div className="results-heading">
         <div>
           <p className="eyebrow">本次推荐集合</p>
-          <h2 id="recommendation-heading">{current.length} 个当前岗位</h2>
+          <h2 id="recommendation-heading">
+            已显示 {visible.length} / {current.length} 个当前岗位
+          </h2>
         </div>
         <p>先按资格分组，组内依据完整度、偏好、证据、阻塞缺口、新鲜度和稳定岗位编号排序。</p>
       </div>
@@ -365,7 +374,7 @@ export function RecommendationResult({
         </output>
       ) : null}
       {recommendationGroups.map((group) => {
-        const groupItems = current.filter(({ item }) => item.eligibility === group.key);
+        const groupItems = visible.filter(({ item }) => item.eligibility === group.key);
         if (groupItems.length === 0) return null;
         return (
           <section className="recommendation-group" key={group.key}>
@@ -387,6 +396,15 @@ export function RecommendationResult({
           </section>
         );
       })}
+      {visible.length < current.length ? (
+        <button
+          className="button button--secondary"
+          type="button"
+          onClick={() => setVisibleCount((count) => Math.min(count + 100, current.length))}
+        >
+          再显示 {Math.min(100, current.length - visible.length)} 个岗位
+        </button>
+      ) : null}
     </section>
   );
 }

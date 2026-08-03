@@ -150,6 +150,7 @@ export async function runBatchImport(input: {
         runtime: input.runtime,
         sourceKey,
         limit,
+        liveProbeApproved: input.liveProbeApproved === true,
       });
       const runTransportErrors = result.errors.filter(({ code }) => isTransportErrorCode(code));
       transportFailureCount += runTransportErrors.length;

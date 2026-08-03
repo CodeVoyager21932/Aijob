@@ -1,6 +1,10 @@
 import { createInterface } from "node:readline/promises";
-import { DEFAULT_WORKSPACE_ROOT, loadAppConfig } from "@aijob/config";
-import { createDatabase } from "@aijob/database";
+import { type AppConfig, DEFAULT_WORKSPACE_ROOT, loadAppConfig } from "@aijob/config";
+import {
+  assertDatabaseRoleMembership,
+  createDatabase,
+  DatabaseRuntimeRole,
+} from "@aijob/database";
 import { Command } from "commander";
 import {
   AiProviderApiKeySchema,
@@ -11,7 +15,7 @@ import {
 } from "./ai/local-provider-config.js";
 import { runAiProviderSmoke } from "./ai/smoke.js";
 import { materializeLocalCatalog } from "./catalog/materialize.js";
-import { loadPlatformConfig } from "./config/platform-config.js";
+import { databaseUrlForRuntime, loadPlatformConfig } from "./config/platform-config.js";
 import { runBatchImport } from "./ingestion/batch-import.js";
 import { importManualBrowserSnapshot } from "./ingestion/manual-browser-import.js";
 import { runSourceProbe } from "./ingestion/probe.js";
@@ -28,22 +32,40 @@ import {
   enableLocalSourceRefresh,
   getLocalSourceRefreshStatus,
   requestLocalSourceRefresh,
+  runLocalSourceRefreshOnce,
 } from "./sources/source-refresh-operations.js";
 import { registerSourceConfig } from "./sources/source-registry.js";
 
 const program = new Command();
 program.name("aijob").description("Aijob internal operations CLI").showHelpAfterError();
 
+async function createOperationsDatabase(appConfig: AppConfig) {
+  const db = createDatabase(databaseUrlForRuntime(appConfig, "opsCli"));
+  try {
+    await assertDatabaseRoleMembership({
+      db,
+      role: DatabaseRuntimeRole.opsCli,
+      required: appConfig.appEnv === "alpha" || appConfig.appEnv === "production",
+    });
+    return db;
+  } catch (error) {
+    await db.destroy();
+    throw error;
+  }
+}
+
 program
   .command("local-bootstrap")
   .description("按 Git 忽略清单恢复本地目录；快照缺失或统计不一致时 fail-closed")
   .option("--manifest <path>", "Git 忽略的恢复清单", ".data/local-bootstrap.json")
-  .action(async (options: { manifest: string }) => {
+  .option("--confirm-live", "确认恢复清单中的确定性来源会访问真实官方站点")
+  .action(async (options: { manifest: string; confirmLive?: boolean }) => {
     console.info(
       JSON.stringify(
         await runLocalBootstrap({
           appConfig: loadAppConfig(),
           manifestPath: options.manifest,
+          liveProbeApproved: options.confirmLive === true,
         }),
         null,
         2,
@@ -150,7 +172,7 @@ program
     if (!appConfig.enableLocalMvp) {
       throw new Error("LOCAL_MVP_DISABLED");
     }
-    const db = createDatabase(appConfig.databaseUrl);
+    const db = await createOperationsDatabase(appConfig);
     try {
       console.info(JSON.stringify(await materializeLocalCatalog(db), null, 2));
     } finally {
@@ -176,7 +198,7 @@ program
       throw new Error("SOURCE_BATCH_PLAN_MILESTONE_INVALID");
     }
     const appConfig = loadAppConfig();
-    const db = createDatabase(appConfig.databaseUrl);
+    const db = await createOperationsDatabase(appConfig);
     try {
       console.info(
         JSON.stringify(
@@ -213,7 +235,7 @@ program
       throw new Error("SOURCE_CANDIDATE_AUDIT_LIMIT_OUT_OF_RANGE");
     }
     const appConfig = loadAppConfig();
-    const db = createDatabase(appConfig.databaseUrl);
+    const db = await createOperationsDatabase(appConfig);
     try {
       console.info(
         JSON.stringify(
@@ -237,7 +259,7 @@ program
   .argument("[source-key]", "来源配置键；省略时处理 config/sources 中的全部来源")
   .action(async (sourceKey: string | undefined) => {
     const appConfig = loadAppConfig();
-    const db = createDatabase(appConfig.databaseUrl);
+    const db = await createOperationsDatabase(appConfig);
     try {
       const results = [];
       for (const selectedSourceKey of await selectedSourceKeys(sourceKey)) {
@@ -267,7 +289,7 @@ program
   .requiredOption("--file <path>", "位于 .data/browser-imports/ 下的 JSON 快照")
   .action(async (sourceKey: string, options: { file: string }) => {
     const appConfig = loadAppConfig();
-    const db = createDatabase(appConfig.databaseUrl);
+    const db = await createOperationsDatabase(appConfig);
     try {
       console.info(
         JSON.stringify(
@@ -299,7 +321,7 @@ program
   )
   .action(async (options: { staggerHours: string }) => {
     const appConfig = loadAppConfig();
-    const db = createDatabase(appConfig.databaseUrl);
+    const db = await createOperationsDatabase(appConfig);
     try {
       console.info(
         JSON.stringify(
@@ -323,7 +345,7 @@ program
   .description("Disable new local scheduled source refresh work")
   .action(async () => {
     const appConfig = loadAppConfig();
-    const db = createDatabase(appConfig.databaseUrl);
+    const db = await createOperationsDatabase(appConfig);
     try {
       const control = await disableLocalSourceRefresh({
         db,
@@ -341,7 +363,7 @@ program
   .description("Show read-only local source refresh state and snapshot reminders")
   .action(async () => {
     const appConfig = loadAppConfig();
-    const db = createDatabase(appConfig.databaseUrl);
+    const db = await createOperationsDatabase(appConfig);
     try {
       console.info(
         JSON.stringify(
@@ -363,41 +385,74 @@ program
   .command("source-refresh-now")
   .description("Mark one or all configured sources due for the scheduled collector")
   .argument("[source-key]", "Configured source key; omit to request every enabled source")
-  .action(async (sourceKey: string | undefined) => {
-    const appConfig = loadAppConfig();
-    const db = createDatabase(appConfig.databaseUrl);
-    try {
-      const result = await requestLocalSourceRefresh({
-        db,
-        appEnv: appConfig.appEnv,
-        workspaceRoot: appConfig.workspaceRoot,
-        ...(sourceKey ? { sourceKey } : {}),
-      });
-      if (
-        result &&
-        "sources" in result &&
-        result.sources.some((source) => "error" in source && source.error)
-      ) {
-        process.exitCode = 1;
+  .option("--wait", "Run exactly this source through one collector cycle before returning")
+  .option("--confirm-live", "Confirm that --wait may access the configured official source")
+  .action(
+    async (
+      sourceKey: string | undefined,
+      options: { wait?: boolean; confirmLive?: boolean },
+    ) => {
+      const appConfig = loadAppConfig();
+      const db = await createOperationsDatabase(appConfig);
+      try {
+        if (options.wait) {
+          if (!sourceKey) throw new Error("SOURCE_REFRESH_WAIT_REQUIRES_SOURCE_KEY");
+          const result = await runLocalSourceRefreshOnce({
+            db,
+            appEnv: appConfig.appEnv,
+            workspaceRoot: appConfig.workspaceRoot,
+            sourceKey,
+            liveProbeApproved: options.confirmLive === true,
+            workerConfig: {
+              appEnv: appConfig.appEnv,
+              enableSourceProbe: appConfig.enableSourceProbe,
+              snapshotDir: appConfig.snapshotDirectory,
+              probeRequestIntervalMs: appConfig.probeRequestIntervalMs,
+              workspaceRoot: appConfig.workspaceRoot,
+            },
+          });
+          if (result.state !== "ran" || result.result?.completion === "failed") {
+            process.exitCode = 1;
+          }
+          console.info(JSON.stringify(result, null, 2));
+          return;
+        }
+        const result = await requestLocalSourceRefresh({
+          db,
+          appEnv: appConfig.appEnv,
+          workspaceRoot: appConfig.workspaceRoot,
+          ...(sourceKey ? { sourceKey } : {}),
+        });
+        if (
+          result &&
+          "sources" in result &&
+          result.sources.some((source) => "error" in source && source.error)
+        ) {
+          process.exitCode = 1;
+        }
+        console.info(JSON.stringify(result, null, 2));
+      } finally {
+        await db.destroy();
       }
-      console.info(JSON.stringify(result, null, 2));
-    } finally {
-      await db.destroy();
-    }
-  });
+    },
+  );
 
 program
   .command("source-probe")
   .description("执行受限本地来源探测；不发布岗位")
   .argument("[source-key]", "来源配置键；省略时依次探测 config/sources 中的全部来源")
   .option("--limit <number>", "最多处理岗位数（不得超过来源配置预算）")
-  .action(async (sourceKey: string | undefined, options: { limit?: string }) => {
+  .option("--confirm-live", "确认本次会访问已授权的真实官方来源")
+  .action(async (
+    sourceKey: string | undefined,
+    options: { limit?: string; confirmLive?: boolean },
+  ) => {
     const appConfig = loadAppConfig();
     const requestedLimit = options.limit === undefined ? undefined : Number(options.limit);
     if (requestedLimit !== undefined && !Number.isInteger(requestedLimit)) {
       throw new Error("PROBE_LIMIT_MUST_BE_INTEGER");
     }
-    const db = createDatabase(appConfig.databaseUrl);
+    const db = await createOperationsDatabase(appConfig);
     try {
       const results = [];
       for (const selectedSourceKey of await selectedProbeSourceKeys(sourceKey)) {
@@ -413,6 +468,7 @@ program
             },
             sourceKey: selectedSourceKey,
             limit: requestedLimit ?? selectedConfig.localProbe.requestBudget.maxItems,
+            liveProbeApproved: options.confirmLive === true,
           });
           results.push({ sourceKey: selectedSourceKey, ...result });
           if (result.completion === "failed") process.exitCode = 1;
@@ -447,7 +503,7 @@ program
       .map((sourceKey) => sourceKey.trim())
       .filter(Boolean);
     const appConfig = loadAppConfig();
-    const db = createDatabase(appConfig.databaseUrl);
+    const db = await createOperationsDatabase(appConfig);
     try {
       const result = await runBatchImport({
         db,
@@ -473,7 +529,8 @@ program
     } finally {
       await db.destroy();
     }
-  });
+    },
+  );
 
 program
   .command("ai-configure")

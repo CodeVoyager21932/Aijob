@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   dynamicHourlySourceLimit,
+  immediateRefreshWindowStart,
   isTransportErrorCode,
   refreshCapacityProfile,
   remainingHourlyCapacity,
@@ -47,5 +48,14 @@ describe("source refresh scheduler limits", () => {
       maximumSourceStartsPerHour: 11,
       mode: "rolling_12h",
     });
+  });
+
+  it("uses one stable UTC-hour window for repeated immediate refresh requests", () => {
+    expect(immediateRefreshWindowStart(new Date("2026-08-03T08:34:56.789Z"))).toEqual(
+      new Date("2026-08-03T08:00:00.000Z"),
+    );
+    expect(immediateRefreshWindowStart(new Date("2026-08-03T08:59:59.999Z"))).toEqual(
+      new Date("2026-08-03T08:00:00.000Z"),
+    );
   });
 });

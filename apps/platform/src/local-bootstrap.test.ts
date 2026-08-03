@@ -2,7 +2,11 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadLocalBootstrapManifest } from "./local-bootstrap.js";
+import {
+  loadLocalBootstrapManifest,
+  type LocalBootstrapManifest,
+  validateLocalBootstrapSources,
+} from "./local-bootstrap.js";
 
 describe("local bootstrap manifest", () => {
   it("preflights ignored browser snapshots before any mutable work", async () => {
@@ -77,6 +81,24 @@ describe("local bootstrap manifest", () => {
     );
     await expect(loadLocalBootstrapManifest({ workspaceRoot, manifestPath })).rejects.toThrow(
       "LOCAL_BOOTSTRAP_SNAPSHOT_OUTSIDE_BROWSER_IMPORTS",
+    );
+  });
+
+  it("allows only active canonical local sources in the recovery manifest", async () => {
+    const manifest = (sourceKey: string): LocalBootstrapManifest => ({
+      schemaVersion: "aijob-local-bootstrap-v1",
+      sources: [{ sourceKey, mode: "probe", limit: 1 }],
+      expectedCatalog: { totalSupply: 1, visible: 1, companies: 1, publicJobs: 0 },
+    });
+
+    await expect(
+      validateLocalBootstrapSources(manifest("shining3d-internships")),
+    ).resolves.toBeUndefined();
+    await expect(validateLocalBootstrapSources(manifest("nankai-tal-2027"))).rejects.toThrow(
+      "LOCAL_BOOTSTRAP_SOURCE_NOT_CANONICAL",
+    );
+    await expect(validateLocalBootstrapSources(manifest("baidu-internships"))).rejects.toThrow(
+      "LOCAL_BOOTSTRAP_SOURCE_INACTIVE",
     );
   });
 });

@@ -172,6 +172,8 @@ export async function loadLocalCatalogSupplyMetrics(
         AND projection.requirement_set_id = version.active_requirement_set_id
       JOIN ingestion.source_job_revisions AS revision
         ON revision.id = version.source_job_revision_id
+      JOIN catalog.current_job_eligibility AS eligibility
+        ON eligibility.revision_id = revision.id
       JOIN ingestion.source_job_records AS record
         ON record.id = revision.source_job_record_id
       JOIN source_control.sources AS source
@@ -180,6 +182,7 @@ export async function loadLocalCatalogSupplyMetrics(
         ON policy.source_id = source.id
         AND policy.version = source.current_policy_version
       WHERE quota.selected = TRUE
+        AND eligibility.eligible_for_local_mvp
         AND activity.effective_activity_state <> 'closed'
         AND source.source_key IN (${sql.join(
           configuredSourceKeys.map((sourceKey) => sql`${sourceKey}`),
@@ -187,16 +190,19 @@ export async function loadLocalCatalogSupplyMetrics(
         )})
     `.execute(db),
     db
-      .selectFrom("catalog.internal_job_previews as preview")
+      .selectFrom("catalog.current_job_eligibility as preview")
       .select(({ fn }) => fn.countAll<number>().as("count"))
-      .where("preview.ingestion_state", "=", "validated")
-      .where("preview.publication_state", "in", ["review", "published"])
-      .where("preview.policy_status", "in", ["pending_review", "approved"])
+      .where("preview.eligible_for_local_mvp", "=", true)
       .where("preview.source_key", "in", configuredSourceKeys)
       .executeTakeFirstOrThrow(),
     db
       .selectFrom("catalog.published_jobs as job")
       .innerJoin("catalog.published_job_versions as version", "version.id", "job.public_version_id")
+      .innerJoin(
+        "catalog.job_version_eligibility as eligibility",
+        "eligibility.published_job_version_id",
+        "version.id",
+      )
       .innerJoin(
         "ingestion.source_job_revisions as revision",
         "revision.id",
@@ -210,6 +216,7 @@ export async function loadLocalCatalogSupplyMetrics(
       .innerJoin("source_control.sources as source", "source.id", "record.source_id")
       .select(({ fn }) => fn.countAll<number>().as("count"))
       .where("job.public_version_id", "is not", null)
+      .where("eligibility.eligible_for_alpha", "=", true)
       .where("source.source_key", "in", configuredSourceKeys)
       .executeTakeFirstOrThrow(),
     db

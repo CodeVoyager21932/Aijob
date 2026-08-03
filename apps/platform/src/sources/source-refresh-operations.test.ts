@@ -6,6 +6,7 @@ import {
   enableLocalSourceRefresh,
   getLocalSourceRefreshStatus,
   requestLocalSourceRefresh,
+  runLocalSourceRefreshOnce,
 } from "./source-refresh-operations.js";
 
 const db = {} as Kysely<Database>;
@@ -283,5 +284,93 @@ describe("local source refresh operations", () => {
       jobCount: 2,
       manualSnapshotRequired: true,
     });
+  });
+
+  it("requires explicit live confirmation for a synchronous refresh", async () => {
+    const loadSourceConfig = vi.fn();
+    await expect(
+      runLocalSourceRefreshOnce({
+        db,
+        appEnv: "local",
+        workspaceRoot: "C:/workspace",
+        sourceKey: "shining3d-internships",
+        liveProbeApproved: false,
+        workerConfig: {
+          appEnv: "local",
+          enableSourceProbe: true,
+          snapshotDir: "C:/workspace/.data/snapshots",
+          probeRequestIntervalMs: 2_000,
+          workspaceRoot: "C:/workspace",
+        },
+        dependencies: { loadSourceConfig },
+      }),
+    ).rejects.toThrow("SOURCE_REFRESH_LIVE_CONFIRMATION_REQUIRED");
+    expect(loadSourceConfig).not.toHaveBeenCalled();
+  });
+
+  it("temporarily opens only the local gate and runs the requested source once", async () => {
+    const events: string[] = [];
+    const result = await runLocalSourceRefreshOnce({
+      db,
+      appEnv: "local",
+      workspaceRoot: "C:/workspace",
+      sourceKey: "shining3d-internships",
+      liveProbeApproved: true,
+      now: new Date("2026-08-03T08:00:00.000Z"),
+      workerConfig: {
+        appEnv: "local",
+        enableSourceProbe: true,
+        snapshotDir: "C:/workspace/.data/snapshots",
+        probeRequestIntervalMs: 2_000,
+        workspaceRoot: "C:/workspace",
+      },
+      dependencies: {
+        readLocalRefreshControl: () => ({
+          version: 1,
+          enabled: false,
+          updatedAt: "2026-08-03T07:00:00.000Z",
+        }),
+        writeLocalRefreshControl: (input) => {
+          events.push(input.enabled ? "enable" : "disable");
+          return {
+            version: 1,
+            enabled: input.enabled,
+            updatedAt: "2026-08-03T08:00:00.000Z",
+          };
+        },
+        waitForCollectorIdle: async () => {
+          events.push("idle");
+        },
+        registerSourceConfig: async (_db, config) => {
+          events.push(`register:${config.sourceKey}`);
+          return {
+            organizationId: "organization",
+            sourceCandidateId: "candidate",
+            sourceId: "source",
+            policyVersion: config.policy.version,
+          };
+        },
+        requestImmediateSourceRefresh: async ({ sourceKey }) => {
+          events.push(`request:${sourceKey}`);
+          return { sourceKey, scheduled: true, manualSnapshotRequired: false };
+        },
+        runOneCollectorCycle: async (input) => {
+          events.push(`cycle:${input.sourceKeys?.join(",")}`);
+          return { state: "ran", sourceKey: "shining3d-internships" };
+        },
+      },
+    });
+
+    expect(result).toMatchObject({ state: "ran", sourceKey: "shining3d-internships" });
+    expect(events).toEqual([
+      "register:shining3d-internships",
+      "disable",
+      "idle",
+      "request:shining3d-internships",
+      "enable",
+      "cycle:shining3d-internships",
+      "disable",
+      "idle",
+    ]);
   });
 });

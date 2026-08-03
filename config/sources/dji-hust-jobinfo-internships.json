@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "dji-hust-jobinfo-internships",
   "sourceType": "university_employment_site",
+  "catalogRole": "discovery_only",
+  "runtimeScope": "local",
   "organization": {
     "slug": "dji",
     "name": "深圳市大疆创新科技有限公司",
@@ -43,7 +45,7 @@
     ]
   },
   "policy": {
-    "version": "1",
+    "version": "2",
     "status": "pending_review",
     "adapterKey": "university-employment-detail-html",
     "adapterVersion": "0.1.4",
@@ -58,7 +60,7 @@
       }
     },
     "entrypoints": ["https://job.hust.edu.cn/zpinfo1/2400683.htm"],
-    "crawlInterval": { "enabled": true, "minimumHours": 168 },
+    "crawlInterval": { "enabled": false, "minimumHours": 168 },
     "refreshCoverage": "tracked_records",
     "absencePolicy": "none",
     "reviewedAt": "2026-08-02",

@@ -49,6 +49,8 @@ export function buildApp(input: { config: AppConfig; db: Kysely<Database> }): Fa
     db: input.db,
     appEnv: input.config.appEnv,
     host: input.config.host,
+    acceptedOrigins: input.config.identity.acceptedOrigins,
+    alphaInviteCodeHashes: input.config.identity.alphaInviteCodeHashes,
   });
 
   app.addHook("onSend", async (request, reply, payload) => {
@@ -61,6 +63,7 @@ export function buildApp(input: { config: AppConfig; db: Kysely<Database> }): Fa
       "/v1/resume-exports",
       "/v1/job-decisions",
       "/v1/job-insight-runs",
+      "/v1/session",
     ];
     if (ownerScopedPrefixes.some((prefix) => request.url.startsWith(prefix))) {
       reply.header("Cache-Control", "no-store");

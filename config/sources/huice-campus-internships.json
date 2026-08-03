@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "huice-campus-internships",
   "sourceType": "official_ats",
+  "catalogRole": "canonical",
+  "runtimeScope": "local",
   "organization": {
     "slug": "huice",
     "name": "北京掌上先机网络科技有限公司",
@@ -89,23 +91,24 @@
     ]
   },
   "policy": {
-    "version": "3",
-    "status": "pending_review",
+    "version": "4",
+    "status": "paused",
     "adapterKey": "beisen-zhiye-public-api",
     "adapterVersion": "0.1.2",
     "entrypoints": ["https://huicecom.zhiye.com/Campus"],
     "crawlInterval": {
-      "enabled": true,
+      "enabled": false,
       "minimumHours": 24
     },
     "refreshCoverage": "tracked_records",
     "absencePolicy": "none",
-    "reviewedAt": "2026-08-01",
+    "reviewedAt": "2026-08-03",
     "policyNotes": [
       "ADR-0026 仅允许本机 collector-worker 按 24 小时间隔执行单来源低频刷新；不得用于 CI、公开或远程环境。",
       "pathPrefix 收敛到慧策租户子域名，不得泛化到 zhiye.com 其他租户。",
-      "来源继续为 pending_review，只能进入本机目录；禁止自动发布和公开展示。",
+      "来源现为 paused；历史修订只保留证据，不进入当前目录，禁止自动发布和公开展示。",
       "禁止登录、验证码绕过、Cookie、代理和浏览器自动化生产采集。",
+      "2026-08-03 可信目录审计发现当前 30 条历史岗位中 29 条仍有 SOURCE_KIND_CONFLICT；在官方实习范围契约重新核验前暂停来源。",
       "标题无实习标记的校园岗位一律拒绝；若接口失效、出现验证或重定向，立即暂停并复核。"
     ],
     "fetchTargets": [
@@ -132,7 +135,7 @@
     ]
   },
   "localProbe": {
-    "enabled": true,
+    "enabled": false,
     "environment": "local",
     "requestBudget": {
       "maxItems": 30,

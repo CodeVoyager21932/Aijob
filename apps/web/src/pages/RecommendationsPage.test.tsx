@@ -104,6 +104,39 @@ describe("recommendations page state", () => {
     expect(html).not.toContain(">1<");
   });
 
+  it("keeps the full recommendation set while rendering only the first 100 cards", () => {
+    const items = Array.from({ length: 150 }, (_, index) => ({
+      ...recommendationItem(`version-${index}`),
+      ordinal: index,
+    }));
+    const jobs = new Map(
+      items.map((item, index) => [
+        item.publishedJobVersionId,
+        {
+          ...currentJob,
+          id: `job-${index}`,
+          publishedJobVersionId: item.publishedJobVersionId,
+          title: `岗位 ${index}`,
+        },
+      ]),
+    );
+
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <RecommendationResult
+          run={succeededRun(items)}
+          jobsByVersion={jobs}
+          isRegenerating={false}
+          onRegenerate={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(html).toContain("已显示 100 / 150 个当前岗位");
+    expect(html).toContain("再显示 50 个岗位");
+    expect(html.match(/<article class="product-job-card/g)).toHaveLength(100);
+  });
+
   it("shows one clear regeneration state when an old run has no current catalog overlap", () => {
     const html = renderToStaticMarkup(
       <RecommendationResult

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { saveLocalAiProviderConfig } from "../ai/local-provider-config.js";
-import { loadPlatformConfig } from "./platform-config.js";
+import { databaseUrlForRuntime, loadPlatformConfig } from "./platform-config.js";
 
 describe("platform local AI config source", () => {
   it("loads the backend-only local provider file into the existing AI adapter", () => {
@@ -77,5 +77,22 @@ describe("platform local AI config source", () => {
     } finally {
       rmSync(rootDirectory, { recursive: true, force: true });
     }
+  });
+
+  it("uses one local database by default but requires a role URL in Alpha", () => {
+    const local = loadPlatformConfig({
+      overrideEnvironment: { APP_ENV: "test", RESUME_ENCRYPTION_KEY: "ab".repeat(32) },
+    });
+    expect(databaseUrlForRuntime(local, "webApi", {})).toBe(local.databaseUrl);
+
+    const alpha = { ...local, appEnv: "alpha" as const };
+    expect(() => databaseUrlForRuntime(alpha, "webApi", {})).toThrow(
+      "DATABASE_RUNTIME_URL_REQUIRED:WEB_API_DATABASE_URL",
+    );
+    expect(
+      databaseUrlForRuntime(alpha, "webApi", {
+        WEB_API_DATABASE_URL: "postgresql://web:secret@db.example.test:5432/aijob",
+      }),
+    ).toBe("postgresql://web:secret@db.example.test:5432/aijob");
   });
 });

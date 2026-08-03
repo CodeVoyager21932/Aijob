@@ -98,6 +98,10 @@ describeWithDatabase("catalog public version pointer", () => {
         .where("id", "=", ids.record)
         .execute();
       await transaction
+        .deleteFrom("source_control.source_runtime_states")
+        .where("source_id", "=", ids.source)
+        .execute();
+      await transaction
         .deleteFrom("source_control.source_policy_versions")
         .where("source_id", "=", ids.source)
         .execute();
@@ -140,14 +144,29 @@ describeWithDatabase("catalog public version pointer", () => {
         source_id: ids.source,
         version: 1,
         policy_status: "approved",
+        config_registered: true,
+        catalog_role: "canonical",
+        runtime_scope: "alpha",
         provenance_level: "organization_owned",
         acquisition_mode: "public_api",
         adapter_key: "public-pointer-test",
         adapter_version: "1",
         entrypoints: JSON.stringify(["https://public-pointer.example.test/jobs"]),
-        crawl_interval: null,
+        crawl_interval: "24h",
         policy_notes: "Offline public pointer fixture.",
         reviewed_at: null,
+      })
+      .execute();
+    await db
+      .insertInto("source_control.source_runtime_states")
+      .values({
+        source_id: ids.source,
+        policy_version: 1,
+        freshness_state: "fresh",
+        last_complete_run_at: new Date(),
+        consecutive_failures: 0,
+        last_error_code: null,
+        next_due_at: null,
       })
       .execute();
     await db

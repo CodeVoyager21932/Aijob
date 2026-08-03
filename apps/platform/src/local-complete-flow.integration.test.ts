@@ -51,6 +51,7 @@ function config(): AppConfig {
     resumeEncryptionKey: encryptionKey,
     resumeMaxBytes: 5 * 1024 * 1024,
     ai: { enabled: false, requestTimeoutMs: 30_000 },
+    identity: { acceptedOrigins: [], alphaInviteCodeHashes: [] },
     workspaceRoot: ".",
   };
 }
@@ -108,14 +109,29 @@ describeWithDatabase("complete local MVP service journey", () => {
         source_id: ids.source,
         version: 1,
         policy_status: "pending_review",
+        config_registered: true,
+        catalog_role: "canonical",
+        runtime_scope: "local",
         provenance_level: "organization_owned",
         acquisition_mode: "deterministic_html",
         adapter_key: "integration-fixture",
         adapter_version: "1",
         entrypoints: JSON.stringify(["https://careers.example.test/jobs"]),
-        crawl_interval: null,
+        crawl_interval: "24h",
         policy_notes: "Automated integration fixture; never queried over the network.",
         reviewed_at: null,
+      })
+      .execute();
+    await db
+      .insertInto("source_control.source_runtime_states")
+      .values({
+        source_id: ids.source,
+        policy_version: 1,
+        freshness_state: "fresh",
+        last_complete_run_at: now,
+        consecutive_failures: 0,
+        last_error_code: null,
+        next_due_at: null,
       })
       .execute();
     await db
@@ -376,6 +392,10 @@ describeWithDatabase("complete local MVP service journey", () => {
         .where("source_id", "=", ids.source)
         .execute();
       await transaction
+        .deleteFrom("source_control.source_runtime_states")
+        .where("source_id", "=", ids.source)
+        .execute();
+      await transaction
         .deleteFrom("source_control.source_policy_versions")
         .where("source_id", "=", ids.source)
         .execute();
@@ -416,6 +436,15 @@ describeWithDatabase("complete local MVP service journey", () => {
         .set({ ingestion_state: "validated" })
         .where("id", "=", ids.sourceRevision)
         .executeTakeFirstOrThrow();
+      const catalogEligibility = await db
+        .selectFrom("catalog.job_version_eligibility")
+        .select(["eligible_for_local_mvp", "blocking_reasons"])
+        .where("published_job_version_id", "=", ids.publishedVersion)
+        .executeTakeFirstOrThrow();
+      expect(catalogEligibility).toMatchObject({
+        eligible_for_local_mvp: true,
+        blocking_reasons: [],
+      });
       try {
         const session = await createAnonymousSession({ db });
         const owner = session.context;
@@ -626,18 +655,32 @@ describeWithDatabase("complete local MVP service journey", () => {
             closed_reason: null,
           })
           .execute();
-        expect(
-          await enqueueMatchRun(db, owner, matchRequest, `uncertain-match-${ids.organization}`),
-        ).toMatchObject({ status: "queued" });
-        expect(
-          await enqueueRecommendationRun(
+        await expect(
+          enqueueMatchRun(db, owner, matchRequest, `uncertain-match-${ids.organization}`),
+        ).rejects.toMatchObject({ code: "JOB_REQUIREMENTS_NOT_READY" });
+        await expect(
+          enqueueRecommendationRun(
             db,
             owner,
             recommendationRequest,
             `uncertain-recommendation-${ids.organization}`,
             { enableLocalMvp: true },
           ),
-        ).toMatchObject({ status: "queued" });
+        ).rejects.toMatchObject({ code: "CANDIDATE_JOB_NOT_IN_CURRENT_CATALOG" });
+        await expect(
+          enqueueTailoringRun(
+            db,
+            config(),
+            owner,
+            {
+              resumeAnalysisId: submission.analysis.id,
+              publishedJobVersionId: ids.publishedVersion,
+              evidenceRevisionId: evidence.id,
+              privacyConsent: true,
+            },
+            `uncertain-tailoring-${ids.organization}`,
+          ),
+        ).rejects.toMatchObject({ code: "JOB_REQUIREMENTS_NOT_READY" });
         const uncertainInsight = await createJobInsightRun({
           db,
           owner,
@@ -648,10 +691,10 @@ describeWithDatabase("complete local MVP service journey", () => {
           idempotencyKey: `uncertain-insight-${ids.organization}`,
           enableLocalMvp: true,
         });
-        expect(uncertainInsight.candidateJobVersionIds).toContain(ids.publishedVersion);
+        expect(uncertainInsight.candidateJobVersionIds).not.toContain(ids.publishedVersion);
         expect(
           await getRecommendationRun(db, owner, recommendation.id, { enableLocalMvp: true }),
-        ).toMatchObject({ catalogState: "current", items: [{ catalogState: "current" }] });
+        ).toMatchObject({ catalogState: "invalid", items: [{ catalogState: "invalid" }] });
 
         await db
           .updateTable("ingestion.source_job_activity_states")

@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "dingwei-consulting-internships",
   "sourceType": "university_employment_site",
+  "catalogRole": "discovery_only",
+  "runtimeScope": "local",
   "organization": {
     "slug": "dingwei-consulting",
     "name": "北京鼎帷管理顾问有限公司",
@@ -78,7 +80,7 @@
     ]
   },
   "policy": {
-    "version": "6",
+    "version": "7",
     "status": "pending_review",
     "adapterKey": "university-employment-detail-html",
     "adapterVersion": "0.1.4",
@@ -86,7 +88,7 @@
       "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4F7B3CC147F24EB6E0653A68DD0E9B18"
     ],
     "crawlInterval": {
-      "enabled": true,
+      "enabled": false,
       "minimumHours": 168
     },
     "refreshCoverage": "tracked_records",

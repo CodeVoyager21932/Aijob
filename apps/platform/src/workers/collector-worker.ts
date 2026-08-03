@@ -137,6 +137,7 @@ export async function runOneCollectorCycle(input: {
   db: Kysely<Database>;
   config: CollectorWorkerConfig;
   now?: Date;
+  sourceKeys?: readonly string[];
   executeRefresh?: typeof runScheduledSourceRefresh;
   readRefreshControl?: typeof readLocalRefreshControl;
 }): Promise<CollectorCycleResult> {
@@ -153,7 +154,12 @@ export async function runOneCollectorCycle(input: {
       return { state: "disabled" as const };
     }
     const due = (
-      await selectDueSourceRefreshes(connection, now, undefined, await listSourceKeys())
+      await selectDueSourceRefreshes(
+        connection,
+        now,
+        undefined,
+        input.sourceKeys ?? (await listSourceKeys()),
+      )
     )[0];
     if (!due) return { state: "circuit_open_or_not_due" as const };
 
@@ -174,6 +180,8 @@ export async function runOneCollectorCycle(input: {
     if (
       sourceConfig.policy.version !== due.policyVersion ||
       sourceConfig.policy.adapterVersion !== due.adapterVersion ||
+      sourceConfig.catalogRole !== "canonical" ||
+      sourceConfig.runtimeScope !== "local" ||
       !sourceConfig.policy.crawlInterval.enabled
     ) {
       const errorCode = "SCHEDULED_TASK_POLICY_STALE";

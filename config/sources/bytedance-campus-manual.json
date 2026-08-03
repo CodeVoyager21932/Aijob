@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "bytedance-campus-manual",
   "sourceType": "organization_career_site",
+  "catalogRole": "canonical",
+  "runtimeScope": "local",
   "organization": {
     "slug": "bytedance",
     "name": "字节跳动",

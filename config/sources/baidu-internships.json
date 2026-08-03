@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "baidu-internships",
   "sourceType": "organization_career_site",
+  "catalogRole": "canonical",
+  "runtimeScope": "local",
   "organization": {
     "slug": "baidu",
     "name": "百度",
@@ -81,23 +83,24 @@
     ]
   },
   "policy": {
-    "version": "3",
-    "status": "pending_review",
+    "version": "4",
+    "status": "paused",
     "adapterKey": "baidu-ssr-deterministic-html",
     "adapterVersion": "0.1.1",
     "entrypoints": ["https://talent.baidu.com/jobs/list?recruitType=INTERN"],
     "crawlInterval": {
-      "enabled": true,
+      "enabled": false,
       "minimumHours": 24
     },
     "refreshCoverage": "tracked_records",
     "absencePolicy": "none",
-    "reviewedAt": "2026-08-01",
+    "reviewedAt": "2026-08-03",
     "policyNotes": [
       "ADR-0026 仅允许本机 collector-worker 按 24 小时间隔执行单页低频刷新；不得用于 CI、公开或远程环境。",
-      "来源继续为 pending_review，只能进入本机目录；禁止自动发布和公开展示。",
+      "来源现为 paused；历史修订只保留证据，不进入当前目录，禁止自动发布和公开展示。",
       "禁止登录、验证码绕过、浏览器自动化、推荐码和未登记网络目标。",
       "只读取首屏 SSR 数据；若页面改为客户端动态加载、出现验证码或结构变化，立即暂停并复核。",
+      "2026-08-03 计划刷新返回 BAIDU_INITIAL_DATA_INVALID_JSON；未导入岗位，自动化保持暂停，等待重新核验官网 SSR 契约。",
       "v2 将适配器升级至 0.1.1，使用字符串感知的平衡花括号解析 SSR JSON，兼容同一脚本中的后续官方初始化语句；字段范围和网络目标不变。"
     ],
     "fetchTargets": [
@@ -124,7 +127,7 @@
     ]
   },
   "localProbe": {
-    "enabled": true,
+    "enabled": false,
     "environment": "local",
     "requestBudget": {
       "maxItems": 10,

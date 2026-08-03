@@ -17,7 +17,7 @@ describe("formal product domain presentation", () => {
     ).toEqual({
       text: "未说明",
       state: "unknown",
-      note: "官方页面没有明确说明，不能当作符合。",
+      note: "当前企业官网或官方 ATS 没有明确说明，不能当作符合。",
     });
   });
 

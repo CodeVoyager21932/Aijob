@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
+  type CreateRecommendationRunRequest,
+  CreateRecommendationRunRequestSchema,
   fieldValueSchema,
   JobFamilySchema,
   JobPreferenceSchema,
@@ -8,6 +10,7 @@ import {
   type MatchRunResult,
   MatchRunResultSchema,
   MatchRunSchema,
+  MAX_RECOMMENDATION_CANDIDATES,
   ProfileFactSchema,
   type RecommendationCatalogState,
   type RecommendationRun,
@@ -127,9 +130,17 @@ async function requirementSetForVersion(
   versionId: string,
   options: MatchCatalogOptions,
 ) {
+  const eligibilityColumn = options.enableLocalMvp
+    ? ("versionEligibility.eligible_for_local_mvp" as const)
+    : ("versionEligibility.eligible_for_alpha" as const);
   const row = await db
     .selectFrom("catalog.published_job_versions as version")
     .innerJoin("catalog.published_jobs as job", "job.id", "version.published_job_id")
+    .innerJoin(
+      "catalog.job_version_eligibility as versionEligibility",
+      "versionEligibility.published_job_version_id",
+      "version.id",
+    )
     .innerJoin(
       "catalog.job_requirement_sets as requirements",
       "requirements.id",
@@ -142,6 +153,7 @@ async function requirementSetForVersion(
       "=",
       "version.id",
     )
+    .where(eligibilityColumn, "=", true)
     .where(sql<boolean>`EXISTS (
       SELECT 1
       FROM catalog.current_job_effective_activity AS activity
@@ -332,7 +344,11 @@ export async function getMatchRun(
   return row ? mapMatchRun(row) : null;
 }
 
-async function loadMatchInputs(db: DbExecutor, run: MatchRunRow) {
+async function loadMatchInputs(
+  db: DbExecutor,
+  run: MatchRunRow,
+  options: MatchCatalogOptions,
+) {
   const [requirementSet, factRevision, preferenceRevision, evidenceRevision, jobVersion] =
     await Promise.all([
       db
@@ -360,6 +376,12 @@ async function loadMatchInputs(db: DbExecutor, run: MatchRunRow) {
         .executeTakeFirstOrThrow(),
       db
         .selectFrom("catalog.published_job_versions as version")
+        .innerJoin("catalog.published_jobs as job", "job.id", "version.published_job_id")
+        .innerJoin(
+          "catalog.job_version_eligibility as eligibility",
+          "eligibility.published_job_version_id",
+          "version.id",
+        )
         .innerJoin(
           "catalog.job_condition_projections as projection",
           "projection.published_job_version_id",
@@ -375,6 +397,18 @@ async function loadMatchInputs(db: DbExecutor, run: MatchRunRow) {
         ])
         .where("version.id", "=", run.published_job_version_id)
         .where("projection.requirement_set_id", "=", run.requirement_set_id)
+        .whereRef(
+          options.enableLocalMvp ? "job.current_version_id" : "job.public_version_id",
+          "=",
+          "version.id",
+        )
+        .where(
+          options.enableLocalMvp
+            ? "eligibility.eligible_for_local_mvp"
+            : "eligibility.eligible_for_alpha",
+          "=",
+          true,
+        )
         .executeTakeFirstOrThrow(),
     ]);
 
@@ -402,8 +436,12 @@ async function loadMatchInputs(db: DbExecutor, run: MatchRunRow) {
   };
 }
 
-async function computeMatchResult(db: DbExecutor, run: MatchRunRow): Promise<MatchRunResult> {
-  const inputs = await loadMatchInputs(db, run);
+async function computeMatchResult(
+  db: DbExecutor,
+  run: MatchRunRow,
+  options: MatchCatalogOptions,
+): Promise<MatchRunResult> {
+  const inputs = await loadMatchInputs(db, run, options);
   return MatchRunResultSchema.parse(evaluateThreeAxisMatch(inputs));
 }
 
@@ -412,6 +450,7 @@ export async function processMatchRun(
   owner: OwnerContext,
   runId: string,
   lease: OwnerTaskLease,
+  options: MatchCatalogOptions,
 ): Promise<void> {
   const run = await withOwnerTaskLease(db, lease, async (transaction) => {
     const current = await transaction
@@ -434,7 +473,7 @@ export async function processMatchRun(
   });
   if (!run || run.status === "deleted" || run.status === "succeeded") return;
   try {
-    const result = await computeMatchResult(db, run);
+    const result = await computeMatchResult(db, run, options);
     await withOwnerTaskLease(db, lease, async (transaction) => {
       await transaction
         .updateTable("matching.match_runs")
@@ -469,12 +508,7 @@ export async function processMatchRun(
   }
 }
 
-type RecommendationInput = {
-  profileFactRevisionId: string;
-  preferenceRevisionId: string;
-  evidenceRevisionId: string;
-  candidateJobVersionIds: string[];
-};
+type RecommendationInput = CreateRecommendationRunRequest;
 
 export interface RecommendationCatalogOptions {
   enableLocalMvp: boolean;
@@ -483,7 +517,11 @@ export interface RecommendationCatalogOptions {
 function parseRecommendationCandidateIds(
   row: Selectable<Database["matching.recommendation_runs"]>,
 ): string[] {
-  return z.array(z.string().trim().min(1)).min(1).parse(row.candidate_job_version_ids);
+  return z
+    .array(z.string().trim().min(1))
+    .min(1)
+    .max(MAX_RECOMMENDATION_CANDIDATES)
+    .parse(row.candidate_job_version_ids);
 }
 
 function parseRecommendationCandidateSnapshots(
@@ -492,6 +530,7 @@ function parseRecommendationCandidateSnapshots(
   if (row.candidate_freshness_snapshots === null) return new Map();
   const snapshots = RecommendationCandidateFreshnessSnapshotSchema.array()
     .min(1)
+    .max(MAX_RECOMMENDATION_CANDIDATES)
     .parse(row.candidate_freshness_snapshots);
   return new Map(snapshots.map((snapshot) => [snapshot.publishedJobVersionId, snapshot]));
 }
@@ -504,7 +543,9 @@ const FrozenRequirementSetSchema = z.object({
 function parseFrozenRequirementSets(
   row: Selectable<Database["matching.recommendation_runs"]>,
 ): Map<string, string> {
-  const parsed = FrozenRequirementSetSchema.array().safeParse(row.candidate_requirement_set_ids);
+  const parsed = FrozenRequirementSetSchema.array()
+    .max(MAX_RECOMMENDATION_CANDIDATES)
+    .safeParse(row.candidate_requirement_set_ids);
   if (!parsed.success) return new Map();
   const entries = parsed.data;
   return new Map(entries.map((entry) => [entry.publishedJobVersionId, entry.requirementSetId]));
@@ -534,6 +575,11 @@ async function currentCatalogCandidateSnapshots(
         .onRef("policy.source_id", "=", "source.id")
         .onRef("policy.version", "=", "source.current_policy_version"),
     )
+    .innerJoin(
+      "catalog.job_version_eligibility as versionEligibility",
+      "versionEligibility.published_job_version_id",
+      "version.id",
+    )
     .select(({ fn }) => [
       "version.id as publishedJobVersionId",
       fn.max("record.last_seen_at").as("lastVerifiedAt"),
@@ -549,11 +595,13 @@ async function currentCatalogCandidateSnapshots(
     .groupBy("version.id");
   query = enableLocalMvp
     ? query
+        .where("versionEligibility.eligible_for_local_mvp", "=", true)
         .whereRef("job.current_version_id", "=", "version.id")
         .where("revision.ingestion_state", "=", "validated")
         .where("revision.publication_state", "in", ["review", "published"])
         .where("policy.policy_status", "in", ["pending_review", "approved"])
     : query
+        .where("versionEligibility.eligible_for_alpha", "=", true)
         .whereRef("job.public_version_id", "=", "version.id")
         .where("revision.ingestion_state", "=", "validated")
         .where("revision.publication_state", "=", "published")
@@ -588,6 +636,9 @@ async function recommendationCatalogContext(
   const candidateIds = parseRecommendationCandidateIds(row);
   const snapshots = parseRecommendationCandidateSnapshots(row);
   const frozenRequirementSets = parseFrozenRequirementSets(row);
+  const eligibilityColumn = enableLocalMvp
+    ? ("versionEligibility.eligible_for_local_mvp as catalogEligible" as const)
+    : ("versionEligibility.eligible_for_alpha as catalogEligible" as const);
   let query = db
     .selectFrom("catalog.published_job_versions as candidate")
     .innerJoin("catalog.published_jobs as job", "job.id", "candidate.published_job_id")
@@ -605,6 +656,11 @@ async function recommendationCatalogContext(
       "ingestion.source_job_records as currentRecord",
       "currentRecord.id",
       "currentRevision.source_job_record_id",
+    )
+    .innerJoin(
+      "catalog.job_version_eligibility as versionEligibility",
+      "versionEligibility.published_job_version_id",
+      "current.id",
     )
     .innerJoin(
       "source_control.sources as currentSource",
@@ -629,6 +685,7 @@ async function recommendationCatalogContext(
       "currentRevision.ingestion_state as ingestionState",
       "currentRevision.publication_state as publicationState",
       "currentPolicy.policy_status as policyStatus",
+      eligibilityColumn,
     ])
     .where("candidate.id", "in", candidateIds);
   query = enableLocalMvp
@@ -648,6 +705,7 @@ async function recommendationCatalogContext(
     if (
       !snapshots.has(candidateId) ||
       !candidate ||
+      !candidate.catalogEligible ||
       candidate.currentVersionId === null ||
       (candidate.effectiveActivityState !== "active" &&
         candidate.effectiveActivityState !== "uncertain") ||
@@ -692,9 +750,10 @@ export async function enqueueRecommendationRun(
   if (!idempotencyKey.trim()) {
     throw new ServiceError(400, "IDEMPOTENCY_KEY_REQUIRED", "创建推荐任务时必须提供幂等键。");
   }
+  const parsedRequest = CreateRecommendationRunRequestSchema.parse(request);
   const normalizedRequest = {
-    ...request,
-    candidateJobVersionIds: [...new Set(request.candidateJobVersionIds)].sort(),
+    ...parsedRequest,
+    candidateJobVersionIds: [...new Set(parsedRequest.candidateJobVersionIds)].sort(),
   };
   const requestHash = hashCanonicalJson(normalizedRequest);
   const candidateSetHash = hashCanonicalJson(normalizedRequest.candidateJobVersionIds);
@@ -721,7 +780,7 @@ export async function enqueueRecommendationRun(
       }
       return previous;
     }
-    await assertProfileInputs(transaction, owner, request);
+    await assertProfileInputs(transaction, owner, parsedRequest);
 
     const existingCandidates = await transaction
       .selectFrom("catalog.published_job_versions")
@@ -759,7 +818,7 @@ export async function enqueueRecommendationRun(
     const evidenceRevision = await transaction
       .selectFrom("profile.resume_evidence_revisions")
       .select("document_revision_id")
-      .where("id", "=", request.evidenceRevisionId)
+      .where("id", "=", parsedRequest.evidenceRevisionId)
       .where("owner_id", "=", owner.ownerId)
       .executeTakeFirstOrThrow();
     const created = await transaction
@@ -768,9 +827,9 @@ export async function enqueueRecommendationRun(
         id,
         owner_id: owner.ownerId,
         owner_epoch: owner.ownerEpoch,
-        profile_fact_revision_id: request.profileFactRevisionId,
-        preference_revision_id: request.preferenceRevisionId,
-        evidence_revision_id: request.evidenceRevisionId,
+        profile_fact_revision_id: parsedRequest.profileFactRevisionId,
+        preference_revision_id: parsedRequest.preferenceRevisionId,
+        evidence_revision_id: parsedRequest.evidenceRevisionId,
         candidate_job_version_ids: json(normalizedRequest.candidateJobVersionIds),
         candidate_freshness_snapshots: json(candidateSnapshots),
         candidate_requirement_set_ids: json(frozenRequirementSets),
@@ -910,6 +969,7 @@ export async function processRecommendationRun(
   owner: OwnerContext,
   runId: string,
   lease: OwnerTaskLease,
+  options: RecommendationCatalogOptions,
 ): Promise<void> {
   const recommendation = await withOwnerTaskLease(db, lease, async (transaction) => {
     const current = await transaction
@@ -939,6 +999,18 @@ export async function processRecommendationRun(
   }
   try {
     const candidateIds = parseRecommendationCandidateIds(recommendation);
+    const currentCandidates = await currentCatalogCandidateSnapshots(
+      db,
+      candidateIds,
+      options.enableLocalMvp,
+    );
+    if (currentCandidates.length !== candidateIds.length) {
+      throw new ServiceError(
+        409,
+        "CANDIDATE_JOB_NOT_IN_CURRENT_CATALOG",
+        "候选岗位在任务执行前已退出当前可信目录，请重新生成推荐。",
+      );
+    }
     const candidateSnapshots = parseRecommendationCandidateSnapshots(recommendation);
     const frozenRequirementSets = parseFrozenRequirementSets(recommendation);
     if (
@@ -1013,7 +1085,7 @@ export async function processRecommendationRun(
       const result =
         matchRun.status === "succeeded" && matchRun.result
           ? parseStoredMatchRunResult(matchRun.result)
-          : await computeMatchResult(db, matchRun);
+          : await computeMatchResult(db, matchRun, options);
       if (matchRun.status !== "succeeded") {
         await withOwnerTaskLease(db, lease, async (transaction) => {
           await transaction

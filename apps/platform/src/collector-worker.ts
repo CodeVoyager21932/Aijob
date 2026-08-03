@@ -1,10 +1,14 @@
 import { toSafeConfigLog } from "@aijob/config";
-import { createDatabase } from "@aijob/database";
-import { loadPlatformConfig } from "./config/platform-config.js";
+import {
+  assertDatabaseRoleMembership,
+  createDatabase,
+  DatabaseRuntimeRole,
+} from "@aijob/database";
+import { databaseUrlForRuntime, loadPlatformConfig } from "./config/platform-config.js";
 import { runCollectorWorker } from "./workers/collector-worker.js";
 
 const appConfig = loadPlatformConfig();
-const db = createDatabase(appConfig.databaseUrl);
+const db = createDatabase(databaseUrlForRuntime(appConfig, "collectorWorker"));
 const controller = new AbortController();
 
 async function shutdown(signal: string): Promise<void> {
@@ -16,6 +20,11 @@ process.once("SIGINT", () => void shutdown("SIGINT"));
 process.once("SIGTERM", () => void shutdown("SIGTERM"));
 
 try {
+  await assertDatabaseRoleMembership({
+    db,
+    role: DatabaseRuntimeRole.collectorWorker,
+    required: appConfig.appEnv === "alpha" || appConfig.appEnv === "production",
+  });
   console.info({ config: toSafeConfigLog(appConfig) }, "Aijob collector worker started");
   await runCollectorWorker({
     db,

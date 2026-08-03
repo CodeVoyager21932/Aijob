@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "hanxu-tech-internships",
   "sourceType": "university_employment_site",
+  "catalogRole": "discovery_only",
+  "runtimeScope": "local",
   "organization": {
     "slug": "hanxu-tech",
     "name": "寒序科技（北京）有限公司",
@@ -85,7 +87,7 @@
     ]
   },
   "policy": {
-    "version": "4",
+    "version": "5",
     "status": "pending_review",
     "adapterKey": "university-employment-detail-html",
     "adapterVersion": "0.1.4",
@@ -94,7 +96,7 @@
       "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4CCEE37BBB2DB309E0653A68DD0E9B18"
     ],
     "crawlInterval": {
-      "enabled": true,
+      "enabled": false,
       "minimumHours": 168
     },
     "refreshCoverage": "tracked_records",

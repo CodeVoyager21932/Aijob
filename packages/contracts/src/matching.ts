@@ -186,11 +186,16 @@ export const MatchRunSchema = z.object({
 });
 export type MatchRun = z.infer<typeof MatchRunSchema>;
 
+export const MAX_RECOMMENDATION_CANDIDATES = 1_100;
+
 export const CreateRecommendationRunRequestSchema = z.object({
   profileFactRevisionId: IdentifierSchema,
   preferenceRevisionId: IdentifierSchema,
   evidenceRevisionId: IdentifierSchema,
-  candidateJobVersionIds: z.array(IdentifierSchema).min(1).max(500),
+  candidateJobVersionIds: z
+    .array(IdentifierSchema)
+    .min(1)
+    .max(MAX_RECOMMENDATION_CANDIDATES),
 });
 export type CreateRecommendationRunRequest = z.infer<typeof CreateRecommendationRunRequestSchema>;
 

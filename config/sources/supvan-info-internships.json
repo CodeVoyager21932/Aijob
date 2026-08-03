@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "supvan-info-internships",
   "sourceType": "university_employment_site",
+  "catalogRole": "discovery_only",
+  "runtimeScope": "local",
   "organization": {
     "slug": "supvan-info",
     "name": "北京硕方信息技术有限公司",
@@ -82,7 +84,7 @@
     ]
   },
   "policy": {
-    "version": "6",
+    "version": "7",
     "status": "pending_review",
     "adapterKey": "university-employment-detail-html",
     "adapterVersion": "0.1.4",
@@ -95,7 +97,7 @@
       "https://career.nankai.edu.cn/correcruit/content/id/116235.html"
     ],
     "crawlInterval": {
-      "enabled": true,
+      "enabled": false,
       "minimumHours": 168
     },
     "refreshCoverage": "tracked_records",

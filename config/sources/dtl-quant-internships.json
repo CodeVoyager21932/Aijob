@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "dtl-quant-internships",
   "sourceType": "university_employment_site",
+  "catalogRole": "discovery_only",
+  "runtimeScope": "local",
   "organization": {
     "slug": "dtl-quant",
     "name": "北京道泰量合私募基金管理有限公司",

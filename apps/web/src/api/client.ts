@@ -92,6 +92,10 @@ export interface ApiRequestOptions {
   headers?: HeadersInit;
 }
 
+export interface SessionStatus {
+  authenticated: boolean;
+}
+
 function isMutation(method: string): boolean {
   return method !== "GET" && method !== "HEAD" && method !== "OPTIONS";
 }
@@ -126,6 +130,28 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   if (!response.ok) throw await readProblem(response);
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
+}
+
+export function getSessionStatus(signal?: AbortSignal): Promise<SessionStatus> {
+  return apiRequest<SessionStatus>("/v1/session", { signal });
+}
+
+export async function createAlphaSession(
+  inviteCode: string,
+  signal?: AbortSignal,
+): Promise<SessionStatus> {
+  const response = await fetch(`${baseUrl}/v1/session`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    credentials: "same-origin",
+    body: JSON.stringify({ inviteCode }),
+    ...(signal ? { signal } : {}),
+  });
+  if (!response.ok) throw await readProblem(response);
+  return (await response.json()) as SessionStatus;
 }
 
 export function fileDownloadUrl(path: string): string {

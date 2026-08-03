@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "shining3d-internships",
   "sourceType": "organization_career_site",
+  "catalogRole": "canonical",
+  "runtimeScope": "local",
   "organization": {
     "slug": "shining3d",
     "name": "先临三维科技股份有限公司",

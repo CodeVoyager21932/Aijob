@@ -62,7 +62,7 @@ describe("batch source import", () => {
           return probeResult({ normalizedCount: limit, discoveredCount: limit });
         },
         materialize: async () => ({
-          eligibleRevisions: 6,
+          materializedRevisions: 6,
           createdVersions: 2,
           createdRequirementSets: 2,
           suspectedDuplicatePairs: 0,

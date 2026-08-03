@@ -1,3 +1,4 @@
+import { MAX_RECOMMENDATION_CANDIDATES } from "@aijob/contracts";
 import type {
   CreateJobInsightRunRequest,
   CreateMatchRunRequest,
@@ -168,6 +169,62 @@ export function jobSearchPath(filters: JobFilters): string {
 
 export function getJobs(filters: JobFilters, signal?: AbortSignal) {
   return apiRequest<JobSearchResponse>(jobSearchPath(filters), { signal });
+}
+
+export async function collectRecommendationCandidateJobs(
+  loadPage: (cursor: string | undefined) => Promise<JobSearchResponse>,
+) {
+  const items: JobSearchResponse["items"] = [];
+  const seenJobIds = new Set<string>();
+  const seenCursors = new Set<string>();
+  let cursor: string | undefined;
+
+  while (true) {
+    const page = await loadPage(cursor);
+    for (const item of page.items) {
+      if (seenJobIds.has(item.id)) {
+        throw new Error("岗位目录分页返回了重复岗位，已停止生成不完整推荐。");
+      }
+      seenJobIds.add(item.id);
+      items.push(item);
+      if (items.length > MAX_RECOMMENDATION_CANDIDATES) {
+        throw new Error(
+          `当前可信岗位超过 ${MAX_RECOMMENDATION_CANDIDATES} 条推荐容量，请先完成容量升级。`,
+        );
+      }
+    }
+
+    if (!page.nextCursor) return items;
+    if (items.length >= MAX_RECOMMENDATION_CANDIDATES) {
+      throw new Error(
+        `当前可信岗位超过 ${MAX_RECOMMENDATION_CANDIDATES} 条推荐容量，请先完成容量升级。`,
+      );
+    }
+    if (page.items.length === 0 || seenCursors.has(page.nextCursor)) {
+      throw new Error("岗位目录分页游标没有前进，已停止生成不完整推荐。");
+    }
+    seenCursors.add(page.nextCursor);
+    cursor = page.nextCursor;
+  }
+}
+
+export function getRecommendationCandidateJobs(filters: JobFilters, signal?: AbortSignal) {
+  const { cursor: _ignoredCursor, ...baseFilters } = filters;
+  return collectRecommendationCandidateJobs((cursor) =>
+    getJobs({ ...baseFilters, ...(cursor ? { cursor } : {}) }, signal),
+  );
+}
+
+export function recommendationCandidateVersionIds(items: JobSearchResponse["items"]): string[] {
+  const ids = items.map((item) => item.publishedJobVersionId);
+  if (ids.some((id) => id === null)) {
+    throw new Error("当前岗位目录含有未物化版本，不能生成可复现推荐。");
+  }
+  const versionIds = ids as string[];
+  if (new Set(versionIds).size !== versionIds.length) {
+    throw new Error("当前岗位目录含有重复岗位版本，不能生成可复现推荐。");
+  }
+  return versionIds;
 }
 
 export function getJob(jobId: string, signal?: AbortSignal) {

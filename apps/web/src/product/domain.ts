@@ -21,7 +21,7 @@ export function displayField<T>(
     return {
       text: "未说明",
       state: "unknown",
-      note: "官方页面没有明确说明，不能当作符合。",
+      note: "当前企业官网或官方 ATS 没有明确说明，不能当作符合。",
     };
   }
   if (field.state === "conflict") {
@@ -34,7 +34,7 @@ export function displayField<T>(
   return {
     text: format(field.value),
     state: "known",
-    note: "来自当前岗位版本的官方页面。",
+    note: "来自当前岗位版本的企业来源证据。",
   };
 }
 

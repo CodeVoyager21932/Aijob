@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { shouldEnableLocalSurfaces } from "./environment";
+import {
+  shouldEnableInternalSurfaces,
+  shouldEnableProductSurfaces,
+  shouldRequireAlphaAccess,
+} from "./environment";
 
 describe("local-only web surfaces", () => {
   it.each([
@@ -9,10 +13,20 @@ describe("local-only web surfaces", () => {
     { input: { isDev: false, mode: "alpha" }, expected: false },
     { input: { isDev: false, mode: "production" }, expected: false },
   ])("returns $expected for $input", ({ input, expected }) => {
-    expect(shouldEnableLocalSurfaces(input)).toBe(expected);
+    expect(shouldEnableInternalSurfaces(input)).toBe(expected);
   });
 
   it("does not enable local surfaces from an arbitrary mode name", () => {
-    expect(shouldEnableLocalSurfaces({ isDev: false, mode: "local" })).toBe(false);
+    expect(shouldEnableInternalSurfaces({ isDev: false, mode: "local" })).toBe(false);
+  });
+
+  it.each([
+    { input: { isDev: true, mode: "development" }, product: true, invite: false },
+    { input: { isDev: false, mode: "test" }, product: true, invite: false },
+    { input: { isDev: false, mode: "alpha" }, product: true, invite: true },
+    { input: { isDev: false, mode: "production" }, product: false, invite: false },
+  ])("separates product access from internal surfaces for $input", ({ input, product, invite }) => {
+    expect(shouldEnableProductSurfaces(input)).toBe(product);
+    expect(shouldRequireAlphaAccess(input)).toBe(invite);
   });
 });

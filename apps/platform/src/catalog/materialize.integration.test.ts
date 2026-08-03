@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { JobSearchQuerySchema } from "@aijob/contracts";
 import { createDatabase, migrateToLatest } from "@aijob/database";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { getInternalPreviewJob } from "../api/job-repository.js";
 import { lockLocalCatalogMaterialization, materializeLocalCatalog } from "./materialize.js";
 import { createCatalogRepository } from "./repository.js";
 
@@ -77,6 +78,10 @@ describeWithDatabase("catalog materialization revision links", () => {
         .where("id", "=", ids.record)
         .execute();
       await transaction
+        .deleteFrom("source_control.source_runtime_states")
+        .where("source_id", "=", ids.source)
+        .execute();
+      await transaction
         .deleteFrom("source_control.source_policy_versions")
         .where("source_id", "=", ids.source)
         .execute();
@@ -119,14 +124,29 @@ describeWithDatabase("catalog materialization revision links", () => {
         source_id: ids.source,
         version: 1,
         policy_status: "pending_review",
+        config_registered: true,
+        catalog_role: "canonical",
+        runtime_scope: "local",
         provenance_level: "organization_owned",
         acquisition_mode: "public_api",
         adapter_key: "semantic-link-test",
         adapter_version: "2",
         entrypoints: JSON.stringify(["https://semantic-link.example.test/jobs"]),
-        crawl_interval: null,
+        crawl_interval: "24h",
         policy_notes: "Offline integration fixture.",
         reviewed_at: null,
+      })
+      .execute();
+    await db
+      .insertInto("source_control.source_runtime_states")
+      .values({
+        source_id: ids.source,
+        policy_version: 1,
+        freshness_state: "fresh",
+        last_complete_run_at: secondObservedAt,
+        consecutive_failures: 0,
+        last_error_code: null,
+        next_due_at: null,
       })
       .execute();
     await db
@@ -334,6 +354,10 @@ describeWithDatabase("catalog company quota selections (ADR-0021)", () => {
         .where("id", "in", recordIds)
         .execute();
       await transaction
+        .deleteFrom("source_control.source_runtime_states")
+        .where("source_id", "in", [ids.largeSource, ids.smeSource])
+        .execute();
+      await transaction
         .deleteFrom("source_control.source_policy_versions")
         .where("source_id", "in", [ids.largeSource, ids.smeSource])
         .execute();
@@ -402,14 +426,31 @@ describeWithDatabase("catalog company quota selections (ADR-0021)", () => {
           source_id: sourceId,
           version: 1,
           policy_status: "pending_review",
+          config_registered: true,
+          catalog_role: "canonical",
+          runtime_scope: "local",
           provenance_level: "organization_owned",
           acquisition_mode: "public_api",
           adapter_key: "quota-test",
           adapter_version: "1",
           entrypoints: JSON.stringify(["https://quota.example.test/jobs"]),
-          crawl_interval: null,
+          crawl_interval: "24h",
           policy_notes: "Offline integration fixture.",
           reviewed_at: null,
+        })),
+      )
+      .execute();
+    await db
+      .insertInto("source_control.source_runtime_states")
+      .values(
+        [ids.largeSource, ids.smeSource].map((sourceId) => ({
+          source_id: sourceId,
+          policy_version: 1,
+          freshness_state: "fresh",
+          last_complete_run_at: new Date(),
+          consecutive_failures: 0,
+          last_error_code: null,
+          next_due_at: null,
         })),
       )
       .execute();
@@ -573,6 +614,7 @@ describeWithDatabase("catalog company quota selections (ADR-0021)", () => {
           .executeTakeFirstOrThrow()
       ).count,
     );
+    expect(await getInternalPreviewJob(db, trackedRecordId)).not.toBeNull();
 
     await db
       .insertInto("ingestion.source_job_activity_states")
@@ -591,11 +633,8 @@ describeWithDatabase("catalog company quota selections (ADR-0021)", () => {
     const uncertain = await catalog.search(
       JobSearchQuerySchema.parse({ keyword: trackedJob.title, limit: 10 }),
     );
-    expect(uncertain.items).toHaveLength(1);
-    expect(uncertain.items[0]).toMatchObject({
-      activityState: "uncertain",
-      displayStatus: "unknown",
-    });
+    expect(uncertain.items).toHaveLength(0);
+    expect(await getInternalPreviewJob(db, trackedRecordId)).toBeNull();
 
     await db
       .updateTable("ingestion.source_job_activity_states")
@@ -645,5 +684,6 @@ describeWithDatabase("catalog company quota selections (ADR-0021)", () => {
     );
     expect(restored.items).toHaveLength(1);
     expect(restored.items[0]).toMatchObject({ activityState: "active" });
+    expect(await getInternalPreviewJob(db, trackedRecordId)).not.toBeNull();
   }, 30_000);
 });

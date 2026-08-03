@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "jd-campus-internships",
   "sourceType": "organization_career_site",
+  "catalogRole": "canonical",
+  "runtimeScope": "local",
   "organization": {
     "slug": "jd",
     "name": "京东",

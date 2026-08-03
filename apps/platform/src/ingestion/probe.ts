@@ -2204,7 +2204,11 @@ export async function runSourceProbe(input: {
   runtime: ProbeRuntimeConfig;
   sourceKey: string;
   limit: number;
+  liveProbeApproved: boolean;
 }): Promise<ProbeResult> {
+  if (input.runtime.appEnv !== "test" && !input.liveProbeApproved) {
+    throw new Error("SOURCE_PROBE_LIVE_CONFIRMATION_REQUIRED");
+  }
   return runSourceCrawl({
     ...input,
     runMode: "probe",

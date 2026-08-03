@@ -107,12 +107,12 @@ export function InternalPreviewJobDetailPage() {
 
       <div className="detail-columns">
         <section className="detail-section prose-section" aria-labelledby="responsibilities-title">
-          <p className="eyebrow">官方原文</p>
+          <p className="eyebrow">来源原文</p>
           <h2 id="responsibilities-title">岗位职责</h2>
           <FieldText field={job.responsibilities} />
         </section>
         <section className="detail-section prose-section" aria-labelledby="requirements-title">
-          <p className="eyebrow">官方原文</p>
+          <p className="eyebrow">来源原文</p>
           <h2 id="requirements-title">岗位要求</h2>
           <FieldText field={job.requirements} />
         </section>

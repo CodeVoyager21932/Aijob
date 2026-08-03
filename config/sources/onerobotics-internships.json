@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "onerobotics-internships",
   "sourceType": "organization_career_site",
+  "catalogRole": "canonical",
+  "runtimeScope": "local",
   "organization": {
     "slug": "onerobotics",
     "name": "卧安机器人（深圳）股份有限公司",

@@ -203,17 +203,22 @@ async function dispatchTask(
         ownerEpoch: owner.ownerEpoch,
         encryptionKey: config.resumeEncryptionKey,
         lease,
+        ...(signal === undefined ? {} : { signal }),
       });
       return;
     }
     case "match_run": {
       const { runId } = RunPayloadSchema.parse(task.payload);
-      await processMatchRun(db, owner, runId, lease);
+      await processMatchRun(db, owner, runId, lease, {
+        enableLocalMvp: config.enableLocalMvp,
+      });
       return;
     }
     case "recommendation_run": {
       const { runId } = RunPayloadSchema.parse(task.payload);
-      await processRecommendationRun(db, owner, runId, lease);
+      await processRecommendationRun(db, owner, runId, lease, {
+        enableLocalMvp: config.enableLocalMvp,
+      });
       return;
     }
     case "resume_tailoring": {

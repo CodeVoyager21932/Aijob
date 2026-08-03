@@ -30,7 +30,10 @@ const organizationSchema = z.object({
 
 function enforceOfficialAccountBoundary(
   value: {
+    sourceKey: string;
     sourceType: string;
+    catalogRole?: string | undefined;
+    runtimeScope?: string | undefined;
     candidate: { provenanceLevel: string; acquisitionMode: string };
     policy: {
       status: string;
@@ -80,6 +83,44 @@ function enforceSourceBoundaries(
   value: Parameters<typeof enforceOfficialAccountBoundary>[0],
   context: z.RefinementCtx,
 ): void {
+  const effectiveCatalogRole =
+    value.catalogRole ??
+    (value.candidate.provenanceLevel === "organization_owned" ||
+    value.candidate.provenanceLevel === "verified_ats_tenant"
+      ? "canonical"
+      : value.candidate.provenanceLevel === "university_published" ||
+          value.candidate.provenanceLevel === "official_account_link"
+        ? "discovery_only"
+        : "disabled");
+  if (
+    effectiveCatalogRole === "canonical" &&
+    value.candidate.provenanceLevel !== "organization_owned" &&
+    value.candidate.provenanceLevel !== "verified_ats_tenant"
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["catalogRole"],
+      message: "canonical catalog sources require organization_owned or verified_ats_tenant provenance",
+    });
+  }
+  if (effectiveCatalogRole !== "canonical" && value.policy.crawlInterval.enabled) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["policy", "crawlInterval", "enabled"],
+      message: "discovery-only and disabled sources cannot enable automatic refresh",
+    });
+  }
+  if (
+    value.runtimeScope === "test" &&
+    !value.sourceKey.endsWith("-test") &&
+    !value.sourceKey.startsWith("test-")
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["runtimeScope"],
+      message: "test runtime sources require a test source key",
+    });
+  }
   if (
     value.candidate.acquisitionMode === "browser_required" &&
     value.policy.refreshCoverage !== "manual_snapshot"
@@ -179,12 +220,32 @@ const crawlIntervalSchema = z.object({
 
 const refreshCoverageSchema = z.enum(["full_scope", "tracked_records", "manual_snapshot"]);
 const absencePolicySchema = z.enum(["none", "close_after_two_complete_absences"]);
+const catalogRoleSchema = z.enum(["canonical", "discovery_only", "disabled"]);
+const runtimeScopeSchema = z.enum(["test", "local", "alpha", "production"]);
+
+function defaultCatalogRole(provenanceLevel: z.infer<typeof ProvenanceLevelSchema>) {
+  if (provenanceLevel === "organization_owned" || provenanceLevel === "verified_ats_tenant") {
+    return "canonical" as const;
+  }
+  if (provenanceLevel === "university_published" || provenanceLevel === "official_account_link") {
+    return "discovery_only" as const;
+  }
+  return "disabled" as const;
+}
+
+function defaultRuntimeScope(sourceKey: string) {
+  return sourceKey.endsWith("-test") || sourceKey.startsWith("test-")
+    ? ("test" as const)
+    : ("local" as const);
+}
 
 const normalizedSourceConfigSchema = z
   .object({
     schemaVersion: z.literal(1),
     sourceKey: z.string().regex(/^[a-z0-9-]+$/),
     sourceType: SourceTypeSchema,
+    catalogRole: catalogRoleSchema,
+    runtimeScope: runtimeScopeSchema,
     organization: organizationSchema,
     candidate: z.object({
       name: z.string().min(1),
@@ -251,6 +312,8 @@ const rawSourceConfigSchema = z
     schemaVersion: z.literal("1.0.0"),
     sourceKey: z.string().regex(/^[a-z0-9-]+$/),
     sourceType: SourceTypeSchema,
+    catalogRole: catalogRoleSchema.optional(),
+    runtimeScope: runtimeScopeSchema.optional(),
     organization: organizationSchema,
     candidate: z.object({
       name: z.string().min(1),
@@ -361,6 +424,8 @@ export function parseSourceConfigValue(value: unknown, expectedSourceKey?: strin
     schemaVersion: 1,
     sourceKey: raw.sourceKey,
     sourceType: raw.sourceType,
+    catalogRole: raw.catalogRole ?? defaultCatalogRole(raw.candidate.provenanceLevel),
+    runtimeScope: raw.runtimeScope ?? defaultRuntimeScope(raw.sourceKey),
     organization: raw.organization,
     candidate: {
       name: raw.candidate.name,

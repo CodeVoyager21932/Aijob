@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { apiRequest, cookieValue } from "./client";
+import { apiRequest, cookieValue, createAlphaSession, getSessionStatus } from "./client";
 
 describe("product API client", () => {
   afterEach(() => {
@@ -60,5 +60,47 @@ describe("product API client", () => {
       code: "REVISION_CONFLICT",
       correlationId: "request-1",
     });
+  });
+
+  it("checks session state without creating a mutation", async () => {
+    let captured: RequestInit | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        captured = init;
+        return new Response(JSON.stringify({ authenticated: false }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+
+    await expect(getSessionStatus()).resolves.toEqual({ authenticated: false });
+    expect(captured?.method).toBe("GET");
+    expect(captured?.credentials).toBe("same-origin");
+  });
+
+  it("creates an Alpha session without requiring a pre-existing CSRF cookie", async () => {
+    let captured: RequestInit | undefined;
+    vi.stubGlobal("document", { cookie: "" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        captured = init;
+        return new Response(JSON.stringify({ authenticated: true }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+
+    await expect(createAlphaSession("alpha-private-invite-code")).resolves.toEqual({
+      authenticated: true,
+    });
+    const headers = new Headers(captured?.headers);
+    expect(captured?.method).toBe("POST");
+    expect(captured?.credentials).toBe("same-origin");
+    expect(headers.get("x-csrf-token")).toBeNull();
+    expect(captured?.body).toBe(JSON.stringify({ inviteCode: "alpha-private-invite-code" }));
   });
 });

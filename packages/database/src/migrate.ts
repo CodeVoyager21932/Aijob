@@ -18,6 +18,10 @@ import { freezeJobInsightSourceVerificationsMigration } from "./migrations/015_f
 import { companyQuotaSelectionsMigration } from "./migrations/016_company_quota_selections.js";
 import { sourceRefreshAutomationMigration } from "./migrations/017_source_refresh_automation.js";
 import { adapterDescriptorsAndManualRunsMigration } from "./migrations/018_adapter_descriptors_and_manual_runs.js";
+import { officialSourceCatalogEligibilityMigration } from "./migrations/019_official_source_catalog_eligibility.js";
+import { registeredSourceAndJobFreshnessMigration } from "./migrations/020_registered_source_and_job_freshness.js";
+import { runtimeDatabaseRolesMigration } from "./migrations/021_runtime_database_roles.js";
+import { matchWorkerOwnerDeletionPrivilegesMigration } from "./migrations/022_match_worker_owner_deletion_privileges.js";
 import type { Database } from "./types.js";
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -44,6 +48,11 @@ class StaticMigrationProvider implements MigrationProvider {
       "016_company_quota_selections": companyQuotaSelectionsMigration,
       "017_source_refresh_automation": sourceRefreshAutomationMigration,
       "018_adapter_descriptors_and_manual_runs": adapterDescriptorsAndManualRunsMigration,
+      "019_official_source_catalog_eligibility": officialSourceCatalogEligibilityMigration,
+      "020_registered_source_and_job_freshness": registeredSourceAndJobFreshnessMigration,
+      "021_runtime_database_roles": runtimeDatabaseRolesMigration,
+      "022_match_worker_owner_deletion_privileges":
+        matchWorkerOwnerDeletionPrivilegesMigration,
     };
   }
 }

@@ -50,6 +50,8 @@ describeWithDatabase("adapter descriptors and manual runs migration", () => {
         source_id: sourceId,
         version: 1,
         policy_status: "pending_review",
+        catalog_role: "disabled",
+        runtime_scope: "test",
         provenance_level: "official_first_party",
         acquisition_mode: "browser_required",
         adapter_key: "bytedance-manual-browser-snapshot",

@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "nankai-tal-2027",
   "sourceType": "university_employment_site",
+  "catalogRole": "discovery_only",
+  "runtimeScope": "local",
   "organization": {
     "slug": "nankai-career",
     "name": "南开大学就业指导中心",
@@ -80,13 +82,13 @@
     ]
   },
   "policy": {
-    "version": "3",
+    "version": "4",
     "status": "pending_review",
     "adapterKey": "nankai-tal-deterministic-html",
     "adapterVersion": "0.1.0",
     "entrypoints": ["https://career.nankai.edu.cn/correcruit/content/id/115842.html"],
     "crawlInterval": {
-      "enabled": true,
+      "enabled": false,
       "minimumHours": 24
     },
     "refreshCoverage": "tracked_records",

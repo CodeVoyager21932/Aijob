@@ -2,6 +2,8 @@
   "schemaVersion": "1.0.0",
   "sourceKey": "allwinner-gdut-internships",
   "sourceType": "university_employment_site",
+  "catalogRole": "discovery_only",
+  "runtimeScope": "local",
   "organization": {
     "slug": "allwinner",
     "name": "珠海全志科技股份有限公司",
