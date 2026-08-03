@@ -1,0 +1,184 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "weride-nankai-internships",
+  "sourceType": "university_employment_site",
+  "organization": {
+    "slug": "weride-nankai",
+    "name": "上海文远知行汽车科技有限公司",
+    "officialDomain": "weride.ai",
+    "scale": {
+      "band": "unknown",
+      "evidenceUrl": null,
+      "evidenceText": null,
+      "lastVerifiedAt": null
+    }
+  },
+  "candidate": {
+    "name": "南开就业网·文远知行实习",
+    "entrypointUrl": "https://career.nankai.edu.cn/correcruit/content/id/116336.html",
+    "provenanceLevel": "university_published",
+    "acquisitionMode": "deterministic_html",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-browser-preflight",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "南开大学官方实习信息页明确主体为上海文远知行汽车科技有限公司；页面企业域名邮箱为 weride-hr@weride.ai，文远知行官网为 weride.ai。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "116336 算法实习生与 116337 研发实习生均明确标记实习，职责与任职要求完整，分别显示招聘人数 15 人。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "两张南开详情页可匿名读取，不依赖登录、验证码、Cookie、CSRF 或动态签名。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "页面同时明示 weride.ai 企业域名邮箱与官方 Moka 校园申请链接；本适配器采用页面明示的企业域名邮箱。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "未取得第三方长期复制和公开聚合授权，仅进入本机 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "南开 correcruit 结构已冻结，待首批自动运行、同小时重放和逐条抽检确认持续稳定性。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 8,
+        "status": "provisional",
+        "note": "同一企业两条完整研发与算法实习，页面分别显示招聘人数 15 人。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过，分数不能覆盖该失败。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 17,
+        "status": "provisional",
+        "note": "南开服务端详情页的标题、职责、要求、邮箱、地域和发布时间可确定性解析。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 10,
+        "status": "provisional",
+        "note": "页面发布时间为 2026-07-21，未提供截止日期，按 unknown 保留。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 8,
+        "status": "provisional",
+        "note": "补充北京、上海及广东省自动驾驶算法和软件工程实习。"
+      }
+    },
+    "evidenceNotes": [
+      "只读取南开就业网两张冻结详情页，不遍历列表、不跟随 Moka 页面、不提交申请。",
+      "文远知行官网公开页面 https://www.weride.ai 展示公司主体与 careers@weride.ai 人事招聘邮箱；规模仍无合格员工人数证据，保持 unknown。",
+      "本配置只证明受限技术可读取性，不构成来源批准或公开发布授权。",
+      "浏览器预检证据：docs/evidence/ingestion/weride-nankai-preflight-2026-08-03.md"
+    ]
+  },
+  "policy": {
+    "version": "1",
+    "status": "pending_review",
+    "adapterKey": "university-employment-detail-html",
+    "adapterVersion": "0.1.4",
+    "adapterOptions": {
+      "pageFormat": "nankai-correcruit",
+      "companyDisplayName": "文远知行",
+      "companyPageAliases": ["上海文远知行汽车科技有限公司", "文远知行汽车科技有限公司"],
+      "application": { "type": "company_email" }
+    },
+    "entrypoints": [
+      "https://career.nankai.edu.cn/correcruit/content/id/116336.html",
+      "https://career.nankai.edu.cn/correcruit/content/id/116337.html"
+    ],
+    "crawlInterval": {
+      "enabled": true,
+      "minimumHours": 168
+    },
+    "refreshCoverage": "tracked_records",
+    "absencePolicy": "none",
+    "reviewedAt": "2026-08-03",
+    "policyNotes": [
+      "ADR-0026 仅允许本机 collector-worker 按 168 小时间隔重新读取两张冻结详情页；不得用于 CI、公开或远程环境。",
+      "只读取冻结详情页，不遍历南开列表或跟随 Moka 申请页面。",
+      "主体、实习标记、企业域名邮箱或正文结构变化时立即暂停该来源。",
+      "来源保持 pending_review，岗位只能进入 local_mvp。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.nankai.edu.cn",
+        "port": 443,
+        "pathPrefix": "/correcruit/content/id/116336.html",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      },
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.nankai.edu.cn",
+        "port": 443,
+        "pathPrefix": "/correcruit/content/id/116337.html",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.nankai.edu.cn",
+        "port": 443,
+        "pathPrefix": "/correcruit/content/id/116336.html",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      },
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.nankai.edu.cn",
+        "port": 443,
+        "pathPrefix": "/correcruit/content/id/116337.html",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 2,
+      "maxPages": 2,
+      "maxRequests": 10,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {
+      "pageFormat": "nankai-correcruit",
+      "companyDisplayName": "文远知行",
+      "companyPageAliases": ["上海文远知行汽车科技有限公司", "文远知行汽车科技有限公司"],
+      "application": { "type": "company_email" }
+    },
+    "queryStreams": [
+      {
+        "key": "weride-nankai-internships",
+        "label": "文远知行算法与研发实习",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 2
+      }
+    ]
+  }
+}

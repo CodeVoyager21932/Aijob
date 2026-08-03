@@ -1,0 +1,125 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "dji-hust-jobinfo-internships",
+  "sourceType": "university_employment_site",
+  "organization": {
+    "slug": "dji",
+    "name": "深圳市大疆创新科技有限公司",
+    "officialDomain": "dji.com",
+    "scale": {
+      "band": "unknown",
+      "evidenceUrl": null,
+      "evidenceText": null,
+      "lastVerifiedAt": null
+    }
+  },
+  "candidate": {
+    "name": "华中科技大学就业信息网 DJI 大疆 2027 AI 实习生专项招聘计划",
+    "entrypointUrl": "https://job.hust.edu.cn/zpinfo1/2400683.htm",
+    "provenanceLevel": "university_published",
+    "acquisitionMode": "deterministic_html",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-live-preflight",
+    "hardGates": {
+      "officialIdentity": { "status": "pass", "note": "华中科技大学就业信息网正文明确写出深圳市大疆创新科技有限公司，投递域名为 we.dji.com。" },
+      "targetSupply": { "status": "pass", "note": "页面明确标记实习生，需求岗位为 AI 实习生，需求人数 100，职责与任职要求完整。" },
+      "noAuthBypass": { "status": "pass", "note": "冻结详情页可匿名 GET 读取，不依赖登录、验证码、Cookie、CSRF 或动态签名。" },
+      "officialApplyLink": { "status": "pass", "note": "页面原文明确写出登录 we.dji.com 进入校园招聘实习生招聘版块投递。" },
+      "accessPolicyAccepted": { "status": "fail", "note": "尚未取得第三方长期复制和聚合授权，只进入本机 local_mvp。" },
+      "stableIdentityAndFields": { "status": "pending", "note": "页面结构与字段已冻结，需完成首批运行、同小时重放和逐条自审后确认持续稳定性。" }
+    },
+    "scores": {
+      "targetSupply": { "weight": 30, "score": 20, "status": "provisional", "note": "页面需求岗位表显示 AI 实习生 100 人，并覆盖算法与 AI 软件工程方向。" },
+      "policyAccess": { "weight": 25, "score": 0, "status": "failed", "note": "当前仅满足本机低频读取边界。" },
+      "structure": { "weight": 20, "score": 17, "status": "provisional", "note": "正文、需求岗位表、发布时间、地点和官方投递域名可确定性读取。" },
+      "freshnessMaintenance": { "weight": 15, "score": 10, "status": "provisional", "note": "页面提供发布时间，未提供明确截止日期，按 unknown 保留。" },
+      "diversity": { "weight": 10, "score": 7, "status": "provisional", "note": "补充深圳、上海、北京的 AI 算法与软件工程实习供给。" }
+    },
+    "evidenceNotes": [
+      "2026-08-02 通过无 Cookie 的单次 GET 读取 https://job.hust.edu.cn/zpinfo1/2400683.htm；页面 HTTP 200。",
+      "页面列出计算机视觉、机器学习、决策与规划、SLAM、多媒体、AI 全栈、客户端、前端和后端实习方向。",
+      "页面的高校联系邮箱不作为申请链；唯一申请方式固定为原文明示的 https://we.dji.com。",
+      "本配置只证明受限技术可读性，不构成来源批准或公开发布授权。"
+    ]
+  },
+  "policy": {
+    "version": "1",
+    "status": "pending_review",
+    "adapterKey": "university-employment-detail-html",
+    "adapterVersion": "0.1.4",
+    "adapterOptions": {
+      "pageFormat": "hust-jobinfo",
+      "companyDisplayName": "大疆",
+      "companyPageAliases": ["DJI 大疆", "DJI"],
+      "application": {
+        "type": "official_url",
+        "url": "https://we.dji.com",
+        "verification": "page_exact"
+      }
+    },
+    "entrypoints": ["https://job.hust.edu.cn/zpinfo1/2400683.htm"],
+    "crawlInterval": { "enabled": true, "minimumHours": 168 },
+    "refreshCoverage": "tracked_records",
+    "absencePolicy": "none",
+    "reviewedAt": "2026-08-02",
+    "policyNotes": [
+      "ADR-0026 仅允许本机 collector-worker 按 168 小时低频读取这一张冻结详情页；不得用于 CI、公开或远程环境。",
+      "只读取冻结详情页，不遍历高校列表、不执行页面脚本、不访问大疆申请系统。",
+      "主体、实习标记、职责、要求、官方投递域名或页面结构任一变化时立即暂停。",
+      "来源保持 pending_review，岗位只进入 local_mvp。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "job.hust.edu.cn",
+        "port": 443,
+        "pathPrefix": "/zpinfo1/2400683.htm",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "we.dji.com",
+        "port": 443,
+        "pathPrefix": "/",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 1,
+      "maxPages": 1,
+      "maxRequests": 10,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {
+      "pageFormat": "hust-jobinfo",
+      "companyDisplayName": "大疆",
+      "companyPageAliases": ["DJI 大疆", "DJI"],
+      "application": {
+        "type": "official_url",
+        "url": "https://we.dji.com",
+        "verification": "page_exact"
+      }
+    },
+    "queryStreams": [
+      {
+        "key": "dji-ai-internship",
+        "label": "DJI 大疆 AI 实习生",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 1
+      }
+    ]
+  }
+}

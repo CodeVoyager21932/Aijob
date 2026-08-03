@@ -1,0 +1,158 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "xiaoyong-zju-internships",
+  "sourceType": "university_employment_site",
+  "organization": {
+    "slug": "xiaoyong-asset",
+    "name": "上海孝庸私募基金管理有限公司",
+    "officialDomain": "xyasset.cn"
+  },
+  "candidate": {
+    "name": "浙江大学就业网上海孝庸实习岗位",
+    "entrypointUrl": "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=50802145F4D82C43E0653A68DD0E9B18",
+    "provenanceLevel": "university_published",
+    "acquisitionMode": "deterministic_html",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-local-probe",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "浙江大学就业网页面的单位简介为上海孝庸私募基金管理有限公司，页面单位标题使用上海孝庸资产管理有限公司，企业域名邮箱为 xyasset.cn。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "主页面及页面列出的一个关联岗位页面明确为全职、实习岗位，并同时提供职位描述和任职要求；另一个关联页在首批探测时按非明确实习岗位排除。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "三张冻结详情页均可在无登录、无 Cookie、无验证码和无动态令牌条件下读取。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "页面联系方式给出 hr@xyasset.cn，域名与企业官网主体一致；不使用高校站内部投递动作。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "未取得第三方长期复制与公开聚合授权，只进入本地 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+      "note": "两张合格页面本次结构一致，仍需首批适配器运行和逐条抽检后才能升级稳定性结论。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 8,
+        "status": "provisional",
+        "note": "本次冻结页面可形成两个独立岗位记录。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "仅满足本机低频读取边界。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 17,
+        "status": "provisional",
+        "note": "岗位标题、职责、要求、实习标记、日期和邮箱均可确定性读取。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 11,
+        "status": "provisional",
+        "note": "页面提供发布时间和明确截止日期，按上海自然日处理。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 5,
+        "status": "provisional",
+        "note": "补充金融与数据相关实习职能；企业规模证据仍未达到正式 SME 口径。"
+      }
+    },
+    "evidenceNotes": [
+      "两张合格页面于 2026-08-02 读取并返回 HTTP 200；均包含实习标记、职位描述、任职要求、2027-12-31 截止日期和 xyasset.cn 邮箱。",
+      "页面列出的第三张关联岗位虽可读取，但工作性质未明确包含实习，首批探测拒绝，不进入目录。",
+      "页面单位标题与单位简介存在资产管理/私募基金名称差异，已作为同主体别名保留，不扩大为其他主体。",
+      "页面展示 50-200 人区间，跨越 199/200 口径边界，因此 organization.scale 保持 unknown。",
+      "仅读取精确的三张浙江大学详情页；不跟随列表、脚本、登录入口或站内投递动作。",
+      "本配置不构成来源批准或公开发布授权。"
+    ]
+  },
+  "policy": {
+    "version": "3",
+    "status": "pending_review",
+    "adapterKey": "university-employment-detail-html",
+    "adapterVersion": "0.1.4",
+    "adapterOptions": {
+      "pageFormat": "zju-jyxt",
+      "companyDisplayName": "上海孝庸",
+      "companyPageAliases": ["上海孝庸资产管理有限公司"],
+      "application": { "type": "company_email" }
+    },
+    "entrypoints": [
+      "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=50802145F4D82C43E0653A68DD0E9B18",
+      "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=50802145F4D92C43E0653A68DD0E9B18"
+    ],
+    "crawlInterval": { "enabled": true, "minimumHours": 168 },
+    "refreshCoverage": "tracked_records",
+    "absencePolicy": "none",
+    "reviewedAt": "2026-08-02",
+    "policyNotes": [
+      "ADR-0026 仅允许本机 collector-worker 每 168 小时读取这三张冻结详情页；不用于 CI、公开或远程环境。",
+      "只读取精确 entrypoints，不遍历列表、不跟随更多岗位链接，不执行页面脚本。",
+      "主体、实习标记、职责、要求、邮箱或页面结构任一变化时立即暂停。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "www.career.zju.edu.cn",
+        "port": 443,
+        "pathPrefix": "/jyxt/sczp/zpztgl/ckZpgwXq.zf",
+        "allowRedirects": false,
+        "allowedQueryParameters": ["zpxxbh"]
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "www.career.zju.edu.cn",
+        "port": 443,
+        "pathPrefix": "/jyxt/sczp/zpztgl/ckZpgwXq.zf",
+        "allowRedirects": false,
+        "allowedQueryParameters": ["zpxxbh"]
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 2,
+      "maxPages": 2,
+      "maxRequests": 10,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {
+      "pageFormat": "zju-jyxt",
+      "companyDisplayName": "上海孝庸",
+      "companyPageAliases": ["上海孝庸资产管理有限公司"],
+      "application": { "type": "company_email" }
+    },
+    "queryStreams": [
+      {
+        "key": "xiaoyong-internships",
+        "label": "上海孝庸实习岗位",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 2
+      }
+    ]
+  }
+}

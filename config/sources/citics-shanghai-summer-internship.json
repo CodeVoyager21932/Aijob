@@ -80,10 +80,10 @@
     ]
   },
   "policy": {
-    "version": "6",
+    "version": "7",
     "status": "pending_review",
     "adapterKey": "university-employment-detail-html",
-    "adapterVersion": "0.1.3",
+    "adapterVersion": "0.1.4",
     "entrypoints": ["https://career.cuhk.edu.cn/job/view/id/468515"],
     "crawlInterval": {
       "enabled": true,

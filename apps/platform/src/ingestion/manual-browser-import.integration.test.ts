@@ -293,15 +293,28 @@ describeWithDatabase("manual browser snapshot import", () => {
 
     const run = await db
       .selectFrom("ingestion.crawl_runs")
-      .select(["request_count", "discovered_count", "normalized_count", "completion"])
+      .select([
+        "run_mode",
+        "request_count",
+        "discovered_count",
+        "normalized_count",
+        "completion",
+      ])
       .where("id", "=", first.runId)
       .executeTakeFirstOrThrow();
     expect(run).toEqual({
+      run_mode: "manual",
       request_count: 0,
       discovered_count: 2,
       normalized_count: 2,
       completion: "partial",
     });
+    const task = await db
+      .selectFrom("task_queue.tasks")
+      .select("run_mode")
+      .where("id", "=", first.taskId)
+      .executeTakeFirstOrThrow();
+    expect(task.run_mode).toBe("manual");
     const revisions = await db
       .selectFrom("ingestion.source_job_revisions as revision")
       .innerJoin(

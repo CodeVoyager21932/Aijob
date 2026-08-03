@@ -1,0 +1,161 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "byfunds-internships",
+  "sourceType": "university_employment_site",
+  "organization": {
+    "slug": "byfunds",
+    "name": "宝盈基金管理有限公司",
+    "officialDomain": "byfunds.com",
+    "scale": {
+      "band": "unknown",
+      "evidenceUrl": null,
+      "evidenceText": null,
+      "lastVerifiedAt": null
+    }
+  },
+  "candidate": {
+    "name": "宝盈基金校园招聘实习岗位",
+    "entrypointUrl": "https://career.nankai.edu.cn/correcruit/content/id/116244.html",
+    "provenanceLevel": "university_published",
+    "acquisitionMode": "deterministic_html",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-live-preflight",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "南开就业网页面标题、正文与投递邮箱均指向宝盈基金。"
+      },
+      "targetSupply": {
+        "status": "fail",
+        "note": "首批只读探测返回 UNIVERSITY_EMPLOYMENT_NOT_INTERNSHIP_SECTION；页面为校园招聘宣传页，未形成可确认的实习岗位详情结构。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "详情页可匿名 GET，不依赖登录、验证码、Cookie、CSRF 或动态签名。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "页面原文给出 zhaopin@byfunds.com，作为企业域名邮箱申请链。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "未取得第三方长期复制授权，仅允许本机 local_mvp 预览。"
+      },
+      "stableIdentityAndFields": {
+        "status": "fail",
+        "note": "现有高校详情适配器无法确认职责/任职要求分段，按 fail-closed 暂停，不拆分宣传页文本。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 8,
+        "status": "provisional",
+        "note": "页面列出多个校园招聘岗位，但岗位级实习分母尚待首批确认。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "仅保留本机 local_mvp，不作为公开来源。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 14,
+        "status": "provisional",
+        "note": "南开详情页为服务端 HTML，正文职责和要求可确定性分段。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 6,
+        "status": "provisional",
+        "note": "页面有发布时间，截止日期需保持 unknown。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 5,
+        "status": "provisional",
+        "note": "补充金融与数据方向岗位。"
+      }
+    },
+    "evidenceNotes": [
+      "来源台账 ICU-0020，原始证据为南开就业网公开详情页。",
+      "仅读取这一张冻结详情页，不遍历列表或附件，不自动访问申请邮箱。",
+      "规模证据尚未完成，保持 unknown。"
+    ]
+  },
+  "policy": {
+    "version": "2",
+    "status": "paused",
+    "adapterKey": "university-employment-detail-html",
+    "adapterVersion": "0.1.4",
+    "entrypoints": [
+      "https://career.nankai.edu.cn/correcruit/content/id/116244.html"
+    ],
+    "crawlInterval": {
+      "enabled": false,
+      "minimumHours": 168
+    },
+    "refreshCoverage": "tracked_records",
+    "absencePolicy": "none",
+    "reviewedAt": "2026-08-02",
+    "policyNotes": [
+      "2026-08-02 首批只读探测失败：UNIVERSITY_EMPLOYMENT_NOT_INTERNSHIP_SECTION；暂停来源，等待逐岗详情或新的可验证官方载体。",
+      "失败仅影响宝盈来源，不扩大高校适配器白名单，也不伪造岗位职责或任职要求。",
+      "仅允许本机低频确定性读取，CI、公开环境和远程环境不得访问。",
+      "页面主体、实习标记、邮箱、职责或要求结构变化时立即暂停。",
+      "来源保持 pending_review，岗位只进入 local_mvp。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.nankai.edu.cn",
+        "port": 443,
+        "pathPrefix": "/correcruit/content/id/116244.html",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.nankai.edu.cn",
+        "port": 443,
+        "pathPrefix": "/correcruit/content/id/116244.html",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": false,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 1,
+      "maxPages": 1,
+      "maxRequests": 10,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {
+      "pageFormat": "nankai-correcruit",
+      "companyDisplayName": "宝盈基金",
+      "companyPageAliases": ["宝盈基金管理有限公司"],
+      "application": {
+        "type": "company_email"
+      }
+    },
+    "queryStreams": [
+      {
+        "key": "byfunds-internship",
+        "label": "宝盈基金校园招聘实习",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 1
+      }
+    ]
+  }
+}

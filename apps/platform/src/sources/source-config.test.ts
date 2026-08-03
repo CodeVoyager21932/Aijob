@@ -17,11 +17,13 @@ interface MutableSourceConfigFixture {
   policy: {
     status: string;
     adapterKey: string;
+    adapterVersion: string;
+    adapterOptions?: Record<string, unknown>;
     crawlInterval: { enabled: boolean; minimumHours: number };
     refreshCoverage: string;
     absencePolicy: string;
   };
-  localProbe: { enabled: boolean };
+  localProbe: { enabled: boolean; requestDefaults: Record<string, unknown> };
 }
 
 async function sourceConfigFixture(name: string): Promise<MutableSourceConfigFixture> {
@@ -48,6 +50,17 @@ describe("Tencent source configuration", () => {
       maxRequests: 24,
       minimumIntervalMs: 1500,
     });
+    expect(config.localProbe.requestDefaults).toEqual({
+      projectIdList: [],
+      projectMappingIdList: [104],
+      bgList: [],
+      workCountryType: 0,
+      workCityList: [],
+      recruitCityList: [],
+      pageIndex: 1,
+      pageSize: 10,
+    });
+    expect(config.policy.adapterOptions).toEqual(config.localProbe.requestDefaults);
     expect(config.localProbe.queryStreams.map((stream) => stream.targetItems)).toEqual([10, 10]);
     expect(config.policy.fetchTargets).toEqual(
       expect.arrayContaining([
@@ -84,13 +97,17 @@ describe("controlled local source configurations", () => {
     await expect(listSourceKeys()).resolves.toEqual([
       "adaps-photonics-internships",
       "allwinner-gdut-internships",
+      "anxin-fund-internships",
       "baidu-internships",
+      "byfunds-internships",
       "bytedance-campus-manual",
       "citics-shanghai-summer-internship",
       "dingwei-consulting-internships",
+      "dji-hust-jobinfo-internships",
       "dtl-quant-internships",
       "fanruan-trainee-internships",
       "galasports-internships",
+      "guanggu-venture-internships",
       "hanxu-tech-internships",
       "hr-soft-internships",
       "huice-campus-internships",
@@ -109,16 +126,21 @@ describe("controlled local source configurations", () => {
       "tencent-campus",
       "triple-stone-internships",
       "unity-drive-internships",
+      "weride-nankai-internships",
+      "xiaoyong-zju-internships",
+      "zhaopin-wuhan-internships",
     ]);
   });
 
   it.each([
     ["adaps-photonics-internships", "beisen-zhiye-public-api", true],
+    ["anxin-fund-internships", "university-employment-sustech-html", true],
     ["allwinner-gdut-internships", "university-employment-detail-html", false],
     ["baidu-internships", "baidu-ssr-deterministic-html", true],
     ["bytedance-campus-manual", "bytedance-manual-browser-snapshot", false],
     ["citics-shanghai-summer-internship", "university-employment-detail-html", true],
     ["dingwei-consulting-internships", "university-employment-detail-html", true],
+    ["dji-hust-jobinfo-internships", "university-employment-detail-html", true],
     ["dtl-quant-internships", "university-employment-detail-html", false],
     ["fanruan-trainee-internships", "fanruan-trainee-public-api", true],
     ["galasports-internships", "university-employment-detail-html", false],
@@ -312,7 +334,7 @@ describe("controlled local source configurations", () => {
       [] as string[],
       { host: "www.supvan.com", pathPrefix: "/joinUs" },
       { maxItems: 6, maxPages: 6, maxRequests: 10, minimumIntervalMs: 2000 },
-      5,
+      6,
     ],
     [
       "jcquant-internships",
@@ -321,7 +343,7 @@ describe("controlled local source configurations", () => {
       [] as string[],
       { host: "career.cuhk.edu.cn", pathPrefix: "/job/view/id/466931" },
       { maxItems: 1, maxPages: 1, maxRequests: 2, minimumIntervalMs: 2000 },
-      5,
+      6,
     ],
     [
       "galasports-internships",
@@ -330,7 +352,7 @@ describe("controlled local source configurations", () => {
       [] as string[],
       { host: "career.cuhk.edu.cn", pathPrefix: "/job/view/id/468689" },
       { maxItems: 1, maxPages: 1, maxRequests: 2, minimumIntervalMs: 2000 },
-      3,
+      4,
     ],
     [
       "shengumedia-internships",
@@ -339,7 +361,7 @@ describe("controlled local source configurations", () => {
       [] as string[],
       { host: "career.cuhk.edu.cn", pathPrefix: "/job/view/id/467659" },
       { maxItems: 1, maxPages: 1, maxRequests: 2, minimumIntervalMs: 2000 },
-      5,
+      6,
     ],
     [
       "hr-soft-internships",
@@ -348,7 +370,7 @@ describe("controlled local source configurations", () => {
       ["zpxxbh"],
       { host: "www.career.zju.edu.cn", pathPrefix: "/jyxt/sczp/zpztgl/ckZpgwXq.zf" },
       { maxItems: 1, maxPages: 1, maxRequests: 2, minimumIntervalMs: 2000 },
-      5,
+      6,
     ],
     [
       "kunlunxin-internships",
@@ -366,7 +388,7 @@ describe("controlled local source configurations", () => {
       ["zpxxbh"],
       { host: "www.career.zju.edu.cn", pathPrefix: "/jyxt/sczp/zpztgl/ckZpgwXq.zf" },
       { maxItems: 1, maxPages: 1, maxRequests: 10, minimumIntervalMs: 2000 },
-      5,
+      6,
     ],
     [
       "sharecapital-internships",
@@ -375,7 +397,7 @@ describe("controlled local source configurations", () => {
       [] as string[],
       { host: "career.cuhk.edu.cn", pathPrefix: "/job/view/id/467309" },
       { maxItems: 1, maxPages: 1, maxRequests: 10, minimumIntervalMs: 2000 },
-      5,
+      6,
     ],
     [
       "dtl-quant-internships",
@@ -393,7 +415,7 @@ describe("controlled local source configurations", () => {
       [] as string[],
       { host: "career.nankai.edu.cn", pathPrefix: "/correcruit/content/id/115887.html" },
       { maxItems: 3, maxPages: 3, maxRequests: 10, minimumIntervalMs: 2000 },
-      5,
+      6,
     ],
     [
       "triple-stone-internships",
@@ -402,7 +424,7 @@ describe("controlled local source configurations", () => {
       [] as string[],
       { host: "career.nankai.edu.cn", pathPrefix: "/correcruit/content/id/116046.html" },
       { maxItems: 1, maxPages: 1, maxRequests: 10, minimumIntervalMs: 2000 },
-      5,
+      6,
     ],
     [
       "hanxu-tech-internships",
@@ -411,7 +433,7 @@ describe("controlled local source configurations", () => {
       ["zpxxbh"],
       { host: "app.mokahr.com", pathPrefix: "/campus-recruitment/hanxu/144645" },
       { maxItems: 2, maxPages: 2, maxRequests: 10, minimumIntervalMs: 2000 },
-      3,
+      4,
     ],
   ] as const)(
     "limits %s to its frozen university detail pages",
@@ -538,7 +560,7 @@ describe("controlled local source configurations", () => {
     ]);
   });
 
-  it("enables 21 deterministic sources and two reminders while keeping four sources paused", async () => {
+  it("enables deterministic sources and two reminders while keeping paused sources closed", async () => {
     const deterministic = [];
     const reminders = [];
     const paused = [];
@@ -581,6 +603,13 @@ describe("controlled local source configurations", () => {
         minimumHours: 24,
       },
       {
+        sourceKey: "anxin-fund-internships",
+        version: 1,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 168,
+      },
+      {
         sourceKey: "baidu-internships",
         version: 3,
         coverage: "tracked_records",
@@ -589,14 +618,21 @@ describe("controlled local source configurations", () => {
       },
       {
         sourceKey: "citics-shanghai-summer-internship",
-        version: 6,
+        version: 7,
         coverage: "tracked_records",
         absencePolicy: "none",
         minimumHours: 168,
       },
       {
         sourceKey: "dingwei-consulting-internships",
-        version: 5,
+        version: 6,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 168,
+      },
+      {
+        sourceKey: "dji-hust-jobinfo-internships",
+        version: 1,
         coverage: "tracked_records",
         absencePolicy: "none",
         minimumHours: 168,
@@ -609,15 +645,22 @@ describe("controlled local source configurations", () => {
         minimumHours: 24,
       },
       {
+        sourceKey: "guanggu-venture-internships",
+        version: 2,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 168,
+      },
+      {
         sourceKey: "hanxu-tech-internships",
-        version: 3,
+        version: 4,
         coverage: "tracked_records",
         absencePolicy: "none",
         minimumHours: 168,
       },
       {
         sourceKey: "hr-soft-internships",
-        version: 5,
+        version: 6,
         coverage: "tracked_records",
         absencePolicy: "none",
         minimumHours: 168,
@@ -631,7 +674,7 @@ describe("controlled local source configurations", () => {
       },
       {
         sourceKey: "jcquant-internships",
-        version: 5,
+        version: 6,
         coverage: "tracked_records",
         absencePolicy: "none",
         minimumHours: 168,
@@ -673,14 +716,14 @@ describe("controlled local source configurations", () => {
       },
       {
         sourceKey: "sharecapital-internships",
-        version: 5,
+        version: 6,
         coverage: "tracked_records",
         absencePolicy: "none",
         minimumHours: 168,
       },
       {
         sourceKey: "shengumedia-internships",
-        version: 5,
+        version: 6,
         coverage: "tracked_records",
         absencePolicy: "none",
         minimumHours: 168,
@@ -694,7 +737,7 @@ describe("controlled local source configurations", () => {
       },
       {
         sourceKey: "supvan-info-internships",
-        version: 5,
+        version: 6,
         coverage: "tracked_records",
         absencePolicy: "none",
         minimumHours: 168,
@@ -708,14 +751,35 @@ describe("controlled local source configurations", () => {
       },
       {
         sourceKey: "triple-stone-internships",
-        version: 5,
+        version: 6,
         coverage: "tracked_records",
         absencePolicy: "none",
         minimumHours: 168,
       },
       {
         sourceKey: "unity-drive-internships",
-        version: 5,
+        version: 6,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 168,
+      },
+      {
+        sourceKey: "weride-nankai-internships",
+        version: 1,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 168,
+      },
+      {
+        sourceKey: "xiaoyong-zju-internships",
+        version: 3,
+        coverage: "tracked_records",
+        absencePolicy: "none",
+        minimumHours: 168,
+      },
+      {
+        sourceKey: "zhaopin-wuhan-internships",
+        version: 3,
         coverage: "tracked_records",
         absencePolicy: "none",
         minimumHours: 168,
@@ -743,6 +807,12 @@ describe("controlled local source configurations", () => {
         localProbeEnabled: false,
       },
       {
+        sourceKey: "byfunds-internships",
+        version: 2,
+        crawlEnabled: false,
+        localProbeEnabled: false,
+      },
+      {
         sourceKey: "dtl-quant-internships",
         version: 5,
         crawlEnabled: false,
@@ -750,7 +820,7 @@ describe("controlled local source configurations", () => {
       },
       {
         sourceKey: "galasports-internships",
-        version: 3,
+        version: 4,
         crawlEnabled: false,
         localProbeEnabled: false,
       },
@@ -808,6 +878,15 @@ describe("controlled local source configurations", () => {
     );
   });
 
+  it("cross-checks acquisition mode against the registered adapter descriptor", async () => {
+    const fixture = await sourceConfigFixture("bytedance-manual-test.json");
+    fixture.candidate.acquisitionMode = "deterministic_html";
+
+    expect(() => parseSourceConfigValue(fixture)).toThrowError(
+      "ADAPTER_ACQUISITION_MODE_MISMATCH",
+    );
+  });
+
   it("requires browser sources to use reminder-only refresh coverage", async () => {
     const fixture = await sourceConfigFixture("bytedance-manual-test.json");
     fixture.policy.refreshCoverage = "tracked_records";
@@ -826,6 +905,9 @@ describe("controlled local source configurations", () => {
 
     const tracked = await sourceConfigFixture("bytedance-manual-test.json");
     tracked.candidate.acquisitionMode = "deterministic_html";
+    tracked.policy.adapterKey = "university-employment-detail-html";
+    tracked.policy.adapterVersion =
+      officialSourceAdapterVersions["university-employment-detail-html"];
     tracked.policy.refreshCoverage = "tracked_records";
     tracked.policy.absencePolicy = "close_after_two_complete_absences";
     expect(() => parseSourceConfigValue(tracked)).toThrow(
@@ -840,6 +922,9 @@ describe("controlled local source configurations", () => {
     for (const status of ["paused", "blocked", "retired"]) {
       const deterministic = await sourceConfigFixture("bytedance-manual-test.json");
       deterministic.candidate.acquisitionMode = "deterministic_html";
+      deterministic.policy.adapterKey = "university-employment-detail-html";
+      deterministic.policy.adapterVersion =
+        officialSourceAdapterVersions["university-employment-detail-html"];
       deterministic.policy.status = status;
       deterministic.policy.crawlInterval.enabled = true;
       deterministic.policy.refreshCoverage = "tracked_records";

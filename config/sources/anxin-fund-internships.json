@@ -1,0 +1,123 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "anxin-fund-internships",
+  "sourceType": "university_employment_site",
+  "organization": {
+    "slug": "anxin-fund",
+    "name": "安信基金管理有限责任公司",
+    "officialDomain": "essencefund.com",
+    "scale": {
+      "band": "unknown",
+      "evidenceUrl": null,
+      "evidenceText": null,
+      "lastVerifiedAt": null
+    }
+  },
+  "candidate": {
+    "name": "南方科技大学就业网·安信基金2027届实习生校园招聘",
+    "entrypointUrl": "https://career.sustech.edu.cn/detail/online?id=3529493",
+    "provenanceLevel": "university_published",
+    "acquisitionMode": "deterministic_html",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-browser-preflight",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "页面正文明确写出安信基金管理有限责任公司，企业域名邮箱为 hr@essencefund.com。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "页面明确标记2027届实习生，包含行业研究员实习生和量化研究员实习生两个岗位，职责与任职要求完整。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "公开详情页无需登录、验证码、Cookie、CSRF或动态签名即可阅读。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "页面原文提供 hr@essencefund.com；第三方实习平台链接不作为申请链。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "未取得第三方长期复制和公开聚合授权，仅进入本机 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "待首批自动运行和同小时重放确认 SUSTech bysjy 结构稳定。"
+      }
+    },
+    "scores": {
+      "targetSupply": { "weight": 30, "score": 9, "status": "provisional", "note": "两个完整实习岗位。" },
+      "policyAccess": { "weight": 25, "score": 0, "status": "failed", "note": "仅限本机低频读取。" },
+      "structure": { "weight": 20, "score": 17, "status": "provisional", "note": "标题、日期、职责、要求和企业邮箱可确定解析。" },
+      "freshnessMaintenance": { "weight": 15, "score": 9, "status": "provisional", "note": "页面有发布日期，无明确截止日期，按unknown保留。" },
+      "diversity": { "weight": 10, "score": 6, "status": "provisional", "note": "补充研究、量化、数据与AI相关职能及深圳、上海地点。" }
+    },
+    "evidenceNotes": [
+      "仅读取 https://career.sustech.edu.cn/detail/online?id=3529493 的公开正文，不点击第三方投递链接。",
+      "第三方平台规模字段不作为正式规模证据，organization.scale 保持 unknown。",
+      "浏览器预检证据：docs/evidence/ingestion/anxin-fund-preflight-2026-08-03.md"
+    ]
+  },
+  "policy": {
+    "version": "1",
+    "status": "pending_review",
+    "adapterKey": "university-employment-sustech-html",
+    "adapterVersion": "0.1.0",
+    "adapterOptions": {
+      "pageFormat": "sustech-bysjy",
+      "companyDisplayName": "安信基金",
+      "companyPageAliases": ["安信基金管理有限责任公司"],
+      "application": { "type": "company_email" }
+    },
+    "entrypoints": ["https://career.sustech.edu.cn/detail/online?id=3529493"],
+    "crawlInterval": { "enabled": true, "minimumHours": 168 },
+    "refreshCoverage": "tracked_records",
+    "absencePolicy": "none",
+    "reviewedAt": "2026-08-03",
+    "policyNotes": [
+      "ADR-0026仅允许本机collector-worker按168小时间隔重新读取这一张冻结详情页；不得用于CI、公开或远程环境。",
+      "只读取精确entrypoint，不遍历南方科技大学列表或点击第三方实习平台。",
+      "主体、实习标记、职责、要求、企业邮箱或页面结构变化时立即暂停该来源。",
+      "来源保持pending_review，岗位仅进入local_mvp。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.sustech.edu.cn",
+        "port": 443,
+        "pathPrefix": "/detail/online",
+        "allowRedirects": false,
+        "allowedQueryParameters": ["id"]
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "career.sustech.edu.cn",
+        "port": 443,
+        "pathPrefix": "/detail/online",
+        "allowRedirects": false,
+        "allowedQueryParameters": ["id"]
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": { "maxItems": 2, "maxPages": 1, "maxRequests": 2, "minimumIntervalMs": 2000 },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {
+      "pageFormat": "sustech-bysjy",
+      "companyDisplayName": "安信基金",
+      "companyPageAliases": ["安信基金管理有限责任公司"],
+      "application": { "type": "company_email" }
+    },
+    "queryStreams": [
+      { "key": "anxin-fund-internships", "label": "安信基金2027届实习生", "keyword": "", "positionFamilyIds": [], "targetItems": 2 }
+    ]
+  }
+}

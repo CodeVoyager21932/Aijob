@@ -69,6 +69,7 @@ export interface SourcePolicyVersionTable {
   acquisition_mode: string;
   adapter_key: string;
   adapter_version: string;
+  adapter_options: Generated<JsonValue | null>;
   entrypoints: JsonValue;
   crawl_interval: string | null;
   refresh_coverage: Generated<string>;

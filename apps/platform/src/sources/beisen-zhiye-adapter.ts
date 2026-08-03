@@ -35,6 +35,35 @@ export interface BeisenZhiyeTenant {
   reportedTotalKey: string;
 }
 
+export const BeisenZhiyeAdapterOptionsSchema = z
+  .object({
+    category: z.enum(["1", "2", "3"]),
+    pageIndex: z.number().int().nonnegative(),
+    pageSize: z.number().int().min(1).max(100),
+    portalId: z.string().uuid().optional(),
+    jobsPagePath: z.enum(["/campus/jobs", "/intern/jobs"]).optional(),
+    companyDisplayName: z.string().trim().min(1).optional(),
+    categoryLabel: z.string().trim().min(1).optional(),
+  })
+  .strict()
+  .superRefine((options, context) => {
+    if (Boolean(options.portalId) !== Boolean(options.jobsPagePath)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "portalId and jobsPagePath must be configured together",
+      });
+    }
+  });
+
+interface ConfiguredBeisenSource {
+  sourceKey: string;
+  organization: { name: string };
+  policy: {
+    adapterOptions: Record<string, unknown>;
+    entrypoints: string[];
+  };
+}
+
 const beisenZhiyeTenantList: BeisenZhiyeTenant[] = [
   {
     sourceKey: "huice-campus-internships",
@@ -100,7 +129,34 @@ export const BEISEN_ZHIYE_DISPLAY_FIELDS = [
   "ChangeDate",
 ] as const;
 
-export function resolveBeisenZhiyeTenant(sourceKey: string): BeisenZhiyeTenant {
+export function resolveBeisenZhiyeTenant(
+  input: string | ConfiguredBeisenSource,
+): BeisenZhiyeTenant {
+  const sourceKey = typeof input === "string" ? input : input.sourceKey;
+  if (typeof input !== "string") {
+    const options = BeisenZhiyeAdapterOptionsSchema.parse(input.policy.adapterOptions);
+    if (options.portalId && options.jobsPagePath) {
+      const entrypoint = input.policy.entrypoints[0];
+      if (!entrypoint) throw new Error("BEISEN_ENTRYPOINT_NOT_CONFIGURED");
+      return {
+        sourceKey,
+        companyName: options.companyDisplayName ?? input.organization.name,
+        host: new URL(entrypoint).hostname,
+        portalId: options.portalId,
+        category: options.category,
+        categoryLabel:
+          options.categoryLabel ??
+          (options.category === "3"
+            ? "实习"
+            : options.category === "2"
+              ? "校园招聘"
+              : "社会招聘"),
+        jobsPagePath: options.jobsPagePath,
+        reportedTotalKey:
+          options.jobsPagePath === "/intern/jobs" ? "intern-jobads" : "campus-jobads",
+      };
+    }
+  }
   const tenant = beisenZhiyeTenantList.find((entry) => entry.sourceKey === sourceKey);
   if (!tenant) throw new Error("BEISEN_TENANT_NOT_CONFIGURED");
   return tenant;

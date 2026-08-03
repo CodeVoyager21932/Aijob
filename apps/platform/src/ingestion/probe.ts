@@ -59,7 +59,10 @@ import {
   normalizeNankaiTalRole,
   parseNankaiTalPage,
 } from "../sources/nankai-tal-2027-adapter.js";
-import { assertConfiguredAdapterVersion } from "../sources/official-source-adapters.js";
+import {
+  getOfficialSourceAdapterDescriptor,
+  type ProbeHandlerKey,
+} from "../sources/official-source-adapters.js";
 import {
   assessSource,
   loadSourceConfig,
@@ -483,11 +486,15 @@ async function createOrClaimProbeTask(input: {
     }
 > {
   const { db, sourceId, config, limit, runMode, window } = input;
+  const descriptor = getOfficialSourceAdapterDescriptor(config.policy.adapterKey);
   const idempotencyKey = hashCanonicalJson({
     taskType: "crawl",
     sourceId,
     policyVersion: config.policy.version,
     adapterVersion: config.policy.adapterVersion,
+    normalizerVersion: descriptor.normalizerVersion,
+    pipelineVersion: descriptor.pipelineVersion,
+    adapterOptions: config.policy.adapterOptions,
     runMode,
     window,
     queryStreams: config.localProbe.queryStreams,
@@ -1420,7 +1427,7 @@ async function runFanruanTraineeAdapterProbe(
 }
 
 async function runBeisenZhiyeAdapterProbe(input: AdapterProbeInput): Promise<AdapterProbeOutput> {
-  const tenant = resolveBeisenZhiyeTenant(input.sourceConfig.sourceKey);
+  const tenant = resolveBeisenZhiyeTenant(input.sourceConfig);
   const candidates: Array<{ job: BeisenJobAd; listItemIndex: number; fetchId: string }> = [];
   const failureErrorCodes: string[] = [];
   const reportedTotals: Record<string, number> = {};
@@ -1549,7 +1556,7 @@ async function runBeisenZhiyeAdapterProbe(input: AdapterProbeInput): Promise<Ada
 async function runUniversityEmploymentAdapterProbe(
   input: AdapterProbeInput,
 ): Promise<AdapterProbeOutput> {
-  const source = resolveUniversityEmploymentSource(input.sourceConfig.sourceKey);
+  const source = resolveUniversityEmploymentSource(input.sourceConfig);
   const pages = source.pageUrls;
   const failureErrorCodes: string[] = [];
   let normalizedCount = 0;
@@ -1690,6 +1697,85 @@ async function runUniversityEmploymentAdapterProbe(
   };
 }
 
+async function runTencentAdapterProbe(input: AdapterProbeInput): Promise<AdapterProbeOutput> {
+  const reportedTotals: Record<string, number> = {};
+  const failureErrorCodes: string[] = [];
+  const discoveryRejectedCounter = { value: 0 };
+  const candidates = await discoverCandidates({
+    ...input,
+    reportedTotals,
+    rejectedCounter: discoveryRejectedCounter,
+  });
+  let normalizedCount = 0;
+  let rejectedCount = discoveryRejectedCounter.value;
+  const lease = probeLease(input);
+
+  for (const candidate of candidates.values()) {
+    try {
+      await updateHeartbeat(input.db, input.taskId, input.leaseOwner, input.fencingToken);
+      await delay(requestInterval(input));
+      const detail = await fetchDetail({
+        db: input.db,
+        runtime: input.runtime,
+        sourceConfig: input.sourceConfig,
+        sourceId: input.sourceId,
+        crawlRunId: input.crawlRunId,
+        postId: candidate.item.postId,
+        lease,
+        budgetUsage: input.budgetUsage,
+      });
+      const normalized = normalizeTencentJob({
+        list: candidate.item,
+        detail: detail.parsed.data,
+        listItemIndex: candidate.listItemIndex,
+        entryScope: "日常实习",
+        listEvidenceRef: candidate.listFetchId,
+        detailEvidenceRef: detail.fetchId,
+      });
+      if (!normalized.applyUrl) throw new Error("OFFICIAL_APPLY_URL_MISSING");
+      validateNavigationUrl(normalized.applyUrl, "GET", input.sourceConfig.policy.applyTargets);
+      await persistNormalizedTencentJob({
+        db: input.db,
+        sourceId: input.sourceId,
+        normalized,
+        listFetchId: candidate.listFetchId,
+        detailFetchId: detail.fetchId,
+        observedAt: new Date(),
+        lease,
+        deferLastSeenUpdate: input.runMode === "scheduled",
+      });
+      normalizedCount += 1;
+    } catch (error) {
+      const code = errorCode(error);
+      if (code === "TASK_LEASE_LOST") throw error;
+      rejectedCount += 1;
+      failureErrorCodes.push(code);
+      input.errors.push({ code, message: errorMessage(error) });
+    }
+  }
+
+  return {
+    discoveredCount: candidates.size,
+    normalizedCount,
+    rejectedCount,
+    requestCount: input.budgetUsage.requests,
+    reportedTotals,
+    failureErrorCodes,
+    scopeExhausted: false,
+  };
+}
+
+const adapterProbeHandlers = {
+  baidu: runBaiduInternshipsAdapterProbe,
+  "beisen-zhiye": runBeisenZhiyeAdapterProbe,
+  "fanruan-trainee": runFanruanTraineeAdapterProbe,
+  "jd-campus": runJdCampusInternshipsAdapterProbe,
+  meituan: runMeituanAdapterProbe,
+  "nankai-tal": runNankaiTalAdapterProbe,
+  tencent: runTencentAdapterProbe,
+  "university-employment": runUniversityEmploymentAdapterProbe,
+} satisfies Record<ProbeHandlerKey, (input: AdapterProbeInput) => Promise<AdapterProbeOutput>>;
+
 async function runSourceCrawl(input: {
   db: Kysely<Database>;
   runtime: ProbeRuntimeConfig;
@@ -1703,6 +1789,7 @@ async function runSourceCrawl(input: {
   }
 
   const sourceConfig = await loadSourceConfig(input.sourceKey);
+  const descriptor = getOfficialSourceAdapterDescriptor(sourceConfig.policy.adapterKey);
   const assessment = assessSource(sourceConfig);
   const policyStatusAllowed = isSourcePolicyStatusAuthorizedForRun(
     sourceConfig.policy.status,
@@ -1712,7 +1799,8 @@ async function runSourceCrawl(input: {
     !policyStatusAllowed ||
     (input.runMode === "probe" && assessment.hardGatesPassed) ||
     !sourceConfig.localProbe.enabled ||
-    sourceConfig.candidate.acquisitionMode === "browser_required"
+    sourceConfig.candidate.acquisitionMode === "browser_required" ||
+    descriptor.probeHandler === null
   ) {
     throw new Error("INVALID_LOCAL_PROBE_EXCEPTION");
   }
@@ -1726,11 +1814,6 @@ async function runSourceCrawl(input: {
   if (input.limit < 1 || input.limit > sourceConfig.localProbe.requestBudget.maxItems) {
     throw new Error("PROBE_LIMIT_OUT_OF_RANGE");
   }
-  assertConfiguredAdapterVersion(
-    sourceConfig.policy.adapterKey,
-    sourceConfig.policy.adapterVersion,
-  );
-
   for (const target of sourceConfig.policy.fetchTargets) {
     validateUrl(
       `https://${target.host}${target.pathPrefix}`,
@@ -1861,87 +1944,15 @@ async function runSourceCrawl(input: {
       runMode: input.runMode,
     };
 
-    if (sourceConfig.policy.adapterKey === "tencent-public-api") {
-      const discoveryRejectedCounter = { value: 0 };
-      const candidates = await discoverCandidates({
-        ...adapterInput,
-        reportedTotals,
-        rejectedCounter: discoveryRejectedCounter,
-      });
-      discoveredCount = candidates.size;
-      rejectedCount += discoveryRejectedCounter.value;
-
-      for (const candidate of candidates.values()) {
-        try {
-          await updateHeartbeat(input.db, claimed.taskId, claimed.leaseOwner, claimed.fencingToken);
-          await delay(requestInterval(adapterInput));
-          const detail = await fetchDetail({
-            db: input.db,
-            runtime: input.runtime,
-            sourceConfig,
-            sourceId: registered.sourceId,
-            crawlRunId: runId,
-            postId: candidate.item.postId,
-            lease,
-            budgetUsage,
-          });
-          const normalized = normalizeTencentJob({
-            list: candidate.item,
-            detail: detail.parsed.data,
-            listItemIndex: candidate.listItemIndex,
-            entryScope: "日常实习",
-            listEvidenceRef: candidate.listFetchId,
-            detailEvidenceRef: detail.fetchId,
-          });
-          if (!normalized.applyUrl) throw new Error("OFFICIAL_APPLY_URL_MISSING");
-          validateNavigationUrl(normalized.applyUrl, "GET", sourceConfig.policy.applyTargets);
-          await persistNormalizedTencentJob({
-            db: input.db,
-            sourceId: registered.sourceId,
-            normalized,
-            listFetchId: candidate.listFetchId,
-            detailFetchId: detail.fetchId,
-            observedAt: new Date(),
-            lease,
-            deferLastSeenUpdate: input.runMode === "scheduled",
-          });
-          normalizedCount += 1;
-        } catch (error) {
-          const code = errorCode(error);
-          if (code === "TASK_LEASE_LOST") throw error;
-          rejectedCount += 1;
-          failureErrorCodes.push(code);
-          errors.push({ code, message: errorMessage(error) });
-        }
-      }
-    } else {
-      const output =
-        sourceConfig.policy.adapterKey === "meituan-public-api"
-          ? await runMeituanAdapterProbe(adapterInput)
-          : sourceConfig.policy.adapterKey === "nankai-tal-deterministic-html"
-            ? await runNankaiTalAdapterProbe(adapterInput)
-            : sourceConfig.policy.adapterKey === "baidu-ssr-deterministic-html"
-              ? await runBaiduInternshipsAdapterProbe(adapterInput)
-              : sourceConfig.policy.adapterKey === "jd-campus-public-api"
-                ? await runJdCampusInternshipsAdapterProbe(adapterInput)
-                : sourceConfig.policy.adapterKey === "fanruan-trainee-public-api"
-                  ? await runFanruanTraineeAdapterProbe(adapterInput)
-                  : sourceConfig.policy.adapterKey === "beisen-zhiye-public-api"
-                    ? await runBeisenZhiyeAdapterProbe(adapterInput)
-                    : sourceConfig.policy.adapterKey === "university-employment-detail-html"
-                      ? await runUniversityEmploymentAdapterProbe(adapterInput)
-                      : (() => {
-                          throw new Error("ADAPTER_NOT_IMPLEMENTED");
-                        })();
-      discoveredCount = output.discoveredCount;
-      normalizedCount = output.normalizedCount;
-      rejectedCount = output.rejectedCount;
-      requestCount = output.requestCount;
-      Object.assign(reportedTotals, output.reportedTotals);
-      failureErrorCodes.push(...output.failureErrorCodes);
-      scopeExhausted = output.scopeExhausted;
-      directClosures = output.directClosures ?? [];
-    }
+    const output = await adapterProbeHandlers[descriptor.probeHandler](adapterInput);
+    discoveredCount = output.discoveredCount;
+    normalizedCount = output.normalizedCount;
+    rejectedCount = output.rejectedCount;
+    requestCount = output.requestCount;
+    Object.assign(reportedTotals, output.reportedTotals);
+    failureErrorCodes.push(...output.failureErrorCodes);
+    scopeExhausted = output.scopeExhausted;
+    directClosures = output.directClosures ?? [];
     const directClosureCount = directClosures.reduce(
       (total, closure) => total + closure.recordIds.length,
       0,

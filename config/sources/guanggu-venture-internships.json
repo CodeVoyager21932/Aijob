@@ -1,0 +1,89 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "guanggu-venture-internships",
+  "sourceType": "university_employment_site",
+  "organization": {
+    "slug": "guanggu-venture",
+    "name": "武汉光谷创新投资有限公司",
+    "officialDomain": "ovvc.net",
+    "scale": {
+      "band": "unknown",
+      "evidenceUrl": null,
+      "evidenceText": null,
+      "lastVerifiedAt": null
+    }
+  },
+  "candidate": {
+    "name": "华中科技大学就业网武汉光谷创新投资实习",
+    "entrypointUrl": "https://job.hust.edu.cn/zpinfo3/2406395.htm",
+    "provenanceLevel": "university_published",
+    "acquisitionMode": "deterministic_html",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-live-preflight",
+    "hardGates": {
+      "officialIdentity": { "status": "pass", "note": "高校详情页主体、岗位正文和 ovvc.net 邮箱指向武汉光谷创新投资有限公司。" },
+      "targetSupply": { "status": "pass", "note": "页面包含两条明确实习岗位，职责和任职要求完整。" },
+      "noAuthBypass": { "status": "pass", "note": "详情页可匿名 GET，不依赖登录、验证码、Cookie、CSRF 或动态签名。" },
+      "officialApplyLink": { "status": "pass", "note": "页面原文提供 ovvc.net 企业域名邮箱。" },
+      "accessPolicyAccepted": { "status": "fail", "note": "未取得第三方长期复制与聚合授权，仅进入本机 local_mvp。" },
+      "stableIdentityAndFields": { "status": "pending", "note": "页面结构已冻结，待首批运行和逐条抽检确认。" }
+    },
+    "scores": {
+      "targetSupply": { "weight": 30, "score": 8, "status": "provisional", "note": "首批页面可形成两条完整实习记录。" },
+      "policyAccess": { "weight": 25, "score": 0, "status": "failed", "note": "仅满足本机低频读取边界。" },
+      "structure": { "weight": 20, "score": 16, "status": "provisional", "note": "岗位标题、职责、要求、日期和邮箱可确定性读取。" },
+      "freshnessMaintenance": { "weight": 15, "score": 11, "status": "provisional", "note": "页面提供发布时间和截止时间。" },
+      "diversity": { "weight": 10, "score": 5, "status": "provisional", "note": "补充武汉投资与研究方向实习岗位。" }
+    },
+    "evidenceNotes": [
+      "2026-08-02 低频读取华中科技大学详情页，页面明确包含职责、任职要求、实习标记和 ovvc.net 企业域名邮箱。",
+      "仅读取冻结详情页，不遍历站内列表、不执行脚本、不访问申请系统。",
+      "规模证据尚未完成，organization.scale 保持 unknown。",
+      "本配置不构成来源批准或公开发布授权。"
+    ]
+  },
+  "policy": {
+    "version": "2",
+    "status": "pending_review",
+    "adapterKey": "university-employment-detail-html",
+    "adapterVersion": "0.1.4",
+    "adapterOptions": {
+      "pageFormat": "hust-jobinfo",
+      "companyDisplayName": "武汉光谷创新投资",
+      "companyPageAliases": ["光谷创投"],
+      "application": { "type": "company_email" }
+    },
+    "entrypoints": ["https://job.hust.edu.cn/zpinfo3/2406395.htm"],
+    "crawlInterval": { "enabled": true, "minimumHours": 168 },
+    "refreshCoverage": "tracked_records",
+    "absencePolicy": "none",
+    "reviewedAt": "2026-08-02",
+    "policyNotes": [
+      "ADR-0026 仅允许本机 collector-worker 按 168 小时低频读取冻结详情页，不用于 CI、公开或远程环境。",
+      "主体、实习标记、职责、要求、邮箱或页面结构任一变化时立即暂停。",
+      "来源保持 pending_review，岗位只进入 local_mvp。"
+    ],
+    "fetchTargets": [
+      { "method": "GET", "scheme": "https", "host": "job.hust.edu.cn", "port": 443, "pathPrefix": "/zpinfo3/2406395.htm", "allowRedirects": false, "allowedQueryParameters": [] }
+    ],
+    "applyTargets": [
+      { "method": "GET", "scheme": "https", "host": "job.hust.edu.cn", "port": 443, "pathPrefix": "/zpinfo3/2406395.htm", "allowRedirects": false, "allowedQueryParameters": [] }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": { "maxItems": 2, "maxPages": 1, "maxRequests": 10, "minimumIntervalMs": 2000 },
+    "completion": "partial",
+    "publicationAllowed": false,
+    "requestDefaults": {
+      "pageFormat": "hust-jobinfo",
+      "companyDisplayName": "武汉光谷创新投资",
+      "companyPageAliases": ["光谷创投"],
+      "application": { "type": "company_email" }
+    },
+    "queryStreams": [
+      { "key": "guanggu-internships", "label": "武汉光谷创新投资实习岗位", "keyword": "", "positionFamilyIds": [], "targetItems": 2 }
+    ]
+  }
+}

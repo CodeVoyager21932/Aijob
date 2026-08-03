@@ -8,7 +8,9 @@ import {
   parseCuhkJobViewPage,
   parseDtlNankaiPage,
   parseGdutCampusPage,
+  parseHustJobInfoPage,
   parseNankaiCorrecruitPage,
+  parseSustechBysjyPage,
   parseUniversityEmploymentJobs,
   parseUniversityEmploymentPage,
   parseZjuJyxtPage,
@@ -27,6 +29,89 @@ const ZJU_PAGE_URL =
 const HANXU_ZJU_PAGE_URL =
   "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4CCE42B8467C9601E0653A68DD0E9B18";
 const GDUT_PAGE_URL = "https://career.gdut.edu.cn/campus/view/id/1020713";
+const HUST_GUANGGU_PAGE_URL = "https://job.hust.edu.cn/zpinfo3/2406395.htm";
+const SUSTECH_ANXIN_PAGE_URL = "https://career.sustech.edu.cn/detail/online?id=3529493";
+
+function sustechAnxinHtmlFixture(): string {
+  return [
+    "<!doctype html><html><body>",
+    '<div class="details-head"><h1 class="dh-tit">安信基金2027届实习生（可留用）校园招聘简章</h1>',
+    '<p class="dh-info"><span class="time">2026年6月29日</span></p></div>',
+    '<div class="details-content">',
+    "<p>一、公司概况</p>",
+    "<p>安信基金管理有限责任公司（以下简称公司）由中国证监会批准设立。</p>",
+    "<p>（一）行业研究员实习生（招聘20人，考察留用）</p>",
+    "<p>工作地：深圳/上海</p>",
+    "<p>岗位职责：</p><p>协助上市公司和行业研究，形成研究报告。</p>",
+    "<p>任职要求：</p><p>知名院校硕士研究生及以上学历，具有金融经济背景。</p>",
+    "<p>（二）量化研究员实习生（招聘4人，考察留用）</p>",
+    "<p>工作地：上海</p>",
+    "<p>岗位职责：</p><p>清洗分析金融数据，协助测试机器学习策略。</p>",
+    "<p>任职要求：</p><p>硕士研究生及以上学历，熟练掌握Python和机器学习框架。</p>",
+    "<p>五、招聘流程及简历投递</p><p>或发送至邮箱：hr@essencefund.com</p>",
+    '<div class="detail-module"><div class="dm-tit">招聘职位</div></div>',
+    "</body></html>",
+  ].join("");
+}
+
+function hustHtmlFixture(): string {
+  return [
+    "<!doctype html><html lang=\"zh-CN\"><body>",
+    "<h1>华中科技大学就业信息网</h1>",
+    "<h2>武汉光谷创新投资有限公司2026年实习生招聘</h2>",
+    "<p>发布时间：2026-06-18</p>",
+    "<p>截止时间：2026-12-31</p>",
+    "<p>工作地点：</p><p>武汉</p>",
+    "<p>招聘人数：2</p>",
+    "<p>【投资分析实习生】</p>",
+    "<p>岗位职责：</p><p>参与项目研究、行业分析和投资材料整理。</p>",
+    "<p>岗位要求：</p><p>金融、经济或统计相关专业，具备研究能力。</p>",
+    "<p>【研究助理实习生】</p>",
+    "<p>岗位职责：</p><p>协助完成数据整理、访谈纪要和报告撰写。</p>",
+    "<p>岗位要求：</p>",
+    "<p>岗位要求：</p><p>每周可实习四天，能够持续三个月。</p>",
+    "<p>投递方式：</p>",
+    "<p>投资分析实习生：intern@ovvc.net</p>",
+    "<p>研究助理实习生：huyaqi@ovvc.net</p>",
+    "<p>就业指导与服务中心</p>",
+    "</body></html>",
+  ].join("");
+}
+
+function hustDjiAggregateHtmlFixture(): string {
+  return [
+    "<!doctype html><html lang=\"zh-CN\"><body>",
+    "<h1>华中科技大学就业信息网</h1>",
+    "<h2>DJI 大疆 2027 AI 实习生专项招聘计划开启</h2>",
+    "<p>发布时间：2026-05-29</p>",
+    "<p>一、AI 实习生职位</p>",
+    "<p>面向2027 届高校毕业生</p>",
+    "<p>地点 | 深圳 上海 北京</p>",
+    "<p>AI 算法类</p>",
+    "<p>计算机视觉算法实习生（世界模型）</p>",
+    "<p>机器学习算法实习生（模型优化）</p>",
+    "<p>二、我们期待这样的你</p>",
+    "<p>技术扎实，知行合一</p>",
+    "<p>具备计算机视觉、机器学习、深度学习、生成式 AI 等领域扎实的技术功底。</p>",
+    "<p>三、你将获得</p>",
+    "<p>系统级成长的机会</p>",
+    "<p>五、投递方式</p>",
+    "<p>登录 we.dji.com 进入校园招聘投递</p>",
+    "<p>需求岗位</p>",
+    "<p>需求人数</p>",
+    "<p>需求学历</p>",
+    "<p>需求专业</p>",
+    "<p>其他要求</p>",
+    "<p>AI实习生</p>",
+    "<p>100</p>",
+    "<p>本科</p>",
+    "<p>计算机科学与技术,人工智能</p>",
+    "<p>就业指导与服务中心</p>",
+    "<p>邮箱：job@hust.edu.cn</p>",
+    "<p>深圳市大疆创新科技有限公司</p>",
+    "</body></html>",
+  ].join("");
+}
 
 function gdutHtmlFixture(companyName = "珠海全志科技股份有限公司"): string {
   const roles = [
@@ -120,6 +205,7 @@ describe("university employment source registry", () => {
       "dtl-quant-internships",
       "unity-drive-internships",
       "triple-stone-internships",
+      "anxin-fund-internships",
     ]);
     expect(resolveUniversityEmploymentSource("supvan-info-internships").pageUrls).toHaveLength(6);
     expect(resolveUniversityEmploymentSource("jcquant-internships").pageUrls).toHaveLength(1);
@@ -130,9 +216,42 @@ describe("university employment source registry", () => {
       HANXU_ZJU_PAGE_URL,
       "https://www.career.zju.edu.cn/jyxt/sczp/zpztgl/ckZpgwXq.zf?zpxxbh=4CCEE37BBB2DB309E0653A68DD0E9B18",
     ]);
+    expect(resolveUniversityEmploymentSource("anxin-fund-internships").pageUrls).toEqual([
+      SUSTECH_ANXIN_PAGE_URL,
+    ]);
     expect(() => resolveUniversityEmploymentSource("unknown-source")).toThrowError(
       "UNIVERSITY_EMPLOYMENT_SOURCE_NOT_CONFIGURED",
     );
+  });
+
+  it("builds a new carrier source entirely from validated adapter options", () => {
+    expect(
+      resolveUniversityEmploymentSource({
+        sourceKey: "configured-university-source",
+        organization: {
+          name: "配置化测试有限公司",
+          officialDomain: "configured.example.com",
+        },
+        policy: {
+          entrypoints: ["https://career.example.edu.cn/job/view/id/1001"],
+          adapterOptions: {
+            pageFormat: "cuhk-jobview",
+            companyDisplayName: "配置化测试",
+            companyPageAliases: ["配置测试"],
+            application: { type: "company_email" },
+          },
+        },
+      }),
+    ).toEqual({
+      sourceKey: "configured-university-source",
+      companyLegalName: "配置化测试有限公司",
+      companyDisplayName: "配置化测试",
+      companyPageAliases: ["配置测试"],
+      officialDomain: "configured.example.com",
+      pageFormat: "cuhk-jobview",
+      pageUrls: ["https://career.example.edu.cn/job/view/id/1001"],
+      application: { type: "company_email" },
+    });
   });
 
   it("normalizes official location text to city names", () => {
@@ -223,6 +342,94 @@ describe("gdut campus brochure (allwinner)", () => {
         pageUrl: ZJU_PAGE_URL,
       }),
     ).toHaveLength(1);
+  });
+});
+
+describe("hust jobinfo detail page", () => {
+  it("splits multiple roles and maps role-specific company emails", () => {
+    const jobs = parseHustJobInfoPage(hustHtmlFixture(), HUST_GUANGGU_PAGE_URL);
+
+    expect(jobs).toHaveLength(2);
+    expect(jobs[0]).toMatchObject({
+      sourceJobId: "hust-2406395-role-01",
+      companyName: "武汉光谷创新投资有限公司",
+      title: "投资分析实习生",
+      employmentTypeText: "实习",
+      publishedAt: "2026-06-18",
+      deadline: "2026-12-31",
+      locationText: "武汉",
+    });
+    expect(jobs[0]?.responsibilities).toContain("参与项目研究");
+    expect(jobs[0]?.requirements).toContain("金融、经济或统计相关专业");
+    expect(jobs[0]?.emails).toEqual([
+      { email: "intern@ovvc.net", sourceText: "投资分析实习生：intern@ovvc.net" },
+    ]);
+    expect(jobs[1]?.requirements).toContain("每周可实习四天");
+    expect(jobs[1]?.emails).toEqual([
+      { email: "huyaqi@ovvc.net", sourceText: "研究助理实习生：huyaqi@ovvc.net" },
+    ]);
+  });
+
+  it("fails closed when a role has no responsibilities", () => {
+    const html = hustHtmlFixture().replace(
+      "<p>岗位职责：</p><p>协助完成数据整理、访谈纪要和报告撰写。</p>",
+      "<p>岗位职责：</p>",
+    );
+
+    expect(() => parseHustJobInfoPage(html, HUST_GUANGGU_PAGE_URL)).toThrowError(
+      "UNIVERSITY_EMPLOYMENT_BODY_SECTION_MISSING",
+    );
+  });
+
+  it("parses the DJI aggregate role without importing university footer contact data", () => {
+    const jobs = parseHustJobInfoPage(
+      hustDjiAggregateHtmlFixture(),
+      "https://job.hust.edu.cn/zpinfo1/2400683.htm",
+    );
+
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({
+      sourceJobId: "hust-2400683-aggregate-01",
+      companyName: "深圳市大疆创新科技有限公司",
+      title: "AI实习生",
+      locationText: "深圳/上海/北京",
+      educationText: "本科",
+      headcountText: "100",
+      publishedAt: "2026-05-29",
+      applicationUrlOnPage: "https://we.dji.com",
+      emails: [],
+    });
+    expect(jobs[0]?.responsibilities).toContain("计算机视觉算法实习生");
+    expect(jobs[0]?.requirements).toContain("技术扎实");
+    expect(jobs[0]?.requirements).not.toContain("job@hust.edu.cn");
+  });
+});
+
+describe("SUSTech bysjy detail pages", () => {
+  it("extracts multiple explicit internship roles with a company-domain email", () => {
+    const jobs = parseSustechBysjyPage(sustechAnxinHtmlFixture(), SUSTECH_ANXIN_PAGE_URL);
+
+    expect(jobs).toHaveLength(2);
+    expect(jobs[0]).toMatchObject({
+      sourceJobId: "sustech-3529493-1",
+      companyName: "安信基金管理有限责任公司",
+      title: "行业研究员实习生",
+      locationText: "深圳/上海",
+      employmentTypeText: "实习",
+      publishedAt: "2026-06-29",
+    });
+    expect(jobs[0]?.emails).toEqual([
+      { email: "hr@essencefund.com", sourceText: "或发送至邮箱：hr@essencefund.com" },
+    ]);
+    expect(jobs[1]?.sourceJobId).toBe("sustech-3529493-2");
+    expect(jobs[1]?.requirements).toContain("机器学习框架");
+    expect(
+      parseUniversityEmploymentJobs({
+        format: "sustech-bysjy",
+        html: sustechAnxinHtmlFixture(),
+        pageUrl: SUSTECH_ANXIN_PAGE_URL,
+      }),
+    ).toHaveLength(2);
   });
 });
 

@@ -1,4 +1,5 @@
 import { inflateSync } from "node:zlib";
+import { z } from "zod";
 import { hashCanonicalJson, sha256 } from "../lib/canonical-json.js";
 import { classifyOfficialJobFamily } from "./job-family-classifier.js";
 import { htmlToDeterministicLines } from "./nankai-tal-2027-adapter.js";
@@ -10,8 +11,10 @@ import {
 } from "./normalized-official-job.js";
 import { isCompanyDomainEmail } from "./official-account-manual-adapter.js";
 
-export const UNIVERSITY_EMPLOYMENT_ADAPTER_VERSION = "0.1.3";
+export const UNIVERSITY_EMPLOYMENT_ADAPTER_VERSION = "0.1.4";
 export const UNIVERSITY_EMPLOYMENT_NORMALIZER_VERSION = "0.1.0";
+export const SUSTECH_BYSJY_ADAPTER_VERSION = "0.1.0";
+export const SUSTECH_BYSJY_NORMALIZER_VERSION = "0.1.0";
 
 /**
  * 高校就业网详情页共享适配器（审批包 02，2026-07-26 契约冻结）。
@@ -20,7 +23,7 @@ export const UNIVERSITY_EMPLOYMENT_NORMALIZER_VERSION = "0.1.0";
  * curl 复现验证）；投递方式按 ADR-0017：company_email 必须是企业官方域名邮箱且
  * 原句在页面出现，official_url 必须与页面原文明示的投递网址完全一致。
  *
- * 四种载体页面格式在核验时人工冻结：
+ * 五种载体页面格式在核验时人工冻结：
  * - nankai-correcruit：career.nankai.edu.cn 实习信息栏目详情页（meta keywords 含
  *   "实习信息" 为官方实习标记；字段为 div.zpxx 标签值对）。
  * - cuhk-jobview：career.cuhk.edu.cn 招聘详情页（"工作性质：实习" 为官方标记；
@@ -29,13 +32,64 @@ export const UNIVERSITY_EMPLOYMENT_NORMALIZER_VERSION = "0.1.0";
  *   标记；与 "全职" 并存时仍导入但写 SOURCE_KIND_CONFLICT 复核项）。
  * - gdut-campus：career.gdut.edu.cn 招聘简章详情页；正文以页面自带的 zlib +
  *   Base64 静态载荷发布，一张简章可包含多条带独立职责和要求的实习岗位。
+ * - hust-jobinfo：job.hust.edu.cn 高校就业详情页；一张页面可包含多条带独立职责、
+ *   任职要求和岗位级企业邮箱的实习岗位，缺少职责时 fail-closed。
  */
 export type UniversityEmploymentPageFormat =
   | "nankai-correcruit"
   | "nankai-correcruit-dtl"
   | "cuhk-jobview"
   | "zju-jyxt"
-  | "gdut-campus";
+  | "gdut-campus"
+  | "hust-jobinfo"
+  | "sustech-bysjy";
+
+const universityApplicationSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("official_url"),
+      url: z.string().url(),
+      verification: z
+        .enum(["page_exact", "browser_verified_official_ats"])
+        .default("page_exact"),
+    })
+    .strict(),
+  z.object({ type: z.literal("company_email") }).strict(),
+]);
+
+const configuredUniversityEmploymentOptionsSchema = z
+  .object({
+    pageFormat: z.enum([
+      "nankai-correcruit",
+      "nankai-correcruit-dtl",
+      "cuhk-jobview",
+      "zju-jyxt",
+      "gdut-campus",
+      "hust-jobinfo",
+      "sustech-bysjy",
+    ]),
+    companyDisplayName: z.string().trim().min(1),
+    companyPageAliases: z.array(z.string().trim().min(1)).default([]),
+    application: universityApplicationSchema,
+  })
+  .strict();
+
+export const UniversityEmploymentAdapterOptionsSchema = z.union([
+  z.object({}).strict(),
+  configuredUniversityEmploymentOptionsSchema,
+]);
+
+interface ConfiguredUniversityEmploymentSource {
+  sourceKey: string;
+  organization: {
+    name: string;
+    officialDomain: string;
+  };
+  policy: {
+    adapterOptions: Record<string, unknown>;
+    entrypoints: string[];
+  };
+}
 
 export interface UniversityEmploymentSource {
   sourceKey: string;
@@ -224,9 +278,38 @@ const universityEmploymentSourceList: UniversityEmploymentSource[] = [
     pageUrls: ["https://career.nankai.edu.cn/correcruit/content/id/116046.html"],
     application: { type: "company_email" },
   },
+  {
+    sourceKey: "anxin-fund-internships",
+    companyLegalName: "安信基金管理有限责任公司",
+    companyDisplayName: "安信基金",
+    officialDomain: "essencefund.com",
+    pageFormat: "sustech-bysjy",
+    pageUrls: ["https://career.sustech.edu.cn/detail/online?id=3529493"],
+    application: { type: "company_email" },
+  },
 ];
 
-export function resolveUniversityEmploymentSource(sourceKey: string): UniversityEmploymentSource {
+export function resolveUniversityEmploymentSource(
+  input: string | ConfiguredUniversityEmploymentSource,
+): UniversityEmploymentSource {
+  const sourceKey = typeof input === "string" ? input : input.sourceKey;
+  if (typeof input !== "string") {
+    const options = UniversityEmploymentAdapterOptionsSchema.parse(input.policy.adapterOptions);
+    if ("pageFormat" in options) {
+      return {
+        sourceKey,
+        companyLegalName: input.organization.name,
+        companyDisplayName: options.companyDisplayName,
+        ...(options.companyPageAliases.length === 0
+          ? {}
+          : { companyPageAliases: options.companyPageAliases }),
+        officialDomain: input.organization.officialDomain,
+        pageFormat: options.pageFormat,
+        pageUrls: input.policy.entrypoints,
+        application: options.application,
+      };
+    }
+  }
   const source = universityEmploymentSourceList.find((entry) => entry.sourceKey === sourceKey);
   if (!source) throw new Error("UNIVERSITY_EMPLOYMENT_SOURCE_NOT_CONFIGURED");
   return source;
@@ -292,6 +375,8 @@ function pageIdentity(format: UniversityEmploymentPageFormat, pageUrl: string): 
     "cuhk-jobview": /\/job\/view\/id\/(\d+)$/,
     "zju-jyxt": /[?&]zpxxbh=([0-9A-F]+)$/i,
     "gdut-campus": /\/campus\/view\/id\/(\d+)$/,
+    "hust-jobinfo": /\/zpinfo\d+\/(\d+)\.htm$/,
+    "sustech-bysjy": /\/detail\/online\?id=(\d+)/,
   };
   const match = pageUrl.match(patterns[format]);
   if (!match?.[1]) throw new Error("UNIVERSITY_EMPLOYMENT_PAGE_URL_UNRECOGNIZED");
@@ -302,7 +387,11 @@ function pageIdentity(format: UniversityEmploymentPageFormat, pageUrl: string): 
         ? "cuhk"
         : format === "zju-jyxt"
           ? "zju"
-          : "gdut";
+          : format === "gdut-campus"
+            ? "gdut"
+            : format === "hust-jobinfo"
+              ? "hust"
+              : "sustech";
   return `${prefix}-${match[1]}`;
 }
 
@@ -547,6 +636,301 @@ export function parseZjuJyxtPage(html: string, pageUrl: string): UniversityEmplo
   };
 }
 
+function hustRoleHeading(line: string): string | undefined {
+  const bracketMatch = line.match(/^【(.+?实习生.*?)】$/u);
+  if (bracketMatch?.[1]) return bracketMatch[1].trim();
+  const numberedMatch = line.match(
+    /^(?:[一二三四五六七八九十]+、|\d+[、.])\s*(.+?实习生)(?:\s+JD.*)?$/u,
+  );
+  return numberedMatch?.[1]?.trim();
+}
+
+function hustCompanyName(lines: string[], titleIndex: number, firstRoleIndex: number): string {
+  const introEnd = firstRoleIndex > titleIndex ? firstRoleIndex : titleIndex + 40;
+  for (const line of lines.slice(titleIndex + 1, introEnd)) {
+    const match = line.match(
+      /([\u4e00-\u9fffA-Za-z0-9（）()·]+(?:有限公司|股份有限公司|集团有限公司|分公司))/u,
+    );
+    if (match?.[1]) return match[1];
+  }
+  const title = lines[titleIndex] ?? "";
+  const prefix = title.match(/^(.+?)(?=20\d{2}|招聘|招募|计划|专项)/u)?.[1]?.trim();
+  if (prefix) return prefix;
+  throw new Error("UNIVERSITY_EMPLOYMENT_COMPANY_MISSING");
+}
+
+function hustMarker(line: string, kind: "requirements" | "application"): boolean {
+  const normalized = line.normalize("NFKC").replace(/\s+/g, "");
+  if (kind === "requirements") {
+    return /^(?:[一二三四五六七八九十\d]+[、.]?)?(?:岗位要求|任职要求)[:：]?$/u.test(
+      normalized,
+    );
+  }
+  return /^(?:[一二三四五六七八九十\d]+[、.]?)?(?:投递方式|招聘流程及方式)[:：]?$/u.test(
+    normalized,
+  );
+}
+
+function hustBenefitMarker(line: string): boolean {
+  return /^(?:你将获得|福利待遇|招聘流程|投递方式|招聘流程及方式)[:：]?$/u.test(line);
+}
+
+function hustCleanLines(lines: string[]): string[] {
+  return lines
+    .map((line) => line.replace(/[\t\u3000 ]+/g, " ").trim())
+    .filter(Boolean);
+}
+
+function parseHustAggregateJobInfoPage(
+  lines: string[],
+  pageUrl: string,
+): UniversityEmploymentJob[] {
+  const titleIndex = lines.findIndex(
+    (line) => /实习生.*招聘|招聘.*实习生/u.test(line) && line !== "实习生信息",
+  );
+  if (titleIndex < 0) throw new Error("UNIVERSITY_EMPLOYMENT_TITLE_MISSING");
+
+  const roleSectionIndex = lines.findIndex(
+    (line, index) => index > titleIndex && /^一、.*实习生职位/u.test(line),
+  );
+  const requirementSectionIndex = lines.findIndex(
+    (line, index) => index > roleSectionIndex && /^二、/u.test(line),
+  );
+  if (roleSectionIndex < 0 || requirementSectionIndex < 0) {
+    throw new Error("UNIVERSITY_EMPLOYMENT_BODY_SECTION_MISSING");
+  }
+
+  const benefitSectionIndex = lines.findIndex(
+    (line, index) => index > requirementSectionIndex && /^三、/u.test(line),
+  );
+  const contentEnd = benefitSectionIndex >= 0 ? benefitSectionIndex : lines.length;
+  const footerIndex = lines.findIndex(
+    (line, index) => index > titleIndex && line === "就业指导与服务中心",
+  );
+  const pageBodyEnd = footerIndex >= 0 ? footerIndex : lines.length;
+  const responsibilities = lines
+    .slice(roleSectionIndex + 1, requirementSectionIndex)
+    .join("\n")
+    .trim();
+  const commonRequirements = lines
+    .slice(requirementSectionIndex + 1, contentEnd)
+    .join("\n")
+    .trim();
+  if (!responsibilities || !commonRequirements) {
+    throw new Error("UNIVERSITY_EMPLOYMENT_BODY_SECTION_MISSING");
+  }
+
+  const companyName = lines
+    .slice(contentEnd)
+    .map((line) => line.match(/^(.+?(?:股份有限公司|有限公司))/u)?.[1]?.trim())
+    .find((value): value is string => Boolean(value));
+  if (!companyName) throw new Error("UNIVERSITY_EMPLOYMENT_COMPANY_MISSING");
+
+  const locationLine = lines.find((line) => /^地点\s*[|｜:：]/u.test(line));
+  const locationText = locationLine
+    ?.replace(/^地点\s*[|｜:：]\s*/u, "")
+    .split(/\s+/u)
+    .filter(Boolean)
+    .join("/");
+  const publishedAt = lines
+    .find((line) => line.startsWith("发布时间："))
+    ?.match(datePattern)?.[0];
+
+  const tableHeaderIndex = lines.findIndex((line) => line === "需求岗位");
+  const tableEndIndex = lines.findIndex(
+    (line, index) =>
+      index > tableHeaderIndex &&
+      /^(?:就业指导与服务中心|华中科技大学|版权所有|技术支持)/u.test(line),
+  );
+  const tableLines =
+    tableHeaderIndex >= 0
+      ? lines.slice(tableHeaderIndex, tableEndIndex >= 0 ? tableEndIndex : pageBodyEnd)
+      : [];
+  const tableTitle = tableLines.slice(1).find((line) => /实习/u.test(line));
+  const title = tableTitle ?? "AI实习生";
+  const titleLineIndex = lines.findIndex((line, index) => index > tableHeaderIndex && line === title);
+  const rowWindowStart = Math.max(titleLineIndex + 1, tableHeaderIndex + 1);
+  const headcountText = lines
+    .slice(rowWindowStart, rowWindowStart + 4)
+    .find((line) => /^\d+$/u.test(line));
+  const educationText = lines
+    .slice(rowWindowStart, rowWindowStart + 5)
+    .find((line) => /^(本科|硕士|博士)/u.test(line));
+  const tableEvidence = tableLines.join("\n").trim();
+
+  const applicationSectionIndex = lines.findIndex(
+    (line, index) => index > requirementSectionIndex && /^五、投递方式/u.test(line),
+  );
+  const applicationLines =
+    applicationSectionIndex >= 0
+      ? lines.slice(applicationSectionIndex, pageBodyEnd)
+      : [];
+  const applicationLine = applicationLines.find((line) => /(?:https?:\/\/)?we\.dji\.com\b/i.test(line));
+  const applicationMatch = applicationLine?.match(/(?:https?:\/\/)?we\.dji\.com[^\s，。；]*/i)?.[0];
+  const applicationUrlOnPage = applicationMatch
+    ? applicationMatch.startsWith("http")
+      ? applicationMatch
+      : `https://${applicationMatch}`
+    : undefined;
+
+  return [
+    {
+      sourceJobId: `${pageIdentity("hust-jobinfo", pageUrl)}-aggregate-01`,
+      pageUrl,
+      companyName,
+      title,
+      category: undefined,
+      locationText,
+      employmentTypeText: "实习",
+      educationText,
+      headcountText,
+      publishedAt,
+      deadline: undefined,
+      responsibilities,
+      requirements: [
+        ...(educationText ? [`学历要求：${educationText}`] : []),
+        ...(headcountText ? [`招聘人数：${headcountText}`] : []),
+        tableEvidence,
+        commonRequirements,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      emails: collectEmails(applicationLines),
+      applicationUrlOnPage,
+      hasMultiCitySupplement: Boolean(locationText?.includes("/")),
+    },
+  ];
+}
+
+export function parseHustJobInfoPage(html: string, pageUrl: string): UniversityEmploymentJob[] {
+  const lines = hustCleanLines(htmlToDeterministicLines(html));
+  if (!lines.some((line) => line.includes("实习生"))) {
+    throw new Error("UNIVERSITY_EMPLOYMENT_NOT_EXPLICIT_INTERNSHIP");
+  }
+  const titleIndex = lines.findIndex(
+    (line) => line !== "实习生信息" && /实习生.*(?:招聘|招募|计划|开启)/u.test(line),
+  );
+  if (titleIndex < 0) throw new Error("UNIVERSITY_EMPLOYMENT_TITLE_MISSING");
+
+  const footerIndex = lines.findIndex(
+    (line, index) => index > titleIndex && line === "就业指导与服务中心",
+  );
+  const contentEnd = footerIndex >= 0 ? footerIndex : lines.length;
+  const applicationMarkerIndex = lines.findIndex(
+    (line, index) => index > titleIndex && hustMarker(line, "application"),
+  );
+  const roleScanEnd = applicationMarkerIndex >= 0 ? applicationMarkerIndex : contentEnd;
+  const roleIndexes = lines
+    .slice(titleIndex + 1, roleScanEnd)
+    .map((line, offset) => ({ title: hustRoleHeading(line), index: titleIndex + 1 + offset }))
+    .filter((entry): entry is { title: string; index: number } => Boolean(entry.title));
+  if (roleIndexes.length === 0) {
+    if (lines.some((line) => line === "需求岗位")) {
+      return parseHustAggregateJobInfoPage(lines, pageUrl);
+    }
+    throw new Error("UNIVERSITY_EMPLOYMENT_ROLES_MISSING");
+  }
+
+  const companyName = hustCompanyName(lines, titleIndex, roleIndexes[0]?.index ?? -1);
+  const publishedAt = lines
+    .find((line) => line.startsWith("发布时间："))
+    ?.match(datePattern)?.[0];
+  const deadline = lines
+    .find((line) => /(?:截止|结束)时间?[:：]/u.test(line))
+    ?.match(datePattern)?.[0];
+  const locationIndex = lines.findIndex(
+    (line, index) =>
+      index > titleIndex && /^(?:【)?工作地点(?:】)?[:：]?$/u.test(line),
+  );
+  const locationText = locationIndex >= 0 ? lines[locationIndex + 1] : undefined;
+  const headcountText = lines.find((line) => line.startsWith("招聘人数："));
+  const commonRequirementIndex = lines.findIndex(
+    (line, index) => index > (roleIndexes.at(-1)?.index ?? titleIndex) && hustMarker(line, "requirements"),
+  );
+  const applicationIndex = applicationMarkerIndex;
+  const applicationEnd = footerIndex >= 0 ? footerIndex : lines.length;
+  const applicationLines =
+    applicationIndex >= 0 ? lines.slice(applicationIndex, applicationEnd) : [];
+  const allApplicationEmails = collectEmails(applicationLines);
+  const roleEmailMap = new Map<string, Array<{ email: string; sourceText: string }>>();
+  let currentApplicationRoles: string[] = [];
+  for (const line of applicationLines) {
+    const matchedRoles = roleIndexes
+      .map(({ title }) => title)
+      .filter((title) => line.includes(title));
+    if (matchedRoles.length > 0) currentApplicationRoles = matchedRoles;
+    const lineEmails = collectEmails([line]);
+    if (currentApplicationRoles.length > 0 && lineEmails.length > 0) {
+      for (const role of currentApplicationRoles) {
+        roleEmailMap.set(role, [...(roleEmailMap.get(role) ?? []), ...lineEmails]);
+      }
+    }
+  }
+
+  const commonRequirements =
+    commonRequirementIndex >= 0
+      ? lines
+          .slice(
+            commonRequirementIndex + 1,
+            applicationIndex >= 0 ? applicationIndex : contentEnd,
+          )
+          .filter((line) => !hustBenefitMarker(line))
+          .join("\n")
+      : "";
+
+  return roleIndexes.map((role, index) => {
+    const nextRoleIndex = roleIndexes[index + 1]?.index ?? contentEnd;
+    const sectionEnd = Math.min(
+      nextRoleIndex,
+      commonRequirementIndex > role.index ? commonRequirementIndex : contentEnd,
+      applicationIndex > role.index ? applicationIndex : contentEnd,
+    );
+    const sectionLines = lines.slice(role.index + 1, sectionEnd);
+    const roleRequirementIndex = sectionLines.findIndex((line) => hustMarker(line, "requirements"));
+    const dutyIndex = sectionLines.findIndex((line) => /^(?:岗位职责|工作职责)[:：]?$/u.test(line));
+    const dutyStart = dutyIndex >= 0 ? dutyIndex + 1 : 0;
+    const dutyStopCandidates = [
+      roleRequirementIndex >= 0 ? roleRequirementIndex : sectionLines.length,
+      sectionLines.findIndex((line) => hustBenefitMarker(line)),
+    ].filter((value) => value >= 0);
+    const dutyStop = Math.min(...dutyStopCandidates, sectionLines.length);
+    const responsibilities = sectionLines.slice(dutyStart, dutyStop).join("\n").trim();
+    const roleRequirements =
+      roleRequirementIndex >= 0
+        ? sectionLines
+            .slice(roleRequirementIndex + 1)
+            .filter((line) => !hustBenefitMarker(line))
+            .join("\n")
+            .trim()
+        : commonRequirements;
+    if (!responsibilities) throw new Error("UNIVERSITY_EMPLOYMENT_BODY_SECTION_MISSING");
+    if (!roleRequirements) throw new Error("UNIVERSITY_EMPLOYMENT_REQUIREMENTS_SECTION_MISSING");
+
+    const emails =
+      allApplicationEmails.length === 1
+        ? allApplicationEmails
+        : roleEmailMap.get(role.title) ?? [];
+    return {
+      sourceJobId: `${pageIdentity("hust-jobinfo", pageUrl)}-role-${String(index + 1).padStart(2, "0")}`,
+      pageUrl,
+      companyName,
+      title: role.title,
+      category: undefined,
+      locationText,
+      employmentTypeText: "实习",
+      educationText: undefined,
+      headcountText,
+      publishedAt,
+      deadline,
+      responsibilities,
+      requirements: roleRequirements,
+      emails,
+      applicationUrlOnPage: undefined,
+      hasMultiCitySupplement: Boolean(locationText?.match(/[/、,，]/u)),
+    };
+  });
+}
+
 const allwinnerRoles = [
   { code: "2701", title: "数字设计工程师", locationText: "珠海/西安/上海" },
   { code: "2702", title: "算法设计工程师", locationText: "珠海/西安" },
@@ -731,6 +1115,101 @@ export function parseDtlNankaiPage(html: string, pageUrl: string): UniversityEmp
   });
 }
 
+function isSustechRoleHeading(line: string): boolean {
+  return /^[（(][一二三四五六七八九十]+[）)]/.test(line) && line.includes("实习");
+}
+
+function sustechRoleTitle(line: string): string {
+  return line
+    .replace(/^[（(][一二三四五六七八九十]+[）)]/, "")
+    .replace(/[（(]招聘[\s\S]*$/, "")
+    .trim();
+}
+
+export function parseSustechBysjyPage(html: string, pageUrl: string): UniversityEmploymentJob[] {
+  const lines = htmlToDeterministicLines(html);
+  const titleMatch = html.match(
+    /<h1[^>]*class=["'][^"']*dh-tit[^"']*["'][^>]*>([\s\S]*?)<\/h1>/i,
+  );
+  const title = titleMatch?.[1]
+    ? decodeTitleEntities(titleMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " "))
+    : undefined;
+  if (!title) throw new Error("UNIVERSITY_EMPLOYMENT_TITLE_MISSING");
+
+  const publishedMatch = html.match(
+    /<span[^>]*class=["'][^"']*time[^"']*["'][^>]*>\s*(\d{4})年(\d{1,2})月(\d{1,2})日/i,
+  );
+  const publishedYear = publishedMatch?.[1];
+  const publishedMonth = publishedMatch?.[2];
+  const publishedDay = publishedMatch?.[3];
+  const publishedAt =
+    publishedYear && publishedMonth && publishedDay
+      ? `${publishedYear}-${publishedMonth.padStart(2, "0")}-${publishedDay.padStart(2, "0")}`
+      : undefined;
+
+  const contentEnd = lines.findIndex((line) => line === "招聘职位");
+  const contentLines = contentEnd < 0 ? lines : lines.slice(0, contentEnd);
+  const companyLine = contentLines.find((line) => /有限责任公司|股份有限公司/.test(line));
+  const companyName = companyLine?.match(/([^，。；：（(]*?(?:有限责任公司|股份有限公司))/)?.[1];
+  if (!companyName) throw new Error("UNIVERSITY_EMPLOYMENT_COMPANY_MISSING");
+
+  const roleIndexes = contentLines
+    .map((line, index) => (isSustechRoleHeading(line) ? index : -1))
+    .filter((index) => index >= 0);
+  if (roleIndexes.length === 0) throw new Error("UNIVERSITY_EMPLOYMENT_ROLES_MISSING");
+
+  const baseId = pageIdentity("sustech-bysjy", pageUrl);
+  const emails = collectEmails(contentLines);
+  if (emails.length === 0) throw new Error("UNIVERSITY_EMPLOYMENT_APPLICATION_EMAIL_MISSING");
+
+  return roleIndexes.map((roleIndex, roleNumber) => {
+    const nextRoleIndex = roleIndexes[roleNumber + 1] ?? contentLines.length;
+    const rawSegment = contentLines.slice(roleIndex + 1, nextRoleIndex);
+    const audienceIndex = rawSegment.findIndex((line) => /^(?:三、|三\.)/.test(line));
+    const segment = audienceIndex < 0 ? rawSegment : rawSegment.slice(0, audienceIndex);
+    const responsibilityIndex = segment.findIndex(
+      (line) => line === "岗位职责：" || line === "岗位职责:",
+    );
+    const requirementIndex = segment.findIndex(
+      (line) => line === "任职要求：" || line === "任职要求:",
+    );
+    if (responsibilityIndex < 0 || requirementIndex <= responsibilityIndex) {
+      throw new Error("UNIVERSITY_EMPLOYMENT_STRUCTURE_CHANGED");
+    }
+    const responsibilities = segment
+      .slice(responsibilityIndex + 1, requirementIndex)
+      .join("\n")
+      .trim();
+    const requirements = segment.slice(requirementIndex + 1).join("\n").trim();
+    if (!responsibilities || !requirements) {
+      throw new Error("UNIVERSITY_EMPLOYMENT_REQUIREMENTS_SECTION_MISSING");
+    }
+    const locationLine = segment.find(
+      (line) => line.startsWith("工作地：") || line.startsWith("工作地:"),
+    );
+    const locationText = locationLine?.replace(/^工作地[：:]/, "").trim();
+    const heading = contentLines[roleIndex] ?? "";
+    return {
+      sourceJobId: `${baseId}-${roleNumber + 1}`,
+      pageUrl,
+      companyName,
+      title: sustechRoleTitle(heading),
+      category: undefined,
+      locationText,
+      employmentTypeText: "实习",
+      educationText: requirements.match(/(?:本科|硕士|博士)[^。；\n]*/)?.[0],
+      headcountText: heading.match(/招聘[^）)]*/)?.[0],
+      publishedAt,
+      deadline: undefined,
+      responsibilities,
+      requirements,
+      emails,
+      applicationUrlOnPage: undefined,
+      hasMultiCitySupplement: Boolean(locationText && /[/、,，]/.test(locationText)),
+    };
+  });
+}
+
 export function parseUniversityEmploymentJobs(input: {
   format: UniversityEmploymentPageFormat;
   html: string;
@@ -741,6 +1220,12 @@ export function parseUniversityEmploymentJobs(input: {
   }
   if (input.format === "nankai-correcruit-dtl") {
     return parseDtlNankaiPage(input.html, input.pageUrl);
+  }
+  if (input.format === "hust-jobinfo") {
+    return parseHustJobInfoPage(input.html, input.pageUrl);
+  }
+  if (input.format === "sustech-bysjy") {
+    return parseSustechBysjyPage(input.html, input.pageUrl);
   }
   return [parseUniversityEmploymentPage(input)];
 }
@@ -762,8 +1247,18 @@ export function parseUniversityEmploymentPage(input: {
       return parseCuhkJobViewPage(input.html, input.pageUrl);
     case "zju-jyxt":
       return parseZjuJyxtPage(input.html, input.pageUrl);
+    case "hust-jobinfo": {
+      const [job] = parseHustJobInfoPage(input.html, input.pageUrl);
+      if (!job) throw new Error("UNIVERSITY_EMPLOYMENT_STRUCTURE_CHANGED");
+      return job;
+    }
     case "gdut-campus": {
       const [job] = parseGdutCampusPage(input.html, input.pageUrl);
+      if (!job) throw new Error("UNIVERSITY_EMPLOYMENT_STRUCTURE_CHANGED");
+      return job;
+    }
+    case "sustech-bysjy": {
+      const [job] = parseSustechBysjyPage(input.html, input.pageUrl);
       if (!job) throw new Error("UNIVERSITY_EMPLOYMENT_STRUCTURE_CHANGED");
       return job;
     }

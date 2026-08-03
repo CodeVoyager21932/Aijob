@@ -8,6 +8,11 @@ import {
   SourceTypeSchema,
 } from "@aijob/contracts";
 import { z } from "zod";
+import { canonicalJson } from "../lib/canonical-json.js";
+import {
+  assertConfiguredAdapterDescriptor,
+  parseOfficialSourceAdapterOptions,
+} from "./official-source-adapters.js";
 
 const unknownCompanyScale = {
   band: "unknown",
@@ -210,6 +215,7 @@ const normalizedSourceConfigSchema = z
       status: z.enum(["pending_review", "approved", "paused", "blocked", "retired"]),
       adapterKey: z.string().regex(/^[a-z0-9-]+$/),
       adapterVersion: z.string().min(1),
+      adapterOptions: z.record(z.unknown()),
       entrypoints: z.array(z.string().url()).min(1),
       crawlInterval: crawlIntervalSchema,
       refreshCoverage: refreshCoverageSchema,
@@ -222,6 +228,7 @@ const normalizedSourceConfigSchema = z
     localProbe: z.object({
       enabled: z.boolean(),
       requestBudget: requestBudgetSchema,
+      requestDefaults: z.record(z.unknown()),
       queryStreams: z.array(normalizedQueryStreamSchema).min(1).max(50),
     }),
   })
@@ -274,6 +281,7 @@ const rawSourceConfigSchema = z
       status: z.enum(["pending_review", "approved", "paused", "blocked", "retired"]),
       adapterKey: z.string().regex(/^[a-z0-9-]+$/),
       adapterVersion: z.string().min(1),
+      adapterOptions: z.record(z.unknown()).optional(),
       entrypoints: z.array(z.string().url()).min(1),
       crawlInterval: crawlIntervalSchema,
       refreshCoverage: refreshCoverageSchema,
@@ -330,6 +338,25 @@ export function parseSourceConfigValue(value: unknown, expectedSourceKey?: strin
   if (expectedSourceKey && raw.sourceKey !== expectedSourceKey) {
     throw new Error("SOURCE_KEY_FILENAME_MISMATCH");
   }
+  const legacyAdapterOptions = parseOfficialSourceAdapterOptions(
+    raw.policy.adapterKey,
+    raw.localProbe.requestDefaults,
+  );
+  const adapterOptions = raw.policy.adapterOptions
+    ? parseOfficialSourceAdapterOptions(raw.policy.adapterKey, raw.policy.adapterOptions)
+    : legacyAdapterOptions;
+  if (
+    raw.policy.adapterOptions &&
+    canonicalJson(adapterOptions) !== canonicalJson(legacyAdapterOptions)
+  ) {
+    throw new Error("ADAPTER_OPTIONS_REQUEST_DEFAULTS_MISMATCH");
+  }
+  assertConfiguredAdapterDescriptor({
+    adapterKey: raw.policy.adapterKey,
+    adapterVersion: raw.policy.adapterVersion,
+    acquisitionMode: raw.candidate.acquisitionMode,
+    adapterOptions,
+  });
   return normalizedSourceConfigSchema.parse({
     schemaVersion: 1,
     sourceKey: raw.sourceKey,
@@ -366,6 +393,7 @@ export function parseSourceConfigValue(value: unknown, expectedSourceKey?: strin
       status: raw.policy.status,
       adapterKey: raw.policy.adapterKey,
       adapterVersion: raw.policy.adapterVersion,
+      adapterOptions,
       entrypoints: raw.policy.entrypoints,
       crawlInterval: raw.policy.crawlInterval,
       refreshCoverage: raw.policy.refreshCoverage,
@@ -378,6 +406,7 @@ export function parseSourceConfigValue(value: unknown, expectedSourceKey?: strin
     localProbe: {
       enabled: raw.localProbe.enabled,
       requestBudget: raw.localProbe.requestBudget,
+      requestDefaults: legacyAdapterOptions,
       queryStreams: raw.localProbe.queryStreams.map((stream) => ({
         ...stream,
         positionFamilyIds: stream.positionFamilyIds.map(Number),

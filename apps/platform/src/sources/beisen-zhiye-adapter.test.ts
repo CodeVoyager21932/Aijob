@@ -47,6 +47,35 @@ describe("Beisen zhiye adapter", () => {
     );
   });
 
+  it("builds a new public tenant entirely from validated adapter options", () => {
+    expect(
+      resolveBeisenZhiyeTenant({
+        sourceKey: "configured-beisen-source",
+        organization: { name: "配置化北森测试有限公司" },
+        policy: {
+          entrypoints: ["https://configured.zhiye.com/intern/jobs"],
+          adapterOptions: {
+            category: "3",
+            pageIndex: 0,
+            pageSize: 30,
+            portalId: "70f7ec4f-81c8-4ce8-a47c-a4354a7a91dc",
+            jobsPagePath: "/intern/jobs",
+            companyDisplayName: "配置化北森测试",
+          },
+        },
+      }),
+    ).toEqual({
+      sourceKey: "configured-beisen-source",
+      companyName: "配置化北森测试",
+      host: "configured.zhiye.com",
+      portalId: "70f7ec4f-81c8-4ce8-a47c-a4354a7a91dc",
+      category: "3",
+      categoryLabel: "实习",
+      jobsPagePath: "/intern/jobs",
+      reportedTotalKey: "intern-jobads",
+    });
+  });
+
   it("builds the official zero-based page list request with location-enabling display fields", () => {
     const tenant = resolveBeisenZhiyeTenant("pudutech-internships");
     expect(buildBeisenZhiyeListUrl(tenant)).toBe(

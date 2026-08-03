@@ -220,6 +220,7 @@ describeWithDatabase("official account zero-network manual import", () => {
         "organization.official_domain",
         "organization.scale_band",
         "policy.provenance_level",
+        "policy.adapter_options",
       ])
       .where("source.source_key", "=", sourceKey)
       .executeTakeFirstOrThrow();
@@ -227,14 +228,15 @@ describeWithDatabase("official account zero-network manual import", () => {
       source_type: "organization_official_account",
       scale_band: "medium",
       provenance_level: "official_account_link",
+      adapter_options: {},
     });
 
     const run = await db
       .selectFrom("ingestion.crawl_runs")
-      .select(["request_count", "completion"])
+      .select(["run_mode", "request_count", "completion"])
       .where("id", "=", first.runId)
       .executeTakeFirstOrThrow();
-    expect(run).toEqual({ request_count: 0, completion: "partial" });
+    expect(run).toEqual({ run_mode: "manual", request_count: 0, completion: "partial" });
 
     const revisions = await db
       .selectFrom("ingestion.source_job_revisions as revision")

@@ -17,6 +17,7 @@ import { employerScaleAndJobInsightsMigration } from "./migrations/014_employer_
 import { freezeJobInsightSourceVerificationsMigration } from "./migrations/015_freeze_job_insight_source_verifications.js";
 import { companyQuotaSelectionsMigration } from "./migrations/016_company_quota_selections.js";
 import { sourceRefreshAutomationMigration } from "./migrations/017_source_refresh_automation.js";
+import { adapterDescriptorsAndManualRunsMigration } from "./migrations/018_adapter_descriptors_and_manual_runs.js";
 import type { Database } from "./types.js";
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -42,6 +43,7 @@ class StaticMigrationProvider implements MigrationProvider {
       "015_freeze_job_insight_source_verifications": freezeJobInsightSourceVerificationsMigration,
       "016_company_quota_selections": companyQuotaSelectionsMigration,
       "017_source_refresh_automation": sourceRefreshAutomationMigration,
+      "018_adapter_descriptors_and_manual_runs": adapterDescriptorsAndManualRunsMigration,
     };
   }
 }

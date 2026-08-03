@@ -108,6 +108,7 @@ function policyComparable(
     acquisition_mode: config.candidate.acquisitionMode,
     adapter_key: config.policy.adapterKey,
     adapter_version: config.policy.adapterVersion,
+    adapter_options: config.policy.adapterOptions,
     entrypoints: config.policy.entrypoints,
     crawl_interval: persistedCrawlInterval(config),
     refresh_coverage: config.policy.refreshCoverage,
@@ -319,6 +320,7 @@ export async function registerSourceConfig(
         acquisition_mode: existingPolicy.acquisition_mode,
         adapter_key: existingPolicy.adapter_key,
         adapter_version: existingPolicy.adapter_version,
+        adapter_options: existingPolicy.adapter_options ?? config.policy.adapterOptions,
         entrypoints: existingPolicy.entrypoints,
         crawl_interval: existingPolicy.crawl_interval,
         refresh_coverage: existingPolicy.refresh_coverage,
@@ -337,6 +339,14 @@ export async function registerSourceConfig(
       ) {
         throw new Error("POLICY_VERSION_IMMUTABLE");
       }
+      if (existingPolicy.adapter_options === null) {
+        await transaction
+          .updateTable("source_control.source_policy_versions")
+          .set({ adapter_options: canonicalJson(config.policy.adapterOptions) })
+          .where("source_id", "=", source.id)
+          .where("version", "=", config.policy.version)
+          .execute();
+      }
     } else {
       await transaction
         .insertInto("source_control.source_policy_versions")
@@ -348,6 +358,7 @@ export async function registerSourceConfig(
           acquisition_mode: config.candidate.acquisitionMode,
           adapter_key: config.policy.adapterKey,
           adapter_version: config.policy.adapterVersion,
+          adapter_options: canonicalJson(config.policy.adapterOptions),
           entrypoints: canonicalJson(config.policy.entrypoints),
           crawl_interval: persistedCrawlInterval(config),
           refresh_coverage: config.policy.refreshCoverage,
