@@ -1,24 +1,78 @@
 {
-  "schemaVersion": "2.0.0",
-  "scope": "local_all_function_internships",
+  "schemaVersion": "4.0.0",
+  "scope": "private_alpha_all_function_internships",
   "evidenceLevel": "E0",
   "targets": {
-    "visibleJobs": {
-      "minimum": 300,
-      "maximum": 500
+    "hardGate": {
+      "visibleJobs": 1000,
+      "companies": 100
     },
-    "companies": {
-      "minimum": 30,
-      "maximum": 40
+    "operatingTarget": {
+      "visibleJobs": 1100,
+      "companies": 110
     },
-    "minimumSmeCompanyRatio": 0.6,
-    "minimumSmeVisibleJobRatio": 0.5
+    "minimumSmeCompanyRatio": 0.5,
+    "minimumSmeVisibleJobRatio": 0.4,
+    "jobFamilyMinimums": {
+      "product": 100,
+      "operations": 100,
+      "engineering": 100,
+      "data_ai": 100,
+      "design": 15,
+      "marketing": 15,
+      "sales_business": 15,
+      "finance": 15,
+      "people_admin_legal": 15,
+      "research_consulting": 15,
+      "supply_chain_manufacturing": 15,
+      "other": 15
+    },
+    "cityMinimums": {
+      "北京": 40,
+      "上海": 40,
+      "深圳": 40,
+      "广州": 40,
+      "杭州": 40,
+      "成都": 40,
+      "武汉": 40,
+      "南京": 40
+    },
+    "manualSourceMaximumCompanyRatio": 0.2,
+    "manualSourceMaximumVisibleJobRatio": 0.1
   },
   "batchPolicy": {
-    "maxCompanies": 5,
+    "maxCompanies": 10,
+    "familyPilotMaxCompanies": 3,
     "initialJobsPerCompany": 5
   },
   "liveProbeRequiresExplicitApproval": true,
+  "companyAliases": [
+    {
+      "canonicalName": "千寻智能（杭州）科技有限公司",
+      "aliases": ["千寻智能", "万境千寻", "万境千寻（北京）科技有限公司"],
+      "evidenceRef": "docs/evidence/ingestion/internship-company-universe.csv#ICU-0002"
+    },
+    {
+      "canonicalName": "深圳市分享成长投资管理有限公司",
+      "aliases": ["分享成长投资"],
+      "evidenceRef": "docs/evidence/ingestion/internship-company-universe.csv#ICU-0014"
+    },
+    {
+      "canonicalName": "北京道泰量合私募基金管理有限公司",
+      "aliases": ["DTL量化"],
+      "evidenceRef": "docs/evidence/ingestion/internship-company-universe.csv#ICU-0004"
+    },
+    {
+      "canonicalName": "昆仑芯（北京）科技股份有限公司",
+      "aliases": ["昆仑芯", "昆仑芯（北京）科技有限公司"],
+      "evidenceRef": "docs/evidence/ingestion/priority-track-candidates-601-700.csv#EP-0606"
+    },
+    {
+      "canonicalName": "杭州灵明光子科技有限公司",
+      "aliases": ["灵明光子", "深圳市灵明光子科技有限公司"],
+      "evidenceRef": "docs/evidence/ingestion/priority-track-candidates-301-400.csv#PT-0331"
+    }
+  ],
   "priorityBatch": [
     {
       "companyKey": "xiaoyong-private-fund",
@@ -63,6 +117,220 @@
   ],
   "reserveBatch": [
     {
+      "companyKey": "kunlunxin-paused",
+      "displayName": "昆仑芯（北京）科技股份有限公司",
+      "aliases": ["昆仑芯", "昆仑芯（北京）科技有限公司"],
+      "assessmentStatus": "paused",
+      "sourceKeys": ["kunlunxin-internships"],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null,
+      "pauseReasons": ["university_page_company_mismatch"],
+      "assessmentEvidenceRefs": [
+        "docs/evidence/ingestion/approved-source-batch-03-execution-2026-07-30.md"
+      ]
+    },
+    {
+      "companyKey": "dtl-quant-paused",
+      "displayName": "北京道泰量合私募基金管理有限公司",
+      "aliases": ["DTL量化"],
+      "assessmentStatus": "paused",
+      "sourceKeys": ["dtl-quant-internships"],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null,
+      "pauseReasons": ["internship_section_not_deterministic"],
+      "assessmentEvidenceRefs": [
+        "docs/evidence/ingestion/approved-source-batch-03-execution-2026-07-30.md"
+      ]
+    },
+    {
+      "companyKey": "flab-paused",
+      "displayName": "Flab",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null,
+      "pauseReasons": ["candidate_page_invalid"],
+      "assessmentEvidenceRefs": [
+        "docs/evidence/ingestion/approved-source-batch-03-execution-2026-07-30.md"
+      ]
+    },
+    {
+      "companyKey": "allwinner-paused",
+      "displayName": "珠海全志科技股份有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": ["allwinner-gdut-internships"],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null,
+      "pauseReasons": ["frozen_payload_structure_invalid"],
+      "assessmentEvidenceRefs": [
+        "docs/evidence/ingestion/approved-source-batch-04-execution-2026-07-30.md"
+      ]
+    },
+    {
+      "companyKey": "qianhai-exchange-paused",
+      "displayName": "前海新型互联网交换中心",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null,
+      "pauseReasons": ["candidate_page_invalid", "organization_model_conflict"],
+      "assessmentEvidenceRefs": [
+        "docs/evidence/ingestion/approved-source-batch-04-execution-2026-07-30.md"
+      ]
+    },
+    {
+      "companyKey": "ruizhen-tech-paused",
+      "displayName": "深圳锐圳科技",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null,
+      "pauseReasons": ["application_email_domain_unverified"],
+      "assessmentEvidenceRefs": [
+        "docs/evidence/ingestion/approved-source-batch-04-execution-2026-07-30.md"
+      ]
+    },
+    {
+      "companyKey": "mihoyo-paused",
+      "displayName": "米哈游科技上海有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null,
+      "pauseReasons": ["current_job_denominator_unavailable"],
+      "assessmentEvidenceRefs": [
+        "docs/evidence/ingestion/approved-source-batch-05-execution-2026-07-30.md"
+      ]
+    },
+    {
+      "companyKey": "dji-paused",
+      "displayName": "深圳市大疆创新科技有限公司",
+      "assessmentStatus": "configured",
+      "sourceKeys": ["dji-hust-jobinfo-internships"],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null,
+      "adapterFamily": "university-employment-detail-html",
+      "cityHints": ["深圳", "上海", "北京"],
+      "pauseReasons": ["historical_moka_anonymous_job_contract_unverified"],
+      "assessmentEvidenceRefs": [
+        "docs/evidence/ingestion/approved-source-batch-05-execution-2026-07-30.md",
+        "docs/evidence/ingestion/hust-jobinfo-preflight-2026-08-02.md"
+      ]
+    },
+    {
+      "companyKey": "netease-boguan-paused",
+      "displayName": "广州博冠信息科技有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null,
+      "pauseReasons": ["employing_entity_not_proven"],
+      "assessmentEvidenceRefs": [
+        "docs/evidence/ingestion/approved-source-batch-05-execution-2026-07-30.md"
+      ]
+    },
+    {
+      "companyKey": "perfect-world-chengdu-paused",
+      "displayName": "成都完美世界软件有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null,
+      "pauseReasons": ["deterministic_job_details_unavailable"],
+      "assessmentEvidenceRefs": [
+        "docs/evidence/ingestion/approved-source-batch-05-execution-2026-07-30.md"
+      ]
+    },
+    {
+      "companyKey": "ninebot-paused",
+      "displayName": "纳恩博（北京）科技有限公司",
+      "aliases": ["九号公司"],
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null,
+      "adapterFamily": "moka-public-contract-candidate",
+      "pauseReasons": ["anonymous_job_contract_unverified"],
+      "assessmentEvidenceRefs": [
+        "docs/evidence/ingestion/approved-source-batch-05-execution-2026-07-30.md"
+      ]
+    },
+    {
+      "companyKey": "yonyou-paused",
+      "displayName": "用友网络科技股份有限公司",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null,
+      "pauseReasons": ["javascript_shell_without_frozen_job_contract"],
+      "assessmentEvidenceRefs": [
+        "docs/evidence/ingestion/approved-source-batch-06-execution-2026-07-30.md"
+      ]
+    },
+    {
+      "companyKey": "decathlon-china-paused",
+      "displayName": "迪卡侬中国",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null,
+      "pauseReasons": ["official_application_contract_unverified"],
+      "assessmentEvidenceRefs": [
+        "docs/evidence/ingestion/approved-source-batch-06-execution-2026-07-30.md"
+      ]
+    },
+    {
+      "companyKey": "horizon-robotics-paused",
+      "displayName": "地平线",
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null,
+      "pauseReasons": ["current_internship_activity_unverified"],
+      "assessmentEvidenceRefs": [
+        "docs/evidence/ingestion/approved-source-batch-06-execution-2026-07-30.md"
+      ]
+    },
+    {
+      "companyKey": "zhaopin-wuhan",
+      "displayName": "北京网聘信息技术有限公司武汉分公司",
+      "aliases": ["智联招聘武汉分公司"],
+      "assessmentStatus": "configured",
+      "sourceKeys": ["zhaopin-wuhan-internships"],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null,
+      "assessmentEvidenceRefs": [
+        "docs/evidence/ingestion/hust-jobinfo-preflight-2026-08-02.md"
+      ]
+    },
+    {
+      "companyKey": "xiyue-investment-paused",
+      "displayName": "喜岳投资",
+      "aliases": ["上海喜岳投资管理有限公司"],
+      "assessmentStatus": "paused",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null,
+      "pauseReasons": ["controlled_initial_run_not_completed"],
+      "assessmentEvidenceRefs": [
+        "docs/evidence/ingestion/approved-source-batch-06-execution-2026-07-30.md"
+      ]
+    },
+    {
+      "companyKey": "guanggu-venture",
+      "displayName": "武汉光谷创新投资有限公司",
+      "aliases": ["光谷创投"],
+      "assessmentStatus": "configured",
+      "sourceKeys": ["guanggu-venture-internships"],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null,
+      "adapterFamily": "university-employment-detail-html",
+      "cityHints": ["武汉"],
+      "assessmentEvidenceRefs": [
+        "docs/evidence/ingestion/hust-jobinfo-preflight-2026-08-02.md"
+      ]
+    },
+    {
       "companyKey": "entropy-ai-chip",
       "displayName": "北京熵旋芯智科技有限公司",
       "assessmentStatus": "paused",
@@ -97,7 +365,7 @@
     {
       "companyKey": "woolley-robot",
       "displayName": "卧安机器人（深圳）股份有限公司",
-      "assessmentStatus": "configured_pending_review",
+      "assessmentStatus": "configured",
       "sourceKeys": ["onerobotics-internships"],
       "scaleBand": "medium",
       "scaleEvidenceRef": "https://www.hkexnews.hk/listedco/listconews/sehk/2026/0429/2026042904445_c.pdf"
@@ -105,7 +373,7 @@
     {
       "companyKey": "deeproute",
       "displayName": "深圳一清创新科技有限公司",
-      "assessmentStatus": "configured_pending_review",
+      "assessmentStatus": "configured",
       "sourceKeys": ["unity-drive-internships"],
       "scaleBand": "small",
       "scaleEvidenceRef": "https://www.unity-drive.com/about.html"
@@ -121,14 +389,6 @@
     {
       "companyKey": "wuhan-huajing",
       "displayName": "武汉华瑾科技有限公司",
-      "assessmentStatus": "paused",
-      "sourceKeys": [],
-      "scaleBand": "unknown",
-      "scaleEvidenceRef": null
-    },
-    {
-      "companyKey": "dulishuo",
-      "displayName": "独立说教育科技北京有限公司",
       "assessmentStatus": "paused",
       "sourceKeys": [],
       "scaleBand": "unknown",
@@ -161,7 +421,7 @@
     {
       "companyKey": "sanshiyuan",
       "displayName": "广东三石园科技有限公司",
-      "assessmentStatus": "configured_pending_review",
+      "assessmentStatus": "configured",
       "sourceKeys": ["triple-stone-internships"],
       "scaleBand": "medium",
       "scaleEvidenceRef": "https://www.triple-stone.cn/about-us/"
@@ -185,7 +445,7 @@
     {
       "companyKey": "hanxu-tech",
       "displayName": "寒序科技（北京）有限公司",
-      "assessmentStatus": "configured_pending_review",
+      "assessmentStatus": "configured",
       "sourceKeys": ["hanxu-tech-internships"],
       "scaleBand": "small",
       "scaleEvidenceRef": "https://sie.pku.edu.cn/xwgg/xwdt/09fd2cf34e034555949484ebe6a15177.htm"
@@ -261,6 +521,78 @@
       "sourceKeys": [],
       "scaleBand": "unknown",
       "scaleEvidenceRef": null
+    },
+    {
+      "companyKey": "weride-nankai",
+      "displayName": "上海文远知行汽车科技有限公司",
+      "assessmentStatus": "configured",
+      "sourceKeys": ["weride-nankai-internships"],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null,
+      "adapterFamily": "university-employment-detail-html",
+      "jobFamilyHints": ["engineering", "data_ai"],
+      "cityHints": ["北京", "上海"],
+      "assessmentEvidenceRefs": [
+        "docs/evidence/ingestion/weride-nankai-preflight-2026-08-03.md"
+      ]
+    },
+    {
+      "companyKey": "anxin-fund",
+      "displayName": "安信基金管理有限责任公司",
+      "assessmentStatus": "configured",
+      "sourceKeys": ["anxin-fund-internships"],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null,
+      "adapterFamily": "university-employment-sustech-html",
+      "jobFamilyHints": ["research_consulting", "data_ai"],
+      "cityHints": ["深圳", "上海"],
+      "assessmentEvidenceRefs": [
+        "docs/evidence/ingestion/anxin-fund-preflight-2026-08-03.md"
+      ]
+    },
+    {
+      "companyKey": "dulishuo",
+      "displayName": "独立说教育科技（北京）有限公司",
+      "assessmentStatus": "needs_recheck",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null,
+      "adapterFamily": "university-employment-detail-html",
+      "jobFamilyHints": ["operations", "design"],
+      "cityHints": ["北京"],
+      "lane": "coverage",
+      "automationMode": "deterministic",
+      "capacity": {
+        "verifiedActiveInternships": 1,
+        "completeJdInternships": 1,
+        "verifiedAt": "2026-08-03",
+        "evidenceRef": "docs/evidence/ingestion/dulishuo-preflight-2026-08-03.md"
+      },
+      "assessmentEvidenceRefs": [
+        "docs/evidence/ingestion/dulishuo-preflight-2026-08-03.md"
+      ]
+    },
+    {
+      "companyKey": "tekbiotech",
+      "displayName": "泰克生物科技（天津）有限公司",
+      "assessmentStatus": "needs_recheck",
+      "sourceKeys": [],
+      "scaleBand": "unknown",
+      "scaleEvidenceRef": null,
+      "adapterFamily": "university-employment-detail-html",
+      "jobFamilyHints": ["operations"],
+      "cityHints": [],
+      "lane": "coverage",
+      "automationMode": "deterministic",
+      "capacity": {
+        "verifiedActiveInternships": 1,
+        "completeJdInternships": 1,
+        "verifiedAt": "2026-08-03",
+        "evidenceRef": "docs/evidence/ingestion/tekbiotech-preflight-2026-08-03.md"
+      },
+      "assessmentEvidenceRefs": [
+        "docs/evidence/ingestion/tekbiotech-preflight-2026-08-03.md"
+      ]
     }
   ]
 }

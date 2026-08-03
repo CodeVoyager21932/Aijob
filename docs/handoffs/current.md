@@ -1,16 +1,25 @@
-# 当前项目交接：G2 首轮自动刷新运行，随后继续批次 07-04
+# 当前项目交接：Private Alpha 100 家企业 / 1000 条岗位供给扩容
 
-> 交接日期：2026-08-02
+> 交接日期：2026-08-03
 >
-> 当前主线：`main`（PR #2 已合并；后续工作从最新 `origin/main` 新建 `codex/` 分支）
+> 当前工作分支：`codex/g2-1000-alpha-supply`（从最新 `origin/main` 建立；不得覆盖并行中的规模化供给实现改动）
 >
 > 动态事实源：[MVP 路线与当前决策面板](../06-mvp-roadmap.md)
 >
-> 工程与发现证据：[G2 终局重新验收报告](../evidence/g2/g2-reacceptance-2026-07-30.md)、[自动刷新首轮扩展观察](../evidence/ingestion/source-refresh-first-rollout-observation-2026-08-02.md)、[空库恢复演练](../evidence/g2/local-bootstrap-drill-2026-07-30.md)、[供给检查点](../evidence/g2/supply-checkpoint-2026-07-30.md)、[G2 收束执行计划](../plans/g2-closeout-plan-2026-07-26.md)
+> 工程与发现证据：[Private Alpha 容量审计](../evidence/ingestion/private-alpha-capacity-audit-2026-08-03.md)、[G2 终局重新验收报告](../evidence/g2/g2-reacceptance-2026-07-30.md)、[自动刷新首轮扩展观察](../evidence/ingestion/source-refresh-first-rollout-observation-2026-08-02.md)、[空库恢复演练](../evidence/g2/local-bootstrap-drill-2026-07-30.md)、[供给检查点](../evidence/g2/supply-checkpoint-2026-07-30.md)
+
+## 最新执行增量（2026-08-03）
+
+- [ADR-0028](../decisions/0028-capacity-first-private-alpha-supply.md) 已接受，主线从逐家高校单页改为容量型来源族；`40/400`、`70/700`、`100/1000` 都是最低检查点而非精确企业数。
+- `config/source-candidates.json` 已升级至 v4；`source:batch-plan` 与新增的零网络 `source:candidate-audit` 统一输出动态分母、容量、SME、职能、城市与人工来源缺口。
+- 当前规划器基线为总供给 231、可见 149、企业 29、SME 7 家/22 岗、人工来源 2 家/19 岗、公共岗位 0。按当前分母，首个可行检查点至少是 44 家企业、22 家 SME。
+- 北森适配器已能通过配置新增租户；当前审计没有 `capacity` 就绪候选，因此没有进行未经授权的真实来源族试点。
+- `aijob_alpha` 已建立并完成 18 个迁移，但本地恢复清单仍是旧的 178/114/16 且含真实探测；本轮未运行恢复。12 小时动态刷新通过 110 虚拟来源离线验证，当前配置仍使用每小时 3 家限制。
+- 最终工程门通过：隔离 PostgreSQL 全仓 513/513（platform 418、web 57、config 16、contracts 15、database 7）、全仓 TypeScript、生产构建、319 文件 lint 与 `git diff --check`；未访问真实招聘站。
 
 ## 1. 当前唯一目标
 
-coco 已在 P7 终局判定中选择继续扩容，并通过 ADR-0025 把企业目标从 20–30 家调整为 30–40 家；300–500 条可见岗位、SME 企业 60% 和 SME 岗位 50% 保持不变。批次 07-03 已完成；为避免继续依赖维护者逐家重跑，coco 又批准了 [ADR-0026](../decisions/0026-local-automatic-source-refresh.md)。三来源真实灰度已经通过，其余 18 个活动确定性来源也已显式启用并分散排期；首轮扩展中的神谷、帆软、普渡、寒序、鲸驰与慧策已自动接受，目录现为 202 有效总供给、136 可见、23 家企业，SME 为 7/23 家与 22/136 岗位。**当前唯一目标是继续完成首轮扩展排期；来源级失败继续隔离，运行稳定后按冻结排序规则继续批次 07-04。** 企业达到 40 家立即停止；产品证据保持 `E0`，G0/G1 暂停。
+coco 已通过 [ADR-0027](../decisions/0027-establish-private-alpha-supply-gate.md) 将外部测试前的供给硬门槛提高为 **100 家企业、1000 条可见活动岗位**，日常运营缓冲为 110 家 / 1100 岗；SME 企业需 ≥50%、SME 可见岗位需 ≥40%，并增加 12 职能、8 城市和人工来源占比硬门。[ADR-0028](../decisions/0028-capacity-first-private-alpha-supply.md) 进一步把扩容主线固定为容量审计、多租户 ATS 来源族和批量导入。当前目录为 231 有效总供给、149 可见、29 家企业，SME 为 7/29 家与 22/149 岗位，公共版本为 0。**当前唯一目标是先形成 3 家、每家至少 10 条完整活动实习的北森容量试点；若失败则按审计选择第二来源族，不回退逐家堆单页。** 产品证据保持 `E0`；供给硬门槛与后续服务器就绪 Gate 通过前，G0/G1 和其他外部用户测试暂停。
 
 2026-07-26 coco 作出四项决定并已全部执行：
 
@@ -51,12 +60,14 @@ coco 已在 P7 终局判定中选择继续扩容，并通过 ADR-0025 把企业�
 
 ## 2. 已确认工程事实
 
-- ADR-0026 自动刷新基础设施已实现：独立 `collector-worker` 随 `pnpm dev` 启动；`.data/source-refresh.local.json` 缺失时默认关闭；配置显式授权后按 PostgreSQL `next_due_at` 稳定排序，并以数据库 advisory lock 保证全局单并发、每小时最多 3 个不同来源和一小时传输层熔断执行 `scheduled` 任务。浏览器来源只生成提醒，不触网。
+- ADR-0027 已接受：100/1000 是外部测试硬门槛，110/1100 是运营缓冲；SME、12 职能、8 城市和人工/浏览器来源占比必须用当前可见目录的真实分母独立验收。该决策没有把当前 202/136/23 或任何历史运行结果改写为通过。
+- ADR-0026 自动刷新基础设施已实现：独立 `collector-worker` 随 `pnpm dev` 启动；`.data/source-refresh.local.json` 缺失时默认关闭；配置显式授权后按 PostgreSQL `next_due_at` 稳定排序，并以数据库 advisory lock 保证全局单并发和一小时传输层熔断。Worker 与状态命令只认 Git 中显式配置的来源键，孤立测试记录不会污染容量或进入调度。
+- ADR-0028 已完成滚动 12 小时容量的离线实现：当全部活动确定性来源都配置为不超过 12 小时，小时上限按 `min(12, max(3, ceil(来源数 / 12) + 1))` 计算并稳定分散；110 个虚拟来源时为 11 家/小时。当前 27 个活动确定性来源仍混合 24/168 小时策略，因此模式保持 `legacy`、每小时最多 3 家，真实切换等待 `40/400`。
 - 来源契约新增 `full_scope`、`tracked_records`、`manual_snapshot` 与连续未见策略；计划批次必须先通过接受门，硬冲突自动暂停且保留上一可用目录。接受运行在目录物化成功前保持到期，重启只补物化、不重复触网；冻结高校详情页本次保存的 404/410 证据可关闭对应岗位。截止日期按上海自然日即时下架，`uncertain` 继续可见；目录、配额、匹配、推荐和洞察统一排除 `closed`。
-- 运维命令为 `source:refresh-enable/disable/status/now`，扩大多来源时可用 `source:refresh-enable --stagger-hours 24` 稳定分散当前到期任务。首次启用、扩大范围、恢复暂停与浏览器快照仍需人工明确操作；CI、测试、构建、Alpha 和 Production 均不访问真实来源。2026-08-02 运行观察时本机总开关、`collector-worker`、`match-worker` 与开发服务均在运行；该进程状态是本次交接时点事实，不是部署承诺。ADR-0023/0024 仍为提案。
+- 运维命令为 `source:refresh-enable/disable/status/now`；供给命令为 `source:batch-plan` 与零网络 `source:candidate-audit`。首次启用、扩大范围、恢复暂停与浏览器快照仍需人工明确操作；CI、测试、构建、Alpha 和 Production 均不访问真实来源。不要从历史运行记录推断当前进程仍在运行。ADR-0023/0024 仍为提案。
 - 三来源真实灰度已通过：卧安 run `959c48cc-8e36-4f6a-9a6c-3c49266207f0` 为 1 请求、5/5/0、`complete`；先临 run `de9d0fb2-48b5-44fe-a71d-a00946f1ccc0` 为 1 请求、9/9/0、`complete`；硕方 run `d07a7608-4633-48e1-9378-340dc9ab2395` 为 6 请求、6/6/0、`partial`。三者均被自动接受，同到期窗口重放 `reused=true` 且不触网，物化新增卧安、先临各 1 个岗位版本，硕方没有伪版本。
 - 灰度通过后，其余 18 个活动确定性来源各提升一个政策版本并按稳定哈希分散到 24 小时窗口；最终矩阵为 21 个确定性来源启用、2 个浏览器来源只生成快照提醒、4 个暂停来源保持关闭。启用过程先关闭本地 Gate 并等待 collector advisory lock，全部登记和排期成功后才重新开启；禁用命令等待活动周期结束后返回，耗尽重试的死任务退到下一周期且不阻塞后续来源。
-- 当前目录：有效总供给 202 条、可见 136 条、23 家企业；批次 07-03 望尘 1 条在截止前导入，2026-08-01 转 `paused` 后不再计入当前目录；自动刷新灰度新增 2 条，普渡首轮扩展又新增 2 条。被压缩 66 条保留全部不可变版本并在目录页公开"X/供给 Y"。
+- 当前目录：批次规划器读取有效总供给 231 条、可见活动岗位 149 条、29 家企业；SME 7/29 家与 22/149 岗，人工来源 2/29 家与 19/149 岗，公共岗位 0。历史配额压缩记录和全部不可变版本继续保留。
 - 截至 2026-08-02 14:58，首轮扩展计划运行已完成神谷 1/1/0、帆软 12/12/0、普渡 30/30/0、寒序 2/2/0、鲸驰 1/1/0 与慧策 30/30/0，合计 9 请求、76 发现、76 规范化、0 拒绝，六者均为 `accepted`；没有自动暂停、传输错误或熔断。当前 9 个确定性来源为新鲜、其余 12 个到期等待，2 个浏览器来源只生成快照提醒。
 - 通过来源均为 `pending_review`、只能进入本机 `local_mvp`；全志、昆仑芯、DTL 与望尘已转 `paused`。数据库公共版本指针保持 0；公共模式 `/v1/jobs` 为空，本机启用 `local_mvp` 时同一路由返回 136 条内部预览。
 - P0 提额运行：硕方 run `f4d022fa-d7ff-4004-a990-d29cc113797c` 为 6 请求、6/6/0，同小时重放 `reused=true`；千寻 run `b26d6015-da9e-4a28-93f5-5cd96233da5a` 为 `request_count=0`、22/22/0，同快照重放 `reused=true` 且 0 新修订。快照哈希为 `46aca0c1…3a93127`。
@@ -86,22 +97,25 @@ coco 已在 P7 终局判定中选择继续扩容，并通过 ADR-0025 把企业�
 
 ## 3. 当前未完成项
 
-1. 三来源灰度和 18 个扩展来源分散排期已完成；首轮扩展已通过六个来源，继续观察其余 12 个到期确定性来源，确认来源级失败隔离、每小时上限、熔断和目录物化在完整首轮中持续稳定。
-2. 固定 20 家队列与批次 07-01/07-02/07-03 已核验完毕；自动刷新稳定后，下一批继续从千家台账按 `active_explicit → active_needs_recheck`、岗位数降序、截止升序、候选 ID 升序筛选，每批最多 5 家，且不得沿用已截止页面的活动性结论。
-3. 目录硬指标仍未达：136 / 300 可见、23 / 30 家企业、SME 企业 30.43% / 60%、SME 岗位 16.18% / 50%。
-4. 企业达到 40 家仍不达标时停止扩容并回到 P7，不降低规模证据或字段标准。
-5. 空库恢复命令已实现，但尚未完成到当前 202 / 136 / 23 目录统计的最终一致性断言；G0/G1、公开 AI 与公开岗位目录继续关闭。
+1. 总量硬门槛未达：149 / 1000 可见岗位，缺 851；29 / 100 家企业，缺 71。达到 100/1000 后还要维持 110/1100 运营缓冲。
+2. SME 硬门槛未达：7 / 50 家，至少缺 43；22 / 400 条可见岗位，至少缺 378。规模预判、招聘平台人数和 `unknown` 不能计入 SME。
+3. 12 职能和 8 城市基线已可复现，但远未通过：产品 23、运营 20、工程 30、数据与 AI 16；广州/成都/南京各 3、武汉 4、杭州 10、上海 17、深圳 19，北京 62。
+4. 人工/浏览器来源目前为 2 / 29 家（6.90%）和 19 / 149 岗（12.75%）；企业比例通过、岗位比例超限。人工岗位不增加时，确定性岗位至少需要从 130 增至 190，浏览器扩容保持关闭。
+5. 候选审计与批次规划管线已实现，但 1000 条台账中当前 `capacity` 就绪候选为 0。下一步需要单独授权北森最多 3 家公开页面预检；没有容量证据时不执行真实导入。
+6. 12 小时动态限流和稳定分散已离线通过，真实配置切换与灰度尚未开始；只有 `40/400` 通过后才统一调整活动确定性来源的刷新周期。
+7. `aijob_alpha` 已完成 18 个迁移，但现有恢复清单仍是 178/114/16 且包含 14 个真实探测步骤，尚不能复现 231/149/29。达到各检查点后仍需恢复一致性、全量工程门、浏览器闭环和服务器就绪 Gate。
 
 ## 4. 关键实现位置
 
 - 岗位目录与配额：`apps/platform/src/catalog/`（`materialize.ts` 含 `applyCompanyQuotaSelections`、`repository.ts` 含 `companyQuotaGaps`）、`apps/web/src/pages/JobListPage.tsx`
 - 官方来源：`apps/platform/src/sources/`、`config/sources/`；批次 02 共享适配器 `university-employment-adapter.ts`（注册表含四家冻结契约）；千寻配置 `spirit-ai-feishu-manual.json`
 - 探测与导入：`apps/platform/src/ingestion/probe.ts`（`runUniversityEmploymentAdapterProbe`）、`manual-browser-import.ts`
+- 容量候选与批次：`apps/platform/src/sources/source-candidates.ts`、`source-candidate-ledger.ts`、`source-batch-planner.ts`；CLI 为 `source:candidate-audit` 与 `source:batch-plan`
 - 匿名 owner 与安全：`apps/platform/src/identity/`、`apps/platform/src/profile/`
 - 简历：`apps/platform/src/resume/`；匹配与推荐：`apps/platform/src/matching/`；JD 洞察：`apps/platform/src/insights/`
 - 优化与 DOCX：`apps/platform/src/tailoring/`、`apps/platform/src/ai/`；决定与删除：`apps/platform/src/decisions/`
 - 自动刷新：`apps/platform/src/workers/collector-worker.ts`、`apps/platform/src/ingestion/refresh-scheduler.ts`、`apps/platform/src/ingestion/job-activity.ts`、`apps/platform/src/sources/source-refresh-operations.ts`
-- 数据迁移：`packages/database/src/migrations/004_local_complete_mvp.ts` 至 `017_source_refresh_automation.ts`
+- 数据迁移：`packages/database/src/migrations/004_local_complete_mvp.ts` 至 `018_adapter_descriptors_and_manual_runs.ts`
 
 ## 5. 本地恢复
 
@@ -146,14 +160,16 @@ pnpm lint
 ```text
 [ ] 已读 AGENTS.md、README.md、docs/06-mvp-roadmap.md 和本交接
 [ ] 已检查分支、git status、最近提交和未提交差异
-[ ] 已确认目录为有效总供给 202 / 可见 136 条 local_mvp 岗位、23 家企业；活动通过来源 pending_review，硬冲突或过期来源 paused
+[ ] 已确认规划器目录为有效总供给 231 / 可见 149 条 local_mvp 活动岗位、29 家企业；SME 7 家/22 岗，人工来源 2 家/19 岗，公共岗位 0
 [ ] 已确认 P0 15/15 自审通过，硕方 6 条、千寻 22 条，鹏扶按预设暂停且不补位
 [ ] 已确认 ADR-0021 配额压缩生效（66 条公开缺口），配额恢复需合格规模证据
 [ ] 已确认产品证据仍为 E0，G0/G1 未开始，G3 为 0/3
 [ ] 已确认 P1–P6 已执行，P7 报告已完成但新范围硬指标未通过
-[ ] 已确认 ADR-0025 批准批次 07+、企业目标为 30–40 家且 40 家为停止线
+[ ] 已确认 ADR-0027 部分替代 ADR-0025 的数量目标：硬门槛为 100 家 / 1000 岗，缓冲为 110 / 1100；旧 40 家停止线不再是当前终点
+[ ] 已确认 SME 为企业 ≥50% / 岗位 ≥40%，四个重点职能各 ≥100、其余职能各 ≥15，8 个目标城市各 ≥40，人工来源企业 ≤20% / 岗位 ≤10%
 [ ] 已确认固定 20 家队列与批次 07-01/07-02/07-03 已核验完毕；望尘 1/1 岗位截止前自审通过、截止后已暂停下架且不再触网，下一批继续千家台账
-[ ] 已确认 ADR-0026 三来源灰度通过，最终矩阵为 21 个确定性来源启用、2 个浏览器来源仅提醒、4 个暂停来源关闭；首轮扩展已通过神谷/帆软/普渡/寒序/鲸驰/慧策，本机总开关与 Worker 正在运行
-[ ] 已确认空库恢复入口已实现但网络阶段 fail-closed，不能写成完整恢复通过
+[ ] 已确认 ADR-0028 候选 v4、动态分母和零网络审计已实现；当前 `capacity` 就绪候选为 0，北森真实预检仍需单独授权
+[ ] 已确认 12 小时动态容量只完成离线验证；当前 27 个活动确定性来源仍为 legacy 每小时 3 家，不能写成真实灰度已通过
+[ ] 已确认 `aijob_alpha` 仅完成 18 个迁移，旧恢复清单不能复现当前目录，不能写成完整恢复通过
 [ ] 已确认不会读取、打印或提交本机 AI 密钥
 ```

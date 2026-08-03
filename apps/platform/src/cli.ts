@@ -12,9 +12,15 @@ import {
 import { runAiProviderSmoke } from "./ai/smoke.js";
 import { materializeLocalCatalog } from "./catalog/materialize.js";
 import { loadPlatformConfig } from "./config/platform-config.js";
+import { runBatchImport } from "./ingestion/batch-import.js";
 import { importManualBrowserSnapshot } from "./ingestion/manual-browser-import.js";
 import { runSourceProbe } from "./ingestion/probe.js";
 import { runLocalBootstrap } from "./local-bootstrap.js";
+import {
+  buildSourceBatchPlan,
+  buildSourceCandidateAudit,
+  type SourceScaleMilestone,
+} from "./sources/source-batch-planner.js";
 import { loadSourceCandidateRegistry } from "./sources/source-candidates.js";
 import { assessSource, listSourceKeys, loadSourceConfig } from "./sources/source-config.js";
 import {
@@ -157,6 +163,72 @@ program
   .description("只读列出扩容候选批次；不会访问招聘站或登记来源")
   .action(async () => {
     console.info(JSON.stringify(await loadSourceCandidateRegistry(), null, 2));
+  });
+
+program
+  .command("source-batch-plan")
+  .description("只读计算规模里程碑缺口并稳定选择下一批来源；不会访问招聘站")
+  .requiredOption("--milestone <companies>", "企业检查点：40、70 或 100")
+  .option("--limit <companies>", "本批最多企业数，默认使用注册表上限")
+  .action(async (options: { milestone: string; limit?: string }) => {
+    const milestone = Number(options.milestone);
+    if (milestone !== 40 && milestone !== 70 && milestone !== 100) {
+      throw new Error("SOURCE_BATCH_PLAN_MILESTONE_INVALID");
+    }
+    const appConfig = loadAppConfig();
+    const db = createDatabase(appConfig.databaseUrl);
+    try {
+      console.info(
+        JSON.stringify(
+          await buildSourceBatchPlan({
+            db,
+            milestone: milestone as SourceScaleMilestone,
+            ...(options.limit ? { limit: Number(options.limit) } : {}),
+          }),
+          null,
+          2,
+        ),
+      );
+    } finally {
+      await db.destroy();
+    }
+  });
+
+program
+  .command("source-candidate-audit")
+  .description("零网络审计扩容候选容量、来源族和证据缺口；不会修改配置")
+  .requiredOption("--milestone <companies>", "企业检查点：40、70 或 100")
+  .option("--limit <candidates>", "每个来源族最多展示的候选数", "20")
+  .action(async (options: { milestone: string; limit: string }) => {
+    const milestone = Number(options.milestone);
+    const candidateSampleLimit = Number(options.limit);
+    if (milestone !== 40 && milestone !== 70 && milestone !== 100) {
+      throw new Error("SOURCE_CANDIDATE_AUDIT_MILESTONE_INVALID");
+    }
+    if (
+      !Number.isInteger(candidateSampleLimit) ||
+      candidateSampleLimit < 1 ||
+      candidateSampleLimit > 100
+    ) {
+      throw new Error("SOURCE_CANDIDATE_AUDIT_LIMIT_OUT_OF_RANGE");
+    }
+    const appConfig = loadAppConfig();
+    const db = createDatabase(appConfig.databaseUrl);
+    try {
+      console.info(
+        JSON.stringify(
+          await buildSourceCandidateAudit({
+            db,
+            milestone: milestone as SourceScaleMilestone,
+            candidateSampleLimit,
+          }),
+          null,
+          2,
+        ),
+      );
+    } finally {
+      await db.destroy();
+    }
   });
 
 program
@@ -354,6 +426,50 @@ program
         }
       }
       console.info(JSON.stringify(sourceKey ? results[0] : { sources: results }, null, 2));
+    } finally {
+      await db.destroy();
+    }
+  });
+
+program
+  .command("source-batch-import")
+  .description("按来源批量执行受限本地自动化导入；失败来源隔离，浏览器来源只进入兜底队列")
+  .requiredOption("--source-keys <keys>", "逗号分隔的来源键；不会默认触碰全部来源")
+  .option("--limit <number>", "每个来源最多导入的岗位数，受来源预算限制", "5")
+  .option("--confirm-live", "确认本次会访问已授权的真实官方来源")
+  .action(async (options: { sourceKeys: string; limit: string; confirmLive?: boolean }) => {
+    const requestedLimit = Number(options.limit);
+    if (!Number.isInteger(requestedLimit) || requestedLimit < 1) {
+      throw new Error("SOURCE_BATCH_LIMIT_INVALID");
+    }
+    const sourceKeys = options.sourceKeys
+      .split(",")
+      .map((sourceKey) => sourceKey.trim())
+      .filter(Boolean);
+    const appConfig = loadAppConfig();
+    const db = createDatabase(appConfig.databaseUrl);
+    try {
+      const result = await runBatchImport({
+        db,
+        runtime: {
+          appEnv: appConfig.appEnv,
+          enableSourceProbe: appConfig.enableSourceProbe,
+          snapshotDir: appConfig.snapshotDirectory,
+          probeRequestIntervalMs: appConfig.probeRequestIntervalMs,
+        },
+        enableLocalMvp: appConfig.enableLocalMvp,
+        sourceKeys,
+        limit: requestedLimit,
+        liveProbeApproved: options.confirmLive === true,
+      });
+      if (
+        result.stoppedByTransportCircuit ||
+        result.materializationError ||
+        result.items.some((item) => item.state === "failed")
+      ) {
+        process.exitCode = 1;
+      }
+      console.info(JSON.stringify(result, null, 2));
     } finally {
       await db.destroy();
     }

@@ -24,6 +24,7 @@
     "@fastify/cookie": "^11.1.2",
     "@fastify/multipart": "^10.1.0",
     "commander": "14.0.0",
+    "csv-parse": "6.1.0",
     "docx": "^9.7.1",
     "fastify": "5.8.5",
     "kysely": "0.28.17",
