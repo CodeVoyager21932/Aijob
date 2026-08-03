@@ -26,14 +26,15 @@
 - [ADR-0020：优先覆盖产品运营与电子信息技术实习](0020-prioritize-product-operations-and-electronic-information-internships.md)
 - [ADR-0021：压缩无中小规模证据企业的单家配额并公开中小岗位占比缺口](0021-compress-large-company-quota-and-publish-sme-gap.md)
 - [ADR-0022：以获批计划批量预授权来源批次并委托抽检](0022-plan-batch-preauthorization-and-delegated-spot-checks.md)
+- [ADR-0023：强化运行时与数据库角色边界](0023-enforce-runtime-and-database-role-boundaries.md)
 - [ADR-0025：扩大 G2 企业上限并延续 SME 批次预授权（目标已被部分替代）](0025-extend-g2-sme-company-cap-and-batch-authorization.md)
 - [ADR-0026：允许显式配置的本机来源自动刷新](0026-local-automatic-source-refresh.md)
 - [ADR-0027：建立 Private Alpha 100 家企业 / 1000 条岗位供给门槛](0027-establish-private-alpha-supply-gate.md)
 - [ADR-0028：以容量型来源族推进 Private Alpha 供给](0028-capacity-first-private-alpha-supply.md)
+- [ADR-0029：企业官网与官方 ATS 构成岗位目录唯一真源](0029-official-source-catalog-trust-boundary.md)
 
 尚未接受的提案：
 
-- [ADR-0023：强化运行时与数据库角色边界](0023-enforce-runtime-and-database-role-boundaries.md)
 - [ADR-0024：统一来源适配器描述符与运行模式](0024-unify-source-adapter-descriptors-and-run-modes.md)
 
 新决定从 [ADR 模板](../templates/adr.md) 复制创建。已有决定变化时新增一条 ADR，并将旧记录标记为 `superseded`，不要静默改写历史理由。
