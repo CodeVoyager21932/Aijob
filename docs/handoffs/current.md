@@ -15,7 +15,7 @@
 - 当前规划器基线为总供给 231、可见 149、企业 29、SME 7 家/22 岗、人工来源 2 家/19 岗、公共岗位 0。按当前分母，首个可行检查点至少是 44 家企业、22 家 SME。
 - 北森适配器已能通过配置新增租户；当前审计没有 `capacity` 就绪候选，因此没有进行未经授权的真实来源族试点。
 - `aijob_alpha` 已建立并完成 18 个迁移，但本地恢复清单仍是旧的 178/114/16 且含真实探测；本轮未运行恢复。12 小时动态刷新通过 110 虚拟来源离线验证，当前配置仍使用每小时 3 家限制。
-- 最终工程门通过：隔离 PostgreSQL 全仓 513/513（platform 418、web 57、config 16、contracts 15、database 7）、全仓 TypeScript、生产构建、319 文件 lint 与 `git diff --check`；未访问真实招聘站。
+- 最终工程门通过：隔离 PostgreSQL 全仓 514/514（platform 419、web 57、config 16、contracts 15、database 7）、全仓 TypeScript、生产构建、319 文件 lint 与 `git diff --check`；未访问真实招聘站。
 
 ## 1. 当前唯一目标
 

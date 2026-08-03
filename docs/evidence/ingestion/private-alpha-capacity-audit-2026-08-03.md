@@ -49,7 +49,7 @@
 
 ## 已执行验证
 
-- 隔离 PostgreSQL 全仓测试：513/513 通过（platform 418、web 57、config 16、contracts 15、database 7）
+- 隔离 PostgreSQL 全仓测试：514/514 通过（platform 419、web 57、config 16、contracts 15、database 7）
 - 全仓 TypeScript：通过
 - 全仓生产构建：通过
 - `pnpm lint`：319 个文件通过
