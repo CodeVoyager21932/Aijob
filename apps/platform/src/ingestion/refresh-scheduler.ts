@@ -20,12 +20,83 @@ export interface DueSourceRefresh {
   nextDueAt: Date;
 }
 
+export interface RefreshCapacityProfile {
+  enabledDeterministicSources: number;
+  maximumSourceStartsPerHour: number;
+  mode: "legacy" | "rolling_12h";
+}
+
+const LEGACY_MAXIMUM_SOURCE_STARTS_PER_HOUR = 3;
+const TWELVE_HOUR_REFRESH_TARGET = 12;
+const MAXIMUM_SOURCE_STARTS_PER_HOUR = 12;
+
 export function isTransportErrorCode(code: string): boolean {
   return TRANSPORT_ERROR_CODES.has(code);
 }
 
 export function remainingHourlyCapacity(startedSourceIds: string[], maximum = 3): number {
   return Math.max(0, maximum - new Set(startedSourceIds).size);
+}
+
+export function dynamicHourlySourceLimit(enabledDeterministicSources: number): number {
+  if (!Number.isInteger(enabledDeterministicSources) || enabledDeterministicSources < 0) {
+    throw new Error("SOURCE_REFRESH_COUNT_INVALID");
+  }
+  return Math.min(
+    MAXIMUM_SOURCE_STARTS_PER_HOUR,
+    Math.max(
+      LEGACY_MAXIMUM_SOURCE_STARTS_PER_HOUR,
+      Math.ceil(enabledDeterministicSources / TWELVE_HOUR_REFRESH_TARGET) + 1,
+    ),
+  );
+}
+
+function crawlIntervalHours(value: string): number | null {
+  const match = /^(\d+)h$/.exec(value);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  return Number.isSafeInteger(hours) && hours > 0 ? hours : null;
+}
+
+export function refreshCapacityProfile(crawlIntervals: string[]): RefreshCapacityProfile {
+  const intervalHours = crawlIntervals.map(crawlIntervalHours);
+  const rollingTwelveHoursEnabled =
+    intervalHours.length > 0 &&
+    intervalHours.every((hours) => hours !== null && hours <= TWELVE_HOUR_REFRESH_TARGET);
+  return {
+    enabledDeterministicSources: crawlIntervals.length,
+    maximumSourceStartsPerHour: rollingTwelveHoursEnabled
+      ? dynamicHourlySourceLimit(crawlIntervals.length)
+      : LEGACY_MAXIMUM_SOURCE_STARTS_PER_HOUR,
+    mode: rollingTwelveHoursEnabled ? "rolling_12h" : "legacy",
+  };
+}
+
+async function loadRefreshCapacityProfile(
+  db: Kysely<Database>,
+  sourceKeys?: readonly string[],
+): Promise<RefreshCapacityProfile> {
+  if (sourceKeys?.length === 0) return refreshCapacityProfile([]);
+  let query = db
+    .selectFrom("source_control.source_runtime_states as runtime")
+    .innerJoin("source_control.sources as source", "source.id", "runtime.source_id")
+    .innerJoin("source_control.source_policy_versions as policy", (join) =>
+      join
+        .onRef("policy.source_id", "=", "source.id")
+        .onRef("policy.version", "=", "source.current_policy_version"),
+    )
+    .select("policy.crawl_interval as crawlInterval")
+    .where("runtime.automation_paused", "=", false)
+    .where("policy.crawl_interval", "is not", null)
+    .where("policy.refresh_coverage", "!=", "manual_snapshot")
+    .where("policy.policy_status", "in", ["pending_review", "approved"]);
+  if (sourceKeys) {
+    query = query.where("source.source_key", "in", [...sourceKeys]);
+  }
+  const rows = await query.execute();
+  return refreshCapacityProfile(
+    rows.flatMap(({ crawlInterval }) => (crawlInterval ? [crawlInterval] : [])),
+  );
 }
 
 function errorCodes(value: JsonValue): string[] {
@@ -147,9 +218,14 @@ export async function openCircuitForTransportFailures(
 export async function selectDueSourceRefreshes(
   db: Kysely<Database>,
   now = new Date(),
-  maximumPerHour = 3,
+  maximumPerHour?: number,
+  sourceKeys?: readonly string[],
 ): Promise<DueSourceRefresh[]> {
   if (await isRefreshCircuitOpen(db, now)) return [];
+  if (sourceKeys?.length === 0) return [];
+  const maximum =
+    maximumPerHour ??
+    (await loadRefreshCapacityProfile(db, sourceKeys)).maximumSourceStartsPerHour;
   const started = await db
     .selectFrom("ingestion.crawl_runs")
     .select("source_id")
@@ -159,11 +235,11 @@ export async function selectDueSourceRefreshes(
     .execute();
   const capacity = remainingHourlyCapacity(
     started.map(({ source_id }) => source_id),
-    maximumPerHour,
+    maximum,
   );
   if (capacity === 0) return [];
 
-  const rows = await db
+  let dueQuery = db
     .selectFrom("source_control.source_runtime_states as runtime")
     .innerJoin("source_control.sources as source", "source.id", "runtime.source_id")
     .innerJoin("source_control.source_policy_versions as policy", (join) =>
@@ -185,9 +261,11 @@ export async function selectDueSourceRefreshes(
     .where("policy.refresh_coverage", "!=", "manual_snapshot")
     .where("policy.policy_status", "in", ["pending_review", "approved"])
     .orderBy("runtime.next_due_at", "asc")
-    .orderBy("source.source_key", "asc")
-    .limit(capacity)
-    .execute();
+    .orderBy("source.source_key", "asc");
+  if (sourceKeys) {
+    dueQuery = dueQuery.where("source.source_key", "in", [...sourceKeys]);
+  }
+  const rows = await dueQuery.limit(capacity).execute();
 
   return rows.flatMap((row) =>
     row.nextDueAt
@@ -262,8 +340,12 @@ interface RefreshStatusRow {
   last_error_code: string | null;
 }
 
-export async function loadSourceRefreshStatus(db: Kysely<Database>) {
-  const rows = await sql<RefreshStatusRow>`
+export async function loadSourceRefreshStatus(
+  db: Kysely<Database>,
+  sourceKeys?: readonly string[],
+) {
+  const [rows, scheduler] = await Promise.all([
+    sql<RefreshStatusRow>`
     SELECT
       source.source_key,
       policy.policy_status,
@@ -296,18 +378,22 @@ export async function loadSourceRefreshStatus(db: Kysely<Database>) {
       LIMIT 1
     ) AS latest ON TRUE
     ORDER BY source.source_key;
-  `.execute(db);
+  `.execute(db),
+    loadRefreshCapacityProfile(db, sourceKeys),
+  ]);
   const circuit = await db
     .selectFrom("source_control.refresh_circuit_breaker")
     .select(["open_until", "reason"])
     .where("id", "=", "global")
     .executeTakeFirstOrThrow();
+  const allowedSourceKeys = sourceKeys ? new Set(sourceKeys) : null;
   return {
+    scheduler,
     circuit: {
       openUntil: circuit.open_until ? new Date(circuit.open_until).toISOString() : null,
       reason: circuit.reason,
     },
-    sources: rows.rows.map((row) => ({
+    sources: rows.rows.filter((row) => allowedSourceKeys?.has(row.source_key) ?? true).map((row) => ({
       sourceKey: row.source_key,
       policyStatus: row.policy_status,
       refreshCoverage: row.refresh_coverage,

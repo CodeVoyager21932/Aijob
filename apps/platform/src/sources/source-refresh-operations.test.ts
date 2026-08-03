@@ -243,12 +243,18 @@ describe("local source refresh operations", () => {
       appEnv: "local",
       workspaceRoot: "C:/workspace",
       dependencies: {
+        listSourceKeys: async () => ["manual-source"],
         readLocalRefreshControl: () => ({
           version: 1,
           enabled: true,
           updatedAt: "2026-08-01T00:00:00.000Z",
         }),
-        loadSourceRefreshStatus: async () => ({
+        loadSourceRefreshStatus: async (_db, _sourceKeys) => ({
+          scheduler: {
+            enabledDeterministicSources: 0,
+            maximumSourceStartsPerHour: 3,
+            mode: "legacy",
+          },
           circuit: { openUntil: null, reason: null },
           sources: [
             {
@@ -271,6 +277,7 @@ describe("local source refresh operations", () => {
       },
     });
 
+    expect(status.scheduler.enabledDeterministicSources).toBe(0);
     expect(status.control.enabled).toBe(true);
     expect(status.sources[0]).toMatchObject({
       jobCount: 2,

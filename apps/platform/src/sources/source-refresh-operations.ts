@@ -134,9 +134,10 @@ export async function getLocalSourceRefreshStatus(input: {
 }) {
   assertLocalEnvironment(input.appEnv);
   const deps = dependencies(input.dependencies);
+  const sourceKeys = await deps.listSourceKeys();
   const [control, database] = await Promise.all([
     Promise.resolve(deps.readLocalRefreshControl(input.workspaceRoot)),
-    deps.loadSourceRefreshStatus(input.db),
+    deps.loadSourceRefreshStatus(input.db, sourceKeys),
   ]);
   return { control, ...database };
 }

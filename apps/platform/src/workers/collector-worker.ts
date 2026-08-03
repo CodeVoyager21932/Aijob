@@ -10,7 +10,7 @@ import {
   selectDueSourceRefreshes,
 } from "../ingestion/refresh-scheduler.js";
 import { readLocalRefreshControl } from "../sources/local-refresh-control.js";
-import { loadSourceConfig } from "../sources/source-config.js";
+import { listSourceKeys, loadSourceConfig } from "../sources/source-config.js";
 
 const DEFAULT_SCAN_INTERVAL_MS = 60_000;
 export const COLLECTOR_ADVISORY_LOCK_KEY = 2_600_026;
@@ -152,7 +152,9 @@ export async function runOneCollectorCycle(input: {
     if (!readRefreshControl(input.config.workspaceRoot).enabled) {
       return { state: "disabled" as const };
     }
-    const due = (await selectDueSourceRefreshes(connection, now, 3))[0];
+    const due = (
+      await selectDueSourceRefreshes(connection, now, undefined, await listSourceKeys())
+    )[0];
     if (!due) return { state: "circuit_open_or_not_due" as const };
 
     let sourceConfig: Awaited<ReturnType<typeof loadSourceConfig>>;
