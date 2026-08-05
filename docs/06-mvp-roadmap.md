@@ -5,7 +5,7 @@
 ## 最新产品决定（2026-08-05）
 
 - [ADR-0030](decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md) 已接受：Aijob 升级为可信官方岗位驱动的完整求职 OS，首个交付为“一岗全闭环”。
-- Phase 1A、Phase 1B、Phase 2 领域设计和 Phase 2A-1 migration 023 Gate 已通过。当前唯一切片为 `Phase 2A-2 Resume Document V2 contracts + additive migration 024`；只允许 additive 扩展和 V1 只读转换验证，不接 API。新增来源扩容继续暂缓，已授权 canonical 来源只按现有边界维护。
+- Phase 1A、Phase 1B、Phase 2 领域设计、Phase 2A-1 migration 023 和 Phase 2A-2 Resume V2 migration 024 Gate 已通过。当前唯一切片为 `Phase 2A-3 Interview/Debrief/Knowledge contracts + migrations 025-027`；只做 contracts、additive schema 和离线/隔离测试，不接 API、不调用真实 AI。新增来源扩容继续暂缓，已授权 canonical 来源只按现有边界维护。
 - 采用一套全局侧栏、顶部工具栏、主画布和右侧检查器；单岗位标签固定为概览、JD能力、定制简历、投递、面试、复盘。
 - 开源项目只做审计后的选择性移植，不整仓拼接；引用式经验库不抓全文，不做社区；语音、OCR、自动投递和浏览器代填继续排除。
 - 100/1000 与 110/1100 目标没有取消；一岗闭环通过后恢复 ADR-0028 的容量型官方 ATS 扩容。完整计划见 [Career OS 2.0 升级计划](plans/career-os-v2-upgrade-plan-2026-08-04.md)。
@@ -13,9 +13,10 @@
 ## 最新执行增量（2026-08-05）
 
 - Phase 2A-1 已完成 ApplicationCase strict contracts 和 migration 023：新增 application core 五表、stable job/version/requirement-set 复合约束、owner 隔离、活动唯一 Case、30 天 TTL、不可变事件、索引和五角色显式权限；空库 `001 -> 023` 与含 V1/旧决定/owner task 的 022 fixture 升级均通过，证据见 [Phase 2A-1 验收](evidence/product/career-os-v2/phase-2a1-application-case-core-acceptance-2026-08-05.md)。
+- Phase 2A-2 已完成 Resume Document V2 contracts 和 migration 024：新增 `resume_documents`、不可变 `resume_layout_revisions`，以 nullable 列扩展既有 `resume_document_revisions`，固定 V1/V2 配对、同 owner/document 修订链、base/derived 引用、Case 一对一、TTL、模板和角色权限；空库 `001 -> 024`、V1 兼容和 024 专属 4 项隔离 PostgreSQL 测试通过，证据见 [Phase 2A-2 验收](evidence/product/career-os-v2/phase-2a2-resume-document-v2-acceptance-2026-08-05.md)。
 - 盘点解决两项文档/代码冲突：Resume V2 复用既有 revision 表而非重复建表；系统架构按 ADR-0023 恢复为当前任务 RLS/直接表访问事实，并移除不存在的旧决定 `match_run_id` 描述。session Cookie SameSite 差异登记为服务器就绪前安全债。
 - Phase 1A 已以独立提交 `7bb2140` 冻结；Phase 1B 两个静态工作区通过共享 Case、URL、三态、建议决策、焦点、旗标回退和 1920/1280/768/320 浏览器 Gate，证据见 [Phase 1B 验收](evidence/product/career-os-v2/phase-1b-static-workspaces-acceptance-2026-08-05.md)。
-- 全仓工程门通过 363 文件 lint、TypeScript、591 项含隔离 PostgreSQL 的测试、生产构建和依赖审计；database 包 28/28，ApplicationCase 新迁移 6/6。既有主包 514.81 kB warning 不变。
+- 全仓测试工程门通过 config 17、contracts 28、database 32、web 91、platform 433，共 601 项；024 专属 migration 测试 4/4。lint 367 文件、TypeScript、生产构建和 `git diff --check` 通过；`audit:ci` 按仓库策略通过，保留 1 high/1 moderate 已登记忽略 advisory。web 主包 517.87 kB，仅有既有 chunk warning，低于 10% 拆包阈值。
 - 严格总计划已固定 Phase 4 后产品收口与供给并行、G3 三来源连续 7 天、G1 的 300–500 岗研究子集、服务器授权边界和每切片 0.5–2 人日纪律；产品证据仍为 `E0`。
 
 ## 最新执行增量（2026-08-03）
@@ -35,17 +36,17 @@
 |---|---|
 | 更新日期 | 2026-08-05 |
 | 当前阶段 | Career OS 2.0 Phase 2；Phase 1A/1B 已通过，100 家企业 / 1000 条可信岗位与服务器就绪 Gate 通过前，G0/G1 暂停 |
-| 当前切片 | `Phase 2A-2 Resume Document V2 contracts + migration 024`：新增文档聚合与不可变布局修订，additive 扩展既有内容修订，证明 V1 行不变和首次编辑转换契约；不接 API、Interview 或真实数据 |
+| 当前切片 | `Phase 2A-3 Interview/Debrief/Knowledge contracts + migrations 025-027`：只新增领域契约、additive schema、删除/TTL/迟到任务约束和离线夹具；不接 API、不调用真实 AI、不处理真实简历 |
 | 当前实现契约 | [PRD v0.2：本地完整 MVP](01-prd-v0.2.md) |
 | 当前产品证据 | `E0`：没有可复核目标用户行为证据；H-PROBLEM-001、H-VALUE-001 均未判定 |
 | 本地岗位目录 | 干净 `aijob_alpha` 为 22 条岗位 / 3 家企业 / 3 个官方 ATS 来源；开发库 14/2 与纠偏前 231/149/29、152/30 仅保留为历史运行事实 |
 | 来源政策 | 34 个 Git 配置中 12 个 `canonical`：7 个活动确定性、2 个浏览器提醒、3 个硬冲突暂停；22 个高校等来源全部为 `discovery_only` 且零调度；公共 `/v1/jobs` 为 0 |
 | 金标 | 50 条跨职能分类金标覆盖 12 个职能且 A/B 盲标 50/50 一致；40 条三轴工程金标继续通过；均不计为用户研究样本 |
-| 工程质量 | Phase 2A-1 通过 363 文件 lint、TypeScript、591 项含隔离 PostgreSQL的测试、生产构建和依赖审计；空库与 022 fixture 升级均通过。UI 继续沿用 Phase 1B 的 1920/1280/768/320 浏览器 Gate，详情见 [Phase 2A-1 验收](evidence/product/career-os-v2/phase-2a1-application-case-core-acceptance-2026-08-05.md) |
+| 工程质量 | Phase 2A-2 通过 601 项含隔离 PostgreSQL 的全仓测试；024 专属 4/4，空库与 V1 兼容升级通过。最终 lint/typecheck/build/audit 结果写入本轮证据；UI 继续沿用 Phase 1B 的 1920/1280/768/320 Gate |
 | AI | 单块真实 `suggestedText`、要求/证据引用、未选区块保留、编辑和真实章节 DOCX 已通过；公开环境关闭 |
 | 参与者验证 | 尚未开始；G0 为 0/2，只有 coco 明确启动后才执行，G1 仍未开始 |
-| 下一决定 | migration 024 是否能在不改写 V1 行的前提下新增 Resume V2 文档聚合、内容/布局修订归属、模板与 owner/Case 复合约束，并同时通过空库和 023 fixture 升级 |
-| 下一决定日期 | Phase 2A-2 隔离 PostgreSQL Gate 后 |
+| 下一决定 | 继续 Phase 2A-3：冻结 Interview/Debrief/Knowledge contracts 与 migrations 025-027 的字段、删除、TTL、任务和隔离测试范围 |
+| 下一决定日期 | Phase 2A-3 开始前 |
 
 工程证据见 [Private Alpha 官方来源资格硬门](evidence/ingestion/private-alpha-official-source-gate-2026-08-03.md)、[Private Alpha 容量审计](evidence/ingestion/private-alpha-capacity-audit-2026-08-03.md)、[本机自动来源刷新验收](evidence/ingestion/source-refresh-automation-2026-08-01.md)、[首轮扩展运行观察](evidence/ingestion/source-refresh-first-rollout-observation-2026-08-02.md)、[G2 正确性重新验收记录](evidence/g2/correctness-reacceptance-2026-07-20.md)、[验收反馈修正记录](evidence/g2/acceptance-followup-2026-07-20.md)、[全部职能扩容离线基础验收](evidence/g2/all-function-expansion-foundation-2026-07-20.md)和[新公司官方来源首批评估与低频探测](evidence/ingestion/new-source-batch-2026-07-20.md)；旧工程基线见 [2026-07-18 工程验收记录](evidence/g2/local-complete-mvp-engineering-2026-07-18.md)。
 
@@ -251,8 +252,9 @@ Phase 1A/1B（已通过）
 4. [x] 形成迁移 023–027 顺序、V1 只读转换、旧应用兼容、回退/前向修复与 PostgreSQL 集成测试矩阵；设计 Gate 决定为“继续”。
 5. [x] Phase 2A-1 新增 ApplicationCase 公共类型与 migration 023 core tables/constraints/indexes/permissions；没有注册 API 或写业务数据。
 6. [x] 隔离 PostgreSQL 已同时验证空库 `001 -> 023` 和含 V1/旧决定/任务的 022 fixture 升级；旧行兼容、约束、索引和角色权限通过，证据见 [Phase 2A-1 验收](evidence/product/career-os-v2/phase-2a1-application-case-core-acceptance-2026-08-05.md)。
-7. [ ] 当前只实现 Phase 2A-2：新增 Resume Document V2 contracts、`resume_documents`、`resume_layout_revisions`，并 additive 扩展既有 `resume_document_revisions`；不接 API 或回填 V1。
-8. [ ] 在隔离 PostgreSQL 验证空库全迁移和含 V1 内容/证据/旧 Case 的 023 fixture 升级，逐列证明旧 V1 行不变、V2 owner/document/layout 约束成立。
+7. [x] Phase 2A-2 新增 Resume Document V2 contracts、`resume_documents`、`resume_layout_revisions`，并 additive 扩展既有 `resume_document_revisions`；不接 API 或回填 V1。
+8. [x] 隔离 PostgreSQL 验证空库 `001 -> 024`、V1 行逐列兼容、V2 owner/document/layout 约束、模板、TTL、不可变修订和角色权限。
+9. [ ] 当前只实现 Phase 2A-3：Interview/Debrief/Knowledge contracts、migrations 025-027 与离线/隔离测试；不接 API、不调用真实 AI。
 
 ### 一岗闭环后恢复的规模化行动
 

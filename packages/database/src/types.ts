@@ -466,6 +466,9 @@ export interface ResumeDocumentRevisionTable {
   content_hash: string;
   confirmed_at: Timestamp;
   created_at: Generated<Timestamp>;
+  document_id: Generated<string | null>;
+  document_revision: Generated<number | null>;
+  base_document_revision_id: Generated<string | null>;
 }
 
 export interface MatchRunTable {
@@ -658,6 +661,45 @@ export interface CaseEventTable {
   created_at: Generated<Timestamp>;
 }
 
+export interface ResumeDocumentTable {
+  id: Generated<string>;
+  owner_id: string;
+  owner_epoch: number;
+  kind: string;
+  title: string;
+  case_id: string | null;
+  published_job_id: string | null;
+  published_job_version_id: string | null;
+  requirement_set_id: string | null;
+  base_document_id: string | null;
+  base_document_revision_id: string | null;
+  evidence_revision_id: string | null;
+  current_content_revision_id: string | null;
+  current_layout_revision_id: string | null;
+  revision: Generated<number>;
+  creation_idempotency_key: string;
+  creation_request_hash: string;
+  expires_at: Timestamp;
+  deleted_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface ResumeLayoutRevisionTable {
+  id: Generated<string>;
+  owner_id: string;
+  owner_epoch: number;
+  document_id: string;
+  layout_revision: number;
+  base_layout_revision: number | null;
+  schema_version: Generated<string>;
+  template_key: string;
+  section_order: JsonValue;
+  settings: JsonValue;
+  content_hash: string;
+  created_at: Generated<Timestamp>;
+}
+
 export interface CaseRequirementStateTable {
   id: Generated<string>;
   owner_id: string;
@@ -821,6 +863,8 @@ export interface Database {
   "profile.job_preference_revisions": JobPreferenceRevisionTable;
   "profile.resume_evidence_revisions": ResumeEvidenceRevisionTable;
   "profile.resume_document_revisions": ResumeDocumentRevisionTable;
+  "profile.resume_documents": ResumeDocumentTable;
+  "profile.resume_layout_revisions": ResumeLayoutRevisionTable;
   "matching.match_runs": MatchRunTable;
   "matching.job_insight_runs": JobInsightRunTable;
   "matching.recommendation_runs": RecommendationRunTable;

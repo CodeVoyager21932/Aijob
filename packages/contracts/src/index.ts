@@ -9,4 +9,5 @@ export * from "./jobs.js";
 export * from "./matching.js";
 export * from "./problem-details.js";
 export * from "./profile.js";
+export * from "./resume-documents.js";
 export * from "./tailoring.js";

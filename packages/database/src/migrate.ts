@@ -23,6 +23,7 @@ import { registeredSourceAndJobFreshnessMigration } from "./migrations/020_regis
 import { runtimeDatabaseRolesMigration } from "./migrations/021_runtime_database_roles.js";
 import { matchWorkerOwnerDeletionPrivilegesMigration } from "./migrations/022_match_worker_owner_deletion_privileges.js";
 import { applicationCaseCoreExpandMigration } from "./migrations/023_application_case_core_expand.js";
+import { resumeDocumentV2ExpandMigration } from "./migrations/024_resume_document_v2_expand.js";
 import type { Database } from "./types.js";
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -55,6 +56,7 @@ class StaticMigrationProvider implements MigrationProvider {
       "022_match_worker_owner_deletion_privileges":
         matchWorkerOwnerDeletionPrivilegesMigration,
       "023_application_case_core_expand": applicationCaseCoreExpandMigration,
+      "024_resume_document_v2_expand": resumeDocumentV2ExpandMigration,
     };
   }
 }
