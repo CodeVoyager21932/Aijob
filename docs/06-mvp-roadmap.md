@@ -5,13 +5,15 @@
 ## 最新产品决定（2026-08-05）
 
 - [ADR-0030](decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md) 已接受：Aijob 升级为可信官方岗位驱动的完整求职 OS，首个交付为“一岗全闭环”。
-- Phase 1A 与 Phase 1B 均已通过 Gate：统一壳层、静态求职看板、JD 能力与岗位定制简历交互已形成独立证据。当前唯一目标进入 Phase 2，但第一切片只做领域契约与迁移设计；设计审查前不写迁移。新增来源扩容继续暂缓，已授权 canonical 来源只按现有边界维护。
+- Phase 1A 与 Phase 1B 均已通过 Gate；[Phase 2 领域契约与迁移设计](plans/career-os-phase-2-domain-contract-and-migration-design-2026-08-05.md) 也已通过设计 Gate。当前唯一切片为 `Phase 2A-1 ApplicationCase core contracts + additive migration 023`；没有隔离 PostgreSQL 结果不得通过迁移 Gate。新增来源扩容继续暂缓，已授权 canonical 来源只按现有边界维护。
 - 采用一套全局侧栏、顶部工具栏、主画布和右侧检查器；单岗位标签固定为概览、JD能力、定制简历、投递、面试、复盘。
 - 开源项目只做审计后的选择性移植，不整仓拼接；引用式经验库不抓全文，不做社区；语音、OCR、自动投递和浏览器代填继续排除。
 - 100/1000 与 110/1100 目标没有取消；一岗闭环通过后恢复 ADR-0028 的容量型官方 ATS 扩容。完整计划见 [Career OS 2.0 升级计划](plans/career-os-v2-upgrade-plan-2026-08-04.md)。
 
 ## 最新执行增量（2026-08-05）
 
+- Phase 2 已完成现有 Schema、owner/epoch/TTL/墓碑、任务队列、Resume V1、旧决定和 API 安全边界盘点；冻结了 ApplicationCase、Resume V2、Interview/Debrief/Knowledge、删除顺序、023–027 迁移序列与测试矩阵，证据见 [Phase 2 设计验收](evidence/product/career-os-v2/phase-2-domain-contract-design-acceptance-2026-08-05.md)。设计决定为“继续”，但尚无迁移或数据库 Gate 结果。
+- 盘点解决两项文档/代码冲突：Resume V2 复用既有 revision 表而非重复建表；系统架构按 ADR-0023 恢复为当前任务 RLS/直接表访问事实，并移除不存在的旧决定 `match_run_id` 描述。session Cookie SameSite 差异登记为服务器就绪前安全债。
 - Phase 1A 已以独立提交 `7bb2140` 冻结；Phase 1B 两个静态工作区通过共享 Case、URL、三态、建议决策、焦点、旗标回退和 1920/1280/768/320 浏览器 Gate，证据见 [Phase 1B 验收](evidence/product/career-os-v2/phase-1b-static-workspaces-acceptance-2026-08-05.md)。
 - 全仓工程门通过 359 文件 lint、TypeScript、528 项非数据库测试与生产构建；51 项 PostgreSQL 集成测试因本机无数据库明确未执行。`fast-uri` 高危 advisory 已升级到 3.1.5/4.1.2，`audit:ci` 恢复通过。
 - 严格总计划已固定 Phase 4 后产品收口与供给并行、G3 三来源连续 7 天、G1 的 300–500 岗研究子集、服务器授权边界和每切片 0.5–2 人日纪律；产品证据仍为 `E0`。
@@ -33,7 +35,7 @@
 |---|---|
 | 更新日期 | 2026-08-05 |
 | 当前阶段 | Career OS 2.0 Phase 2；Phase 1A/1B 已通过，100 家企业 / 1000 条可信岗位与服务器就绪 Gate 通过前，G0/G1 暂停 |
-| 当前切片 | 领域契约与迁移设计包：只盘点现有迁移、owner/epoch/TTL/墓碑、PostgreSQL 任务队列和 Resume V1，冻结 Schema、API Problem Details 与删除矩阵；设计审查前不写迁移 |
+| 当前切片 | `Phase 2A-1 ApplicationCase core contracts + migration 023`：只增加公共类型、`application` core Schema、复合 owner/岗位版本约束、权限和隔离 PostgreSQL 测试；不接 API、Resume V2 或 Interview |
 | 当前实现契约 | [PRD v0.2：本地完整 MVP](01-prd-v0.2.md) |
 | 当前产品证据 | `E0`：没有可复核目标用户行为证据；H-PROBLEM-001、H-VALUE-001 均未判定 |
 | 本地岗位目录 | 干净 `aijob_alpha` 为 22 条岗位 / 3 家企业 / 3 个官方 ATS 来源；开发库 14/2 与纠偏前 231/149/29、152/30 仅保留为历史运行事实 |
@@ -42,8 +44,8 @@
 | 工程质量 | Phase 1B 通过 359 文件 lint、TypeScript、528 项非数据库测试、生产构建、依赖审计及 1920/1280/768/320 浏览器验收；51 项 PostgreSQL 集成测试因本机无数据库未执行，Phase 2 迁移 Gate 必须补齐，详情见 [Phase 1B 验收记录](evidence/product/career-os-v2/phase-1b-static-workspaces-acceptance-2026-08-05.md) |
 | AI | 单块真实 `suggestedText`、要求/证据引用、未选区块保留、编辑和真实章节 DOCX 已通过；公开环境关闭 |
 | 参与者验证 | 尚未开始；G0 为 0/2，只有 coco 明确启动后才执行，G1 仍未开始 |
-| 下一决定 | Phase 2 的 ApplicationCase、Resume V2、Interview/Debrief/Knowledge 契约是否完整复用现有 owner、TTL、删除、任务队列与 PostgreSQL 边界，并且迁移可 additive/向后兼容 |
-| 下一决定日期 | Phase 2 领域契约与迁移设计包审查后 |
+| 下一决定 | migration 023 是否能从空库和 022 fixture additive 升级，旧应用不变，并由数据库证明 Case 唯一性、固定版本、跨 owner 拒绝、权限和不可变事件 |
+| 下一决定日期 | Phase 2A-1 隔离 PostgreSQL Gate 后 |
 
 工程证据见 [Private Alpha 官方来源资格硬门](evidence/ingestion/private-alpha-official-source-gate-2026-08-03.md)、[Private Alpha 容量审计](evidence/ingestion/private-alpha-capacity-audit-2026-08-03.md)、[本机自动来源刷新验收](evidence/ingestion/source-refresh-automation-2026-08-01.md)、[首轮扩展运行观察](evidence/ingestion/source-refresh-first-rollout-observation-2026-08-02.md)、[G2 正确性重新验收记录](evidence/g2/correctness-reacceptance-2026-07-20.md)、[验收反馈修正记录](evidence/g2/acceptance-followup-2026-07-20.md)、[全部职能扩容离线基础验收](evidence/g2/all-function-expansion-foundation-2026-07-20.md)和[新公司官方来源首批评估与低频探测](evidence/ingestion/new-source-batch-2026-07-20.md)；旧工程基线见 [2026-07-18 工程验收记录](evidence/g2/local-complete-mvp-engineering-2026-07-18.md)。
 
@@ -243,10 +245,12 @@ Phase 1A/1B（已通过）
 
 ### 当前 Phase 2 行动
 
-1. [ ] 盘点 `packages/database` 既有迁移、owner/epoch/TTL/墓碑、删除权限、PostgreSQL 任务队列和 Resume V1 表，形成“复用 / additive 扩展 / 禁止重复”矩阵。
-2. [ ] 冻结 ApplicationCase、Resume V2、Interview、Debrief、Knowledge 的表、索引、不变量、保留期和删除顺序；同一 owner/稳定岗位唯一活动 Case 与固定岗位版本必须可由数据库约束支持。
-3. [ ] 冻结 owner 保护 API、幂等键、`expectedRevision`、不可枚举 404、Problem Details、CSRF 和 `no-store` 契约。
-4. [ ] 形成迁移顺序、V1 只读转换、旧应用兼容、回退/前向修复与 PostgreSQL 集成测试矩阵；设计审查通过前不写迁移。
+1. [x] 盘点 `packages/database` 既有迁移、owner/epoch/TTL/墓碑、删除权限、PostgreSQL 任务队列和 Resume V1 表，形成“复用 / additive 扩展 / 禁止重复”矩阵。
+2. [x] 冻结 ApplicationCase、Resume V2、Interview、Debrief、Knowledge 的表、索引、不变量、保留期和删除顺序；同一 owner/稳定岗位唯一未结束 Case 与固定岗位版本由数据库约束支持。
+3. [x] 冻结 owner 保护 API、幂等键、`expectedRevision`、不可枚举 404、Problem Details、CSRF 和 `no-store` 契约。
+4. [x] 形成迁移 023–027 顺序、V1 只读转换、旧应用兼容、回退/前向修复与 PostgreSQL 集成测试矩阵；设计 Gate 决定为“继续”。
+5. [ ] 当前只实现 Phase 2A-1：新增 ApplicationCase 公共类型与 migration 023 core tables/constraints/indexes/permissions，不注册 API，不写业务数据。
+6. [ ] 在隔离 PostgreSQL 同时验证空库全迁移和含 V1/旧决定/任务的 022 fixture 升级；没有实际结果时 migration 023 Gate 保持未通过。
 
 ### 一岗闭环后恢复的规模化行动
 

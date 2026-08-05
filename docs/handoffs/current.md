@@ -1,134 +1,125 @@
-# 当前项目交接：Aijob 求职 OS 2.0 Phase 2
+# 当前项目交接：Aijob 求职 OS 2.0 Phase 2A-1
 
 > 交接日期：2026-08-05
 >
 > 当前分支：`codex/career-os-phase-1`
 >
-> 当前 HEAD：本交接所在 Phase 1B 提交；用 `git log -1 --oneline` 获取哈希。已知父提交为 `5da2390 chore(deps): patch fast-uri advisories`，Phase 1A 基线为 `7bb2140`。
+> 当前 HEAD：本交接所在 Phase 2 设计提交；用 `git log -1 --oneline` 获取哈希。前序提交为 `24368f5 feat(web): complete Career OS static workspaces`。
 >
-> 工作树预期：Phase 1B 提交后只剩未跟踪 `.claude/`；不得读取、提交、覆盖或清理它。仍须用 `git status --short` 复核。
+> 工作树预期：提交后只剩未跟踪 `.claude/`；不得读取、提交、覆盖或清理它。仍须用 `git status --short` 复核。
 >
 > 动态事实源：[MVP 路线](../06-mvp-roadmap.md)
 >
 > 稳定主计划：[Private Alpha 严格开发总计划](../plans/career-os-v2-upgrade-plan-2026-08-04.md)
+>
+> Phase 2 设计：[领域契约与迁移设计](../plans/career-os-phase-2-domain-contract-and-migration-design-2026-08-05.md)
 
 ## 1. 当前唯一目标
 
-Phase 1A 与 Phase 1B 已通过。当前唯一目标是 **Phase 2 的第一切片：领域契约与迁移设计包**，不是立即创建表。
+Phase 1A/1B 与 Phase 2 领域设计 Gate 已通过。当前唯一目标是 **Phase 2A-1：ApplicationCase core contracts + additive migration 023**。
 
 ```text
-盘点既有数据与安全能力
-→ 冻结 ApplicationCase / Resume V2 / Interview-Debrief-Knowledge 契约
-→ 冻结 owner、TTL、墓碑、迟到任务和删除矩阵
-→ 冻结 API / Problem Details / 幂等 / expectedRevision
-→ 冻结 additive 迁移顺序、V1 兼容和 PostgreSQL 测试矩阵
-→ 设计审查
-→ 通过后才开始第一条迁移
+公共 Case 枚举与 strict request/response contracts
+-> application schema 的 Case/事件/要求状态/证据连接/问题表
+-> stable job/version/requirement-set 复合约束
+-> owner 复合外键、30 天 TTL、部分唯一索引、不可变事件
+-> 五个运行角色的显式权限
+-> 空库和 022 fixture 的隔离 PostgreSQL 验证
+-> 继续 / 修改 / 回退 / 停止
 ```
 
-本切片只允许输出设计文档、契约测试草案和迁移计划；不得访问真实招聘来源、调用真实 AI、购买或部署服务器、处理真实简历，也不得在设计审查前写数据库迁移。
+本切片不注册 HTTP API，不写业务服务，不开始 Resume V2/Interview，不改旧决定双写，不处理真实数据。没有隔离 PostgreSQL 实际结果不能通过 migration 023 Gate。
 
 ## 2. 已通过基线
 
-### Phase 1A
+- Phase 1A：`7bb2140`，统一壳层、静态看板、Case 路由、功能旗标与响应式 Gate。
+- 依赖安全修复：`5da2390`，`fast-uri` advisory 已清除。
+- Phase 1B：`24368f5`，JD 三态与 Resume 静态建议四态、URL/焦点/旗标/浏览器 Gate。
+- Phase 2 设计：冻结复用矩阵、领域表、状态机、API、删除顺序、任务、权限、023–027 迁移和测试矩阵；证据见 [设计验收](../evidence/product/career-os-v2/phase-2-domain-contract-design-acceptance-2026-08-05.md)。
+- 设计提交工程门：359 文件 lint、TypeScript、528 项非数据库测试、生产构建、依赖审计和 7 个变更文档的相对链接扫描通过；51 项 PostgreSQL 集成测试因无数据库未执行。
 
-- `VITE_CAREER_OS_V2` 关闭保持原 `ProductShell`，开启懒加载统一 `WorkspaceShell`。
-- `/applications` 静态列表/看板、URL 筛选排序和 `?peek=` 侧览。
-- 六个 Case 子路由共享 `CaseHeader / CaseTabs`、岗位版本与焦点规则。
-- 证据：[Phase 1A 工作台壳层验收](../evidence/product/career-os-v2/phase-1a-workspace-shell-acceptance-2026-08-04.md)。
+产品证据仍为 `E0`；可信供给仍为 22 岗 / 3 家企业 / 3 个官方 ATS，公共与 Alpha 岗位均为 0。Phase 4 前不恢复真实供给扩容。
 
-### Phase 1B
+## 3. migration 023 固定范围
 
-- `/applications/:caseId/requirements` 已有三组要求、静态原文、三态、`?requirement=` 和检查器焦点返回。
-- `/applications/:caseId/resume` 已有结构导航、两模板、A4 预览、`?block=` 与建议检查器。
-- 接受、编辑后采用、拒绝、撤销只在会话内改变预览；刷新复位，不持久化，不调用 AI。
-- 1920/1280/768/320 无整页横向溢出，320 为全宽抽屉；旗标关闭仍回旧 `/jobs`。
-- 证据：[Phase 1B 静态工作区验收](../evidence/product/career-os-v2/phase-1b-static-workspaces-acceptance-2026-08-05.md)。
+### Contracts
 
-### 工程门
+新增并从 `packages/contracts/src/index.ts` 导出：
 
-- `pnpm lint`：359 files。
-- `pnpm typecheck`：全仓通过。
-- `pnpm test`：528 项非数据库测试通过；平台 38 + database 13 项 PostgreSQL 集成测试因本机无数据库未执行。
-- `pnpm build`：通过；主包仍为既有 510.96 kB warning，Case 路由懒加载。
-- `pnpm audit:ci`：通过；`fast-uri` override 已升级到 3.1.5/4.1.2。
+- `CaseStage = interested | preparing | applied | interviewing | resolved`
+- `CaseOutcome = offer | rejected | withdrawn | expired | unknown`
+- `RequirementEvidenceState = confirmed | needs_work | unconfirmed`
+- ApplicationCase DTO、create/transition/job-version-upgrade/requirement/evidence-link/question 的 strict schemas。
+- 请求不得接受客户端 `ownerId/ownerEpoch/expiresAt`；更新必须带 `expectedRevision`，创建/追加由路由层要求 Idempotency-Key。
 
-## 3. 产品和数据事实
+### Migration 023
 
-- 当前可信分母仍为 22 岗 / 3 家企业 / 3 个官方 ATS；公共岗位、Alpha 岗位和人工来源均为 0。
-- 产品证据仍为 `E0`；G0/G1 未启动。
-- 100 家/1000 岗是 G2 硬门，110/1100 是运营缓冲。Phase 4 前不恢复真实供给扩容。
-- G1 的 300–500 岗是从通过 G2 的 1000 岗中冻结的研究子集，不是供给门槛。
-- G3 是至少 3 个已准入确定性 canonical 来源连续 7 天、每 12 小时完成应到刷新。
-- 服务器 Gate 已定义，但供应商、地区、预算和数据路径仍须 coco 另行授权。
+新建 `application` schema 与：
 
-## 4. Phase 2 必须冻结的不变量
+- `application_cases`
+- `case_events`
+- `case_requirement_states`
+- `case_requirement_evidence_links`
+- `case_questions`
 
-### ApplicationCase
+同时：
 
-- 同一 owner 对同一稳定岗位最多一个未结束 Case。
-- Case 固定 `publishedJobId + publishedJobVersionId`，升级只能显式执行并追加事件。
-- 阶段：`interested / preparing / applied / interviewing / resolved`。
-- 结果：`offer / rejected / withdrawn / expired / unknown`。
-- 阶段、要求状态、证据连接和用户未知问题都要有修订/追加语义。
+- 给 `catalog.published_job_versions(published_job_id, id)` 增加可复用唯一约束。
+- 复用既有 `catalog.job_requirement_sets(published_job_version_id, id)` 唯一约束。
+- 同一 owner/稳定岗位只允许一个 `ended_at IS NULL AND deleted_at IS NULL` Case。
+- Case 固定 stable job、job version、requirement set；owner 子表使用复合外键。
+- 顶层 Case `expires_at <= created_at + 30 days`，服务未来还须取 owner expiry 的更早值。
+- Case event 禁止 UPDATE；event sequence 与 Case revision 一致。
+- 新 schema/table 对五个角色显式 GRANT/REVOKE；collector 不得获得 application 数据权限。
 
-### Resume V2
+### Tests
 
-- 基础简历与 Case 派生简历分开；内容、证据与布局修订分离。
-- V1 行不可修改，读取经转换器；首次编辑才创建 V2。
-- 区块/证据 ID 在编辑、排序和换模板时稳定。
-- 派生简历固定基础修订、岗位版本和证据修订。
+- contracts 固定枚举、strict object、stage/outcome 配对和长度边界。
+- migration registry/Database types。
+- 空库 `001 -> 023`。
+- 含 V1、旧决定、owner task 的 022 fixture 升级到 023，旧行/接口不变。
+- Case 活动唯一性、岗位版本/要求集归属、跨 owner FK、事件不可变、TTL、索引和角色权限。
+- PostgreSQL 地址必须通过现有 loopback + `aijob_test*` 隔离守卫。
 
-### Interview / Debrief / Knowledge
+## 4. 实现时必须保持的决定
 
-- 会话固定 Case、岗位版本、模式和输入证据版本；turn/feedback 追加保存。
-- 复盘不能创造经历，用户确认后才允许生成新表达。
-- Knowledge Clip 只保存 URL、标题、短摘要、适用场景、核验时间和用户笔记，不抓全文。
+- `requirement_id/evidence_id` 使用 text，不假设 UUID。
+- `owner_epoch` 不对 owner 当前 epoch 建 FK；删除递增 epoch，迟到写入由事务/lease 拒绝。
+- `case_events.event_data` 只保存状态、版本 ID、引用 ID 和无正文原因码，不复制 JD、简历或回答。
+- 创建幂等在 owner/scope/key 下比较 request hash；同键不同 payload 返回 `IDEMPOTENCY_KEY_REUSED`。
+- 官方链接打开不能迁移 `applied`；resolved 为终态，结果纠错只追加事件。
+- migration 023 只 expand；down 不得破坏既有不可变个人历史。
+- 新外键列必须有索引；活动 Case 与到期扫描使用部分索引；列表为 keyset cursor 预留 `(owner_id, updated_at DESC, id DESC)`。
 
-### 安全与生命周期
+## 5. 已知冲突与风险
 
-- PostgreSQL 是唯一查询和任务真源；复用现有 owner 会话、CSRF 和任务队列。
-- 所有新实体必须有 owner 隔离、owner epoch、最长 30 天 TTL、删除墓碑和迟到任务拒绝。
-- 导出最长 24 小时，无正文审计最长 90 天。
-- API 写操作要求 CSRF；创建要求幂等键，更新要求 `expectedRevision`；跨 owner 返回不可枚举 404。
-- 迁移只做 expand/additive；G4 前不做 contract migration。
+- `resume_document_revisions` 已存在；后续 024 是新增聚合并 additive 扩展，禁止重复建同名修订表。
+- `docs/05-system-architecture.md` 已从过时受限函数描述修正为 ADR-0023 当前任务 RLS/直接表访问事实。
+- ADR-0005 要求 session Cookie SameSite=Strict，当前代码为 session Lax/CSRF Strict；属于服务器就绪前身份安全债，不混入 023。
+- migration 021 的 `ALL TABLES` 只覆盖当时对象，新表若不显式授权会在运行角色下 fail closed。
+- 本机此前没有 Docker/PostgreSQL，51 项数据库测试未执行；先复查运行环境，仍不可用时不得伪造通过或绕过隔离守卫。
 
-## 5. 首轮代码入口
+## 6. 首轮代码入口
 
-先只读检查：
+按顺序只读检查：
 
-- `packages/database/src/index.ts` 与 `packages/database/src/migrations/001_initial.ts`–`022_match_worker_owner_deletion_privileges.ts`：迁移注册、owner 约束、运行角色和删除权限。
-- `packages/contracts/src/profile.ts`、`identity.ts`、`decisions.ts`、`problem-details.ts`：现有公共类型和错误契约。
-- `apps/platform/src/profile/revision-repository.ts`、`retention-service.ts`、`deletion-service.ts`：修订、TTL、墓碑与 owner epoch。
-- `apps/platform/src/resume/repository.ts`、`routes.ts`、`export-docx.ts`：Resume V1、导出和现有 API。
-- `apps/platform/src/decisions/service.ts` 与 `routes.ts`：旧五态决定兼容入口。
-- `apps/platform/src/workers/owner-task-lease.ts`、`owner-task-worker.ts`、`match-worker.ts`：PostgreSQL 租约、迟到任务与权限边界。
-- `apps/platform/src/identity/http.ts`、`fastify.ts` 和 `apps/platform/src/lib/service-error.ts`：会话、CSRF、不可枚举错误与 Problem Details 映射。
+1. `packages/contracts/src/common.ts`、`enums.ts`、`problem-details.ts`、`index.ts` 与现有 contract tests。
+2. `packages/database/src/migrate.ts`、`types.ts`、`migrations/001_initial.ts`、`004_local_complete_mvp.ts`、`005_enforce_owner_isolation.ts`、`011_g2_correctness_foundations.ts`、`013_enforce_correctness_projection_ownership.ts`、`021_runtime_database_roles.ts`、`022_match_worker_owner_deletion_privileges.ts`。
+3. `apps/platform/src/profile/deletion-service.ts`、`retention-service.ts`、`workers/owner-task-lease.ts` 与 integration tests，只用于保证 023 不阻断既有路径；本切片不扩服务。
+4. [Phase 2 设计](../plans/career-os-phase-2-domain-contract-and-migration-design-2026-08-05.md)第 4、5、10–13 节。
 
-## 6. Phase 2 设计包验收清单
+## 7. Gate 与排除项
 
-```text
-[ ] 现有表/列/索引/权限复用矩阵
-[ ] 新表、索引、唯一约束和外键图
-[ ] owner / epoch / TTL / 墓碑 / 删除顺序矩阵
-[ ] Case 阶段、结果、版本升级和事件状态机
-[ ] Resume V1 → V2 只读转换与首次编辑流程
-[ ] owner 保护 API、幂等、expectedRevision 与 Problem Details
-[ ] PostgreSQL 任务类型、租约、迟到任务拒绝和删除竞态
-[ ] expand 迁移顺序、旧应用兼容、回退与前向修复
-[ ] 隔离 PostgreSQL 集成测试矩阵
-[ ] “继续 / 修改 / 回退 / 停止”设计决定
-```
-
-没有隔离 PostgreSQL 环境时可以完成设计包，但不能通过 Phase 2 迁移 Gate。
-
-## 7. 接手命令与排除项
+至少运行：
 
 ```text
-git branch --show-current
-git status --short
-git log -3 --oneline --decorate
-rg --files packages/database apps/platform/src packages/contracts/src
+git diff --check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm audit:ci
+隔离 PostgreSQL：空库迁移、022 fixture 升级、约束/权限/删除兼容测试
 ```
 
-不得读取、暂存或提交 `.claude/`、`.data/`、密钥、令牌、简历原文、本地数据库、下载 DOCX 或本机快照。已有改动属于 coco；若文档、代码和运行结果冲突，先记录并复现，不静默选择一方。
+不得读取、暂存或提交 `.claude/`、`.data/`、密钥、令牌、简历原文、本地数据库、下载 DOCX 或本机快照；不得访问真实招聘来源、真实 AI 或服务器。已有改动属于 coco；冲突必须记录并复现，不能静默覆盖。

@@ -1,6 +1,6 @@
 # Aijob 求职 OS 2.0 → Private Alpha 严格开发总计划
 
-- 状态：Phase 1A、Phase 1B accepted；当前只批准 Phase 2
+- 状态：Phase 1A、Phase 1B 与 Phase 2 设计 accepted；当前只批准 Phase 2A-1 ApplicationCase core contracts + migration 023
 - 初版日期：2026-08-04
 - 严格化日期：2026-08-05
 - 决策者：coco
@@ -373,4 +373,4 @@ PostgreSQL 集成测试未实际运行时必须写“未执行”，不得写“
 - 主计划终点为 G4；公开 Beta、备案、公开运营和商业化只保留为 G5 后续 Gate。
 - 工期是有效工作量，不包含外部审批、采购、招募和观察期。
 
-当前唯一目标是 **Phase 2**，且第一切片只能是“领域契约与迁移设计包”：先盘点现有迁移、owner/epoch/TTL/墓碑、任务队列和 Resume V1 表，再冻结 ApplicationCase/Resume V2/Interview 的 Schema、API Problem Details 与删除矩阵；未完成设计审查前不写迁移。
+Phase 2 的 [领域契约与迁移设计](career-os-phase-2-domain-contract-and-migration-design-2026-08-05.md)已经通过设计 Gate。当前唯一目标是 **Phase 2A-1 ApplicationCase core contracts + additive migration 023**：只增加公共类型、ApplicationCase 核心表/约束/索引/权限与隔离 PostgreSQL 测试，不注册 API，不开始 Resume V2/Interview，不访问真实来源或真实 AI。没有空库与 022 fixture 的实际 PostgreSQL 结果，不得通过该迁移 Gate。

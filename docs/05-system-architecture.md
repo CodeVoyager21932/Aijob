@@ -71,19 +71,22 @@ MVP 使用一个 PostgreSQL 16 实例（本地由 Docker Desktop 运行，后续
 | Schema | 主要内容 | 写入者 | 读取者 |
 |---|---|---|---|
 | `source_control` | 来源政策和审批版本 | ops CLI | collector、ops CLI |
-| `task_queue` | 任务信封、类型、幂等键、租约、心跳和最小 payload 引用 | web-api、collector/match 定时入口、ops CLI 通过入队函数；Worker 通过状态函数 | 按任务类型隔离的 claim/complete 函数；Worker 不读基表 |
+| `task_queue` | 任务信封、类型、幂等键、租约、心跳和最小 payload 引用 | web-api、collector/match 定时入口、ops CLI | 按 ADR-0023 使用数据库角色、任务类型 RLS 和最小表权限隔离；当前规模由 Worker 直接访问受限基表 |
 | `ingestion` | 采集运行、快照对象元数据、来源修订 | collector；ops CLI 仅通过受限人工导入函数写 `import_mode=manual` 修订 | collector、ops CLI |
 | `catalog` | 发布岗位版本和要求集 | collector/受控发布操作 | web-api、match、ops CLI |
-| `profile` | 会话、owner、事实、偏好和证据 | web-api、match | owner 作用域的 web-api/match |
+| `identity` | owner、匿名会话、epoch 与生命周期 | web-api；match 只有完成 owner 删除所需的最小列权限 | owner 作用域的 web-api、受限 match 删除流程 |
+| `profile` | 简历解析、事实、偏好、证据和简历修订 | web-api、match | owner 作用域的 web-api/match |
 | `matching` | 匹配运行、推荐运行、简历优化和导出结果 | match | owner 作用域的 web-api/match |
-| `decision_feedback_audit` | 用户决定、最小产品事件和安全/管理审计 | owner 作用域的 web-api、各受控主体 | owner 作用域的 web-api、ops CLI/受限审计角色 |
+| `decision` | 旧五态岗位决定与 owner 删除墓碑 | owner 作用域的 web-api、match 删除流程 | owner 作用域的 web-api/match |
+| `application` | Phase 2 计划新增的 Case、要求状态、面试、复盘与引用式知识 | Phase 2 迁移完成后由 owner 作用域 web-api/match 写入 | owner 作用域的 web-api/match；collector 无权限 |
+| `decision_feedback_audit` | 无正文安全、删除和最小产品审计 | 各受控主体 | ops CLI/受限审计角色 |
 
 数据库约束承担核心一致性：
 
 - 来源岗位、快照哈希、版本内容哈希和任务幂等键使用唯一约束。
-- `task_queue.task_type` 只允许 `crawl/resume_analysis/match_run/recommendation_run/resume_tailoring/resume_export/owner_deletion`；受限函数保证 collector 只能领取 `crawl`，match 只能领取用户任务，并只返回该类型所需字段。
-- `crawl` 任务必须含 `source_id` 且禁止含 `owner_id/owner_epoch`；所有用户任务必须含 `owner_id + owner_epoch` 且禁止含 `source_id`。数据库 CHECK/触发器与受限入队函数共同执行该互斥约束。
-- 外键固定 `PublishedJobVersion -> JobRequirementSet -> MatchRun -> RecommendationRun/ResumeTailoringRun` 版本链。`MatchRun` 必须引用事实/偏好/证据修订、规则、词典和模板；AI 实际参与时固定提示词和模型版本。`JobDecision` 关联稳定岗位 ID、自己的修订号及可选 `match_run_id`，不属于系统匹配输出。
+- `task_queue.task_type` 当前只允许 `crawl/resume_analysis/match_run/recommendation_run/resume_tailoring/resume_export/owner_deletion`；迁移 021 通过数据库角色与 RLS 保证 collector 只能访问 `crawl`，web/match 只能访问 owner 任务。新增任务类型时必须同步 CHECK、RLS、worker allowlist、payload schema 和权限测试。
+- `crawl` 任务必须含 `source_id` 且禁止含 `owner_id/owner_epoch`；所有用户任务必须含 `owner_id + owner_epoch` 且禁止含 `source_id`。数据库 CHECK 与不可变上下文触发器共同执行该互斥约束。
+- 外键固定 `PublishedJobVersion -> JobRequirementSet -> MatchRun -> RecommendationRun/ResumeTailoringRun` 版本链。`MatchRun` 必须引用事实/偏好/证据修订、规则、词典和模板；AI 实际参与时固定提示词和模型版本。`JobDecision` 只关联稳定岗位 ID 和自己的修订号，不属于系统匹配输出。
 - 用户表均含 `owner_id`，查询通过服务端会话派生 owner，不接受客户端指定。
 - 邀请交换固定 `owner_expires_at`；所有 owner 数据、任务载荷和正常会话的过期时间不得晚于它，新修订不能续期。
 - 用户任务固定领取时的 `owner_epoch`；任何结果写入都在同一事务确认 owner 未删除、未到期且 epoch 未变化。删除事务递增 epoch 并取消待处理用户任务，使已领取旧任务的迟到写入失效。
@@ -117,8 +120,8 @@ MVP 使用一个 PostgreSQL 16 实例（本地由 Docker Desktop 运行，后续
 - 从 PostgreSQL 领取简历解析、匹配、推荐、简历优化、DOCX 导出或删除任务。
 - 只读取任务指定 owner 的用户修订和已发布岗位版本。
 - 写入新的 `MatchRun`、`RecommendationRun`、`ResumeTailoringRun` 和导出结果，不覆盖历史；不能代替用户更新 `JobDecision`。
-- 领取已持久化墓碑的 owner 删除任务，通过校验任务 owner、墓碑和 fencing token 的受限幂等数据库函数清理 `profile`、`matching`、owner 决策/事件、任务载荷与持久派生数据；没有有效墓碑时函数拒绝执行。MVP 不建立跨请求 owner 缓存。
-- 定时入口通过受限函数选择已经到达 `owner_expires_at` 的 owner；函数原子写到期墓碑、递增 `owner_epoch`、取消旧任务并入队 `owner_deletion`，不把其他 owner 内容返回给 Worker。
+- 领取已持久化墓碑的 owner 删除任务，在短事务中校验任务 owner、墓碑、owner epoch、租约和 fencing token，再按明确依赖顺序清理 `profile`、`matching`、owner 决策/事件、任务载荷与持久派生数据；没有有效墓碑时拒绝执行。MVP 不建立跨请求 owner 缓存。
+- 定时入口通过 `FOR UPDATE SKIP LOCKED` 选择已经到达 `owner_expires_at` 的 owner；同一事务写到期墓碑、递增 `owner_epoch`、取消旧任务并入队 `owner_deletion`，不把个人正文复制到任务或日志。
 - 同一定时入口清理达到 `raw_resume_expires_at` 的原文并取消关联解析任务；解析结果提交同时校验原文未删除/未到期与 `owner_epoch` 未变化，Worker 不持久化本地正文缓冲。
 - 本地 AI 仅在环境允许且用户逐次显式选择后向精确批准的模型端点出站并使用独立密钥；公开环境默认关闭。
 - 无采集目标、原始网页或岗位快照 Bucket 权限，也无来源管理权限。
@@ -135,10 +138,10 @@ MVP 使用一个 PostgreSQL 16 实例（本地由 Docker Desktop 运行，后续
 
 任务采用至少一次执行语义，使用数据库任务表，不声称 exactly-once：
 
-调度不是额外服务：`collector-worker` 的定时/命令入口（或受控 CLI）依据 `SourceRuntimeState.next_due_at` 入队 `crawl`；`match-worker` 的定时入口只通过受限函数入队到期 owner 的 `owner_deletion`。两者都使用同一任务表与进程身份。
+调度不是额外服务：`collector-worker` 的定时/命令入口（或受控 CLI）依据 `SourceRuntimeState.next_due_at` 入队 `crawl`；`match-worker` 的定时入口按 owner 锁与 retention 契约入队到期的 `owner_deletion`。两者都使用同一任务表与各自数据库角色。
 
-1. API/调度器通过受限入队函数以唯一 `idempotency_key` 插入任务。
-2. Worker 调用按角色和 `task_type` 固定的 claim 函数；函数内部使用行锁和 `FOR UPDATE SKIP LOCKED` 领取可用任务并写入租约和心跳，Worker 不能查询任务基表。
+1. API/调度器在短事务内以唯一 `idempotency_key` 插入任务；数据库 CHECK、不可变上下文触发器和角色/RLS 限定可写任务类型。
+2. Worker 在其数据库角色和 RLS 范围内使用行锁与 `FOR UPDATE SKIP LOCKED` 领取可用任务，写入租约、心跳和 fencing token；当前规模不额外维护函数层，若新增外部写入方或更细任务路由则按 ADR-0023 复审。
 3. 外部调用在数据库事务外执行，结果通过输入哈希、唯一约束和版本键幂等落库。
 4. 租约过期后其他 Worker 可以接管；旧 Worker 的过期写入通过租约版本/fencing token 拒绝。
 5. 仅网络超时、限流和临时上游错误重试；Schema、权限和政策错误直接进入人工处理。
