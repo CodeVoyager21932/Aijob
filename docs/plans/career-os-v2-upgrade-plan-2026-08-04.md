@@ -1,61 +1,111 @@
-# Aijob 求职 OS 2.0：交互架构先行与开源能力融合计划
+# Aijob 求职 OS 2.0 → Private Alpha 严格开发总计划
 
-- 状态：Phase 1A accepted；approved for Phase 1B implementation
-- 日期：2026-08-04
+- 状态：Phase 1A、Phase 1B accepted；当前只批准 Phase 2
+- 初版日期：2026-08-04
+- 严格化日期：2026-08-05
 - 决策者：coco
 - 当前分支：`codex/career-os-phase-1`
 - 关联决策：[ADR-0029](../decisions/0029-official-source-catalog-trust-boundary.md)、[ADR-0030](../decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md)
+- 动态进度：[MVP 路线与当前决策面板](../06-mvp-roadmap.md)
 
-## 1. 目标与当前事实
+本文只维护阶段定义、依赖、接口边界和 Gate。真实分母、当前唯一目标与下一决定只写入路线图；当前分支、未提交状态和接手入口只写入交接；每阶段命令、截图、风险和继续/修改/回退/停止决定写入独立证据。任何工程完成都不能把产品证据从 `E0` 自动提升。
 
-Aijob 从“官方岗位投递决策助手”升级为**可信官方岗位驱动的完整求职 OS**。产品不做招聘信息流或自动投递，而是围绕一次真实求职项目串联：
+## 1. 终点、流程与工期基线
+
+终点是通过 `G4 Private Alpha`，不是页面完成、本地可运行或抓到更多岗位。当前可信供给仍为 22 岗 / 3 家企业，产品证据仍为 `E0`。
+
+```mermaid
+flowchart LR
+    A["基线收口"] --> B["Phase 1B 静态交互"]
+    B --> C["Phase 2 领域与接口"]
+    C --> D["Phase 3 三个 PoC"]
+    D --> E["Phase 4 一岗全闭环"]
+    E --> F["Phase 5/6 兼容迁移与 Alpha 必需 OS"]
+    E --> G["G2 100/1000 可信供给"]
+    G --> H["G3 三来源可持续"]
+    F --> I["服务器就绪 Gate"]
+    G --> I
+    I --> J["G0 两人校准"]
+    J --> K["G1 六人价值验证"]
+    H --> L["G4 Private Alpha"]
+    K --> L
+```
+
+单人开发初始估算约 108–177 个有效人日，不含参与者招募、云资源采购、审批和 7 天/72 小时强制观察窗口。每个 Gate 后重估，不把人日区间当发布日期。
+
+| 阶段 | 人日 | 唯一结果 | 当前状态 |
+|---|---:|---|---|
+| 基线收口 | 1–2 | 干净、可追溯的 Phase 1A 基线 | 已完成 |
+| Phase 1B | 4–6 | JD 能力与定制简历静态交互 Gate | 已通过 |
+| Phase 2 | 8–12 | 数据模型、契约、迁移和删除覆盖 | 当前唯一目标 |
+| Phase 3A Case PoC | 5–7 | 固定岗位版本的一岗一档 | 未开始 |
+| Phase 3B Resume V2 PoC | 10–14 | 两模板、编辑、确认、DOCX/打印 | 未开始 |
+| Phase 3C Interview PoC | 8–12 | 文字面试、反馈、复盘及模板降级 | 未开始 |
+| Phase 4 | 10–15 | 单岗位端到端闭环 | 未开始 |
+| Phase 5 | 4–6 | 旧页面兼容收口 | 未开始 |
+| Phase 6 | 8–12 | Private Alpha 必需的完整 OS 入口 | 未开始 |
+| G2/G3 供给 | 30–60 运营/工程人日 | 100/1000 与三来源连续运行 | 未开始 |
+| 服务器就绪 | 10–15 | 邀请环境、安全、恢复和监控 | 未开始 |
+| G0/G1/G4 | 10–16 | 2 人校准、6 人验证和 Alpha 总验收 | 未开始 |
+
+## 2. 执行纪律与冲突收口
+
+### 2.1 四层事实源
+
+1. 本计划：稳定阶段、依赖、接口和 Gate。
+2. `docs/06-mvp-roadmap.md`：当前唯一目标、真实分母、Gate 状态和下一决定。
+3. `docs/handoffs/current.md`：当前分支、未提交状态、最近验收和接手入口。
+4. `docs/evidence/**`：每阶段命令、测试、视觉证据、风险、回退和决定。
+
+同一种事实只能在一层维护；分支名、提交名或纵向切片名称不代表 Gate 已通过。
+
+### 2.2 已收口冲突
+
+- Phase 1A 已通过但曾位于脏工作树：已复验并以独立提交 `7bb2140` 冻结，再实施 Phase 1B。
+- `G2` 旧称冲突：产品建设只使用 `Phase 1A–6`；`G0–G5` 只表示验证 Gate，编号不表示时间顺序。当前 `G2` 指“Career OS 本地完整闭环 + Private Alpha 100/1000 供给门”。
+- 旧 `300–500` 岗位范围：统一改为从已通过 G2 的 1000 岗目录中冻结的正式研究子集，不再作为供给总门槛。
+- Phase 6 与扩容顺序：Phase 4 通过后同时开放 Phase 5/6 产品收口和 G2/G3 供给两条工作流，最终在服务器就绪 Gate 汇合。
+- 暂无服务器：先做基础设施无关部署包；达到供给 Gate 后仍须 coco 明确授权供应商、地区、预算和数据路径。未授权时服务器 Gate 保持未通过。
+- `pending_review` 与邀请供给：本地可见不等于参与者可用；未完成准入的岗位不能计入 G4 分母，公共 `/v1/jobs` 继续为空。
+- 2026-08-05 `audit:ci` 冲突：仓库旧 override 固定到有漏洞的 `fast-uri` 3.1.4/4.1.1，已最小升级到 3.1.5/4.1.2 并恢复安全门。
+
+### 2.3 每个纵向切片的固定流程
+
+每项限制为 0.5–2 人日；单人开发同时只允许一个 `in_progress`：
+
+1. 写清用户任务、非目标、数据与风险。
+2. 固定输入、输出、接口、错误和回退。
+3. 先补测试或代表性离线夹具。
+4. 实现一个可审查纵向切片。
+5. 运行局部测试，再运行阶段工程门。
+6. 完成 1920/1280/768/320、200% 缩放、键盘和必要安全检查。
+7. 更新阶段证据。
+8. 只允许“继续、修改、回退、停止”四种决定。
+
+`.claude/`、`.data/`、密钥、令牌、简历原文、本地数据库和下载产物始终排除于读取、暂存和提交范围。
+
+## 3. 固定产品与交互架构
+
+### 3.1 产品使命与边界
+
+Aijob 是可信官方岗位驱动的完整求职 OS，不是岗位信息流、简历生成器、自动投递工具或传统后台。完整链路为：
 
 ```text
 可信企业与官方岗位
-  -> JD 能力与资格拆解
-  -> 用户经历证据确认
-  -> 岗位定制中文简历
-  -> 官方页面自行投递与进展记录
-  -> 文字模拟面试
-  -> 面后复盘与经验沉淀
+→ JD 资格与能力拆解
+→ 用户经历证据确认
+→ 岗位定制中文简历
+→ 官方页面由用户自行投递并记录进展
+→ 文字模拟面试
+→ 复盘与引用式经验沉淀
+→ 删除全部个人数据
 ```
 
-当前可信供给仍以干净 `aijob_alpha` 为准：22 条活动岗位、3 家企业、3 个官方 ATS；SME 为 2 家/14 岗，人工、Alpha 和公共岗位均为 0。历史 231/149/29、152/30 和开发库 14/2 不是验收分母。
+不得抓取综合招聘平台，不绕过登录或访问控制，不自动填写或投递，不把未说明字段补写，不合并资格、证据和偏好为总分，不在用户确认前创造经历或数字。
 
-100 家企业/1000 条可见活动岗位仍是外部 Private Alpha 硬门槛，110/1100 仍是运营缓冲。本计划只调整执行顺序：先完成交互架构和一岗闭环，再恢复官方 ATS 容量扩容；不降低 ADR-0027、0028、0029 的来源与结构标准。
+### 3.2 统一壳层和路由
 
-产品证据继续为 `E0`，G0/G1 未启动。
-
-## 2. 固定执行顺序
-
-```text
-治理与交接收口
-  -> Phase 1A 工作台壳层、静态求职看板与 URL 侧览
-  -> Phase 1B JD 能力与定制简历静态原型
-  -> Career OS 领域模型与接口
-  -> 简历 / ApplicationCase / 文字面试三个 PoC
-  -> 一岗全闭环
-  -> 旧页面渐进迁移
-  -> 完整 OS 扩展
-  -> 恢复 100/1000 官方供给扩容
-```
-
-新增来源扩容在一岗闭环 Gate 前暂停；已授权 canonical 来源可以按现有安全边界维护新鲜度，但不得扩大真实请求范围。
-
-## 3. 统一交互架构
-
-### 3.1 产品壳层
-
-Aijob 是面向求职者的个人工作台，不复制传统后台管理系统的账号、额度、系统管理和运营指标。
-
-- 唯一可收起全局侧栏：`今日 / 发现岗位 / 我的求职 / 简历资产 / 面试训练 / 经验库`，底部固定`数据与设置`。
-- 顶部工具栏只放面包屑、`Ctrl+K` 全局搜索、通知和账号；不再放第二套主导航。
-- 页面固定为 `GlobalSidebar + UtilityBar + MainCanvas + ContextInspector`。
-- 右侧检查器可以收起和调整宽度，用于展示当前岗位、要求、证据或 AI 建议；不得实现为悬浮聊天机器人。
-- 筛选、排序、视图和侧览对象进入 URL；刷新、前进和后退必须恢复上下文。
-- 侧栏状态和面板宽度属于本机非敏感 UI 偏好，不进入用户事实数据库。
-
-### 3.2 路由信息架构
+唯一结构为 `GlobalSidebar + UtilityBar + MainCanvas + ContextInspector`。全局侧栏固定为`今日 / 发现岗位 / 我的求职 / 简历资产 / 面试训练 / 经验库`，底部为`数据与设置`；单岗位标签固定为`概览 / JD能力 / 定制简历 / 投递 / 面试 / 复盘`。
 
 ```text
 /today
@@ -73,173 +123,254 @@ Aijob 是面向求职者的个人工作台，不复制传统后台管理系统�
 /settings/data
 ```
 
-- 全局`简历资产`管理基础简历和模板；岗位内`定制简历`只管理岗位派生版本。
-- 全局`面试训练`展示跨岗位练习历史；岗位内`面试`必须绑定具体 JD 版本。
-- 全局`经验库`保存通用引用和笔记；岗位内只展示主动关联的内容。
-- `我的求职`支持列表和看板；点击项目先打开右侧侧览，再进入完整工作区。
-- 单岗位标签固定为：`概览 → JD能力 → 定制简历 → 投递 → 面试 → 复盘`。
+筛选、排序、视图、侧览、要求和简历区块进入 URL；本机非敏感 UI 偏好才允许版本化 localStorage。岗位列表、看板首屏不得加载简历编辑器或面试模块。
 
-### 3.3 响应式能力
+### 3.3 三个概念图的约束
 
-- `>=1440px`：完整侧栏、主画布和右侧检查器。
-- `1024–1439px`：侧栏缩为图标轨道，检查器按需展开。
-- `768–1023px`：单主画布，辅助区域改为抽屉或标签。
-- `<768px`：首轮只保证可访问和无整页横向溢出；后续可将全局导航转底栏、检查器转全屏抽屉，不改变领域模型和路由。
+三张 PNG 只提供布局与信息层级，解释以[概念图契约](../evidence/product/career-os-v2/README.md)为准：
 
-### 3.4 视觉与组件约束
+1. [概念 01](../evidence/product/career-os-v2/concept-01-application-board.png)：采用统一壳层、看板和侧览；拒绝“匹配良好/中/差”。
+2. [概念 02](../evidence/product/career-os-v2/concept-02-job-workspace.png)：要求分组、原文和证据检查器；岗位事实、用户证据、未知项分开。
+3. [概念 03](../evidence/product/career-os-v2/concept-03-resume-studio.png)：结构导航、A4 预览和逐段建议；拒绝独立简历品牌与自动写入。
 
-- 保留现有年轻、向阳、编辑感：真白画布、浅暖灰壳层、深蓝主操作、鲜绿证据状态、琥珀未知状态、深色正文。
-- UI 控件使用中文无衬线字体；页面与简历重点标题可以使用克制的中文衬线字体。
-- 优先使用开放区域、列表、分栏、时间线和工具条；卡片只承担必要分组，禁止层层嵌套。
-- 首批公共组件：`WorkspaceShell`、`GlobalSidebar`、`UtilityBar`、`CaseHeader`、`CaseTabs`、`ContextInspector`、`ResizablePane`、`ViewToolbar`、`EvidenceState`、`StageBadge`。
-- 简历、岗位和面试模块必须复用同一壳层与 token，不建立独立视觉系统。
-- Tiptap、dnd-kit 等大型依赖只在简历路由懒加载，岗位列表首屏不得加载完整编辑器。
+合法证据状态只有`已有证据 / 证据待补充 / 用户尚未确认`。任何“已验证”“证据不足”等文案必须按契约映射，不能发明第四种业务状态。
 
-### 3.5 已批准概念图
+### 3.4 开源吸收纪律
 
-三张 PNG 是视觉参考，不是字段、状态或品牌命名事实源；采用、拒绝和术语映射统一见[概念图解释契约](../evidence/product/career-os-v2/README.md)。
+OpResume、JadeAI、resume-design、LuJie CareerKit、JobSync、OfferU、Resume Matcher、FaceTomato、Plane、Twenty、Linear 和 Attio 只提供组件或行为参考。只有完成许可证、固定提交、网络副作用、认证、持久化和遥测审计后的 MIT/Apache 纯组件可选择性移植；AGPL、许可证不清、框架冲突和独立后端只学习行为。不得整仓 Fork、Git 子模块或引入第二套领域模型。
 
-1. [我的求职看板与岗位侧览](../evidence/product/career-os-v2/concept-01-application-board.png)：只作为壳层、看板和侧览参考；图中的“匹配良好/中/差”不得实现。
-2. [单岗位 JD 能力工作区](../evidence/product/career-os-v2/concept-02-job-workspace.png)：主要岗位工作区基准。
-3. [岗位定制简历工作室](../evidence/product/career-os-v2/concept-03-resume-studio.png)：主要简历工作区基准。
+## 4. 阶段实施计划
 
-产品只能使用`已有证据 / 证据待补充 / 用户尚未确认`，不得显示匹配百分比、适合度等级或自动劝退结论。
+### 基线收口：Phase 1A 交付冻结
 
-## 4. 目标领域架构
+已完成并记录于[Phase 1A 验收](../evidence/product/career-os-v2/phase-1a-workspace-shell-acceptance-2026-08-04.md)：功能旗标关闭保持 `ProductShell`，开启进入 `WorkspaceShell`；URL、侧览、焦点和本机 UI 偏好可恢复。退出决定：继续。
 
-### ApplicationCase
+### Phase 1B：JD 能力与定制简历静态交互
 
-- 每位 owner 对同一稳定岗位最多一个活动 Case；已结束后允许为新招聘批次创建新 Case。
-- Case 固定 `publishedJobId + publishedJobVersionId`。新版 JD 只显示差异，由用户显式升级。
-- 阶段为 `interested / preparing / applied / interviewing / resolved`。
-- `resolved` 结果为 `offer / rejected / withdrawn / expired / unknown`。
-- 现有 `saved / preparing_to_apply / applied / abandoned` 分别兼容映射到新阶段；`undecided` 不自动创建 Case。
+已完成并记录于[Phase 1B 验收](../evidence/product/career-os-v2/phase-1b-static-workspaces-acceptance-2026-08-05.md)。
 
-### JD Ability Map
+JD 能力页：
 
-- 分为硬条件、职责能力和未知待确认。
-- 每项引用具体岗位版本与官方原文片段。
-- 推导信息单独标记为系统分析，不能变成岗位事实。
+- `/applications/:caseId/requirements` 分为硬条件、职责能力、未知待确认。
+- 每项显示静态官方原文、来源和三态；`?requirement=<id>` 恢复选择。
+- 检查器展示原文、证据和静态下一步；键盘可选，关闭后焦点返回，320px 为全宽抽屉。
+- 不保存用户事实、不调用接口、不访问真实岗位。
 
-### Resume Document V2
+定制简历页：
 
-- 语义内容、证据引用和模板布局分离。
-- 区块 ID 在编辑和换模板时保持稳定。
-- V1 历史修订保持不可变；读取时通过转换器渲染，用户首次编辑才创建 V2 修订。
-- 首轮两个模板：中文经典单栏、中文紧凑技术；保留现有 DOCX，PDF 通过浏览器打印，不新增服务器 PDF 服务。
+- `/applications/:caseId/resume` 包含结构导航、A4 主预览和当前区块建议；`?block=<id>` 恢复选择。
+- 接受只改当前会话预览；编辑后采用可确认/取消；拒绝保留原文并隐藏建议；三者均可撤销。
+- 真实刷新恢复静态初始建议，不使用 localStorage 伪装业务持久化。
+- 不引入富文本、拖拽、数据库或 AI。
 
-### Timeline、Interview、Debrief、Knowledge
+退出决定：继续进入 Phase 2；不得回头把静态状态冒充持久化业务能力。
 
-- 投递阶段变化使用追加式事件；打开官方链接不能推断为已经投递。
-- 文字面试保存问题、回答、追问、证据引用与反馈；不录音、不处理音视频。
-- 复盘输出表达问题、证据缺口和练习计划；只有用户确认后才能生成新的经历表达修订。
-- Knowledge Clip 只保存 URL、标题、短摘要、适用场景、核验时间和用户笔记；首轮不抓取全文、不建设社区。
+### Phase 2：领域模型、契约和迁移
 
-### AI 操作策略
+只使用现有 PostgreSQL、模块化单体、认证、CSRF、任务队列和 `match-worker`；不新增数据库、Redis、消息总线、认证或 AI SDK。
 
-- 沿用现有后端 AI 配置和 PostgreSQL 任务队列，不引入第二套 AI SDK 或独立服务。
-- 每个 AI 操作声明输入、允许事实、输出结构、证据引用、用户确认点、保留期限和无 AI 降级路径。
-- 模型不能读取简历原文件、创造经历、修改岗位事实、修改三轴或直接写数据库。
+#### 2A ApplicationCase
 
-## 5. 开源参考与吸收级别
+新增 `application` schema：
 
-| 级别 | 项目 | 吸收内容 | 禁止内容 |
-|---|---|---|---|
-| 简历组件候选 | [OpResume](https://github.com/oopooa/opresume) | A4 分页、章节排序、React 编辑组件 | 独立数据模型和整仓接入 |
-| 简历架构参考 | [JadeAI](https://github.com/LingyiChen-AI/JadeAI) | 模板注册、渲染、导出分层 | 与 JobPilot/LuJie 重复移植 |
-| 视觉参考 | [resume-design](https://github.com/Hacker233/resume-design)、[Reactive Resume](https://github.com/AmruthPillai/Reactive-Resume) | 中文布局与编辑器边界 | Vue 页面直接复制、国外模板默认化 |
-| 求职工作流 | [LuJie CareerKit](https://github.com/Chozzc/Lujie-Careerkit) | 一岗一档、逐段确认、完整链路 | SQLite、认证、独立后端 |
-| 投递管理 | [JobSync](https://github.com/Gsync/jobsync) | 看板、时间线、任务、Provider Registry 思路 | 综合平台、评分和独立采集运行时 |
-| 经历与复盘 | Career-Ops、JobTrac | STAR+Reflection、准备与复盘 | 自动劝退和通用评分 |
-| AI 安全 | OfferU | 操作注册、事实 Gate、显式确认、审计 | Python/FastAPI/SQLite 整套接入 |
-| JD 映射 | [Resume Matcher](https://github.com/srbhr/Resume-Matcher) | 要求—证据覆盖与缺口解释 | 匹配百分比、ATS 伪评分 |
-| 文字面试 | [FaceTomato](https://github.com/Infinityay/FaceTomato) | 问答节奏、追问、反馈 | AGPL 代码和语音能力 |
-| 工作台交互 | [Plane](https://plane.so/blog/introducing-plane-navigation-2)、[Twenty](https://docs.twenty.com/getting-started/core-concepts/layout)、[Linear](https://linear.app/docs/peek)、[Attio](https://attio.com/help/reference/attio-101/attios-data-model/understanding-records) | 唯一侧栏、项目标签、侧览、记录页 | 整个工作管理平台架构 |
-| 采集研究 | ever-jobs、job-pro、JobSync | ATS 契约、分页、失败隔离 | 代理、Cookie、反爬绕过、聚合平台、自动投递 |
+- `application_cases`：owner、owner epoch、稳定岗位 ID、固定岗位版本、阶段、结果、乐观修订号、TTL、结束时间；同一 owner/稳定岗位只允许一个未结束 Case。
+- `case_events`：追加式阶段和行为事件，Case 内序号唯一，禁止原地更新。
+- `case_requirement_states`：要求三态、用户备注、修订号。
+- `case_requirement_evidence_links`：连接要求与已确认证据。
+- `case_questions`：用户主动补充的未知问题。
+- 岗位版本升级必须显式执行并记录旧/新版本；旧简历和面试材料继续固定原版本。
 
-复用规则：
+#### 2B Resume Document V2
 
-- Aijob 始终是唯一系统骨架。
-- 只有 MIT/Apache、无认证/持久化/遥测/网络副作用的纯组件可以选择性移植。
-- 每个移植文件记录上游仓库、固定提交、许可证和本地修改。
-- 不使用 Git 子模块或整仓 Fork；外部类型必须经 Aijob DTO/anti-corruption layer 转换。
-- AGPL、许可证不清晰、框架冲突或带独立后端的项目只学习行为，不复制代码和样式表。
+- 新增 `resume_documents`，区分基础简历与 Case 派生简历。
+- 既有不可变 `resume_document_revisions` 增加文档归属与文档内修订号；旧 V1 行保持不变。
+- V1 只通过转换器读取；首次编辑才创建 V2 修订。
+- 模板和章节顺序使用独立不可变布局修订；换模板不得改变语义内容或证据 ID。
+- Case 派生简历固定基础简历修订、岗位版本和证据修订。
 
-## 6. 实施阶段与 Gate
+#### 2C Interview、Debrief、Knowledge
 
-### Phase 0：治理与基线
+- `interview_sessions` 固定 Case、岗位版本、模式和输入证据版本。
+- `interview_turns` 追加保存问题、回答和追问。
+- `interview_feedback` 保存结构化反馈和证据引用。
+- `debriefs` 只保存表达问题、证据缺口和练习计划；用户确认后才能转成经历表达。
+- `knowledge_clips` 只保存 URL、标题、短摘要、适用场景、核验时间和用户笔记，不抓全文。
+- 新任务类型继续使用 PostgreSQL 队列和 `match-worker`。
 
-- 接受 ADR-0030，更新路线图与交接。
-- 冻结新增来源扩容，保留 canonical 来源安全维护。
-- 保存现有页面基线；`.claude/`、`.data/`、密钥、简历和本地数据库继续排除。
+所有实体具备 owner 隔离、owner epoch、最长 30 天 TTL、删除墓碑和迟到任务拒绝；导出最长 24 小时，无正文审计最长 90 天。迁移只做 additive/expand；旧应用在新 Schema 下继续运行。退出 Gate：跨 owner、删除、到期、并发修订和迟到任务 PostgreSQL 集成测试通过。
 
-### Phase 1A：工作台壳层、静态看板与 URL 侧览
+### Phase 3A：ApplicationCase PoC
 
-- 增加明确的 Career OS 功能旗标；关闭时继续使用现有产品路由和 `ProductShell`，开启时进入统一 `WorkspaceShell`。
-- 实现统一侧栏、顶部工具栏、主画布、可收起右侧检查器、响应式容器及共享 CaseHeader/CaseTabs 路由骨架。
-- 使用仓库内静态夹具实现 `/applications` 的列表/看板、筛选、排序和 `?peek=<caseId>` 侧览；视图状态进入 URL，本机 UI 宽度偏好不进入用户事实数据库。
-- 六个岗位子路由只展示共享静态 Case 上下文与明确占位；不修改业务表或接口、不调用真实 AI、不删除旧页面。
+- 从岗位侧览以幂等键创建 Case，固定岗位版本并提供确定性差异。
+- 只有用户显式确认才能升级 JD 版本。
+- 阶段：`interested / preparing / applied / interviewing / resolved`。
+- 结果：`offer / rejected / withdrawn / expired / unknown`。
+- 旧决定映射：`saved → interested`、`preparing_to_apply → preparing`、`applied → applied`、`abandoned → resolved/withdrawn`、`undecided` 不创建。
+- 新 Case 为真源；旧接口只兼容可无损表示状态，其他返回明确冲突并引导新工作台。
 
-Gate：导航无重复；功能旗标可安全回退；深链接刷新及前进/后退恢复上下文；列表侧览关闭后焦点和位置恢复；1280/320 无整页横向溢出；键盘与焦点通过。
+### Phase 3B：Resume V2 PoC
 
-### Phase 1B：JD 能力与定制简历静态原型
+- 使用结构化表单，不引入通用富文本。
+- 章节排序必须有可访问的上移/下移按钮，首轮不依赖拖拽。
+- 模板固定为中文经典单栏、中文紧凑技术。
+- A4 预览用浏览器布局；PDF 走打印，不增加服务器 PDF。
+- DOCX 导出器接收 Resume V2 DTO。
+- AI 建议复用现有 tailoring 与逐段确认；无 AI 使用模板建议。
+- 接受、编辑后采用、拒绝都生成可追溯状态，不覆盖原修订。
 
-- 在 Phase 1A 的同一壳层和静态 Case 上完成概念 02、03 的可交互原型。
-- JD 能力只使用`已有证据 / 证据待补充 / 用户尚未确认`；简历建议必须展示接受、编辑后采用和拒绝，不自动写入。
-- 只验证信息架构、分栏、焦点和响应式；不接 ApplicationCase 数据库、完整编辑器、真实 AI 或真实招聘来源。
+### Phase 3C：文字面试 PoC
 
-Gate：两个工作区复用同一 CaseHeader、CaseTabs、ContextInspector 与视觉 token；不存在独立简历品牌、匹配等级或第二套主导航。
+- 模板模式根据固定 JD 要求生成问题与准备提示。
+- 受控 AI 只走现有兼容层，用模拟端点覆盖正常、超时、限流、无效 Schema 和无效证据引用。
+- 当前阶段不调用真实 AI；Private Alpha 默认仍为模板模式。
+- 问答与反馈必须引用同一 Case 的岗位版本和用户已确认事实。
+- 复盘不能创造经历。
 
-### Phase 2：领域与接口
-
-- 增加 ApplicationCase、阶段事件、能力映射、Resume V2、面试、复盘和 Knowledge Clip。
-- 新增 owner 隔离的内部接口；公共岗位 API 与准入逻辑不变。
-- 扩展 TTL、owner epoch、全部数据删除和迟到任务拒绝。
-
-### Phase 3：三个 PoC
-
-- 简历：V1→V2、两个中文模板、A4 预览、章节排序、逐段确认、DOCX 与浏览器打印。
-- Case：创建、固定岗位版本、查看差异、阶段事件和旧决定兼容。
-- 面试：规则问题、受控 AI 问题、文字回答、证据引用、反馈和复盘。
-
-Gate：不存在第二套认证、数据库、队列、AI SDK、岗位真源或用户事实库。
+三个 PoC 必须能独立运行和删除；不得出现第二套认证、数据库、队列、AI SDK、岗位真源或事实库。
 
 ### Phase 4：一岗全闭环
 
-完成：岗位侧览→创建 Case→能力拆解→选择证据→定制简历→导出→记录投递→文字面试→复盘→知识引用→全部删除。
+使用离线岗位夹具与合成用户材料把静态工作区接入内部 API：
 
-AI 不可用时仍能完成 JD 查看、简历编辑、导出、投递记录和模板化面试准备。
+```text
+岗位侧览 → 创建 Case → 核对 JD 能力 → 选择/补充已确认证据
+→ 创建岗位简历 → 逐段接受/编辑/拒绝 → DOCX/打印
+→ 打开官方链接 → 用户手动标记已投递 → 文字面试
+→ 复盘与知识引用 → 删除全部个人数据
+```
 
-### Phase 5：渐进迁移
+打开官方链接绝不自动记为投递；AI 关闭时仍完成核对、编辑、导出、投递记录、模板面试和复盘；加载、空、失败、过期、冲突和重试均有明确 UI；删除后刷新、重新登录、迟到任务和恢复备份不得复活。退出 Gate：自动 E2E 与人工浏览器验收同时通过并形成证据包。
 
-- `/resume` 兼容进入 `/resumes`。
-- `/recommendations` 收口到 `/applications`。
-- `/insights` 按岗位或 Case 上下文进入 `requirements`。
-- 已关联旧 tailoring run 进入 Case 简历页；无法关联的保留旧只读页。
-- 新闭环功能、安全和删除 Gate 全部通过后，才移除重复旧组件。
+### Phase 5：兼容迁移
 
-### Phase 6：完整 OS 与供给恢复
+- `/resume` 兼容进入 `/resumes`；`/recommendations` 收口到 `/applications`；`/insights` 按岗位/Case 进入 `requirements`。
+- 可唯一关联的旧 tailoring run 连接 Case；无法确定归属的保留旧只读页。
+- 功能旗标关闭仍可回到旧壳层。
+- 只有新闭环、安全和删除 Gate 全部通过才删除重复组件；G4 前不做数据库 contract migration。
 
-- 扩展多岗位管理、提醒、故事视图、公司研究、练习计划和引用式经验库。
-- 恢复容量优先的官方 ATS 来源族和 100/1000 扩容。
-- 外部 Private Alpha 必须同时通过产品闭环、可信供给、服务器就绪和隐私安全 Gate。
+### Phase 6：Private Alpha 必需 OS
 
-## 7. 接口与测试
+- `/today`：基于 Case 阶段、截止时间和用户记录生成确定性下一步，不发站外通知。
+- `/applications`：多 Case 列表/看板、筛选、排序、侧览和时间线。
+- `/resumes`：基础简历、Case 派生简历、模板和导出历史。
+- `/interviews`：跨 Case 文字练习历史和待练习项。
+- `/knowledge`：用户主动保存的引用式经验，不抓正文、不做社区。
+- `/settings/data`：数据范围、过期时间、导出和全部删除。
+- 公司研究只展示官方链接和用户短笔记，不扩展为新采集系统。
 
-- 新接口只增加 owner 隔离的 Case、事件、简历 V2、面试、复盘和知识能力；公共 `/v1/jobs` 与公开准入不变。
-- UI 侧览使用 `?peek=<caseId>`；视图、筛选、排序写入 URL。
-- 简历模板只接收 Aijob Resume V2 DTO，外部项目类型不得进入领域层。
-- 全量验证覆盖：架构依赖、许可证、路由与侧览、响应式、Case 唯一性、岗位版本固定、V1→V2、证据 ID、AI 事实边界、owner 隔离、CSRF、TTL、删除、迟到任务、DOCX、公开岗位为 0。
-- 完整 E2E 必须覆盖一岗全闭环；岗位与看板首屏不得加载简历编辑器和面试模块。
+退出 Gate：所有入口复用同一壳层、owner 和 Case；首屏不加载简历编辑器或面试模块；320px、200% 缩放和键盘全流程可用。
 
-## 8. 明确不做
+## 5. G2/G3 可信供给与可持续性
 
-- 不抓 BOSS、实习僧、牛客等综合平台。
-- 不自动登录、填表、批量投递或代替用户提交。
-- 不做语音、视频、OCR、浏览器扩展、公共管理后台、Redis、向量库或消息总线。
-- 不显示匹配百分比、适合度等级、自动劝退或 AI 自动接受。
-- 不把高校、政府、公众号或经验文章当成当前岗位事实。
+只有 Phase 4 通过后才能恢复真实来源工作；每个真实批次仍需 coco 明确授权和既有 `--confirm-live`。
 
-## 9. 新任务第一步
+检查点固定为：
 
-Phase 1A 已按[工作台壳层验收记录](../evidence/product/career-os-v2/phase-1a-workspace-shell-acceptance-2026-08-04.md)通过。新任务只完成 Phase 1B：在现有静态 Case、共享壳层与右侧检查器中实现概念 02、03 的 JD 能力和岗位定制简历可交互原型。不得接入完整编辑器、ApplicationCase 数据表、真实 AI 或真实招聘来源，不得引入独立简历品牌、匹配等级或第二套主导航。开始前必须检查分支与工作树，读取 `AGENTS.md`、`README.md`、路线图、当前交接和本计划；不得读取或提交 `.claude/`。
+- `40 家 / 400 岗`：验证容量来源族与增速，通过后才灰度统一 12 小时刷新。
+- `70 家 / 700 岗`：复核 SME、职能、城市和人工来源占比，优先补结构缺口。
+- `100 家 / 1000 岗`：通过硬 Gate；随后以 `110/1100` 作为运行缓冲。
+
+硬指标：SME 企业 ≥50%、SME 岗位 ≥40%；产品、运营、工程、数据与 AI 各 ≥100，其余 8 个职能各 ≥15；北京、上海、深圳、广州、杭州、成都、武汉、南京各 ≥40 条地点已知岗位；人工/浏览器来源企业 ≤20%、岗位 ≤10%；追溯率与未知诚实率 100%；关键字段准确、链接可用、新鲜度 ≥95%；静默失败、幂等重复、误合并为 0。
+
+G3 定义：至少 3 个通过准入的确定性 canonical 来源连续运行 7 天，每 12 小时完成应到刷新，失败互相隔离，无静默空结果、重复触网或目录污染。历史证据不回写为新 Gate 通过。
+
+## 6. 服务器就绪 Gate
+
+第一步先完成基础设施无关部署包：可重复构建镜像、迁移作业、五个数据库角色、配置校验、密钥引用、监控、备份/恢复和回滚脚本。第二步必须在供给 Gate 后取得 coco 对供应商、地区、预算和数据路径的明确授权；不得自动采购或部署。
+
+邀请环境必须通过：
+
+- 私有 HTTPS 邀请入口、哈希邀请凭证、Secure/HttpOnly Cookie、CSRF 和 owner 对象鉴权。
+- 持久化邀请失败限流，不依赖单进程内存。
+- 简历解析在非特权、无外网、资源受限的独立部署单元。
+- PostgreSQL 恢复目标 `RPO ≤24h、RTO ≤8h`，并证明删除不会因恢复复活。
+- 原文确认后立即删除，异常最长 24 小时；结构化数据最长 30 天。
+- 1000 岗、20 并发邀请会话下核心读取 p95 ≤750ms、错误率 <1%。
+- 日志、告警和错误正文不含简历、联系方式、提示词、密钥或完整模型输入。
+- AI 默认关闭；无供应商数据处理结论时只能用模板。
+
+## 7. G0、G1 与 G4
+
+### G0：2 人协议校准
+
+使用同一候选构建、脚本与冻结岗位子集，验证招募条件、术语、计时、外链返回、记录表和 72 小时联系路径。样本不计正式通过率；任务或界面实质修改后必须重做。
+
+### G1：6 人正式验证
+
+从通过 G2 的 1000 岗中冻结 300–500 条代表性研究子集；6 人至少覆盖 4 个岗位方向，同方向最多 2 人。
+
+通过条件：
+
+- 至少 4/6 在 20 分钟内找到 3 个愿意认真考虑且无已知硬冲突的岗位。
+- 至少 5/6 正确区分资格冲突、简历暂未体现、岗位信息未知、偏好不符。
+- 至少 3/6 在 72 小时内完成高质量决定并记录理由。
+- 其中至少 2 人自报在官方页面投递；外链点击不计投递。
+
+硬条件漏检、错误劝退、虚构或未确认经历、未确认事实参与结论、跨 owner、隐私或安全事件任一发生即失败。AI 对照不是 G1 前提；只有 6 人全部选择参加、供应商 Gate 通过且至少 4/6 优于模板并无新增事实错误，才允许后续远程启用。
+
+### G4：Private Alpha 总验收
+
+只有 Phase 1B–6、G2、G3、服务器就绪、G0、G1、至少 30 个高风险三轴金标、删除/恢复/回滚/来源暂停/故障隔离演练、邀请制隐私与投诉止损流程全部通过，才允许扩大邀请。
+
+## 8. Owner 保护接口与公共类型
+
+新增 API 使用 `Cache-Control: no-store`；写操作要求 CSRF，创建要求幂等键，更新要求 `expectedRevision`。跨 owner 统一返回不可枚举 404，版本冲突返回标准 Problem Details。
+
+核心接口族：
+
+- `/v1/application-cases`：列表、创建、详情。
+- `/v1/application-cases/:caseId/transitions`：阶段与结果事件。
+- `/v1/application-cases/:caseId/job-version-diff` 与 `/job-version-upgrades`。
+- `/v1/application-cases/:caseId/requirements`：状态、证据连接和未知问题。
+- `/v1/resume-documents` 与 `/revisions`。
+- `/v1/application-cases/:caseId/resume-tailorings` 与 `/resume-exports`。
+- `/v1/application-cases/:caseId/interview-sessions`。
+- `/v1/application-cases/:caseId/debrief`。
+- `/v1/knowledge-clips`。
+
+固定公共类型：
+
+```ts
+type CaseStage = "interested" | "preparing" | "applied" | "interviewing" | "resolved";
+type CaseOutcome = "offer" | "rejected" | "withdrawn" | "expired" | "unknown";
+type RequirementEvidenceState = "confirmed" | "needs_work" | "unconfirmed";
+type ResumeSuggestionDecision = "pending" | "accepted" | "edited" | "rejected";
+type InterviewMode = "template" | "controlled_ai";
+```
+
+现有匹配结果不被覆盖；页面三态只是证据状态展示映射，并保留原始依据。公共岗位接口、准入投影、来源白名单和可见性不因 Career OS 改动。
+
+## 9. 测试、发布与回退
+
+### 9.1 每个 PR 的自动工程门
+
+```text
+git diff --check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm audit:ci
+CI Secret 扫描、文档链接/Schema 检查、数据库兼容验证
+```
+
+必须覆盖 URL 刷新/前进/后退、非法 Case/标签、焦点恢复；Case 唯一性、版本固定/升级、并发冲突；V1 转换/V2 首次编辑/区块稳定/换模板；建议四态与 AI 降级；面试无效 Schema/证据/超时/限流/提示注入；跨 owner、CSRF、会话、TTL、墓碑、迟到任务与恢复；来源 SSRF/重定向/静默空/幂等/配额；1000 岗游标、冻结候选与部署负载。
+
+PostgreSQL 集成测试未实际运行时必须写“未执行”，不得写“通过”。Phase 2 迁移 Gate 没有隔离 PostgreSQL 结果不能通过。
+
+### 9.2 人工与视觉 Gate
+
+1920、1280、768、320 CSS px；200% 缩放；键盘全流程；可见焦点；状态通知；无整页横向滚动；控制台无新增 warning/error。非简历路由初始包不得相对 Phase 1A 增长超过 10%，否则拆包或记录接受理由。
+
+### 9.3 发布与回退
+
+数据库只用 `expand → migrate → contract`；G4 前只做 expand/migrate。`VITE_CAREER_OS_V2` 保持紧急回退；应用回退不得删除新数据，无法安全回滚的迁移采用前向修复。顺序固定为内部 owner → G0 → G1 → G4 后扩大邀请。任一安全守护失败，关闭相关旗标、暂停新增参与者并回到最早缺失证据阶段。
+
+## 10. 默认假设与当前唯一下一步
+
+- 单人/单 Agent 严格串行；Phase 4 前不恢复真实供给扩容。
+- 当前请求不授权真实招聘来源、真实 AI、服务器采购、部署、参与者招募或真实简历。
+- 主计划终点为 G4；公开 Beta、备案、公开运营和商业化只保留为 G5 后续 Gate。
+- 工期是有效工作量，不包含外部审批、采购、招募和观察期。
+
+当前唯一目标是 **Phase 2**，且第一切片只能是“领域契约与迁移设计包”：先盘点现有迁移、owner/epoch/TTL/墓碑、任务队列和 Resume V1 表，再冻结 ApplicationCase/Resume V2/Interview 的 Schema、API Problem Details 与删除矩阵；未完成设计审查前不写迁移。

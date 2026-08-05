@@ -5,16 +5,12 @@ import { CaseTabs } from "../components/CaseTabs";
 import { EvidenceState } from "../components/EvidenceState";
 import { Icon } from "../components/Icon";
 import { type CareerCase, type CaseTab, caseStages, getCareerCase, isCaseTab } from "../domain";
+import { CaseRequirementsWorkspace } from "./CaseRequirementsWorkspace";
+import { CaseResumeWorkspace } from "./CaseResumeWorkspace";
 
-const phaseContent: Record<Exclude<CaseTab, "overview">, { title: string; copy: string }> = {
-  requirements: {
-    title: "JD能力静态工作区将在 Phase 1B 完成",
-    copy: "当前路由已经固定岗位版本和 Case 上下文；下一切片才加入要求分组、原文引用和证据检查器。",
-  },
-  resume: {
-    title: "定制简历静态工作区将在 Phase 1B 完成",
-    copy: "当前不会加载完整编辑器或真实 AI；后续仍使用同一 Case、同一证据状态和同一右侧检查器。",
-  },
+type PlaceholderCaseTab = Exclude<CaseTab, "overview" | "requirements" | "resume">;
+
+const phaseContent: Record<PlaceholderCaseTab, { title: string; copy: string }> = {
   application: {
     title: "投递记录将在领域阶段接入",
     copy: "打开官方页面与手动确认已投递是两个独立事件，系统不会根据外链点击自动改变阶段。",
@@ -109,14 +105,12 @@ function CaseOverview({ careerCase }: { careerCase: CareerCase }) {
   );
 }
 
-function PhasePlaceholder({ tab }: { tab: Exclude<CaseTab, "overview"> }) {
+function PhasePlaceholder({ tab }: { tab: PlaceholderCaseTab }) {
   const content = phaseContent[tab];
   return (
     <section className="career-case-phase-placeholder">
       <span>
-        <Icon
-          name={tab === "resume" ? "document" : tab === "interview" ? "interview" : "briefcase"}
-        />
+        <Icon name={tab === "interview" ? "interview" : "briefcase"} />
       </span>
       <div>
         <p>Phase 1A 路由骨架</p>
@@ -128,11 +122,14 @@ function PhasePlaceholder({ tab }: { tab: Exclude<CaseTab, "overview"> }) {
 }
 
 function renderCaseTab(tab: CaseTab, careerCase: CareerCase): ReactNode {
-  return tab === "overview" ? (
-    <CaseOverview careerCase={careerCase} />
-  ) : (
-    <PhasePlaceholder tab={tab} />
-  );
+  if (tab === "overview") return <CaseOverview careerCase={careerCase} />;
+  if (tab === "requirements") {
+    return <CaseRequirementsWorkspace key={careerCase.id} careerCase={careerCase} />;
+  }
+  if (tab === "resume") {
+    return <CaseResumeWorkspace key={careerCase.id} careerCase={careerCase} />;
+  }
+  return <PhasePlaceholder tab={tab} />;
 }
 
 export function CaseWorkspacePage() {
