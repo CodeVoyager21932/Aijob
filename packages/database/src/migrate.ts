@@ -22,6 +22,7 @@ import { officialSourceCatalogEligibilityMigration } from "./migrations/019_offi
 import { registeredSourceAndJobFreshnessMigration } from "./migrations/020_registered_source_and_job_freshness.js";
 import { runtimeDatabaseRolesMigration } from "./migrations/021_runtime_database_roles.js";
 import { matchWorkerOwnerDeletionPrivilegesMigration } from "./migrations/022_match_worker_owner_deletion_privileges.js";
+import { applicationCaseCoreExpandMigration } from "./migrations/023_application_case_core_expand.js";
 import type { Database } from "./types.js";
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -53,18 +54,23 @@ class StaticMigrationProvider implements MigrationProvider {
       "021_runtime_database_roles": runtimeDatabaseRolesMigration,
       "022_match_worker_owner_deletion_privileges":
         matchWorkerOwnerDeletionPrivilegesMigration,
+      "023_application_case_core_expand": applicationCaseCoreExpandMigration,
     };
   }
 }
 
-export async function migrateToLatest(db: Kysely<Database>): Promise<void> {
-  const migrator = new Migrator({
+function createMigrator(db: Kysely<Database>): Migrator {
+  return new Migrator({
     db,
     provider: new StaticMigrationProvider(),
   });
+}
 
-  const { error, results } = await migrator.migrateToLatest();
-  for (const result of results ?? []) {
+function assertMigrationResult(input: {
+  error?: unknown;
+  results?: readonly { migrationName: string; status: string }[];
+}): void {
+  for (const result of input.results ?? []) {
     const message = `${result.migrationName}: ${result.status}`;
     if (result.status === "Error") {
       console.error(message);
@@ -73,7 +79,21 @@ export async function migrateToLatest(db: Kysely<Database>): Promise<void> {
     }
   }
 
-  if (error) {
-    throw error;
+  if (input.error) {
+    throw input.error;
   }
+}
+
+export async function migrateToLatest(db: Kysely<Database>): Promise<void> {
+  assertMigrationResult(await createMigrator(db).migrateToLatest());
+}
+
+export async function migrateToForTesting(
+  db: Kysely<Database>,
+  migrationName: string,
+): Promise<void> {
+  if (process.env.VITEST !== "true" && process.env.NODE_ENV !== "test") {
+    throw new Error("MIGRATE_TO_VERSION_IS_TEST_ONLY");
+  }
+  assertMigrationResult(await createMigrator(db).migrateTo(migrationName));
 }

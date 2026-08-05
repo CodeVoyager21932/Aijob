@@ -624,6 +624,83 @@ export interface OwnerDeletionTable {
   completed_at: Timestamp | null;
 }
 
+export interface ApplicationCaseTable {
+  id: Generated<string>;
+  owner_id: string;
+  owner_epoch: number;
+  published_job_id: string;
+  published_job_version_id: string;
+  requirement_set_id: string;
+  stage: Generated<string>;
+  outcome: string | null;
+  revision: Generated<number>;
+  creation_idempotency_key: string;
+  creation_request_hash: string;
+  expires_at: Timestamp;
+  ended_at: Timestamp | null;
+  deleted_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface CaseEventTable {
+  id: Generated<string>;
+  owner_id: string;
+  owner_epoch: number;
+  case_id: string;
+  sequence: number;
+  event_type: string;
+  actor_type: string;
+  event_data: JsonValue;
+  idempotency_scope: string;
+  idempotency_key: string;
+  request_hash: string;
+  created_at: Generated<Timestamp>;
+}
+
+export interface CaseRequirementStateTable {
+  id: Generated<string>;
+  owner_id: string;
+  owner_epoch: number;
+  case_id: string;
+  requirement_set_id: string;
+  requirement_id: string;
+  state: string;
+  user_note: string | null;
+  revision: number;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface CaseRequirementEvidenceLinkTable {
+  id: Generated<string>;
+  owner_id: string;
+  owner_epoch: number;
+  case_id: string;
+  requirement_set_id: string;
+  requirement_id: string;
+  evidence_revision_id: string;
+  evidence_id: string;
+  revision: number;
+  linked_at: Generated<Timestamp>;
+  removed_at: Timestamp | null;
+}
+
+export interface CaseQuestionTable {
+  id: Generated<string>;
+  owner_id: string;
+  owner_epoch: number;
+  case_id: string;
+  requirement_set_id: string | null;
+  requirement_id: string | null;
+  question: string;
+  answer: string | null;
+  status: Generated<string>;
+  revision: number;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface InternalJobPreviewView {
   job_id: string;
   revision_id: string;
@@ -753,5 +830,10 @@ export interface Database {
   "matching.resume_exports": ResumeExportTable;
   "decision.job_decisions": JobDecisionTable;
   "decision.owner_deletions": OwnerDeletionTable;
+  "application.application_cases": ApplicationCaseTable;
+  "application.case_events": CaseEventTable;
+  "application.case_requirement_states": CaseRequirementStateTable;
+  "application.case_requirement_evidence_links": CaseRequirementEvidenceLinkTable;
+  "application.case_questions": CaseQuestionTable;
   "decision_feedback_audit.audit_events": AuditEventTable;
 }

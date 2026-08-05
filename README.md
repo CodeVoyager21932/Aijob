@@ -1,6 +1,6 @@
 # Aijob：可信官方岗位驱动的求职 OS
 
-> 2026-08-05：coco 已接受 [ADR-0030](docs/decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md)，产品升级为“可信官方岗位驱动的完整求职 OS”。Phase 1A/1B 与 [Phase 2 领域契约设计](docs/plans/career-os-phase-2-domain-contract-and-migration-design-2026-08-05.md) 已通过各自 Gate；当前唯一切片是 ApplicationCase core contracts 与 additive migration 023。没有隔离 PostgreSQL 结果不得通过迁移 Gate，新增来源扩容继续暂缓。100 家企业 / 1000 条岗位的外部 Alpha 硬门槛没有取消，完整顺序见 [严格开发总计划](docs/plans/career-os-v2-upgrade-plan-2026-08-04.md)。
+> 2026-08-05：coco 已接受 [ADR-0030](docs/decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md)，产品升级为“可信官方岗位驱动的完整求职 OS”。Phase 1A/1B、[Phase 2 领域契约设计](docs/plans/career-os-phase-2-domain-contract-and-migration-design-2026-08-05.md) 与 ApplicationCase migration 023 已通过各自 Gate；当前唯一切片是 Resume Document V2 contracts 与 additive migration 024。没有隔离 PostgreSQL 结果不得通过迁移 Gate，新增来源扩容继续暂缓。100 家企业 / 1000 条岗位的外部 Alpha 硬门槛没有取消，完整顺序见 [严格开发总计划](docs/plans/career-os-v2-upgrade-plan-2026-08-04.md)。
 
 这是一个待验证的产品项目，面向**未来 30 天真实投递实习岗位、已有中文简历、近期使用过多个官方渠道的中国大陆在校生**。它只把企业官方招聘网站和经企业官网确认的官方 ATS 中当前存在的具体岗位整理为可追溯信息；高校就业网站、政府页面、公众号和其他二手页面只用于发现企业及其官网方向。系统依据用户确认过的约束与经历证据，帮助用户完成投递、暂缓或放弃的高质量决定，最终回到企业官网或官方 ATS 投递。
 
@@ -11,7 +11,7 @@
 | 项目 | 当前值 |
 |---|---|
 | 快照日期 | 2026-08-05 |
-| 当前阶段 | Career OS 2.0 Phase 2；领域设计 Gate 已通过，当前只做 ApplicationCase core contracts 与 migration 023，不接 API、Resume V2 或 Interview。100/1000 供给与服务器 Gate 通过前，G0/G1 继续暂停 |
+| 当前阶段 | Career OS 2.0 Phase 2；migration 023 Gate 已通过，当前只做 Resume Document V2 contracts 与 migration 024，不接 API、Interview 或真实数据。100/1000 供给与服务器 Gate 通过前，G0/G1 继续暂停 |
 | 当前范围 | 干净验收库 `aijob_alpha` 为 22 条可信可见活动岗位、3 家企业、3 个官方 ATS 来源；距离硬门槛仍缺 978 岗、97 家。SME 为 2/3 家、14/22 岗，人工来源为 0；Alpha 与公共岗位均为 0。开发库 14/2 及纠偏前 231/149/29 只保留为历史运行事实 |
 | 协议校准 | 尚未开始；供给硬门槛和服务器就绪 Gate 通过后，只有 coco 明确启动才做 2 人校准；历史可核验记录仍为 0/2 |
 | 正式实验 | 暂停；供给硬门槛、服务器就绪 Gate 与 G0 通过后再做 6 人正式任务和 72 小时回访 |

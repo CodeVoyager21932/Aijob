@@ -1,10 +1,10 @@
-# 当前项目交接：Aijob 求职 OS 2.0 Phase 2A-1
+# 当前项目交接：Aijob 求职 OS 2.0 Phase 2A-2
 
 > 交接日期：2026-08-05
 >
 > 当前分支：`codex/career-os-phase-1`
 >
-> 当前 HEAD：本交接所在 Phase 2 设计提交；用 `git log -1 --oneline` 获取哈希。前序提交为 `24368f5 feat(web): complete Career OS static workspaces`。
+> 当前 HEAD：本交接所在 Phase 2A-1 提交；用 `git log -1 --oneline` 获取哈希。前序提交为 `baf3276 docs: freeze Career OS phase 2 domain contract`。
 >
 > 工作树预期：提交后只剩未跟踪 `.claude/`；不得读取、提交、覆盖或清理它。仍须用 `git status --short` 复核。
 >
@@ -16,97 +16,104 @@
 
 ## 1. 当前唯一目标
 
-Phase 1A/1B 与 Phase 2 领域设计 Gate 已通过。当前唯一目标是 **Phase 2A-1：ApplicationCase core contracts + additive migration 023**。
+Phase 1A/1B、Phase 2 领域设计与 Phase 2A-1 migration 023 Gate 已通过。当前唯一目标是 **Phase 2A-2：Resume Document V2 contracts + additive migration 024**。
 
 ```text
-公共 Case 枚举与 strict request/response contracts
--> application schema 的 Case/事件/要求状态/证据连接/问题表
--> stable job/version/requirement-set 复合约束
--> owner 复合外键、30 天 TTL、部分唯一索引、不可变事件
--> 五个运行角色的显式权限
--> 空库和 022 fixture 的隔离 PostgreSQL 验证
+Resume V2 / layout 公共 contracts
+-> profile.resume_documents 文档聚合
+-> profile.resume_layout_revisions 不可变布局修订
+-> 既有 resume_document_revisions nullable additive 扩展
+-> V1/V2 schema 配对、owner/document/base revision 复合约束
+-> 两个固定模板与稳定 section/block ID 契约
+-> V1 virtual read + 首次编辑转换契约测试
+-> 空库和 023 fixture 的隔离 PostgreSQL 验证
 -> 继续 / 修改 / 回退 / 停止
 ```
 
-本切片不注册 HTTP API，不写业务服务，不开始 Resume V2/Interview，不改旧决定双写，不处理真实数据。没有隔离 PostgreSQL 实际结果不能通过 migration 023 Gate。
+本切片不注册 HTTP API，不实现编辑服务或 tailoring 接线，不回填或改写 Resume V1，不开始 Interview/Debrief/Knowledge，不处理真实简历或调用真实 AI。没有隔离 PostgreSQL 实际结果不能通过 migration 024 Gate。
 
 ## 2. 已通过基线
 
 - Phase 1A：`7bb2140`，统一壳层、静态看板、Case 路由、功能旗标与响应式 Gate。
 - 依赖安全修复：`5da2390`，`fast-uri` advisory 已清除。
 - Phase 1B：`24368f5`，JD 三态与 Resume 静态建议四态、URL/焦点/旗标/浏览器 Gate。
-- Phase 2 设计：冻结复用矩阵、领域表、状态机、API、删除顺序、任务、权限、023–027 迁移和测试矩阵；证据见 [设计验收](../evidence/product/career-os-v2/phase-2-domain-contract-design-acceptance-2026-08-05.md)。
-- 设计提交工程门：359 文件 lint、TypeScript、528 项非数据库测试、生产构建、依赖审计和 7 个变更文档的相对链接扫描通过；51 项 PostgreSQL 集成测试因无数据库未执行。
+- Phase 2 设计：`baf3276`，冻结复用矩阵、领域表、状态机、API、删除顺序、任务、权限、023–027 迁移和测试矩阵。
+- Phase 2A-1：ApplicationCase strict contracts、application core 五表、复合岗位/owner 约束、30 天 TTL、不可变事件、索引和角色权限已落地；空库与 022 fixture 升级通过。证据见 [Phase 2A-1 验收](../evidence/product/career-os-v2/phase-2a1-application-case-core-acceptance-2026-08-05.md)。
+- 最新工程门：363 文件 lint、TypeScript、591 项含隔离 PostgreSQL 的测试、生产构建和依赖审计通过；database 包 28/28。
 
 产品证据仍为 `E0`；可信供给仍为 22 岗 / 3 家企业 / 3 个官方 ATS，公共与 Alpha 岗位均为 0。Phase 4 前不恢复真实供给扩容。
 
-## 3. migration 023 固定范围
+## 3. migration 024 固定范围
 
 ### Contracts
 
 新增并从 `packages/contracts/src/index.ts` 导出：
 
-- `CaseStage = interested | preparing | applied | interviewing | resolved`
-- `CaseOutcome = offer | rejected | withdrawn | expired | unknown`
-- `RequirementEvidenceState = confirmed | needs_work | unconfirmed`
-- ApplicationCase DTO、create/transition/job-version-upgrade/requirement/evidence-link/question 的 strict schemas。
-- 请求不得接受客户端 `ownerId/ownerEpoch/expiresAt`；更新必须带 `expectedRevision`，创建/追加由路由层要求 Idempotency-Key。
+- `ResumeDocumentKind = base | case_derived`
+- `ResumeTemplateKey = cn_classic_single_column | cn_compact_technical`
+- Resume V2 section/block/content DTO；section 与 block ID 必须稳定且唯一。
+- Resume document、content revision、layout revision DTO 与 strict create/update contracts。
+- virtual legacy V1 DTO 与 V2 DTO 必须可判别；V1 update 只能提交 `legacySourceRevisionId + expectedRevision=0` 进入首次转换命令。
+- 请求不能接受客户端 owner、owner epoch、TTL、当前修订指针或派生文档的服务端固定字段。
 
-### Migration 023
+### Migration 024
 
-新建 `application` schema 与：
+新建 `profile.resume_documents`：
 
-- `application_cases`
-- `case_events`
-- `case_requirement_states`
-- `case_requirement_evidence_links`
-- `case_questions`
+- owner/epoch、`base/case_derived`、title、可选同 owner ApplicationCase。
+- 派生文档固定 source content revision、job version、requirement set 和 evidence revision；base 文档这些引用全部为空。
+- current content/layout 指针、aggregate revision、owner 内创建幂等、30 天 TTL、deleted/created/updated 时间。
+- 同一未删除 Case 首轮最多一个派生文档；列表、到期、Case 和 FK 索引齐全。
 
-同时：
+additive 扩展既有 `profile.resume_document_revisions`：
 
-- 给 `catalog.published_job_versions(published_job_id, id)` 增加可复用唯一约束。
-- 复用既有 `catalog.job_requirement_sets(published_job_version_id, id)` 唯一约束。
-- 同一 owner/稳定岗位只允许一个 `ended_at IS NULL AND deleted_at IS NULL` Case。
-- Case 固定 stable job、job version、requirement set；owner 子表使用复合外键。
-- 顶层 Case `expires_at <= created_at + 30 days`，服务未来还须取 owner expiry 的更早值。
-- Case event 禁止 UPDATE；event sequence 与 Case revision 一致。
-- 新 schema/table 对五个角色显式 GRANT/REVOKE；collector 不得获得 application 数据权限。
+- 新增 nullable `document_id`、`document_revision`、`base_document_revision`。
+- V1：`resume-document-v1` 且三个新列全部为空；旧行逐列不变。
+- V2：`resume-document-v2` 且 document/document revision 非空，base 只指向同 owner、同 document 的旧内容修订。
+- 保留既有 owner 全局 `revision/base_revision`，内容修订继续禁止 UPDATE。
+
+新建 `profile.resume_layout_revisions`：
+
+- owner/document/layout revision、同文档 base、固定 template key、`section_order` 和无正文 settings、content hash、created time。
+- 布局修订禁止 UPDATE；换模板和排序不创建内容修订，不改变 section/block/evidence ID。
+
+所有新表显式 GRANT/REVOKE；collector 不得获得 profile 新表权限。migration 024 只 expand，`down` 使用前向修复。
 
 ### Tests
 
-- contracts 固定枚举、strict object、stage/outcome 配对和长度边界。
-- migration registry/Database types。
-- 空库 `001 -> 023`。
-- 含 V1、旧决定、owner task 的 022 fixture 升级到 023，旧行/接口不变。
-- Case 活动唯一性、岗位版本/要求集归属、跨 owner FK、事件不可变、TTL、索引和角色权限。
-- PostgreSQL 地址必须通过现有 loopback + `aijob_test*` 隔离守卫。
+- contracts：V1/V2 判别、strict object、固定模板、稳定/唯一 ID、base/derived 配对与长度边界。
+- 空库 `001 -> 024`。
+- 含 Resume V1、Resume Evidence V1、ApplicationCase 和旧 task/decision 的 023 fixture 升级到 024；比较 V1 行所有旧列。
+- base/derived 字段配对、跨 owner Case/evidence/document FK、文档内修订序列/base owner、布局不可变、30 天 TTL、活动 Case 唯一派生文档、索引和五角色权限。
+- PostgreSQL 地址继续通过 loopback + `aijob_test*` 隔离守卫；临时数据库必须在测试后删除。
 
 ## 4. 实现时必须保持的决定
 
-- `requirement_id/evidence_id` 使用 text，不假设 UUID。
-- `owner_epoch` 不对 owner 当前 epoch 建 FK；删除递增 epoch，迟到写入由事务/lease 拒绝。
-- `case_events.event_data` 只保存状态、版本 ID、引用 ID 和无正文原因码，不复制 JD、简历或回答。
-- 创建幂等在 owner/scope/key 下比较 request hash；同键不同 payload 返回 `IDEMPOTENCY_KEY_REUSED`。
-- 官方链接打开不能迁移 `applied`；resolved 为终态，结果纠错只追加事件。
-- migration 023 只 expand；down 不得破坏既有不可变个人历史。
-- 新外键列必须有索引；活动 Case 与到期扫描使用部分索引；列表为 keyset cursor 预留 `(owner_id, updated_at DESC, id DESC)`。
+- 不创建第二张 `resume_document_revisions`；只新建聚合与 layout 表，并 additive 扩展既有内容修订表。
+- V1 行不回填 `document_id`，不修改 schema、sections、hash、owner revision 或时间；旧 `/v1/profile/document` 后续仍只读 V1 且旗标关闭时不误读 V2。
+- V2 内容仍存结构化 sections JSONB；不引入通用富文本编辑器、Tiptap 或第二套事实库。
+- 模板和章节顺序属于 layout revision；语义正文、section/block/evidence ID 属于 content revision，换模板不得改变内容。
+- `case_derived` 的 Case、基础内容、岗位版本、要求集与 evidence revision 全部固定且同 owner；base 文档全部为空。
+- 顶层文档 `expires_at <= created_at + 30 days`，服务未来还须取 owner expiry 的更早值。
+- 新外键列必须有索引；列表使用 `(owner_id, updated_at DESC, id DESC)` keyset，不使用深 OFFSET。
+- migration 024 `down` 不得破坏 V1 或新增不可变个人历史。
 
 ## 5. 已知冲突与风险
 
-- `resume_document_revisions` 已存在；后续 024 是新增聚合并 additive 扩展，禁止重复建同名修订表。
-- `docs/05-system-architecture.md` 已从过时受限函数描述修正为 ADR-0023 当前任务 RLS/直接表访问事实。
-- ADR-0005 要求 session Cookie SameSite=Strict，当前代码为 session Lax/CSRF Strict；属于服务器就绪前身份安全债，不混入 023。
-- migration 021 的 `ALL TABLES` 只覆盖当时对象，新表若不显式授权会在运行角色下 fail closed。
-- 本机此前没有 Docker/PostgreSQL，51 项数据库测试未执行；先复查运行环境，仍不可用时不得伪造通过或绕过隔离守卫。
+- `profile.resume_document_revisions` 由 migration 011 创建，migration 013 的 `resume_document_revisions_schema_version` 当前只允许 V1；024 必须替换为 V1/V2 配对约束，不能叠加一个互相冲突的 V2 CHECK。
+- 既有 `profile.resume_document_revisions` 已有 `(owner_id, revision)`、`(owner_id, id)`、同 owner base FK、owner-created index 和 immutable trigger；024 必须复用，不能重复建语义相同索引/触发器。
+- 既有 `resume_evidence_revisions.document_revision_id`、recommendation/tailoring 的 document revision FK 都引用旧内容修订；024 不能改变这些旧引用的语义或删除行为。
+- migration 023 已授予 application 表权限，但 migration 021 的历史 `ALL TABLES` 不会覆盖 024 新表；新 profile 对象必须显式授权。
+- ADR-0005 要求 session Cookie SameSite=Strict，当前代码为 session Lax/CSRF Strict；属于服务器就绪前身份安全债，不混入 024。
 
 ## 6. 首轮代码入口
 
 按顺序只读检查：
 
-1. `packages/contracts/src/common.ts`、`enums.ts`、`problem-details.ts`、`index.ts` 与现有 contract tests。
-2. `packages/database/src/migrate.ts`、`types.ts`、`migrations/001_initial.ts`、`004_local_complete_mvp.ts`、`005_enforce_owner_isolation.ts`、`011_g2_correctness_foundations.ts`、`013_enforce_correctness_projection_ownership.ts`、`021_runtime_database_roles.ts`、`022_match_worker_owner_deletion_privileges.ts`。
-3. `apps/platform/src/profile/deletion-service.ts`、`retention-service.ts`、`workers/owner-task-lease.ts` 与 integration tests，只用于保证 023 不阻断既有路径；本切片不扩服务。
-4. [Phase 2 设计](../plans/career-os-phase-2-domain-contract-and-migration-design-2026-08-05.md)第 4、5、10–13 节。
+1. `packages/contracts/src/profile.ts`、`application-cases.ts`、`common.ts`、`enums.ts`、`index.ts` 与 contract tests。
+2. `packages/database/src/migrations/011_g2_correctness_foundations.ts`、`013_enforce_correctness_projection_ownership.ts`、`023_application_case_core_expand.ts`、`migrate.ts`、`types.ts`。
+3. `apps/platform/src/resume/repository.ts`、`resume/routes.ts`、`tailoring/service.ts` 和旧 V1 integration tests，只用于冻结兼容与转换边界；本切片不改服务。
+4. [Phase 2 设计](../plans/career-os-phase-2-domain-contract-and-migration-design-2026-08-05.md)第 4、6、10–13 节。
 
 ## 7. Gate 与排除项
 
@@ -119,7 +126,7 @@ pnpm typecheck
 pnpm test
 pnpm build
 pnpm audit:ci
-隔离 PostgreSQL：空库迁移、022 fixture 升级、约束/权限/删除兼容测试
+隔离 PostgreSQL：空库迁移、023 fixture 升级、V1 逐列兼容、约束/权限测试
 ```
 
 不得读取、暂存或提交 `.claude/`、`.data/`、密钥、令牌、简历原文、本地数据库、下载 DOCX 或本机快照；不得访问真实招聘来源、真实 AI 或服务器。已有改动属于 coco；冲突必须记录并复现，不能静默覆盖。
