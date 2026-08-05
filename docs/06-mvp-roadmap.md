@@ -2,6 +2,14 @@
 
 > 本文是阶段、证据、Gate 和下一决定的唯一动态事实源。工程完成、岗位数量和页面可用性不等于用户价值证据。
 
+## 最新产品决定（2026-08-04）
+
+- [ADR-0030](decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md) 已接受：Aijob 升级为可信官方岗位驱动的完整求职 OS，首个交付为“一岗全闭环”。
+- Phase 1A 的统一壳层、静态求职看板、URL 可恢复侧览和共享 Case 路由骨架已通过 Gate；当前切片进入 Phase 1B，只完成 JD 能力与岗位定制简历静态原型，再实施 ApplicationCase、简历 V2、文字面试和复盘。新增来源扩容暂缓，已授权 canonical 来源只按现有边界维护。
+- 采用一套全局侧栏、顶部工具栏、主画布和右侧检查器；单岗位标签固定为概览、JD能力、定制简历、投递、面试、复盘。
+- 开源项目只做审计后的选择性移植，不整仓拼接；引用式经验库不抓全文，不做社区；语音、OCR、自动投递和浏览器代填继续排除。
+- 100/1000 与 110/1100 目标没有取消；一岗闭环通过后恢复 ADR-0028 的容量型官方 ATS 扩容。完整计划见 [Career OS 2.0 升级计划](plans/career-os-v2-upgrade-plan-2026-08-04.md)。
+
 ## 最新执行增量（2026-08-03）
 
 - [ADR-0029](decisions/0029-official-source-catalog-trust-boundary.md) 已接受：企业官网和官网确认的官方 ATS 成为用户目录唯一真源；高校、政府、公众号和其他二手页面统一降级为 `discovery_only`。本机自动刷新已关闭，真实扩容暂停。
@@ -17,19 +25,19 @@
 
 | 项目 | 当前值 |
 |---|---|
-| 更新日期 | 2026-08-03 |
-| 当前阶段 | Private Alpha P0/P1 可信度纠偏已完成代码与干净库收口；100 家企业 / 1000 条可信可见岗位及后续服务器就绪 Gate 通过前，G0/G1 暂停 |
-| 当前切片 | 冻结并提交 ADR-0029 纠偏结果；随后恢复容量优先的官方 ATS 来源族扩容 |
+| 更新日期 | 2026-08-04 |
+| 当前阶段 | Career OS 2.0 Phase 1B；Phase 1A 已通过，100 家企业 / 1000 条可信岗位与后续服务器就绪 Gate 通过前，G0/G1 暂停 |
+| 当前切片 | 在既有静态 Case、共享 `WorkspaceShell / CaseHeader / CaseTabs / ContextInspector` 内实现 JD 能力与岗位定制简历可交互原型；不接完整编辑器、数据表、真实 AI 或真实招聘来源 |
 | 当前实现契约 | [PRD v0.2：本地完整 MVP](01-prd-v0.2.md) |
 | 当前产品证据 | `E0`：没有可复核目标用户行为证据；H-PROBLEM-001、H-VALUE-001 均未判定 |
 | 本地岗位目录 | 干净 `aijob_alpha` 为 22 条岗位 / 3 家企业 / 3 个官方 ATS 来源；开发库 14/2 与纠偏前 231/149/29、152/30 仅保留为历史运行事实 |
 | 来源政策 | 34 个 Git 配置中 12 个 `canonical`：7 个活动确定性、2 个浏览器提醒、3 个硬冲突暂停；22 个高校等来源全部为 `discovery_only` 且零调度；公共 `/v1/jobs` 为 0 |
 | 金标 | 50 条跨职能分类金标覆盖 12 个职能且 A/B 盲标 50/50 一致；40 条三轴工程金标继续通过；均不计为用户研究样本 |
-| 工程质量 | Alpha API 绕过修复后的最终工程门已通过：隔离 PostgreSQL 全仓 557/557、全仓类型、生产构建、331 文件 lint 与 `git diff --check` 全绿 |
+| 工程质量 | Alpha API 绕过修复后的最终工程门仍有效；Phase 1A 通过 351 文件全仓 lint、TypeScript、18 文件 85 测试、生产构建及 1920/1280/320 浏览器验收，详情见 [Phase 1A 验收记录](evidence/product/career-os-v2/phase-1a-workspace-shell-acceptance-2026-08-04.md) |
 | AI | 单块真实 `suggestedText`、要求/证据引用、未选区块保留、编辑和真实章节 DOCX 已通过；公开环境关闭 |
 | 参与者验证 | 尚未开始；G0 为 0/2，只有 coco 明确启动后才执行，G1 仍未开始 |
-| 下一决定 | 完成本轮提交后恢复北森等容量型官方 ATS 来源族审计与扩容；不再恢复高校岗位导入 |
-| 下一决定日期 | P0/P1 纠偏提交完成后 |
+| 下一决定 | Phase 1B 的 JD 能力与定制简历是否复用同一 Case、检查器和视觉 token，并且不存在独立简历品牌、匹配等级、自动写入或第二套主导航 |
+| 下一决定日期 | Phase 1B 两个静态工作区完成后 |
 
 工程证据见 [Private Alpha 官方来源资格硬门](evidence/ingestion/private-alpha-official-source-gate-2026-08-03.md)、[Private Alpha 容量审计](evidence/ingestion/private-alpha-capacity-audit-2026-08-03.md)、[本机自动来源刷新验收](evidence/ingestion/source-refresh-automation-2026-08-01.md)、[首轮扩展运行观察](evidence/ingestion/source-refresh-first-rollout-observation-2026-08-02.md)、[G2 正确性重新验收记录](evidence/g2/correctness-reacceptance-2026-07-20.md)、[验收反馈修正记录](evidence/g2/acceptance-followup-2026-07-20.md)、[全部职能扩容离线基础验收](evidence/g2/all-function-expansion-foundation-2026-07-20.md)和[新公司官方来源首批评估与低频探测](evidence/ingestion/new-source-batch-2026-07-20.md)；旧工程基线见 [2026-07-18 工程验收记录](evidence/g2/local-complete-mvp-engineering-2026-07-18.md)。
 
@@ -62,7 +70,11 @@
 固定顺序：
 
 ```text
-G2 Local Complete MVP / Private Alpha 供给（100/1000 + 结构指标）
+Career OS Phase 1A 壳层、看板与 URL 侧览（已通过）
+  -> Phase 1B JD 能力与定制简历静态原型
+  -> ApplicationCase / 简历 V2 / 文字面试 PoC
+  -> 一岗全闭环
+  -> G2 Local Complete MVP / Private Alpha 供给（100/1000 + 结构指标）
   -> 服务器就绪 Gate（另行定义并验收）
   -> G0 2 人协议校准
   -> G1 6 人 MVP 用户价值验证
@@ -211,11 +223,25 @@ G0 + G1 + G2 + G3 -> G4 Private Alpha
 2. [x] ADR-0026 的独立 `collector-worker`、本地总开关、到期调度、接受门、活动状态、浏览器提醒和运维 CLI 已完成；三来源灰度及 21 个确定性来源分散排期已通过当时工程门。
 3. [x] 2026-08-03 规划器确认当前目录为 231 / 149 / 29；现有 24/168 小时来源仍使用每小时 3 家的历史限制。
 
-### 当前规模化行动
+### 已完成的 Phase 1A 行动
+
+1. [x] 增加明确的 Career OS 功能旗标；关闭时继续进入现有 `/jobs` 等页面，开启时进入同一套 `WorkspaceShell`，没有建立第二套身份、数据请求或全局状态系统。
+2. [x] 使用仓库内静态夹具实现 `/applications` 的列表/看板切换、筛选、排序与 `?peek=<caseId>` 右侧侧览；视图状态写入 URL，侧栏折叠和面板宽度只保存在本机非敏感 UI 偏好中。
+3. [x] 建立 `/applications/:caseId/overview|requirements|resume|application|interview|debrief` 的共享 CaseHeader/CaseTabs 路由骨架；六个路由只显示静态上下文和明确占位。
+4. [x] 功能旗标回退、刷新/前进/后退恢复、侧览焦点与位置返回、1920/1280/320 无整页横向溢出、键盘焦点和浏览器错误检查全部通过；证据见 [Phase 1A 工作台壳层验收](evidence/product/career-os-v2/phase-1a-workspace-shell-acceptance-2026-08-04.md)。
+
+### 当前 Phase 1B 行动
+
+1. [ ] 在 `/applications/:caseId/requirements` 完成概念 02 的静态 JD 能力工作区：硬条件、职责能力、未知待确认和官方原文引用分开，选中项使用既有右侧检查器。
+2. [ ] 在 `/applications/:caseId/resume` 完成概念 03 的静态岗位定制简历工作区：简历结构、A4 主预览和当前区块建议复用同一 Aijob 壳层，不建立独立品牌。
+3. [ ] 建立“接受 / 编辑后采用 / 拒绝”的纯静态建议交互；不得自动写入，不调用真实 AI，不保存用户事实，不接完整编辑器。
+4. [ ] 通过两个工作区的共享 Case 上下文、证据三态、焦点返回、1280/320 响应式和禁止匹配等级检查后，才进入 Phase 2 领域与接口。
+
+### 一岗闭环后恢复的规模化行动
 
 1. [x] ADR-0027 冻结 100/1000 硬门槛、110/1100 运行缓冲、SME 50% / 40%、12 职能、8 城市和人工来源占比约束；ADR-0025 的旧数量目标和 40 家停止线不再作为当前终点。
 2. [x] 将千家台账转为可重复运行的候选审计、证据与批次规划管线；ADR-0029 后以干净 22 岗/3 家目录重建职能、城市和人工来源分母，候选、过期页或缺字段记录不计入供给。
-3. [ ] 本轮 P0/P1 纠偏提交后，按 40/400、70/700、100/1000 三个检查点恢复企业官网/官方 ATS 容量来源族扩容；每次报告企业、岗位、SME、职能、城市、人工来源、拒绝、暂停、重复与公共目录真实分母。
+3. [ ] 一岗全闭环 Gate 通过后，按 40/400、70/700、100/1000 三个检查点恢复企业官网/官方 ATS 容量来源族扩容；每次报告企业、岗位、SME、职能、城市、人工来源、拒绝、暂停、重复与公共目录真实分母。
 4. [ ] 12 小时动态容量与 110 来源离线测试已实现；达到 `40/400` 后才把活动确定性来源策略统一切至 12 小时并真实灰度，不放宽逐来源预算、安全边界、失败隔离或熔断。
 5. [ ] 达到 100/1000 后执行全量工程门、空库恢复一致性和 1280px / 320px 产品闭环，再单独定义并通过服务器就绪 Gate。
 6. G0/G1 不启动，产品证据保持 `E0`；公开 `/v1/jobs`、公开 AI 与手机端专属实现继续关闭。ADR-0023 已接受，ADR-0024 仍为提案。

@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL?: string;
+  readonly VITE_CAREER_OS_V2?: string;
 }
 
 interface ImportMeta {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  shouldEnableCareerOsV2,
   shouldEnableInternalSurfaces,
   shouldEnableProductSurfaces,
   shouldRequireAlphaAccess,
@@ -28,5 +29,18 @@ describe("local-only web surfaces", () => {
   ])("separates product access from internal surfaces for $input", ({ input, product, invite }) => {
     expect(shouldEnableProductSurfaces(input)).toBe(product);
     expect(shouldRequireAlphaAccess(input)).toBe(invite);
+  });
+
+  it.each([
+    { flag: "1", expected: true },
+    { flag: "true", expected: true },
+    { flag: " TRUE ", expected: true },
+    { flag: "on", expected: true },
+    { flag: "0", expected: false },
+    { flag: "false", expected: false },
+    { flag: "career-os", expected: false },
+    { flag: undefined, expected: false },
+  ])("enables Career OS only for an explicit flag value: $flag", ({ flag, expected }) => {
+    expect(shouldEnableCareerOsV2({ flag })).toBe(expected);
   });
 });
