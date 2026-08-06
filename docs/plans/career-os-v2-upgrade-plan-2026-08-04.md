@@ -184,7 +184,7 @@ Phase 2R 是 025–027 之前的强制架构复核，不新增业务 UI，不调
 
 退出 Gate：ADR、契约表、迁移影响矩阵、删除矩阵、旧路由真源规则、测试矩阵和 Phase 2R 证据报告齐全；不访问真实招聘来源、真实 AI、服务器或真实简历。
 
-Phase 2R 已完成实现前契约矩阵；023F/024F 的 contracts 与隔离 PostgreSQL 原型也已通过。原型复核发现匿名 `owner.retention_expires_at` 仍会在 30 天后拒绝访问并触发全量删除，因此正式迁移前必须先完成 `Account + EmailIdentity / 长期 owner` 前向契约；不得只放宽 Case/Resume TTL 后宣称长期生命周期已经成立。
+Phase 2R 已完成实现前契约矩阵；长期 owner 身份前置和公共/私有 ApplicationCase 已分别由 migrations 025/026 正式注册。026 复核进一步发现要求状态、证据连接、问题和对应 strict event 仍只接受公共 requirement set，因此在 Resume/Review migration 027 前插入 `Phase 2A-026B Private Requirement Context Forward Repair`；不得用只能保存私有 JD 快照的 Case 冒充私有岗位准备闭环。
 
 ### Phase 2A：领域模型、契约和迁移
 
@@ -395,4 +395,4 @@ PostgreSQL 集成测试未实际运行时必须写“未执行”，不得写“
 - 主计划终点为 G4；公开 Beta、备案、公开运营和商业化只保留为 G5 后续 Gate。
 - 工期是有效工作量，不包含外部审批、采购、招募和观察期。
 
-Phase 2A-1 已通过 [ApplicationCase Core 验收](../evidence/product/career-os-v2/phase-2a1-application-case-core-acceptance-2026-08-05.md)，Phase 2A-2 已通过 [Resume Document V2 验收](../evidence/product/career-os-v2/phase-2a2-resume-document-v2-acceptance-2026-08-05.md)。Phase 2R、023F/024F 与 [Identity Forward Contract](../evidence/product/career-os-v2/phase-2a-identity-forward-contract-acceptance-2026-08-06.md) 隔离原型已完成，[migration 025 身份前置](../evidence/product/career-os-v2/phase-2a-025-identity-account-email-expand-acceptance-2026-08-06.md) 已正式通过。当前唯一目标是 migration 026 ApplicationCase Long-Lived Forward Repair，之后才正式化 Resume Review；仍不注册 API、不调用真实 AI、不访问真实来源或真实简历。
+Phase 2A-1 已通过 [ApplicationCase Core 验收](../evidence/product/career-os-v2/phase-2a1-application-case-core-acceptance-2026-08-05.md)，Phase 2A-2 已通过 [Resume Document V2 验收](../evidence/product/career-os-v2/phase-2a2-resume-document-v2-acceptance-2026-08-05.md)。[migration 025 身份前置](../evidence/product/career-os-v2/phase-2a-025-identity-account-email-expand-acceptance-2026-08-06.md) 已正式通过；[migration 026 ApplicationCase 前向修复](../evidence/product/career-os-v2/phase-2a-026-application-case-long-lived-forward-repair-acceptance-2026-08-06.md) 的工程 Gate 通过，但因私有 requirement context 缺口作出“修改”决定。当前唯一目标是 Phase 2A-026B；通过后才正式化 migration 027 Resume Review。仍不注册 API、不调用真实 AI、不访问真实来源或真实简历。

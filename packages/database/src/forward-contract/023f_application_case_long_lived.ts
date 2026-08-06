@@ -491,7 +491,11 @@ export async function applyApplicationCaseForwardContract(db: Kysely<Database>):
     GRANT SELECT, DELETE
       ON TABLE
         application.private_job_snapshots,
-        application.private_job_snapshot_revisions
+        application.private_job_snapshot_revisions,
+        application.case_events,
+        application.case_requirement_states,
+        application.case_requirement_evidence_links,
+        application.case_questions
       TO aijob_match_worker;
 
     GRANT ALL PRIVILEGES

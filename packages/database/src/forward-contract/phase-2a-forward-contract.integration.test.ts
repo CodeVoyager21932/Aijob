@@ -3,8 +3,8 @@ import { type Kysely, sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createDatabase, type Database } from "../index.js";
-import { migrateToForTesting } from "../migrate.js";
-import { applyApplicationCaseForwardContract } from "./023f_application_case_long_lived.js";
+import { migrateToForTesting, migrateToLatest } from "../migrate.js";
+import { applicationCaseLongLivedForwardRepairMigration } from "../migrations/026_application_case_long_lived_forward_repair.js";
 import { applyResumeDocumentReviewForwardContract } from "./024f_resume_document_review.js";
 
 const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
@@ -13,7 +13,7 @@ const unknown = JSON.stringify({ state: "unknown", reason: "source_not_stated" }
 const known = (value: unknown, evidenceRef: string) =>
   JSON.stringify({ state: "known", value, evidenceRefs: [evidenceRef] });
 
-describeWithDatabase("Phase 2A forward contract prototype", () => {
+describeWithDatabase("migration 026 and remaining Phase 2A forward contracts", () => {
   const ids = {
     organization: randomUUID(),
     source: randomUUID(),
@@ -23,6 +23,7 @@ describeWithDatabase("Phase 2A forward contract prototype", () => {
     publishedVersion: randomUUID(),
     requirementSet: randomUUID(),
     owner: randomUUID(),
+    account: randomUUID(),
     otherOwner: randomUUID(),
     evidenceRevision: randomUUID(),
     otherEvidenceRevision: randomUUID(),
@@ -46,17 +47,26 @@ describeWithDatabase("Phase 2A forward contract prototype", () => {
     decision: randomUUID(),
   };
   const databaseName = `aijob_test_phase2a_forward_${randomUUID().replaceAll("-", "")}`;
+  const emptyDatabaseName = `aijob_test_phase2a_026_empty_${randomUUID().replaceAll("-", "")}`;
   let adminDb: Kysely<Database>;
+  let emptyDb: Kysely<Database>;
   let db: Kysely<Database>;
 
   beforeAll(async () => {
     const adminUrl = new URL(databaseUrl as string);
     adminDb = createDatabase(adminUrl.toString());
     await sql.raw(`CREATE DATABASE "${databaseName}"`).execute(adminDb);
+    await sql.raw(`CREATE DATABASE "${emptyDatabaseName}"`).execute(adminDb);
+
+    const emptyUrl = new URL(adminUrl);
+    emptyUrl.pathname = `/${emptyDatabaseName}`;
+    emptyDb = createDatabase(emptyUrl.toString());
+    await migrateToLatest(emptyDb);
+
     const testUrl = new URL(adminUrl);
     testUrl.pathname = `/${databaseName}`;
     db = createDatabase(testUrl.toString());
-    await migrateToForTesting(db, "024_resume_document_v2_expand");
+    await migrateToForTesting(db, "025_identity_account_email_expand");
 
     const now = new Date("2026-08-06T00:00:00.000Z");
     await db
@@ -221,6 +231,17 @@ describeWithDatabase("Phase 2A forward contract prototype", () => {
         },
       ])
       .execute();
+    await db.transaction().execute(async (transaction) => {
+      await transaction
+        .insertInto("identity.accounts")
+        .values({ id: ids.account, owner_id: ids.owner, deleted_at: null })
+        .execute();
+      await transaction
+        .updateTable("identity.owners")
+        .set({ retention_mode: "account_managed", retention_expires_at: null })
+        .where("id", "=", ids.owner)
+        .executeTakeFirstOrThrow();
+    });
     await db
       .insertInto("profile.resume_evidence_revisions")
       .values([
@@ -359,23 +380,45 @@ describeWithDatabase("Phase 2A forward contract prototype", () => {
       .where("id", "=", ids.baseDocument)
       .execute();
 
-    await applyApplicationCaseForwardContract(db);
+    await migrateToLatest(db);
     await applyResumeDocumentReviewForwardContract(db);
   }, 120_000);
 
   afterAll(async () => {
     if (db) await db.destroy();
+    if (emptyDb) await emptyDb.destroy();
     if (adminDb) {
       await sql.raw(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`).execute(adminDb);
+      await sql
+        .raw(`DROP DATABASE IF EXISTS "${emptyDatabaseName}" WITH (FORCE)`)
+        .execute(adminDb);
       await adminDb.destroy();
     }
   }, 120_000);
 
-  it("keeps 024 as the registered migration and preserves legacy rows", async () => {
-    const migration = await sql<{ name: string }>`
-      SELECT name FROM kysely_migration ORDER BY timestamp DESC LIMIT 1
-    `.execute(db);
-    expect(migration.rows[0]?.name).toBe("024_resume_document_v2_expand");
+  it("migrates empty and populated 025 databases through 026 without expiring accounts", async () => {
+    const [migration, emptyMigration] = await Promise.all([
+      sql<{ name: string }>`
+        SELECT name FROM kysely_migration ORDER BY timestamp DESC LIMIT 1
+      `.execute(db),
+      sql<{ name: string }>`
+        SELECT name FROM kysely_migration ORDER BY timestamp DESC LIMIT 1
+      `.execute(emptyDb),
+    ]);
+    expect(migration.rows[0]?.name).toBe("026_application_case_long_lived_forward_repair");
+    expect(emptyMigration.rows[0]?.name).toBe(
+      "026_application_case_long_lived_forward_repair",
+    );
+
+    const accountOwner = await db
+      .selectFrom("identity.owners")
+      .select(["retention_mode", "retention_expires_at"])
+      .where("id", "=", ids.owner)
+      .executeTakeFirstOrThrow();
+    expect(accountOwner).toEqual({
+      retention_mode: "account_managed",
+      retention_expires_at: null,
+    });
 
     const legacyCase = await sql<{
       kind: string;
@@ -423,6 +466,14 @@ describeWithDatabase("Phase 2A forward contract prototype", () => {
       contentSchema: "resume-document-v2",
       layoutSchema: "resume-layout-v1",
     });
+  });
+
+  it("keeps migration 026 rollback forward-only", async () => {
+    await applicationCaseLongLivedForwardRepairMigration.down?.(db);
+    const privateTable = await sql<{ name: string }>`
+      SELECT to_regclass('application.private_job_snapshots')::text AS name
+    `.execute(db);
+    expect(privateTable.rows[0]?.name).toBe("application.private_job_snapshots");
   });
 
   it("supports owner-only private JD cases without a TTL or official URL", async () => {
@@ -1350,5 +1401,139 @@ describeWithDatabase("Phase 2A forward contract prototype", () => {
         `.execute(transaction);
       }),
     ).rejects.toMatchObject({ code: "42501" });
+  });
+
+  it("lets the match-worker deletion path remove one owner private Case graph", async () => {
+    const snapshotId = randomUUID();
+    const snapshotRevisionId = randomUUID();
+    const caseId = randomUUID();
+    const eventId = randomUUID();
+    await db
+      .insertInto("application.private_job_snapshots")
+      .values({
+        id: snapshotId,
+        owner_id: ids.otherOwner,
+        owner_epoch: 1,
+        current_content_revision: null,
+        current_requirement_set_revision: null,
+        creation_idempotency_key: `deletion-snapshot-${snapshotId}`,
+        creation_request_hash: "8".repeat(64),
+        deleted_at: null,
+      })
+      .execute();
+    await db
+      .insertInto("application.private_job_snapshot_revisions")
+      .values({
+        id: snapshotRevisionId,
+        owner_id: ids.otherOwner,
+        owner_epoch: 1,
+        snapshot_id: snapshotId,
+        content_revision: 1,
+        requirement_set_revision: 1,
+        title: "Deletion fixture",
+        company_name: null,
+        source_label: "isolated_test",
+        official_url: null,
+        source_provided: false,
+        content_text: "Synthetic private JD deletion fixture.",
+        requirements: JSON.stringify([]),
+        content_hash: "9".repeat(64),
+      })
+      .execute();
+    await db
+      .updateTable("application.private_job_snapshots")
+      .set({ current_content_revision: 1, current_requirement_set_revision: 1 })
+      .where("id", "=", snapshotId)
+      .executeTakeFirstOrThrow();
+    await db
+      .insertInto("application.application_cases")
+      .values({
+        id: caseId,
+        owner_id: ids.otherOwner,
+        owner_epoch: 1,
+        published_job_id: null,
+        published_job_version_id: null,
+        requirement_set_id: null,
+        job_context_kind: "private",
+        private_job_snapshot_id: snapshotId,
+        job_context_revision: 1,
+        stage: "interested",
+        outcome: null,
+        creation_idempotency_key: `deletion-case-${caseId}`,
+        creation_request_hash: "a".repeat(64),
+        expires_at: null,
+        ended_at: null,
+        deleted_at: null,
+      })
+      .execute();
+    await db
+      .insertInto("application.case_events")
+      .values({
+        id: eventId,
+        owner_id: ids.otherOwner,
+        owner_epoch: 1,
+        case_id: caseId,
+        sequence: 1,
+        event_type: "case_created",
+        actor_type: "owner",
+        event_data: JSON.stringify({
+          schemaVersion: "case-event-v1",
+          initialStage: "interested",
+          jobContextKind: "private",
+          jobContextRevision: 1,
+        }),
+        schema_version: "case-event-v1",
+        idempotency_scope: "deletion-case:create",
+        idempotency_key: `deletion-event-${eventId}`,
+        request_hash: "b".repeat(64),
+      })
+      .execute();
+
+    await db.transaction().execute(async (transaction) => {
+      await sql`SET LOCAL ROLE aijob_match_worker`.execute(transaction);
+      await transaction
+        .deleteFrom("application.case_requirement_evidence_links")
+        .where("owner_id", "=", ids.otherOwner)
+        .execute();
+      await transaction
+        .deleteFrom("application.case_questions")
+        .where("owner_id", "=", ids.otherOwner)
+        .execute();
+      await transaction
+        .deleteFrom("application.case_requirement_states")
+        .where("owner_id", "=", ids.otherOwner)
+        .execute();
+      await transaction
+        .deleteFrom("application.case_events")
+        .where("owner_id", "=", ids.otherOwner)
+        .execute();
+      await transaction
+        .deleteFrom("application.application_cases")
+        .where("owner_id", "=", ids.otherOwner)
+        .execute();
+      await transaction
+        .deleteFrom("application.private_job_snapshots")
+        .where("owner_id", "=", ids.otherOwner)
+        .execute();
+    });
+
+    const remaining = await Promise.all([
+      db
+        .selectFrom("application.application_cases")
+        .select(sql<number>`count(*)::int`.as("count"))
+        .where("id", "=", caseId)
+        .executeTakeFirstOrThrow(),
+      db
+        .selectFrom("application.private_job_snapshots")
+        .select(sql<number>`count(*)::int`.as("count"))
+        .where("id", "=", snapshotId)
+        .executeTakeFirstOrThrow(),
+      db
+        .selectFrom("application.private_job_snapshot_revisions")
+        .select(sql<number>`count(*)::int`.as("count"))
+        .where("id", "=", snapshotRevisionId)
+        .executeTakeFirstOrThrow(),
+    ]);
+    expect(remaining).toEqual([{ count: 0 }, { count: 0 }, { count: 0 }]);
   });
 });

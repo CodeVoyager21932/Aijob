@@ -678,15 +678,18 @@ export interface ApplicationCaseTable {
   id: Generated<string>;
   owner_id: string;
   owner_epoch: number;
-  published_job_id: string;
-  published_job_version_id: string;
-  requirement_set_id: string;
+  published_job_id: string | null;
+  published_job_version_id: string | null;
+  requirement_set_id: string | null;
+  job_context_kind: Generated<string>;
+  private_job_snapshot_id: string | null;
+  job_context_revision: Generated<number>;
   stage: Generated<string>;
   outcome: string | null;
   revision: Generated<number>;
   creation_idempotency_key: string;
   creation_request_hash: string;
-  expires_at: Timestamp;
+  expires_at: Timestamp | null;
   ended_at: Timestamp | null;
   deleted_at: Timestamp | null;
   created_at: Generated<Timestamp>;
@@ -702,9 +705,41 @@ export interface CaseEventTable {
   event_type: string;
   actor_type: string;
   event_data: JsonValue;
+  schema_version: Generated<string>;
   idempotency_scope: string;
   idempotency_key: string;
   request_hash: string;
+  created_at: Generated<Timestamp>;
+}
+
+export interface PrivateJobSnapshotTable {
+  id: Generated<string>;
+  owner_id: string;
+  owner_epoch: number;
+  current_content_revision: number | null;
+  current_requirement_set_revision: number | null;
+  creation_idempotency_key: string;
+  creation_request_hash: string;
+  deleted_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface PrivateJobSnapshotRevisionTable {
+  id: Generated<string>;
+  owner_id: string;
+  owner_epoch: number;
+  snapshot_id: string;
+  content_revision: number;
+  requirement_set_revision: number;
+  title: string;
+  company_name: string | null;
+  source_label: string;
+  official_url: string | null;
+  source_provided: boolean;
+  content_text: string;
+  requirements: JsonValue;
+  content_hash: string;
   created_at: Generated<Timestamp>;
 }
 
@@ -926,6 +961,8 @@ export interface Database {
   "decision.owner_deletions": OwnerDeletionTable;
   "application.application_cases": ApplicationCaseTable;
   "application.case_events": CaseEventTable;
+  "application.private_job_snapshots": PrivateJobSnapshotTable;
+  "application.private_job_snapshot_revisions": PrivateJobSnapshotRevisionTable;
   "application.case_requirement_states": CaseRequirementStateTable;
   "application.case_requirement_evidence_links": CaseRequirementEvidenceLinkTable;
   "application.case_questions": CaseQuestionTable;

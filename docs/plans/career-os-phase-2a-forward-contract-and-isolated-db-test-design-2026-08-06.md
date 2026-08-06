@@ -1,13 +1,13 @@
 # Phase 2A 前向修复契约与隔离 PostgreSQL 测试设计
 
 - 日期：2026-08-06
-- 状态：contracts and isolated prototype passed; decision = modify
-- 当前后续切片：`Phase 2A-Identity-Forward-Contract`
+- 状态：migrations 025/026 registered; migration 026 decision = modify
+- 当前后续切片：`Phase 2A-026B Private Requirement Context Forward Repair`
 - 上位决策：[ADR-0031](../decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md)
 - 前置矩阵：[Phase 2R 契约与迁移影响矩阵](career-os-phase-2r-contract-and-migration-impact-matrix-2026-08-06.md)
 - 实现基线：[migration 023](../../packages/database/src/migrations/023_application_case_core_expand.ts)、[migration 024](../../packages/database/src/migrations/024_resume_document_v2_expand.ts)
 
-本文最初只冻结前向修复和测试设计。当前 `023F`、`024F` 已实现为未注册的隔离证明原型，并通过临时 PostgreSQL 验证；它们仍不是生产 migration，也未改变任何运行数据库。原型不注册 API，不访问真实招聘来源、真实 AI 或真实简历。
+本文最初只冻结前向修复和测试设计。`023F` 的长期 Case 部分已由 migration 026 正式注册，`024F` Resume/Review 仍是未注册隔离原型。026 复核发现私有 requirement context 缺口，因此先执行 026B，再进入 migration 027；所有切片都不注册业务 API，也不访问真实招聘来源、真实 AI 或真实简历。
 
 ## 1. 目标与禁止事项
 

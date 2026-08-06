@@ -25,6 +25,7 @@ import { matchWorkerOwnerDeletionPrivilegesMigration } from "./migrations/022_ma
 import { applicationCaseCoreExpandMigration } from "./migrations/023_application_case_core_expand.js";
 import { resumeDocumentV2ExpandMigration } from "./migrations/024_resume_document_v2_expand.js";
 import { identityAccountEmailExpandMigration } from "./migrations/025_identity_account_email_expand.js";
+import { applicationCaseLongLivedForwardRepairMigration } from "./migrations/026_application_case_long_lived_forward_repair.js";
 import type { Database } from "./types.js";
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -59,6 +60,8 @@ class StaticMigrationProvider implements MigrationProvider {
       "023_application_case_core_expand": applicationCaseCoreExpandMigration,
       "024_resume_document_v2_expand": resumeDocumentV2ExpandMigration,
       "025_identity_account_email_expand": identityAccountEmailExpandMigration,
+      "026_application_case_long_lived_forward_repair":
+        applicationCaseLongLivedForwardRepairMigration,
     };
   }
 }

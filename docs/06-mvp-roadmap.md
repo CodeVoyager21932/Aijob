@@ -6,7 +6,7 @@
 
 - [ADR-0030](decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md) 已接受：Aijob 升级为可信官方岗位驱动的完整求职 OS，首个交付为“一岗全闭环”。
 - [ADR-0031](decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md) 已接受：OS 2.0 初版进入长期 Career OS 架构修正。用户创建/确认的职业资产默认长期保留并由用户主动删除；原始文件和临时解析仍最长 24 小时。Case 支持公共岗位引用与 owner-only 私有 JD；Resume Review 从正文中分离。
-- Phase 1A、Phase 1B、Phase 2 领域设计、migration 023/024 的历史 Gate 记录保留；Phase 2R、023F/024F 与 Identity Forward Contract 隔离原型已通过。正式 migration 025 及长期 owner 运行语义已通过；当前唯一工程切片为 `Phase 2A-026 ApplicationCase Long-Lived Forward Repair`。
+- Phase 1A、Phase 1B、Phase 2 领域设计、migration 023/024 的历史 Gate 记录保留；migration 025/026 已正式完成长期 owner 与公共/私有 ApplicationCase 前向修复。026 复核发现私有要求状态/证据/问题仍只接受公共 requirement set，决定“修改”；当前唯一工程切片为 `Phase 2A-026B Private Requirement Context Forward Repair`。
 - 采用一套全局侧栏、顶部工具栏、主画布和右侧检查器；单岗位标签固定为概览、JD能力、定制简历、投递、面试、复盘。
 - 开源项目只做审计后的选择性移植，不整仓拼接；引用式经验库不抓全文，不做社区；语音、OCR、自动投递和浏览器代填继续排除。
 - 100/1000 与 110/1100 目标没有取消；一岗闭环通过后恢复 ADR-0028 的容量型官方 ATS 扩容。完整计划见 [Career OS 2.0 升级计划](plans/career-os-v2-upgrade-plan-2026-08-04.md)。
@@ -18,11 +18,12 @@
 - 023F/024F 复核发现：`identity.owners.retention_expires_at`、session 校验和 retention worker 仍会在 30 天后拒绝 owner 并启动全量删除。四选一决定为“修改”，先做长期 owner 与邮箱身份前向契约；不能只放宽 Case/Resume TTL 后宣称 ADR-0031 已落地。
 - `Phase 2A-Identity-Forward-Contract` 已新增长期 owner、Account、EmailIdentity 与邮箱验证码 challenge 的 strict contracts 和未注册 025F 原型；contracts 5/5、隔离 PostgreSQL 5/5 通过。决定继续正式 migration 025；证据见 [Identity Forward Contract 验收](evidence/product/career-os-v2/phase-2a-identity-forward-contract-acceptance-2026-08-06.md)。
 - `Phase 2A-025` 已把身份原型注册为正式 additive migration，统一 session/业务/任务的 owner active predicate，限制自动 retention 只处理匿名 owner，并提供受 owner deletion epoch 约束的身份清除入口。迁移 6/6、全仓 629/629 通过，决定“继续”；证据见 [Phase 2A-025 验收](evidence/product/career-os-v2/phase-2a-025-identity-account-email-expand-acceptance-2026-08-06.md)。
+- `Phase 2A-026` 已正式注册私有 JD snapshot/revision、公共/私有 Case、长期生命周期、strict event 与 ApplicationCase 删除覆盖。迁移 9/9、全仓 631/631 通过；但只读 Schema 复核证明要求子表仍强制引用公共 `catalog.job_requirement_sets`，私有要求事件校验返回 false，四选一决定为“修改”。证据见 [Phase 2A-026 验收](evidence/product/career-os-v2/phase-2a-026-application-case-long-lived-forward-repair-acceptance-2026-08-06.md)。
 
 - Phase 2A-1 已完成 ApplicationCase strict contracts 和 migration 023，Phase 2A-2 已完成 Resume Document V2 contracts 和 migration 024；两项历史验收均通过，但其中的 30 天生命周期、公共岗位绑定和 Resume Review 建模正在 Phase 2R 复核，不能直接视为长期契约。证据见 [Phase 2A-1 验收](evidence/product/career-os-v2/phase-2a1-application-case-core-acceptance-2026-08-05.md) 与 [Phase 2A-2 验收](evidence/product/career-os-v2/phase-2a2-resume-document-v2-acceptance-2026-08-05.md)。
 - 盘点解决两项文档/代码冲突：Resume V2 复用既有 revision 表而非重复建表；系统架构按 ADR-0023 恢复为当前任务 RLS/直接表访问事实，并移除不存在的旧决定 `match_run_id` 描述。session Cookie SameSite 差异登记为服务器就绪前安全债。
 - Phase 1A 已以独立提交 `7bb2140` 冻结；Phase 1B 两个静态工作区通过共享 Case、URL、三态、建议决策、焦点、旗标回退和 1920/1280/768/320 浏览器 Gate，证据见 [Phase 1B 验收](evidence/product/career-os-v2/phase-1b-static-workspaces-acceptance-2026-08-05.md)。
-- 最新串行全仓测试通过 config 17、contracts 42、database 45、web 91、platform 434，共 629 项；migration 025 隔离测试 6/6。lint 374 文件、TypeScript 和生产构建通过；`audit:ci` 按仓库策略通过，保留 1 high ignored/1 moderate 已登记 advisory。web 主包 530.73 kB，仅有既有 chunk warning；本轮没有前端变化。
+- 最新串行全仓测试通过 config 17、contracts 42、database 47、web 91、platform 434，共 631 项；migration 026 隔离测试 9/9，migration 025 回归 6/6。lint 375 文件、TypeScript 和生产构建通过；`audit:ci` 按仓库策略通过，保留 1 high ignored/1 moderate 已登记 advisory。web 主包 530.73 kB，仅有既有 chunk warning；本轮没有前端变化。
 - 严格总计划已固定 Phase 4 后产品收口与供给并行、G3 三来源连续 7 天、G1 的 300–500 岗研究子集、服务器授权边界和每切片 0.5–2 人日纪律；产品证据仍为 `E0`。
 
 ## 最新执行增量（2026-08-03）
@@ -42,17 +43,17 @@
 |---|---|
 | 更新日期 | 2026-08-06 |
 | 当前阶段 | Career OS 2.0 → Phase 2A 长期 Career OS 前向契约；Phase 1A/1B 已通过，100 家企业 / 1000 条可信岗位与服务器就绪 Gate 通过前，G0/G1 暂停 |
-| 当前切片 | `Phase 2A-026 ApplicationCase Long-Lived Forward Repair`：正式化公共/私有 JobContext、长期 Case、strict event 与 ApplicationCase 删除覆盖；不注册业务 API、不导入真实 JD |
-| 当前实现契约 | [PRD v0.2：本地完整 MVP](01-prd-v0.2.md)；长期 owner 身份前置已注册为 migration 025，Case/Resume 仍待按 ADR-0031 前向修正 |
+| 当前切片 | `Phase 2A-026B Private Requirement Context Forward Repair`：让要求状态、证据连接、问题和 strict event 同时表达公共 requirement set 与私有 requirement-set revision；不注册业务 API、不导入真实 JD |
+| 当前实现契约 | [PRD v0.2：本地完整 MVP](01-prd-v0.2.md)；长期 owner 与公共/私有 Case 已注册为 migrations 025/026，私有要求上下文和 Resume/Review 仍待按 ADR-0031 前向修正 |
 | 当前产品证据 | `E0`：没有可复核目标用户行为证据；H-PROBLEM-001、H-VALUE-001 均未判定 |
 | 本地岗位目录 | 干净 `aijob_alpha` 为 22 条岗位 / 3 家企业 / 3 个官方 ATS 来源；开发库 14/2 与纠偏前 231/149/29、152/30 仅保留为历史运行事实 |
 | 来源政策 | 34 个 Git 配置中 12 个 `canonical`：7 个活动确定性、2 个浏览器提醒、3 个硬冲突暂停；22 个高校等来源全部为 `discovery_only` 且零调度；公共 `/v1/jobs` 为 0 |
 | 金标 | 50 条跨职能分类金标覆盖 12 个职能且 A/B 盲标 50/50 一致；40 条三轴工程金标继续通过；均不计为用户研究样本 |
-| 工程质量 | 串行全仓 629/629 通过；migration 025 隔离 PostgreSQL 6/6，正式迁移链已到 025。lint 374 files、typecheck、build、audit 通过；UI 继续沿用 Phase 1B 的 1920/1280/768/320 Gate |
+| 工程质量 | 串行全仓 631/631 通过；migration 026 隔离 PostgreSQL 9/9、migration 025 回归 6/6，正式迁移链已到 026。lint 375 files、typecheck、build、audit 通过；UI 继续沿用 Phase 1B 的 1920/1280/768/320 Gate |
 | AI | 单块真实 `suggestedText`、要求/证据引用、未选区块保留、编辑和真实章节 DOCX 已通过；公开环境关闭 |
 | 参与者验证 | 尚未开始；G0 为 0/2，只有 coco 明确启动后才执行，G1 仍未开始 |
-| 下一决定 | migration 026 空库/025 fixture、公共/私有 JobContext、legacy event、角色与删除证据完成后，四选一：继续 Resume Forward Repair、修改、回退或停止 |
-| 下一决定日期 | migration 026 证据包完成后 |
+| 下一决定 | 026B 完成公共/私有要求上下文、strict event、owner 隔离、legacy 兼容与删除证据后，四选一：继续 migration 027 Resume/Review Forward Repair、修改、回退或停止 |
+| 下一决定日期 | 026B 证据包完成后 |
 
 工程证据见 [Private Alpha 官方来源资格硬门](evidence/ingestion/private-alpha-official-source-gate-2026-08-03.md)、[Private Alpha 容量审计](evidence/ingestion/private-alpha-capacity-audit-2026-08-03.md)、[本机自动来源刷新验收](evidence/ingestion/source-refresh-automation-2026-08-01.md)、[首轮扩展运行观察](evidence/ingestion/source-refresh-first-rollout-observation-2026-08-02.md)、[G2 正确性重新验收记录](evidence/g2/correctness-reacceptance-2026-07-20.md)、[验收反馈修正记录](evidence/g2/acceptance-followup-2026-07-20.md)、[全部职能扩容离线基础验收](evidence/g2/all-function-expansion-foundation-2026-07-20.md)和[新公司官方来源首批评估与低频探测](evidence/ingestion/new-source-batch-2026-07-20.md)；旧工程基线见 [2026-07-18 工程验收记录](evidence/g2/local-complete-mvp-engineering-2026-07-18.md)。
 
@@ -265,7 +266,8 @@ Phase 1A/1B（已通过）
 11. [x] `Phase 2A-023F/024F` 未注册原型已前向修复历史 30 天 Case/Resume TTL、公共岗位必填、宽 event/layout JSON 和正文建议状态；隔离 PostgreSQL 7/7 通过。因 owner 级 30 天删除仍存在，决定为“修改”，不注册正式迁移。
 12. [x] `Phase 2A-Identity-Forward-Contract` 已完成长期 owner、Account、EmailIdentity、验证码 challenge 和匿名 owner 认领 contracts/隔离原型；5/5 + 5/5 通过，决定为“继续”。
 13. [x] `Phase 2A-025 Identity Account/Email Expand` 已注册 additive identity migration、更新数据库类型与 owner active predicate，并通过空库/024 fixture、角色、匿名兼容、身份删除和前向回退；证据见 [Phase 2A-025 验收](evidence/product/career-os-v2/phase-2a-025-identity-account-email-expand-acceptance-2026-08-06.md)。
-14. [ ] 当前实现 `Phase 2A-026 ApplicationCase Long-Lived Forward Repair`：以 023F 为候选，正式化私有 JD 快照、长期 Case、strict event 和 ApplicationCase 删除覆盖；验证 025 fixture、legacy read-only、角色与前向回退，不注册业务 API。
+14. [x] `Phase 2A-026 ApplicationCase Long-Lived Forward Repair` 已正式化私有 JD 快照、长期公共/私有 Case、strict event 和 ApplicationCase 删除覆盖；迁移 9/9、全仓 631/631 通过。因私有要求上下文尚未贯通，决定为“修改”，证据见 [Phase 2A-026 验收](evidence/product/career-os-v2/phase-2a-026-application-case-long-lived-forward-repair-acceptance-2026-08-06.md)。
+15. [ ] 当前实现 `Phase 2A-026B Private Requirement Context Forward Repair`：补公共/私有要求上下文联合类型、子表约束与索引、strict event、owner 隔离、legacy 兼容和删除覆盖；通过后才进入 migration 027。
 
 ### 一岗闭环后恢复的规模化行动
 

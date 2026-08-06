@@ -3,7 +3,7 @@ import { type Kysely, sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createDatabase, type Database } from "../index.js";
-import { migrateToForTesting, migrateToLatest } from "../migrate.js";
+import { migrateToForTesting } from "../migrate.js";
 import { identityAccountEmailExpandMigration } from "./025_identity_account_email_expand.js";
 
 const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
@@ -35,7 +35,7 @@ describeWithDatabase("migration 025 identity account and email expand", () => {
     const emptyUrl = new URL(adminUrl);
     emptyUrl.pathname = `/${emptyDatabaseName}`;
     emptyDb = createDatabase(emptyUrl.toString());
-    await migrateToLatest(emptyDb);
+    await migrateToForTesting(emptyDb, "025_identity_account_email_expand");
 
     const upgradeUrl = new URL(adminUrl);
     upgradeUrl.pathname = `/${upgradeDatabaseName}`;
@@ -72,7 +72,7 @@ describeWithDatabase("migration 025 identity account and email expand", () => {
       ])
       .execute();
 
-    await migrateToLatest(db);
+    await migrateToForTesting(db, "025_identity_account_email_expand");
     await db.transaction().execute(async (transaction) => {
       await sql`
         INSERT INTO identity.accounts (id, owner_id)

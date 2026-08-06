@@ -232,6 +232,27 @@ describeWithDatabase("owner, export and tombstone retention", () => {
     await db.deleteFrom("matching.match_runs").where("owner_id", "=", ownerId).execute();
     await db.deleteFrom("decision.job_decisions").where("owner_id", "=", ownerId).execute();
     await db
+      .deleteFrom("application.case_requirement_evidence_links")
+      .where("owner_id", "=", ownerId)
+      .execute();
+    await db
+      .deleteFrom("application.case_questions")
+      .where("owner_id", "=", ownerId)
+      .execute();
+    await db
+      .deleteFrom("application.case_requirement_states")
+      .where("owner_id", "=", ownerId)
+      .execute();
+    await db.deleteFrom("application.case_events").where("owner_id", "=", ownerId).execute();
+    await db
+      .deleteFrom("application.application_cases")
+      .where("owner_id", "=", ownerId)
+      .execute();
+    await db
+      .deleteFrom("application.private_job_snapshots")
+      .where("owner_id", "=", ownerId)
+      .execute();
+    await db
       .deleteFrom("profile.resume_evidence_revisions")
       .where("owner_id", "=", ownerId)
       .execute();
@@ -310,6 +331,10 @@ describeWithDatabase("owner, export and tombstone retention", () => {
       recommendation: randomUUID(),
       tailoring: randomUUID(),
       segment: randomUUID(),
+      privateSnapshot: randomUUID(),
+      privateSnapshotRevision: randomUUID(),
+      applicationCase: randomUUID(),
+      caseEvent: randomUUID(),
       staleTask: randomUUID(),
     };
     await db
@@ -522,6 +547,90 @@ describeWithDatabase("owner, export and tombstone retention", () => {
         revision: 1,
         official_link_opened_at: null,
         updated_at: now,
+      })
+      .execute();
+    await db
+      .insertInto("application.private_job_snapshots")
+      .values({
+        id: ids.privateSnapshot,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        current_content_revision: null,
+        current_requirement_set_revision: null,
+        creation_idempotency_key: `retention-private-job-${suffix}`,
+        creation_request_hash: "6".repeat(64),
+        deleted_at: null,
+      })
+      .execute();
+    await db
+      .insertInto("application.private_job_snapshot_revisions")
+      .values({
+        id: ids.privateSnapshotRevision,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        snapshot_id: ids.privateSnapshot,
+        content_revision: 1,
+        requirement_set_revision: 1,
+        title: "Synthetic private internship",
+        company_name: null,
+        source_label: "retention_fixture",
+        official_url: null,
+        source_provided: false,
+        content_text: "Synthetic private JD used only for owner deletion verification.",
+        requirements: JSON.stringify([]),
+        content_hash: "7".repeat(64),
+      })
+      .execute();
+    await db
+      .updateTable("application.private_job_snapshots")
+      .set({
+        current_content_revision: 1,
+        current_requirement_set_revision: 1,
+        updated_at: sql`now()`,
+      })
+      .where("id", "=", ids.privateSnapshot)
+      .executeTakeFirstOrThrow();
+    await db
+      .insertInto("application.application_cases")
+      .values({
+        id: ids.applicationCase,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        published_job_id: null,
+        published_job_version_id: null,
+        requirement_set_id: null,
+        job_context_kind: "private",
+        private_job_snapshot_id: ids.privateSnapshot,
+        job_context_revision: 1,
+        stage: "interested",
+        outcome: null,
+        creation_idempotency_key: `retention-private-case-${suffix}`,
+        creation_request_hash: "8".repeat(64),
+        expires_at: null,
+        ended_at: null,
+        deleted_at: null,
+      })
+      .execute();
+    await db
+      .insertInto("application.case_events")
+      .values({
+        id: ids.caseEvent,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        case_id: ids.applicationCase,
+        sequence: 1,
+        event_type: "case_created",
+        actor_type: "owner",
+        event_data: JSON.stringify({
+          schemaVersion: "case-event-v1",
+          initialStage: "interested",
+          jobContextKind: "private",
+          jobContextRevision: 1,
+        }),
+        schema_version: "case-event-v1",
+        idempotency_scope: "retention-private-case:create",
+        idempotency_key: `retention-private-event-${suffix}`,
+        request_hash: "9".repeat(64),
       })
       .execute();
     const leaseOwner = `retention-stale-worker-${suffix}`;
@@ -1245,6 +1354,13 @@ describeWithDatabase("owner, export and tombstone retention", () => {
     expect(deletedExpiredOwner.status).toBe("deleted");
     expect(Number(deletedExpiredOwner.epoch)).toBe(2);
     const ownerTables = [
+      "application.case_requirement_evidence_links",
+      "application.case_questions",
+      "application.case_requirement_states",
+      "application.case_events",
+      "application.application_cases",
+      "application.private_job_snapshot_revisions",
+      "application.private_job_snapshots",
       "matching.resume_exports",
       "matching.recommendation_items",
       "matching.resume_tailoring_runs",

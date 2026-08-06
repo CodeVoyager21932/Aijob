@@ -12,7 +12,9 @@ Phase 2A 前向修复的代码证据见 [Forward Contract 与隔离原型验收]
 
 身份前置的后续证据见 [Identity Forward Contract 验收](phase-2a-identity-forward-contract-acceptance-2026-08-06.md)。长期 owner、Account、EmailIdentity 和验证码 challenge contracts/隔离原型分别 5/5 通过；决定继续正式 migration 025，但尚未发送真实邮件或注册身份 API。
 
-正式身份前置见 [Phase 2A-025 Identity Account/Email Expand 验收](phase-2a-025-identity-account-email-expand-acceptance-2026-08-06.md)。migration 025、owner active predicate、anonymous-only retention、运行角色与身份删除兼容已通过 6 项迁移测试和串行全仓 629 项测试；下一唯一切片为 ApplicationCase Long-Lived Forward Repair。
+正式身份前置见 [Phase 2A-025 Identity Account/Email Expand 验收](phase-2a-025-identity-account-email-expand-acceptance-2026-08-06.md)。migration 025、owner active predicate、anonymous-only retention、运行角色与身份删除兼容已通过 6 项迁移测试和串行全仓 629 项测试；该记录当时决定进入 ApplicationCase Long-Lived Forward Repair。
+
+ApplicationCase 前向修复见 [Phase 2A-026 验收](phase-2a-026-application-case-long-lived-forward-repair-acceptance-2026-08-06.md)。migration 026、公共/私有 Case、长期生命周期、strict event 和 ApplicationCase 删除已通过 9 项迁移测试及串行全仓 631 项测试；复核发现私有要求上下文仍只接受公共 requirement set，决定“修改”，下一唯一切片为 026B。
 
 本目录的三张 PNG 只用于表达布局、信息层级和交互关系，不是字段、状态、品牌命名或业务规则的事实源。图片中的示例公司、岗位、日期、链接、用户身份、数据和建议文案都是静态演示，不得进入业务夹具、用户事实或产品证据。
 
