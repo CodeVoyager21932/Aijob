@@ -164,19 +164,19 @@ export type ResumeSemanticContent = z.infer<typeof ResumeSemanticContentSchema>;
 const BaseDocumentReferenceSchema = z.object({
   kind: z.literal("base"),
   caseId: z.null(),
-  publishedJobId: z.null(),
-  publishedJobVersionId: z.null(),
-  requirementSetId: z.null(),
+  detachedFromCaseId: z.null(),
+  jobContext: z.null(),
+  baseDocumentId: z.null(),
   baseDocumentRevisionId: z.null(),
   evidenceRevisionId: z.null(),
 });
 
 const DerivedDocumentReferenceSchema = z.object({
   kind: z.literal("case_derived"),
-  caseId: UuidSchema,
-  publishedJobId: UuidSchema,
-  publishedJobVersionId: UuidSchema,
-  requirementSetId: UuidSchema,
+  caseId: UuidSchema.nullable(),
+  detachedFromCaseId: UuidSchema.nullable(),
+  jobContext: JobContextSchema,
+  baseDocumentId: UuidSchema,
   baseDocumentRevisionId: UuidSchema,
   evidenceRevisionId: UuidSchema,
 });
@@ -189,16 +189,34 @@ const ResumeDocumentFieldsSchema = z.object({
   revision: RevisionSchema,
   currentContentRevisionId: UuidSchema.nullable(),
   currentLayoutRevisionId: UuidSchema.nullable(),
-  expiresAt: TimestampSchema,
+  expiresAt: TimestampSchema.nullable(),
   deletedAt: TimestampSchema.nullable(),
   createdAt: TimestampSchema,
   updatedAt: TimestampSchema,
 });
 
-export const ResumeDocumentSchema = z.discriminatedUnion("kind", [
+export const ResumeDocumentSchema = z
+  .discriminatedUnion("kind", [
   ResumeDocumentFieldsSchema.merge(BaseDocumentReferenceSchema).strict(),
   ResumeDocumentFieldsSchema.merge(DerivedDocumentReferenceSchema).strict(),
-]);
+  ])
+  .superRefine((value, context) => {
+    if (value.kind === "base") return;
+    if ((value.caseId === null) === (value.detachedFromCaseId === null)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["detachedFromCaseId"],
+        message: "A derived resume must reference either an active or detached case",
+      });
+    }
+    if (value.jobContext.kind === "private" && value.jobContext.ownerId !== value.ownerId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["jobContext", "ownerId"],
+        message: "Private job snapshots must belong to the resume owner",
+      });
+    }
+  });
 export type ResumeDocument = z.infer<typeof ResumeDocumentSchema>;
 
 export const ResumeDocumentContentRevisionSchema = z
@@ -614,6 +632,7 @@ export type LegacyResumeDocumentVirtual = z.infer<typeof LegacyResumeDocumentVir
 export const ResumeDocumentReadModelSchema = z.discriminatedUnion("schemaVersion", [
   LegacyResumeDocumentVirtualSchema,
   ResumeDocumentContentRevisionSchema,
+  ResumeSemanticContentRevisionSchema,
 ]);
 export type ResumeDocumentReadModel = z.infer<typeof ResumeDocumentReadModelSchema>;
 
@@ -643,7 +662,7 @@ const FirstResumeDocumentEditRequestSchema = z
   .object({
     expectedRevision: z.literal(0),
     legacySourceRevisionId: UuidSchema,
-    content: ResumeDocumentV2ContentSchema,
+    content: ResumeSemanticContentSchema,
   })
   .strict();
 
@@ -651,7 +670,7 @@ const ExistingResumeDocumentEditRequestSchema = z
   .object({
     expectedRevision: RevisionSchema,
     baseDocumentRevisionId: UuidSchema,
-    content: ResumeDocumentV2ContentSchema,
+    content: ResumeSemanticContentSchema,
   })
   .strict();
 
@@ -663,19 +682,8 @@ export type PutResumeDocumentContentRevisionRequest = z.infer<
   typeof PutResumeDocumentContentRevisionRequestSchema
 >;
 
-export const PutResumeDocumentLayoutRevisionRequestSchema = z
-  .object({
-    expectedRevision: RevisionSchema,
-    templateKey: ResumeTemplateKeySchema,
-    sectionOrder: z
-      .array(UuidSchema)
-      .max(100)
-      .refine((ids) => new Set(ids).size === ids.length, {
-        message: "sectionOrder must be unique",
-      }),
-    settings: JsonRecordSchema,
-  })
-  .strict();
+export const PutResumeDocumentLayoutRevisionRequestSchema =
+  PutResumeDocumentLayoutRevisionV2RequestSchema;
 export type PutResumeDocumentLayoutRevisionRequest = z.infer<
   typeof PutResumeDocumentLayoutRevisionRequestSchema
 >;
@@ -696,13 +704,13 @@ export const ResumeDocumentLegacySourceSchema = z
   .strict();
 export type ResumeDocumentLegacySource = z.infer<typeof ResumeDocumentLegacySourceSchema>;
 
-export const ResumeDocumentContentSchema = ResumeDocumentV2ContentSchema;
-export type ResumeDocumentContent = ResumeDocumentV2Content;
+export const ResumeDocumentContentSchema = ResumeSemanticContentSchema;
+export type ResumeDocumentContent = ResumeSemanticContent;
 
 export const ResumeDocumentV2Schema = ResumeDocumentSchema;
-export const ResumeDocumentV2ContentRevisionSchema = ResumeDocumentContentRevisionSchema;
-export const ResumeDocumentV2LayoutRevisionSchema = ResumeDocumentLayoutRevisionSchema;
+export const ResumeDocumentV2ContentRevisionSchema = ResumeSemanticContentRevisionSchema;
+export const ResumeDocumentV2LayoutRevisionSchema = ResumeDocumentLayoutRevisionV2Schema;
 export const CreateResumeDocumentContentRevisionRequestSchema =
   PutResumeDocumentContentRevisionRequestSchema;
-export type ResumeDocumentV2ContentRevision = ResumeDocumentContentRevision;
-export type ResumeDocumentV2LayoutRevision = ResumeDocumentLayoutRevision;
+export type ResumeDocumentV2ContentRevision = ResumeSemanticContentRevision;
+export type ResumeDocumentV2LayoutRevision = ResumeDocumentLayoutRevisionV2;

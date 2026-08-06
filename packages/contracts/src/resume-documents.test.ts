@@ -65,7 +65,7 @@ describe("Resume Document V2 contracts", () => {
       revision: 1,
       currentContentRevisionId: ids.revision,
       currentLayoutRevisionId: null,
-      expiresAt: "2026-08-20T00:00:00.000Z",
+      expiresAt: null,
       deletedAt: null,
       createdAt: "2026-08-05T00:00:00.000Z",
       updatedAt: "2026-08-05T00:00:00.000Z",
@@ -75,9 +75,9 @@ describe("Resume Document V2 contracts", () => {
         ...common,
         kind: "base",
         caseId: null,
-        publishedJobId: null,
-        publishedJobVersionId: null,
-        requirementSetId: null,
+        detachedFromCaseId: null,
+        jobContext: null,
+        baseDocumentId: null,
         baseDocumentRevisionId: null,
         evidenceRevisionId: null,
       }).success,
@@ -87,9 +87,15 @@ describe("Resume Document V2 contracts", () => {
         ...common,
         kind: "case_derived",
         caseId: ids.case,
-        publishedJobId: ids.job,
-        publishedJobVersionId: ids.version,
-        requirementSetId: ids.requirements,
+        detachedFromCaseId: null,
+        jobContext: {
+          kind: "public",
+          publishedJobId: ids.job,
+          publishedJobVersionId: ids.version,
+          requirementSetId: ids.requirements,
+          officialUrl: "https://example.test/jobs/1",
+        },
+        baseDocumentId: ids.document,
         baseDocumentRevisionId: ids.revision,
         evidenceRevisionId: ids.evidence,
       }).success,
@@ -99,13 +105,35 @@ describe("Resume Document V2 contracts", () => {
         ...common,
         kind: "base",
         caseId: ids.case,
-        publishedJobId: null,
-        publishedJobVersionId: null,
-        requirementSetId: null,
+        detachedFromCaseId: null,
+        jobContext: null,
+        baseDocumentId: null,
         baseDocumentRevisionId: null,
         evidenceRevisionId: null,
       }).success,
     ).toBe(false);
+    expect(
+      ResumeDocumentSchema.safeParse({
+        ...common,
+        kind: "case_derived",
+        caseId: null,
+        detachedFromCaseId: ids.case,
+        jobContext: {
+          kind: "private",
+          snapshotId: ids.snapshot,
+          ownerId: ids.owner,
+          title: "用户私有岗位",
+          companyName: null,
+          sourceLabel: "用户粘贴",
+          contentRevision: 1,
+          requirementSetRevision: 1,
+          sourceProvided: false,
+        },
+        baseDocumentId: ids.document,
+        baseDocumentRevisionId: ids.revision,
+        evidenceRevisionId: ids.evidence,
+      }).success,
+    ).toBe(true);
   });
 
   it("keeps document creation scoped to a base or an existing case", () => {
@@ -134,20 +162,32 @@ describe("Resume Document V2 contracts", () => {
       PutResumeDocumentContentRevisionRequestSchema.safeParse({
         expectedRevision: 0,
         legacySourceRevisionId: ids.revision,
-        content,
+        content: {
+          schemaVersion: "resume-content-v1",
+          sections: content.sections.map((item) => ({
+            ...item,
+            blocks: item.blocks.map((block) => ({ ...block, evidenceIds: [] })),
+          })),
+        },
       }).success,
     ).toBe(true);
     expect(
       PutResumeDocumentContentRevisionRequestSchema.safeParse({
         expectedRevision: 0,
-        content,
+        content: { schemaVersion: "resume-content-v1", sections: [] },
       }).success,
     ).toBe(false);
     expect(
       PutResumeDocumentContentRevisionRequestSchema.safeParse({
         expectedRevision: 1,
         baseDocumentRevisionId: ids.revision,
-        content,
+        content: {
+          schemaVersion: "resume-content-v1",
+          sections: content.sections.map((item) => ({
+            ...item,
+            blocks: item.blocks.map((block) => ({ ...block, evidenceIds: [] })),
+          })),
+        },
         ownerId: ids.owner,
       }).success,
     ).toBe(false);
@@ -159,10 +199,14 @@ describe("Resume Document V2 contracts", () => {
         expectedRevision: 0,
         legacySourceRevisionId: ids.revision,
         content: {
+          schemaVersion: "resume-content-v1",
           sections: [
             {
               ...section,
-              blocks: [section.blocks[0], section.blocks[0]],
+              blocks: [
+                { ...section.blocks[0], evidenceIds: [] },
+                { ...section.blocks[0], evidenceIds: [] },
+              ],
             },
           ],
         },
@@ -200,7 +244,7 @@ describe("Resume Document V2 contracts", () => {
     expect(ResumeTemplateKeySchema.safeParse("modern").success).toBe(false);
   });
 
-  it("separates semantic content from legacy block review state", () => {
+  it("keeps legacy block review state read-only and new content semantic", () => {
     const semanticContent = {
       schemaVersion: "resume-content-v1",
       sections: [
@@ -241,6 +285,7 @@ describe("Resume Document V2 contracts", () => {
         expectedRevision: 1,
         baseDocumentRevisionId: ids.revision,
         content: {
+          schemaVersion: "resume-content-v1",
           sections: [
             {
               id: ids.section,
@@ -251,7 +296,39 @@ describe("Resume Document V2 contracts", () => {
                   id: ids.block,
                   ordinal: 0,
                   text: "兼容旧 024 正文",
+                  evidenceIds: [],
                   suggestionDecision: "rejected",
+                },
+              ],
+            },
+          ],
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      ResumeDocumentReadModelSchema.safeParse({
+        schemaVersion: "resume-document-v2",
+        id: ids.revision,
+        documentId: ids.document,
+        ownerId: ids.owner,
+        ownerEpoch: 1,
+        documentRevision: 1,
+        baseDocumentRevisionId: null,
+        contentHash: "a".repeat(64),
+        confirmedAt: "2026-08-05T00:00:00.000Z",
+        createdAt: "2026-08-05T00:00:00.000Z",
+        content: {
+          sections: [
+            {
+              id: ids.section,
+              ordinal: 0,
+              title: "项目经历",
+              blocks: [
+                {
+                  id: ids.block,
+                  ordinal: 0,
+                  text: "旧建议状态仍可读取",
+                  suggestionDecision: "accepted",
                 },
               ],
             },

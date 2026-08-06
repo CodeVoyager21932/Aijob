@@ -352,6 +352,26 @@ export async function processOwnerDeletion(input: {
         .where("owner_id", "=", input.ownerId)
         .execute();
       await transaction
+        .deleteFrom("profile.resume_review_decisions")
+        .where("owner_id", "=", input.ownerId)
+        .execute();
+      await transaction
+        .deleteFrom("profile.resume_review_suggestions")
+        .where("owner_id", "=", input.ownerId)
+        .execute();
+      await transaction
+        .deleteFrom("profile.resume_review_findings")
+        .where("owner_id", "=", input.ownerId)
+        .execute();
+      await transaction
+        .deleteFrom("profile.resume_review_runs")
+        .where("owner_id", "=", input.ownerId)
+        .execute();
+      await transaction
+        .deleteFrom("profile.resume_documents")
+        .where("owner_id", "=", input.ownerId)
+        .execute();
+      await transaction
         .deleteFrom("application.case_requirement_evidence_links")
         .where("owner_id", "=", input.ownerId)
         .execute();

@@ -750,9 +750,13 @@ export interface ResumeDocumentTable {
   kind: string;
   title: string;
   case_id: string | null;
+  detached_from_case_id: Generated<string | null>;
+  job_context_kind: Generated<string | null>;
   published_job_id: string | null;
   published_job_version_id: string | null;
   requirement_set_id: string | null;
+  private_job_snapshot_id: Generated<string | null>;
+  job_context_revision: Generated<number | null>;
   base_document_id: string | null;
   base_document_revision_id: string | null;
   evidence_revision_id: string | null;
@@ -761,7 +765,7 @@ export interface ResumeDocumentTable {
   revision: Generated<number>;
   creation_idempotency_key: string;
   creation_request_hash: string;
-  expires_at: Timestamp;
+  expires_at: Timestamp | null;
   deleted_at: Timestamp | null;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
@@ -779,6 +783,81 @@ export interface ResumeLayoutRevisionTable {
   section_order: JsonValue;
   settings: JsonValue;
   content_hash: string;
+  created_at: Generated<Timestamp>;
+}
+
+export interface ResumeReviewRunTable {
+  id: Generated<string>;
+  owner_id: string;
+  owner_epoch: number;
+  case_id: string | null;
+  detached_from_case_id: string | null;
+  document_id: string;
+  content_revision_id: string;
+  job_context_kind: string;
+  published_job_id: string | null;
+  published_job_version_id: string | null;
+  requirement_set_id: string | null;
+  private_job_snapshot_id: string | null;
+  job_context_revision: number;
+  evidence_revision_id: string;
+  mode: string;
+  status: string;
+  revision: Generated<number>;
+  creation_idempotency_key: string;
+  creation_request_hash: string;
+  completed_at: Timestamp | null;
+  deleted_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface ResumeReviewFindingTable {
+  id: Generated<string>;
+  owner_id: string;
+  owner_epoch: number;
+  review_run_id: string;
+  schema_version: Generated<string>;
+  category: string;
+  severity: string;
+  source_block_id: string;
+  evidence_ids: Generated<JsonValue>;
+  reason_code: string;
+  created_at: Generated<Timestamp>;
+}
+
+export interface ResumeReviewSuggestionTable {
+  id: Generated<string>;
+  owner_id: string;
+  owner_epoch: number;
+  review_run_id: string;
+  finding_id: string;
+  schema_version: Generated<string>;
+  target_type: string;
+  target_ids: JsonValue;
+  change_type: string;
+  suggested_text: string | null;
+  evidence_ids: Generated<JsonValue>;
+  decision: Generated<string>;
+  revision: Generated<number>;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface ResumeReviewDecisionTable {
+  id: Generated<string>;
+  owner_id: string;
+  owner_epoch: number;
+  review_run_id: string;
+  suggestion_id: string;
+  document_id: string;
+  schema_version: Generated<string>;
+  based_on_suggestion_revision: number;
+  idempotency_key_hash: string;
+  decision: string;
+  edited_text: string | null;
+  result_content_revision_id: string | null;
+  reason_code: string | null;
   created_at: Generated<Timestamp>;
 }
 
@@ -954,6 +1033,10 @@ export interface Database {
   "profile.resume_document_revisions": ResumeDocumentRevisionTable;
   "profile.resume_documents": ResumeDocumentTable;
   "profile.resume_layout_revisions": ResumeLayoutRevisionTable;
+  "profile.resume_review_runs": ResumeReviewRunTable;
+  "profile.resume_review_findings": ResumeReviewFindingTable;
+  "profile.resume_review_suggestions": ResumeReviewSuggestionTable;
+  "profile.resume_review_decisions": ResumeReviewDecisionTable;
   "matching.match_runs": MatchRunTable;
   "matching.job_insight_runs": JobInsightRunTable;
   "matching.recommendation_runs": RecommendationRunTable;

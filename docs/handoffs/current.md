@@ -1,10 +1,10 @@
-# 当前项目交接：Aijob 求职 OS 2.0 Phase 2A-027
+# 当前项目交接：Aijob 求职 OS 2.0 Phase 2A-028
 
 > 交接日期：2026-08-06
 >
 > 当前分支：`codex/career-os-phase-1`
 >
-> 最近已推送前置基线：`92fbd33 feat(database): add long-lived application cases`；026B 对应当前分支最新提交与下方验收证据。
+> migration 027 为本交接对应的最新验收切片；提交与推送后的精确基线以 `git log -1` 为准，前置提交为 `3042683 feat(database): support private requirement contexts`。
 >
 > 提交后工作树预期：只剩未跟踪 `.claude/`；不得读取、提交、覆盖或清理它。
 
@@ -18,91 +18,88 @@ Phase 2R 契约：[契约与迁移影响矩阵](../plans/career-os-phase-2r-cont
 
 前向修复设计：[Phase 2A 前向修复契约与隔离 PostgreSQL 测试设计](../plans/career-os-phase-2a-forward-contract-and-isolated-db-test-design-2026-08-06.md)
 
-最近验收：[Phase 2A-026B Private Requirement Context Forward Repair](../evidence/product/career-os-v2/phase-2a-026b-private-requirement-context-forward-repair-acceptance-2026-08-06.md)
+最近验收：[Phase 2A-027 Resume Document/Review Forward Repair](../evidence/product/career-os-v2/phase-2a-027-resume-document-review-forward-repair-acceptance-2026-08-06.md)
 
 ## 1. 当前唯一目标
 
-当前唯一工程切片是 **Phase 2A-027 Resume/Review Forward Repair**：审查 `024F` 未注册原型并将长期 Resume、public/private Case 派生引用、strict Content/Layout、独立 Review 聚合和 owner 删除覆盖正式注册为 additive migration 027。
+当前唯一工程切片是 **Phase 2A-028 Interview/Debrief/Knowledge Expand**：只通过 strict contracts 和 additive migration 补齐文字面试、复盘和引用式经验库的长期领域基础。
 
 ```text
 migration 025 Identity Account/Email Expand（已通过）
--> migration 026 ApplicationCase Long-Lived Forward Repair（工程门通过，决定修改）
--> migration 026B Private Requirement Context Forward Repair（10/10，决定继续）
--> migration 027 Resume/Review Forward Repair（当前唯一目标）
--> 通过后再决定 Phase 2 后续领域迁移、修改、回退或停止
+-> migration 026/026B ApplicationCase + Requirement Context（已通过）
+-> migration 027 Resume/Review Forward Repair（11/11，决定继续）
+-> migration 028 Interview/Debrief/Knowledge Expand（当前唯一目标）
+-> 通过后再决定 Phase 2 服务/API、修改、回退或停止
 ```
 
-本切片不注册 Resume/Review HTTP API，不调用真实 AI，不读取真实 JD/简历，不访问真实招聘来源、邮件或服务器，也不实现 Interview、Debrief、Knowledge 或前端编辑器。
+本切片不注册 HTTP API，不实现前端，不调用真实 AI，不读取真实 JD/简历，不访问真实招聘来源、邮件或服务器，也不实现面试生成服务或知识正文抓取。
 
 ## 2. 已通过基线
 
 - Phase 1A/1B 已通过统一壳层、静态 JD 三态、静态 Resume 建议四态、URL/焦点/响应式与功能旗标 Gate。
-- migration 025 已注册长期 owner、Account/EmailIdentity 与删除 epoch 保护。
-- migration 026 已注册 owner-only 私有 JD snapshot/revision、公共/私有 Case、长期 Case 和 strict Case event。
-- migration 026B 已注册 `PublicRequirementContext | PrivateRequirementContext`、state-scoped evidence/question FK、public/private 唯一性、private strict event 与 legacy public backfill。
-- 026B 隔离 PostgreSQL 10/10、database 48/48、owner 删除/retention 2/2、全仓 635/635 通过；lint 376、typecheck、build、audit 和 `git diff --check` 通过。
+- migrations 025/026/026B 已注册长期 owner、Account/EmailIdentity、owner-only 私有 JD、公共/私有 Case 与对等 requirement context。
+- migration 027 已注册长期 Resume、public/private Case 派生引用、strict Content/Layout、独立 Review 四表、owner 删除与迟到写入保护。
+- migration 027 隔离 PostgreSQL 11/11、database 49/49、owner 删除/retention 2/2、串行全仓 636/636 通过；lint 377、typecheck、build、audit 和 `git diff --check` 通过。
 - 产品证据仍为 `E0`；可信供给仍为 22 岗 / 3 家企业 / 3 个官方 ATS，公共与 Alpha 岗位均为 0。Phase 4 前不恢复真实供给扩容。
 
-## 3. Migration 027 固定范围
+## 3. Migration 028 固定范围
 
-### Resume document 前向修复
+### Interview
 
-- `profile.resume_documents.expires_at` 对长期文档改为 nullable；历史 expiry 保留可读，不再由长期职业资产 retention 自动删除。
-- `base` 文档保持无岗位上下文；`case_derived` 文档严格固定 public 或 private JobContext、source content revision、evidence revision 与 base document revision。
-- private 派生文档引用 owner-only snapshot/content revision，不伪造公共岗位或 requirement-set UUID。
-- Case 删除时只允许显式执行 `case_id -> detached_from_case_id` 的选择性脱离；默认不静默删除用户选择保留的 Resume/Review。
+- `interview_sessions` 固定 owner/epoch、Case 或 detached Case、public/private JobContext、模式、输入 evidence revision 和创建幂等键。
+- `interview_turns` 追加保存问题、回答、追问及顺序；新行只能引用同一 Session/owner，已写 turn 不原地修改。
+- `interview_feedback` 保存 versioned strict 结构化反馈、能力项和已确认 evidence 引用；不能写入新经历事实。
+- 当前只冻结 `template | controlled_ai` 模式契约；不接模型，不实现生成器。
 
-### Strict Content/Layout
+### Debrief
 
-- 新内容写入使用 `resume-content-v1` 语义 section/block Schema；稳定 section/block/evidence ID、顺序和正文边界由数据库验证。
-- 新布局写入使用 `resume-layout-v2`；只允许固定模板、章节顺序和受控 layout token，不保存正文或任意 CSS/HTML。
-- 既有 `resume-document-v1/v2` 与 `resume-layout-v1` 只读兼容，不批量回填、不原地更新。
+- `debriefs` 固定 Case/JobContext/Interview Session（可空）和 evidence revision，保存表达问题、证据缺口与练习计划。
+- 用户确认必须是追加式确认记录；只有后续服务显式确认后才可转为新经历表达，本切片不创建 Resume 内容。
+- Case 删除时支持显式脱离并保留用户选择的复盘资产，不静默删除长期职业资产。
 
-### Resume Review 聚合
+### Knowledge
 
-- 正式注册 `resume_review_runs/findings/suggestions/decisions`。
-- Review 固定 owner/epoch、Case 或 detached Case、document/content revision、JobContext、evidence revision 与模式。
-- Finding/Suggestion/Decision 使用 strict Schema；suggestion 的 pending/accepted/edited/rejected 不写入 Resume 正文 block。
-- accepted/edited 必须引用新 content revision；rejected 不创建正文修订；findings 和 decisions 追加/不可原地修改。
-- `aijob_match_worker` 只生成任务结果所需 finding/suggestion，不得创建用户 Review aggregate 或决定。
+- `knowledge_clips` 只允许 HTTPS URL、标题、短摘要、适用场景、核验时间和用户笔记；不保存抓取正文。
+- Case 关联使用独立 `knowledge_clip_case_links`；删除 Case 只移除/脱离关联，不删除用户选择保留的 Clip。
+- Clip 单项删除只删除其关联，不影响 Case、Interview、Debrief 或 Resume。
 
-### 删除、权限与回退
+### 生命周期、删除与权限
 
-- 扩展 owner 全量删除顺序，先删 decision/suggestion/finding/run，再删 layout/content/document；owner epoch 改变后迟到结果不得写回。
-- collector 对所有 Resume/Review 表继续不可读；web/match/ops/migrator 权限按职责最小化。
-- 单项 Review 删除不自动删除 Resume；单项 Resume 删除必须处理 Review 引用而不能留下悬空正文。
-- migration 027 只做 expand/migrate；`down` 非破坏，不删除 Resume/Review 历史。
+- 三类资产默认长期，不设置 30 天自动删除；仍具备 owner 主动单项删除和 owner 全量删除。
+- 所有 owner 资产固定 owner epoch；epoch 变化后拒绝迟到任务结果。
+- collector 不可访问；web/match/ops/migrator 按职责最小化。match-worker 可写受控生成结果，但不能代替用户创建确认或决定。
+- migration 028 只做 expand/migrate；`down` 非破坏，不删除历史。
 
 ## 4. 开始前必须复核的冲突
 
-- `024F` 目前只在隔离测试中手动执行，不能直接因测试通过就注册；必须逐项复核它对 migration 026B、owner deletion service 和最新 Kysely 类型的兼容。
-- migration 024 的 `expires_at NOT NULL + 30 天` 是历史实现；ADR-0031 要求职业资产默认长期保留，但原始上传/临时解析仍最长 24 小时，不能一起放宽。
-- `ResumeSuggestionDecision` 已存在于旧正文 block DTO；027 的真源必须是 Review aggregate，旧字段只作 legacy 读取，不能双写成两个业务真源。
-- Case 当前版本可升级；已生成 Resume/Review 必须继续固定生成时的 JobContext revision，不能随 Case 指针漂移。
-- 当前 owner 删除服务尚未删除 Resume V2/Review 新表；没有删除、跨 owner 与迟到任务证据，不得宣称 migration 027 通过。
+- 既有任务队列和 `match-worker` 已有任务类型不能直接等同于 Interview Session；需要先区分任务执行记录与用户领域聚合，避免第二业务真源。
+- 旧 tailoring/insight evidence revision 的引用方式必须复用，不能新建第二套事实库或把自由文本当已确认经历。
+- Knowledge Clip 是 owner-only 引用资产，不是岗位来源或公共内容；不得进入公共目录、来源准入或跨用户推荐。
+- Case 当前 JobContext 可显式升级；已有 Interview/Debrief 必须继续固定生成时版本，不能随 Case 指针漂移。
+- Resume Review 的用户 Decision 权限边界已证明；028 中面试反馈、复盘确认必须沿用“系统建议与用户确认分离”，不能让 worker 代替用户确认。
 
 ## 5. 首轮代码入口
 
 按顺序检查：
 
-1. `packages/contracts/src/resume-documents.ts` 与测试：semantic content、strict layout、Review DTO 和 legacy V1/V2 边界。
-2. `packages/database/src/migrations/024_resume_document_v2_expand.ts`：历史表、TTL、FK、不可变触发器和角色权限。
-3. `packages/database/src/forward-contract/024f_resume_document_review.ts`：未注册原型；不得未经复核直接复制或注册。
-4. `packages/database/src/forward-contract/phase-2a-forward-contract.integration.test.ts`：已有 public/private Resume/Review 夹具、选择性 Case 删除和角色测试。
-5. `packages/database/src/types.ts`、`packages/database/src/migrate.ts`。
-6. `apps/platform/src/profile/deletion-service.ts` 与 `retention-service.integration.test.ts`：补 owner 删除顺序和迟到写入拒绝。
+1. `packages/contracts/src/application-cases.ts`、`resume-documents.ts`：复用 JobContext、owner/epoch、strict version 和 evidence 引用模式。
+2. `packages/database/src/migrations/023_application_case_core.ts`、`026_application_case_long_lived_forward_repair.ts`、`027_resume_document_review_forward_repair.ts`：复用 Case、选择性脱离和前向迁移模式。
+3. `packages/database/src/forward-contract/phase-2a-forward-contract.integration.test.ts`：扩展隔离 PostgreSQL fixture，不创建第二测试体系。
+4. `packages/database/src/types.ts`、`packages/database/src/migrate.ts`：注册 028 类型和迁移。
+5. `apps/platform/src/profile/deletion-service.ts` 与 `retention-service.integration.test.ts`：补 owner 全量删除、长期保留和迟到任务拒绝。
+6. `apps/platform/src/workers` 与现有 PostgreSQL task 类型：只复核权限和引用，不实现真实生成任务。
 
 ## 6. 退出 Gate
 
 至少证明：
 
-- 空库 `001 -> 027` 与含 V1、024 V2、public/private Case、026B requirement context 的升级库均成功。
-- V1/V2 历史行逐列兼容；长期 Resume 不再自动到期，短期原文/导出限制不变。
-- public/private 派生文档、strict content/layout、Review 四表状态机与跨 owner 约束通过。
-- Case 选择性脱离、单项删除、owner 全量删除、collector 拒绝、match-worker 最小权限、迟到任务和非破坏回退通过。
+- 空库 `001 -> 028` 与含 public/private Case、requirement context、Resume/Review 的升级库均成功。
+- Interview Session/Turn/Feedback、Debrief/确认、Knowledge Clip/Case Link 使用 strict versioned Schema 并保持 owner 隔离。
+- public/private JobContext 固定，Case 升级不漂移，Case 选择性脱离和各资产单项删除无悬空引用。
+- owner 全量删除、collector 拒绝、match-worker 最小权限、owner epoch 迟到写入和非破坏回退通过。
 - `git diff --check`、`pnpm lint`、`pnpm typecheck`、使用隔离 PostgreSQL 的 `pnpm test`、`pnpm build`、`pnpm audit:ci` 全部有明确退出码。
 
-通过后形成独立 migration 027 验收证据，并只作“继续、修改、回退、停止”之一决定。没有前端变化时不重复伪造浏览器验收或产品价值证据。
+通过后形成独立 migration 028 验收证据，并只作“继续、修改、回退、停止”之一决定。没有前端变化时不重复伪造浏览器验收或产品价值证据。
 
 ## 7. 排除项
 

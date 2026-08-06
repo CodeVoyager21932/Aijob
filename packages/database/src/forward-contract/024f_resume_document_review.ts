@@ -13,9 +13,33 @@ export async function applyResumeDocumentReviewForwardContract(
       ADD COLUMN job_context_revision integer CHECK (job_context_revision > 0),
       ADD COLUMN detached_from_case_id uuid;
 
-    UPDATE profile.resume_documents
-    SET job_context_kind = 'public', job_context_revision = 1
-    WHERE kind = 'case_derived';
+    UPDATE profile.resume_documents AS document
+    SET
+      job_context_kind = application_case.job_context_kind,
+      private_job_snapshot_id = application_case.private_job_snapshot_id,
+      job_context_revision = application_case.job_context_revision
+    FROM application.application_cases AS application_case
+    WHERE document.kind = 'case_derived'
+      AND application_case.owner_id = document.owner_id
+      AND application_case.owner_epoch = document.owner_epoch
+      AND application_case.id = document.case_id;
+
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM profile.resume_documents
+        WHERE kind = 'case_derived'
+          AND (
+            job_context_kind IS NULL
+            OR job_context_revision IS NULL
+            OR case_id IS NULL
+          )
+      ) THEN
+        RAISE EXCEPTION 'LEGACY_RESUME_CASE_CONTEXT_MISMATCH';
+      END IF;
+    END;
+    $$;
 
     ALTER TABLE profile.resume_documents
       ALTER COLUMN expires_at DROP NOT NULL,
@@ -314,6 +338,26 @@ export async function applyResumeDocumentReviewForwardContract(
         schema_version <> 'resume-content-v1'
         OR profile.is_valid_resume_semantic_sections(sections)
       );
+
+    CREATE FUNCTION profile.enforce_new_resume_content_schema()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+      IF NEW.document_id IS NOT NULL AND NEW.schema_version <> 'resume-content-v1' THEN
+        RAISE EXCEPTION 'LEGACY_RESUME_CONTENT_READ_ONLY';
+      END IF;
+      IF NEW.schema_version = 'resume-content-v1'
+        AND NOT profile.is_valid_resume_semantic_sections(NEW.sections) THEN
+        RAISE EXCEPTION 'INVALID_RESUME_SEMANTIC_CONTENT';
+      END IF;
+      RETURN NEW;
+    END;
+    $$;
+
+    CREATE TRIGGER resume_document_revisions_strict_insert
+      BEFORE INSERT ON profile.resume_document_revisions
+      FOR EACH ROW EXECUTE FUNCTION profile.enforce_new_resume_content_schema();
 
     CREATE FUNCTION profile.is_valid_resume_layout_v2(
       checked_section_order jsonb,
@@ -661,21 +705,63 @@ export async function applyResumeDocumentReviewForwardContract(
     CREATE INDEX resume_review_decisions_owner_run_idx
       ON profile.resume_review_decisions(owner_id, review_run_id, created_at, id);
 
+    CREATE FUNCTION profile.assert_active_resume_owner_epoch()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM identity.owners
+        WHERE id = NEW.owner_id
+          AND epoch = NEW.owner_epoch
+          AND status = 'active'
+      ) THEN
+        RAISE EXCEPTION 'OWNER_EPOCH_STALE';
+      END IF;
+      RETURN NEW;
+    END;
+    $$;
+
+    CREATE TRIGGER resume_documents_owner_epoch_guard
+      BEFORE INSERT OR UPDATE ON profile.resume_documents
+      FOR EACH ROW EXECUTE FUNCTION profile.assert_active_resume_owner_epoch();
+    CREATE TRIGGER resume_document_revisions_owner_epoch_guard
+      BEFORE INSERT OR UPDATE ON profile.resume_document_revisions
+      FOR EACH ROW EXECUTE FUNCTION profile.assert_active_resume_owner_epoch();
+    CREATE TRIGGER resume_layout_revisions_owner_epoch_guard
+      BEFORE INSERT OR UPDATE ON profile.resume_layout_revisions
+      FOR EACH ROW EXECUTE FUNCTION profile.assert_active_resume_owner_epoch();
+    CREATE TRIGGER resume_review_runs_owner_epoch_guard
+      BEFORE INSERT OR UPDATE ON profile.resume_review_runs
+      FOR EACH ROW EXECUTE FUNCTION profile.assert_active_resume_owner_epoch();
+    CREATE TRIGGER resume_review_findings_owner_epoch_guard
+      BEFORE INSERT OR UPDATE ON profile.resume_review_findings
+      FOR EACH ROW EXECUTE FUNCTION profile.assert_active_resume_owner_epoch();
+    CREATE TRIGGER resume_review_suggestions_owner_epoch_guard
+      BEFORE INSERT OR UPDATE ON profile.resume_review_suggestions
+      FOR EACH ROW EXECUTE FUNCTION profile.assert_active_resume_owner_epoch();
+    CREATE TRIGGER resume_review_decisions_owner_epoch_guard
+      BEFORE INSERT OR UPDATE ON profile.resume_review_decisions
+      FOR EACH ROW EXECUTE FUNCTION profile.assert_active_resume_owner_epoch();
+
     CREATE FUNCTION profile.validate_resume_review_run_references()
     RETURNS trigger
     LANGUAGE plpgsql
     AS $$
     DECLARE
-      case_context_kind text;
-      case_job_id uuid;
-      case_job_version_id uuid;
-      case_requirement_set_id uuid;
-      case_private_snapshot_id uuid;
-      case_context_revision integer;
       document_case_id uuid;
+      document_detached_from_case_id uuid;
+      document_context_kind text;
+      document_job_id uuid;
+      document_job_version_id uuid;
+      document_requirement_set_id uuid;
+      document_private_snapshot_id uuid;
+      document_context_revision integer;
     BEGIN
       IF TG_OP = 'UPDATE' THEN
-        IF NEW.owner_id IS DISTINCT FROM OLD.owner_id
+        IF NEW.id IS DISTINCT FROM OLD.id
+          OR NEW.owner_id IS DISTINCT FROM OLD.owner_id
           OR NEW.owner_epoch IS DISTINCT FROM OLD.owner_epoch
           OR NEW.document_id IS DISTINCT FROM OLD.document_id
           OR NEW.content_revision_id IS DISTINCT FROM OLD.content_revision_id
@@ -685,8 +771,24 @@ export async function applyResumeDocumentReviewForwardContract(
           OR NEW.requirement_set_id IS DISTINCT FROM OLD.requirement_set_id
           OR NEW.private_job_snapshot_id IS DISTINCT FROM OLD.private_job_snapshot_id
           OR NEW.job_context_revision IS DISTINCT FROM OLD.job_context_revision
-          OR NEW.evidence_revision_id IS DISTINCT FROM OLD.evidence_revision_id THEN
+          OR NEW.evidence_revision_id IS DISTINCT FROM OLD.evidence_revision_id
+          OR NEW.mode IS DISTINCT FROM OLD.mode
+          OR NEW.creation_idempotency_key IS DISTINCT FROM OLD.creation_idempotency_key
+          OR NEW.creation_request_hash IS DISTINCT FROM OLD.creation_request_hash
+          OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
           RAISE EXCEPTION 'IMMUTABLE_REVIEW_RUN_REFERENCES';
+        END IF;
+
+        IF NEW.revision <> OLD.revision + 1
+          OR OLD.status = 'deleted'
+          OR NOT (
+            NEW.status = OLD.status
+            OR (OLD.status = 'pending' AND NEW.status IN ('completed', 'failed', 'deleted'))
+            OR (OLD.status = 'completed' AND NEW.status IN ('superseded', 'deleted'))
+            OR (OLD.status = 'failed' AND NEW.status IN ('pending', 'deleted'))
+            OR (OLD.status = 'superseded' AND NEW.status = 'deleted')
+          ) THEN
+          RAISE EXCEPTION 'INVALID_REVIEW_RUN_TRANSITION';
         END IF;
 
         IF NEW.case_id IS DISTINCT FROM OLD.case_id
@@ -701,12 +803,11 @@ export async function applyResumeDocumentReviewForwardContract(
           END IF;
         END IF;
 
-        IF NEW.case_id IS NULL THEN
-          RETURN NEW;
-        END IF;
       END IF;
 
       SELECT
+        case_id,
+        detached_from_case_id,
         job_context_kind,
         published_job_id,
         published_job_version_id,
@@ -714,35 +815,32 @@ export async function applyResumeDocumentReviewForwardContract(
         private_job_snapshot_id,
         job_context_revision
       INTO
-        case_context_kind,
-        case_job_id,
-        case_job_version_id,
-        case_requirement_set_id,
-        case_private_snapshot_id,
-        case_context_revision
-      FROM application.application_cases
-      WHERE owner_id = NEW.owner_id AND id = NEW.case_id AND deleted_at IS NULL;
-      IF NOT FOUND THEN
-        RAISE EXCEPTION 'REVIEW_CASE_NOT_FOUND';
-      END IF;
-
-      SELECT case_id INTO document_case_id
+        document_case_id,
+        document_detached_from_case_id,
+        document_context_kind,
+        document_job_id,
+        document_job_version_id,
+        document_requirement_set_id,
+        document_private_snapshot_id,
+        document_context_revision
       FROM profile.resume_documents
       WHERE owner_id = NEW.owner_id
         AND id = NEW.document_id
         AND kind = 'case_derived'
         AND deleted_at IS NULL;
-      IF NOT FOUND OR document_case_id IS DISTINCT FROM NEW.case_id THEN
+      IF NOT FOUND
+        OR document_case_id IS DISTINCT FROM NEW.case_id
+        OR document_detached_from_case_id IS DISTINCT FROM NEW.detached_from_case_id THEN
         RAISE EXCEPTION 'REVIEW_CASE_DOCUMENT_MISMATCH';
       END IF;
 
-      IF NEW.job_context_kind IS DISTINCT FROM case_context_kind
-        OR NEW.job_context_revision IS DISTINCT FROM case_context_revision
-        OR NEW.published_job_id IS DISTINCT FROM case_job_id
-        OR NEW.published_job_version_id IS DISTINCT FROM case_job_version_id
-        OR NEW.requirement_set_id IS DISTINCT FROM case_requirement_set_id
-        OR NEW.private_job_snapshot_id IS DISTINCT FROM case_private_snapshot_id THEN
-        RAISE EXCEPTION 'REVIEW_CASE_CONTEXT_MISMATCH';
+      IF NEW.job_context_kind IS DISTINCT FROM document_context_kind
+        OR NEW.job_context_revision IS DISTINCT FROM document_context_revision
+        OR NEW.published_job_id IS DISTINCT FROM document_job_id
+        OR NEW.published_job_version_id IS DISTINCT FROM document_job_version_id
+        OR NEW.requirement_set_id IS DISTINCT FROM document_requirement_set_id
+        OR NEW.private_job_snapshot_id IS DISTINCT FROM document_private_snapshot_id THEN
+        RAISE EXCEPTION 'REVIEW_DOCUMENT_CONTEXT_MISMATCH';
       END IF;
       RETURN NEW;
     END;
@@ -751,6 +849,247 @@ export async function applyResumeDocumentReviewForwardContract(
     CREATE TRIGGER resume_review_runs_reference_guard
       BEFORE INSERT OR UPDATE ON profile.resume_review_runs
       FOR EACH ROW EXECUTE FUNCTION profile.validate_resume_review_run_references();
+
+    CREATE FUNCTION profile.resume_review_evidence_ids_are_confirmed(
+      checked_owner_id uuid,
+      checked_evidence_revision_id uuid,
+      checked_evidence_ids jsonb
+    )
+    RETURNS boolean
+    LANGUAGE sql
+    STABLE
+    PARALLEL SAFE
+    AS $$
+      SELECT NOT EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements_text(checked_evidence_ids) AS requested(evidence_id)
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM profile.resume_evidence_revisions AS revision
+          CROSS JOIN LATERAL jsonb_array_elements(revision.evidence) AS evidence(value)
+          WHERE revision.owner_id = checked_owner_id
+            AND revision.id = checked_evidence_revision_id
+            AND evidence.value ->> 'id' = requested.evidence_id
+            AND evidence.value ->> 'confirmed' = 'true'
+        )
+      )
+    $$;
+
+    CREATE FUNCTION profile.validate_resume_review_finding()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    DECLARE
+      reviewed_content_revision_id uuid;
+    BEGIN
+      SELECT content_revision_id INTO reviewed_content_revision_id
+      FROM profile.resume_review_runs
+      WHERE owner_id = NEW.owner_id
+        AND owner_epoch = NEW.owner_epoch
+        AND id = NEW.review_run_id;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'REVIEW_FINDING_RUN_EPOCH_MISMATCH';
+      END IF;
+
+      IF NOT EXISTS (
+        SELECT 1
+        FROM profile.resume_document_revisions AS revision
+        CROSS JOIN LATERAL jsonb_array_elements(revision.sections) AS section(value)
+        CROSS JOIN LATERAL jsonb_array_elements(section.value -> 'blocks') AS block(value)
+        WHERE revision.owner_id = NEW.owner_id
+          AND revision.id = reviewed_content_revision_id
+          AND block.value ->> 'id' = NEW.source_block_id::text
+      ) THEN
+        RAISE EXCEPTION 'REVIEW_FINDING_SOURCE_BLOCK_UNKNOWN';
+      END IF;
+
+      IF NOT profile.resume_review_evidence_ids_are_confirmed(
+        NEW.owner_id,
+        (
+          SELECT evidence_revision_id
+          FROM profile.resume_review_runs
+          WHERE owner_id = NEW.owner_id AND id = NEW.review_run_id
+        ),
+        NEW.evidence_ids
+      ) THEN
+        RAISE EXCEPTION 'REVIEW_EVIDENCE_NOT_CONFIRMED';
+      END IF;
+      RETURN NEW;
+    END;
+    $$;
+
+    CREATE TRIGGER resume_review_findings_reference_guard
+      BEFORE INSERT ON profile.resume_review_findings
+      FOR EACH ROW EXECUTE FUNCTION profile.validate_resume_review_finding();
+
+    CREATE FUNCTION profile.validate_resume_review_suggestion()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    DECLARE
+      reviewed_content_revision_id uuid;
+      pinned_evidence_revision_id uuid;
+    BEGIN
+      SELECT review.content_revision_id, review.evidence_revision_id
+      INTO reviewed_content_revision_id, pinned_evidence_revision_id
+      FROM profile.resume_review_runs AS review
+      WHERE review.owner_id = NEW.owner_id
+        AND review.owner_epoch = NEW.owner_epoch
+        AND review.id = NEW.review_run_id;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'REVIEW_SUGGESTION_RUN_EPOCH_MISMATCH';
+      END IF;
+
+      IF EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements_text(NEW.target_ids) AS target(target_id)
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM profile.resume_document_revisions AS revision
+          CROSS JOIN LATERAL jsonb_array_elements(revision.sections) AS section(value)
+          LEFT JOIN LATERAL jsonb_array_elements(section.value -> 'blocks') AS block(value)
+            ON NEW.target_type = 'block'
+          WHERE revision.owner_id = NEW.owner_id
+            AND revision.id = reviewed_content_revision_id
+            AND (
+              (NEW.target_type = 'section' AND section.value ->> 'id' = target.target_id)
+              OR (NEW.target_type = 'block' AND block.value ->> 'id' = target.target_id)
+            )
+        )
+      ) THEN
+        RAISE EXCEPTION 'REVIEW_SUGGESTION_TARGET_UNKNOWN';
+      END IF;
+
+      IF NOT profile.resume_review_evidence_ids_are_confirmed(
+        NEW.owner_id,
+        pinned_evidence_revision_id,
+        NEW.evidence_ids
+      ) THEN
+        RAISE EXCEPTION 'REVIEW_EVIDENCE_NOT_CONFIRMED';
+      END IF;
+      RETURN NEW;
+    END;
+    $$;
+
+    CREATE TRIGGER resume_review_suggestions_reference_guard
+      BEFORE INSERT ON profile.resume_review_suggestions
+      FOR EACH ROW EXECUTE FUNCTION profile.validate_resume_review_suggestion();
+
+    CREATE FUNCTION profile.validate_resume_review_suggestion_projection()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+      IF NEW.id IS DISTINCT FROM OLD.id
+        OR NEW.owner_id IS DISTINCT FROM OLD.owner_id
+        OR NEW.owner_epoch IS DISTINCT FROM OLD.owner_epoch
+        OR NEW.review_run_id IS DISTINCT FROM OLD.review_run_id
+        OR NEW.finding_id IS DISTINCT FROM OLD.finding_id
+        OR NEW.schema_version IS DISTINCT FROM OLD.schema_version
+        OR NEW.target_type IS DISTINCT FROM OLD.target_type
+        OR NEW.target_ids IS DISTINCT FROM OLD.target_ids
+        OR NEW.change_type IS DISTINCT FROM OLD.change_type
+        OR NEW.suggested_text IS DISTINCT FROM OLD.suggested_text
+        OR NEW.evidence_ids IS DISTINCT FROM OLD.evidence_ids
+        OR NEW.created_at IS DISTINCT FROM OLD.created_at
+        OR NEW.revision <> OLD.revision + 1
+        OR NEW.updated_at < OLD.updated_at
+        OR NEW.decision = 'pending'
+        OR NOT EXISTS (
+          SELECT 1
+          FROM profile.resume_review_decisions AS decision
+          WHERE decision.owner_id = OLD.owner_id
+            AND decision.owner_epoch = OLD.owner_epoch
+            AND decision.review_run_id = OLD.review_run_id
+            AND decision.suggestion_id = OLD.id
+            AND decision.based_on_suggestion_revision = OLD.revision
+            AND decision.decision = NEW.decision
+        ) THEN
+        RAISE EXCEPTION 'IMMUTABLE_REVIEW_SUGGESTION';
+      END IF;
+      RETURN NEW;
+    END;
+    $$;
+
+    CREATE TRIGGER resume_review_suggestions_projection_guard
+      BEFORE UPDATE ON profile.resume_review_suggestions
+      FOR EACH ROW EXECUTE FUNCTION profile.validate_resume_review_suggestion_projection();
+
+    CREATE FUNCTION profile.validate_resume_review_decision()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    DECLARE
+      current_suggestion_revision integer;
+      reviewed_content_revision integer;
+      result_content_revision integer;
+      result_schema_version text;
+    BEGIN
+      SELECT suggestion.revision, reviewed.document_revision
+      INTO current_suggestion_revision, reviewed_content_revision
+      FROM profile.resume_review_suggestions AS suggestion
+      JOIN profile.resume_review_runs AS review
+        ON review.owner_id = suggestion.owner_id
+        AND review.owner_epoch = suggestion.owner_epoch
+        AND review.id = suggestion.review_run_id
+      JOIN profile.resume_document_revisions AS reviewed
+        ON reviewed.owner_id = review.owner_id
+        AND reviewed.id = review.content_revision_id
+      WHERE suggestion.owner_id = NEW.owner_id
+        AND suggestion.owner_epoch = NEW.owner_epoch
+        AND suggestion.review_run_id = NEW.review_run_id
+        AND suggestion.id = NEW.suggestion_id
+      FOR UPDATE OF suggestion;
+      IF NOT FOUND OR current_suggestion_revision <> NEW.based_on_suggestion_revision THEN
+        RAISE EXCEPTION 'REVIEW_SUGGESTION_REVISION_CONFLICT';
+      END IF;
+
+      IF NEW.decision IN ('accepted', 'edited') THEN
+        SELECT document_revision, schema_version
+        INTO result_content_revision, result_schema_version
+        FROM profile.resume_document_revisions
+        WHERE owner_id = NEW.owner_id
+          AND document_id = NEW.document_id
+          AND id = NEW.result_content_revision_id;
+        IF NOT FOUND
+          OR result_schema_version <> 'resume-content-v1'
+          OR result_content_revision <= reviewed_content_revision THEN
+          RAISE EXCEPTION 'REVIEW_DECISION_REQUIRES_NEW_CONTENT_REVISION';
+        END IF;
+      END IF;
+      RETURN NEW;
+    END;
+    $$;
+
+    CREATE TRIGGER resume_review_decisions_reference_guard
+      BEFORE INSERT ON profile.resume_review_decisions
+      FOR EACH ROW EXECUTE FUNCTION profile.validate_resume_review_decision();
+
+    CREATE FUNCTION profile.project_resume_review_decision()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+      UPDATE profile.resume_review_suggestions
+      SET
+        decision = NEW.decision,
+        revision = revision + 1,
+        updated_at = GREATEST(updated_at, NEW.created_at)
+      WHERE owner_id = NEW.owner_id
+        AND owner_epoch = NEW.owner_epoch
+        AND review_run_id = NEW.review_run_id
+        AND id = NEW.suggestion_id
+        AND revision = NEW.based_on_suggestion_revision;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'REVIEW_SUGGESTION_REVISION_CONFLICT';
+      END IF;
+      RETURN NEW;
+    END;
+    $$;
+
+    CREATE TRIGGER resume_review_decisions_projection
+      AFTER INSERT ON profile.resume_review_decisions
+      FOR EACH ROW EXECUTE FUNCTION profile.project_resume_review_decision();
 
     CREATE TRIGGER resume_review_findings_no_update
       BEFORE UPDATE ON profile.resume_review_findings
@@ -767,10 +1106,16 @@ export async function applyResumeDocumentReviewForwardContract(
       FROM PUBLIC, aijob_collector_worker;
 
     GRANT SELECT, INSERT, UPDATE, DELETE
-      ON TABLE profile.resume_review_runs, profile.resume_review_suggestions
+      ON TABLE profile.resume_review_runs
+      TO aijob_web_api;
+    GRANT SELECT, UPDATE, DELETE
+      ON TABLE profile.resume_review_suggestions
+      TO aijob_web_api;
+    GRANT SELECT, DELETE
+      ON TABLE profile.resume_review_findings
       TO aijob_web_api;
     GRANT SELECT, INSERT, DELETE
-      ON TABLE profile.resume_review_findings, profile.resume_review_decisions
+      ON TABLE profile.resume_review_decisions
       TO aijob_web_api;
 
     GRANT SELECT, UPDATE, DELETE

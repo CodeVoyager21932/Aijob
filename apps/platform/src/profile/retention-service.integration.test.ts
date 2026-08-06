@@ -232,6 +232,23 @@ describeWithDatabase("owner, export and tombstone retention", () => {
     await db.deleteFrom("matching.match_runs").where("owner_id", "=", ownerId).execute();
     await db.deleteFrom("decision.job_decisions").where("owner_id", "=", ownerId).execute();
     await db
+      .deleteFrom("profile.resume_review_decisions")
+      .where("owner_id", "=", ownerId)
+      .execute();
+    await db
+      .deleteFrom("profile.resume_review_suggestions")
+      .where("owner_id", "=", ownerId)
+      .execute();
+    await db
+      .deleteFrom("profile.resume_review_findings")
+      .where("owner_id", "=", ownerId)
+      .execute();
+    await db
+      .deleteFrom("profile.resume_review_runs")
+      .where("owner_id", "=", ownerId)
+      .execute();
+    await db.deleteFrom("profile.resume_documents").where("owner_id", "=", ownerId).execute();
+    await db
       .deleteFrom("application.case_requirement_evidence_links")
       .where("owner_id", "=", ownerId)
       .execute();
@@ -335,6 +352,19 @@ describeWithDatabase("owner, export and tombstone retention", () => {
       privateSnapshotRevision: randomUUID(),
       applicationCase: randomUUID(),
       caseEvent: randomUUID(),
+      baseResumeDocument: randomUUID(),
+      baseResumeContent: randomUUID(),
+      baseResumeLayout: randomUUID(),
+      derivedResumeDocument: randomUUID(),
+      derivedResumeContent: randomUUID(),
+      resultResumeContent: randomUUID(),
+      resumeSection: randomUUID(),
+      resumeBlock: randomUUID(),
+      confirmedEvidence: randomUUID(),
+      reviewRun: randomUUID(),
+      reviewFinding: randomUUID(),
+      reviewSuggestion: randomUUID(),
+      reviewDecision: randomUUID(),
       staleTask: randomUUID(),
     };
     await db
@@ -424,7 +454,7 @@ describeWithDatabase("owner, export and tombstone retention", () => {
         document_revision_id: ids.document,
         revision: 1,
         base_revision: null,
-        evidence: JSON.stringify([]),
+        evidence: JSON.stringify([{ id: ids.confirmedEvidence, confirmed: true }]),
         content_hash: "1".repeat(64),
         confirmed_at: now,
       })
@@ -633,6 +663,241 @@ describeWithDatabase("owner, export and tombstone retention", () => {
         request_hash: "9".repeat(64),
       })
       .execute();
+    const semanticSections = [
+      {
+        id: ids.resumeSection,
+        ordinal: 0,
+        title: "项目经历",
+        blocks: [
+          {
+            id: ids.resumeBlock,
+            ordinal: 0,
+            text: "Synthetic confirmed resume statement.",
+            evidenceIds: [ids.confirmedEvidence],
+          },
+        ],
+      },
+    ];
+    await db
+      .insertInto("profile.resume_documents")
+      .values({
+        id: ids.baseResumeDocument,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        kind: "base",
+        title: "Retention base resume",
+        case_id: null,
+        detached_from_case_id: null,
+        job_context_kind: null,
+        published_job_id: null,
+        published_job_version_id: null,
+        requirement_set_id: null,
+        private_job_snapshot_id: null,
+        job_context_revision: null,
+        base_document_id: null,
+        base_document_revision_id: null,
+        evidence_revision_id: null,
+        current_content_revision_id: null,
+        current_layout_revision_id: null,
+        revision: 1,
+        creation_idempotency_key: `retention-base-resume-${suffix}`,
+        creation_request_hash: "a".repeat(64),
+        expires_at: null,
+        deleted_at: null,
+      })
+      .execute();
+    await db
+      .insertInto("profile.resume_document_revisions")
+      .values({
+        id: ids.baseResumeContent,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        resume_analysis_id: null,
+        revision: 2,
+        base_revision: 1,
+        schema_version: "resume-content-v1",
+        sections: JSON.stringify(semanticSections),
+        content_hash: "b".repeat(64),
+        confirmed_at: now,
+        document_id: ids.baseResumeDocument,
+        document_revision: 1,
+        base_document_revision_id: null,
+      })
+      .execute();
+    await db
+      .insertInto("profile.resume_layout_revisions")
+      .values({
+        id: ids.baseResumeLayout,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        document_id: ids.baseResumeDocument,
+        layout_revision: 1,
+        base_layout_revision: null,
+        schema_version: "resume-layout-v2",
+        template_key: "cn_classic_single_column",
+        section_order: JSON.stringify([ids.resumeSection]),
+        settings: JSON.stringify({
+          schemaVersion: "resume-layout-settings-v1",
+          fontSizeToken: "standard",
+          lineSpacingToken: "standard",
+          sectionSpacingToken: "standard",
+          colorToken: "charcoal",
+          pageBreakPolicy: "automatic",
+        }),
+        content_hash: "c".repeat(64),
+      })
+      .execute();
+    await db
+      .updateTable("profile.resume_documents")
+      .set({
+        current_content_revision_id: ids.baseResumeContent,
+        current_layout_revision_id: ids.baseResumeLayout,
+      })
+      .where("id", "=", ids.baseResumeDocument)
+      .executeTakeFirstOrThrow();
+    await db
+      .insertInto("profile.resume_documents")
+      .values({
+        id: ids.derivedResumeDocument,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        kind: "case_derived",
+        title: "Retention tailored resume",
+        case_id: ids.applicationCase,
+        detached_from_case_id: null,
+        job_context_kind: "private",
+        published_job_id: null,
+        published_job_version_id: null,
+        requirement_set_id: null,
+        private_job_snapshot_id: ids.privateSnapshot,
+        job_context_revision: 1,
+        base_document_id: ids.baseResumeDocument,
+        base_document_revision_id: ids.baseResumeContent,
+        evidence_revision_id: ids.evidence,
+        current_content_revision_id: null,
+        current_layout_revision_id: null,
+        revision: 1,
+        creation_idempotency_key: `retention-derived-resume-${suffix}`,
+        creation_request_hash: "d".repeat(64),
+        expires_at: null,
+        deleted_at: null,
+      })
+      .execute();
+    await db
+      .insertInto("profile.resume_document_revisions")
+      .values({
+        id: ids.derivedResumeContent,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        resume_analysis_id: null,
+        revision: 3,
+        base_revision: 2,
+        schema_version: "resume-content-v1",
+        sections: JSON.stringify(semanticSections),
+        content_hash: "e".repeat(64),
+        confirmed_at: now,
+        document_id: ids.derivedResumeDocument,
+        document_revision: 1,
+        base_document_revision_id: null,
+      })
+      .execute();
+    await db
+      .insertInto("profile.resume_document_revisions")
+      .values({
+        id: ids.resultResumeContent,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        resume_analysis_id: null,
+        revision: 4,
+        base_revision: 3,
+        schema_version: "resume-content-v1",
+        sections: JSON.stringify(semanticSections),
+        content_hash: "f".repeat(64),
+        confirmed_at: now,
+        document_id: ids.derivedResumeDocument,
+        document_revision: 2,
+        base_document_revision_id: ids.derivedResumeContent,
+      })
+      .execute();
+    await db
+      .updateTable("profile.resume_documents")
+      .set({ current_content_revision_id: ids.derivedResumeContent })
+      .where("id", "=", ids.derivedResumeDocument)
+      .executeTakeFirstOrThrow();
+    await db
+      .insertInto("profile.resume_review_runs")
+      .values({
+        id: ids.reviewRun,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        case_id: ids.applicationCase,
+        detached_from_case_id: null,
+        document_id: ids.derivedResumeDocument,
+        content_revision_id: ids.derivedResumeContent,
+        job_context_kind: "private",
+        published_job_id: null,
+        published_job_version_id: null,
+        requirement_set_id: null,
+        private_job_snapshot_id: ids.privateSnapshot,
+        job_context_revision: 1,
+        evidence_revision_id: ids.evidence,
+        mode: "template",
+        status: "pending",
+        revision: 1,
+        creation_idempotency_key: `retention-review-${suffix}`,
+        creation_request_hash: "1".repeat(64),
+        completed_at: null,
+        deleted_at: null,
+      })
+      .execute();
+    await db
+      .insertInto("profile.resume_review_findings")
+      .values({
+        id: ids.reviewFinding,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        review_run_id: ids.reviewRun,
+        category: "expression_clarity",
+        severity: "warning",
+        source_block_id: ids.resumeBlock,
+        evidence_ids: JSON.stringify([ids.confirmedEvidence]),
+        reason_code: "RETENTION_FIXTURE_FINDING",
+      })
+      .execute();
+    await db
+      .insertInto("profile.resume_review_suggestions")
+      .values({
+        id: ids.reviewSuggestion,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        review_run_id: ids.reviewRun,
+        finding_id: ids.reviewFinding,
+        target_type: "block",
+        target_ids: JSON.stringify([ids.resumeBlock]),
+        change_type: "rewrite_block",
+        suggested_text: "Synthetic evidence-backed rewrite.",
+        evidence_ids: JSON.stringify([ids.confirmedEvidence]),
+        decision: "pending",
+        revision: 1,
+      })
+      .execute();
+    await db
+      .insertInto("profile.resume_review_decisions")
+      .values({
+        id: ids.reviewDecision,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        review_run_id: ids.reviewRun,
+        suggestion_id: ids.reviewSuggestion,
+        document_id: ids.derivedResumeDocument,
+        based_on_suggestion_revision: 1,
+        idempotency_key_hash: "2".repeat(64),
+        decision: "accepted",
+        edited_text: null,
+        result_content_revision_id: ids.resultResumeContent,
+        reason_code: null,
+      })
+      .execute();
     const leaseOwner = `retention-stale-worker-${suffix}`;
     await db
       .insertInto("task_queue.tasks")
@@ -748,6 +1013,7 @@ describeWithDatabase("owner, export and tombstone retention", () => {
     const now = new Date();
     const session = await createAnonymousSession({ db, now });
     ownerIds.add(session.context.ownerId);
+    const ownerGraph = await insertOwnerGraph(session.context, `account-${randomUUID()}`);
     const accountId = randomUUID();
     const emailIdentityId = randomUUID();
     const taskId = randomUUID();
@@ -848,6 +1114,21 @@ describeWithDatabase("owner, export and tombstone retention", () => {
       owner: session.context,
       now: new Date(now.getTime() + 1),
     });
+    await expect(
+      db
+        .insertInto("profile.resume_review_findings")
+        .values({
+          owner_id: session.context.ownerId,
+          owner_epoch: session.context.ownerEpoch,
+          review_run_id: ownerGraph.reviewRun,
+          category: "expression_clarity",
+          severity: "warning",
+          source_block_id: ownerGraph.resumeBlock,
+          evidence_ids: JSON.stringify([ownerGraph.confirmedEvidence]),
+          reason_code: "LATE_REVIEW_RESULT",
+        })
+        .execute(),
+    ).rejects.toThrow(/OWNER_EPOCH_STALE/);
     const deletionTask = await db
       .updateTable("task_queue.tasks")
       .set({
@@ -903,6 +1184,22 @@ describeWithDatabase("owner, export and tombstone retention", () => {
       retention_mode: "anonymous_ttl",
       retention_expires_at: new Date(now.getTime() + 2),
     });
+    for (const table of [
+      "profile.resume_review_decisions",
+      "profile.resume_review_suggestions",
+      "profile.resume_review_findings",
+      "profile.resume_review_runs",
+      "profile.resume_layout_revisions",
+      "profile.resume_documents",
+    ] as const) {
+      expect(
+        await db
+          .selectFrom(table)
+          .select(sql<number>`count(*)::int`.as("count"))
+          .where("owner_id", "=", session.context.ownerId)
+          .executeTakeFirstOrThrow(),
+      ).toEqual({ count: 0 });
+    }
   });
 
   it("enforces 24h, 30d and 90d retention without crossing owners", async () => {
@@ -1354,6 +1651,12 @@ describeWithDatabase("owner, export and tombstone retention", () => {
     expect(deletedExpiredOwner.status).toBe("deleted");
     expect(Number(deletedExpiredOwner.epoch)).toBe(2);
     const ownerTables = [
+      "profile.resume_review_decisions",
+      "profile.resume_review_suggestions",
+      "profile.resume_review_findings",
+      "profile.resume_review_runs",
+      "profile.resume_layout_revisions",
+      "profile.resume_documents",
       "application.case_requirement_evidence_links",
       "application.case_questions",
       "application.case_requirement_states",

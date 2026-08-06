@@ -27,6 +27,7 @@ import { resumeDocumentV2ExpandMigration } from "./migrations/024_resume_documen
 import { identityAccountEmailExpandMigration } from "./migrations/025_identity_account_email_expand.js";
 import { applicationCaseLongLivedForwardRepairMigration } from "./migrations/026_application_case_long_lived_forward_repair.js";
 import { privateRequirementContextForwardRepairMigration } from "./migrations/026b_private_requirement_context_forward_repair.js";
+import { resumeDocumentReviewForwardRepairMigration } from "./migrations/027_resume_document_review_forward_repair.js";
 import type { Database } from "./types.js";
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -65,6 +66,7 @@ class StaticMigrationProvider implements MigrationProvider {
         applicationCaseLongLivedForwardRepairMigration,
       "026b_private_requirement_context_forward_repair":
         privateRequirementContextForwardRepairMigration,
+      "027_resume_document_review_forward_repair": resumeDocumentReviewForwardRepairMigration,
     };
   }
 }

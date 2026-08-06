@@ -6,7 +6,7 @@ import { createDatabase, type Database } from "../index.js";
 import { migrateToForTesting, migrateToLatest } from "../migrate.js";
 import { applicationCaseLongLivedForwardRepairMigration } from "../migrations/026_application_case_long_lived_forward_repair.js";
 import { privateRequirementContextForwardRepairMigration } from "../migrations/026b_private_requirement_context_forward_repair.js";
-import { applyResumeDocumentReviewForwardContract } from "./024f_resume_document_review.js";
+import { resumeDocumentReviewForwardRepairMigration } from "../migrations/027_resume_document_review_forward_repair.js";
 
 const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
@@ -14,7 +14,7 @@ const unknown = JSON.stringify({ state: "unknown", reason: "source_not_stated" }
 const known = (value: unknown, evidenceRef: string) =>
   JSON.stringify({ state: "known", value, evidenceRefs: [evidenceRef] });
 
-describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", () => {
+describeWithDatabase("migrations 026B and 027 Phase 2A forward repairs", () => {
   const ids = {
     organization: randomUUID(),
     source: randomUUID(),
@@ -36,8 +36,11 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
     baseDocument: randomUUID(),
     legacyContentRevision: randomUUID(),
     legacyLayoutRevision: randomUUID(),
+    legacyDerivedDocument: randomUUID(),
+    legacyDerivedContentRevision: randomUUID(),
     privateSnapshot: randomUUID(),
     privateSnapshotRevision: randomUUID(),
+    privateSnapshotRevision2: randomUUID(),
     privateCase: randomUUID(),
     privateEvent: randomUUID(),
     privateRequirementState: randomUUID(),
@@ -45,6 +48,8 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
     privateQuestion: randomUUID(),
     privateUnscopedQuestion: randomUUID(),
     semanticBaseRevision: randomUUID(),
+    semanticSection: randomUUID(),
+    semanticBlock: randomUUID(),
     strictLayoutRevision: randomUUID(),
     derivedDocument: randomUUID(),
     derivedContentRevision: randomUUID(),
@@ -260,7 +265,7 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
           resume_analysis_id: null,
           revision: 1,
           base_revision: null,
-          evidence: JSON.stringify([]),
+          evidence: JSON.stringify([{ id: "evidence-1", confirmed: true }]),
           content_hash: "d".repeat(64),
           confirmed_at: now,
           schema_version: "resume-evidence-v1",
@@ -471,8 +476,60 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
       .where("id", "=", ids.baseDocument)
       .execute();
 
+    await db
+      .insertInto("profile.resume_documents")
+      .values({
+        id: ids.legacyDerivedDocument,
+        owner_id: ids.owner,
+        owner_epoch: 1,
+        kind: "case_derived",
+        title: "Synthetic legacy public tailored resume",
+        case_id: ids.legacyCase,
+        published_job_id: ids.publishedJob,
+        published_job_version_id: ids.publishedVersion,
+        requirement_set_id: ids.requirementSet,
+        base_document_id: ids.baseDocument,
+        base_document_revision_id: ids.legacyContentRevision,
+        evidence_revision_id: ids.evidenceRevision,
+        current_content_revision_id: null,
+        current_layout_revision_id: null,
+        revision: 1,
+        creation_idempotency_key: `legacy-derived-${ids.legacyDerivedDocument}`,
+        creation_request_hash: "a".repeat(64),
+        expires_at: new Date("2026-08-20T00:00:00.000Z"),
+        deleted_at: null,
+      })
+      .execute();
+    await db
+      .insertInto("profile.resume_document_revisions")
+      .values({
+        id: ids.legacyDerivedContentRevision,
+        owner_id: ids.owner,
+        owner_epoch: 1,
+        resume_analysis_id: null,
+        revision: 2,
+        base_revision: 1,
+        schema_version: "resume-document-v2",
+        sections: JSON.stringify([
+          {
+            id: randomUUID(),
+            blocks: [{ id: randomUUID(), suggestionDecision: "accepted" }],
+          },
+        ]),
+        content_hash: "b".repeat(64),
+        confirmed_at: now,
+        document_id: ids.legacyDerivedDocument,
+        document_revision: 1,
+        base_document_revision_id: null,
+      })
+      .execute();
+    await db
+      .updateTable("profile.resume_documents")
+      .set({ current_content_revision_id: ids.legacyDerivedContentRevision })
+      .where("id", "=", ids.legacyDerivedDocument)
+      .execute();
+
     await migrateToLatest(db);
-    await applyResumeDocumentReviewForwardContract(db);
   }, 120_000);
 
   afterAll(async () => {
@@ -496,10 +553,8 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
         SELECT name FROM kysely_migration ORDER BY timestamp DESC LIMIT 1
       `.execute(emptyDb),
     ]);
-    expect(migration.rows[0]?.name).toBe("026b_private_requirement_context_forward_repair");
-    expect(emptyMigration.rows[0]?.name).toBe(
-      "026b_private_requirement_context_forward_repair",
-    );
+    expect(migration.rows[0]?.name).toBe("027_resume_document_review_forward_repair");
+    expect(emptyMigration.rows[0]?.name).toBe("027_resume_document_review_forward_repair");
 
     const accountOwner = await db
       .selectFrom("identity.owners")
@@ -594,11 +649,36 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
       contentSchema: "resume-document-v2",
       layoutSchema: "resume-layout-v1",
     });
+
+    const legacyDerived = await sql<{
+      contextKind: string;
+      contextRevision: number;
+      expiresAt: Date | null;
+      suggestionDecision: string;
+    }>`
+      SELECT
+        document.job_context_kind AS "contextKind",
+        document.job_context_revision AS "contextRevision",
+        document.expires_at AS "expiresAt",
+        revision.sections -> 0 -> 'blocks' -> 0 ->> 'suggestionDecision'
+          AS "suggestionDecision"
+      FROM profile.resume_documents AS document
+      JOIN profile.resume_document_revisions AS revision
+        ON revision.id = document.current_content_revision_id
+      WHERE document.id = ${ids.legacyDerivedDocument}
+    `.execute(db);
+    expect(legacyDerived.rows[0]).toMatchObject({
+      contextKind: "public",
+      contextRevision: 1,
+      suggestionDecision: "accepted",
+    });
+    expect(legacyDerived.rows[0]?.expiresAt).not.toBeNull();
   });
 
-  it("keeps migrations 026 and 026B rollback forward-only", async () => {
+  it("keeps migrations 026, 026B and 027 rollback forward-only", async () => {
     await applicationCaseLongLivedForwardRepairMigration.down?.(db);
     await privateRequirementContextForwardRepairMigration.down?.(db);
+    await resumeDocumentReviewForwardRepairMigration.down?.(db);
     const privateTable = await sql<{ name: string }>`
       SELECT to_regclass('application.private_job_snapshots')::text AS name
     `.execute(db);
@@ -1248,8 +1328,8 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
   });
 
   it("separates long-lived Resume content, strict layout and private Case references", async () => {
-    const sectionId = randomUUID();
-    const blockId = randomUUID();
+    const sectionId = ids.semanticSection;
+    const blockId = ids.semanticBlock;
     await sql`
       INSERT INTO profile.resume_document_revisions (
         id,
@@ -1270,8 +1350,8 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
         ${ids.owner},
         1,
         NULL,
+        3,
         2,
-        1,
         'resume-content-v1',
         ${JSON.stringify([
           {
@@ -1315,8 +1395,8 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
           ${ids.owner},
           1,
           NULL,
+          4,
           3,
-          2,
           'resume-content-v1',
           ${JSON.stringify([
             {
@@ -1331,7 +1411,7 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
           ${ids.semanticBaseRevision}
         )
       `.execute(db),
-    ).rejects.toMatchObject({ code: "23514" });
+    ).rejects.toThrow(/INVALID_RESUME_SEMANTIC_CONTENT/);
 
     const layoutSettings = {
       schemaVersion: "resume-layout-settings-v1",
@@ -1469,8 +1549,8 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
         ${ids.owner},
         1,
         NULL,
+        4,
         3,
-        2,
         'resume-content-v1',
         ${JSON.stringify([
           {
@@ -1511,6 +1591,36 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
   it("keeps Review decisions evidence-bound and separate from Resume content", async () => {
     const resultSectionId = randomUUID();
     const resultBlockId = randomUUID();
+    await db
+      .insertInto("application.private_job_snapshot_revisions")
+      .values({
+        id: ids.privateSnapshotRevision2,
+        owner_id: ids.owner,
+        owner_epoch: 1,
+        snapshot_id: ids.privateSnapshot,
+        content_revision: 2,
+        requirement_set_revision: 2,
+        title: "Synthetic private product intern v2",
+        company_name: "Synthetic private company",
+        source_label: "owner_pasted",
+        official_url: null,
+        source_provided: false,
+        content_text: "Synthetic private JD revision two.",
+        requirements: JSON.stringify([]),
+        content_hash: "c".repeat(64),
+      })
+      .execute();
+    await db
+      .updateTable("application.private_job_snapshots")
+      .set({ current_content_revision: 2, current_requirement_set_revision: 2 })
+      .where("id", "=", ids.privateSnapshot)
+      .executeTakeFirstOrThrow();
+    await db
+      .updateTable("application.application_cases")
+      .set({ job_context_revision: 2, revision: sql`revision + 1`, updated_at: sql`now()` })
+      .where("id", "=", ids.privateCase)
+      .executeTakeFirstOrThrow();
+
     await sql`
       INSERT INTO profile.resume_review_runs (
         id,
@@ -1558,6 +1668,27 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
         NULL
       )
     `.execute(db);
+    const pinnedVersions = await sql<{ caseRevision: number; reviewRevision: number }>`
+      SELECT
+        application_case.job_context_revision AS "caseRevision",
+        review.job_context_revision AS "reviewRevision"
+      FROM application.application_cases AS application_case
+      JOIN profile.resume_review_runs AS review ON review.case_id = application_case.id
+      WHERE review.id = ${ids.reviewRun}
+    `.execute(db);
+    expect(pinnedVersions.rows[0]).toEqual({ caseRevision: 2, reviewRevision: 1 });
+    await expect(
+      db
+        .updateTable("profile.resume_review_runs")
+        .set({
+          status: "superseded",
+          revision: 2,
+          completed_at: new Date(),
+          updated_at: new Date(),
+        })
+        .where("id", "=", ids.reviewRun)
+        .execute(),
+    ).rejects.toThrow(/INVALID_REVIEW_RUN_TRANSITION/);
     await sql`
       INSERT INTO profile.resume_review_findings (
         id,
@@ -1576,7 +1707,7 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
         ${ids.reviewRun},
         'expression_clarity',
         'warning',
-        ${randomUUID()},
+        ${ids.semanticBlock},
         ${JSON.stringify(["evidence-1"])}::jsonb,
         'EXPRESSION_TOO_VAGUE'
       )
@@ -1602,7 +1733,7 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
         ${ids.reviewRun},
         ${ids.finding},
         'block',
-        ${JSON.stringify([randomUUID()])}::jsonb,
+        ${JSON.stringify([ids.semanticBlock])}::jsonb,
         'rewrite_block',
         'Synthetic evidence-backed rewrite',
         ${JSON.stringify(["evidence-1"])}::jsonb,
@@ -1631,15 +1762,15 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
           ${ids.reviewRun},
           ${ids.finding},
           'block',
-          ${JSON.stringify([randomUUID()])}::jsonb,
+          ${JSON.stringify([ids.semanticBlock])}::jsonb,
           'rewrite_block',
           'Unsupported rewrite',
-          '[]'::jsonb,
+          ${JSON.stringify(["not-confirmed"])}::jsonb,
           'pending',
           1
         )
       `.execute(db),
-    ).rejects.toMatchObject({ code: "23514" });
+    ).rejects.toThrow(/REVIEW_EVIDENCE_NOT_CONFIRMED/);
 
     await sql`
       INSERT INTO profile.resume_document_revisions (
@@ -1661,8 +1792,8 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
         ${ids.owner},
         1,
         NULL,
+        5,
         4,
-        3,
         'resume-content-v1',
         ${JSON.stringify([
           {
@@ -1686,6 +1817,24 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
         ${ids.derivedContentRevision}
       )
     `.execute(db);
+    await expect(
+      db
+        .insertInto("profile.resume_review_decisions")
+        .values({
+          owner_id: ids.owner,
+          owner_epoch: 1,
+          review_run_id: ids.reviewRun,
+          suggestion_id: ids.suggestion,
+          document_id: ids.derivedDocument,
+          based_on_suggestion_revision: 1,
+          idempotency_key_hash: "7".repeat(64),
+          decision: "accepted",
+          edited_text: null,
+          result_content_revision_id: ids.derivedContentRevision,
+          reason_code: null,
+        })
+        .execute(),
+    ).rejects.toThrow(/REVIEW_DECISION_REQUIRES_NEW_CONTENT_REVISION/);
     await sql`
       INSERT INTO profile.resume_review_decisions (
         id,
@@ -1715,6 +1864,13 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
         NULL
       )
     `.execute(db);
+    expect(
+      await db
+        .selectFrom("profile.resume_review_suggestions")
+        .select(["decision", "revision"])
+        .where("id", "=", ids.suggestion)
+        .executeTakeFirstOrThrow(),
+    ).toEqual({ decision: "accepted", revision: 2 });
 
     const document = await sql<{ currentContentRevisionId: string | null }>`
       SELECT current_content_revision_id AS "currentContentRevisionId"
@@ -1743,7 +1899,7 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
           ${ids.reviewRun},
           ${ids.suggestion},
           ${ids.derivedDocument},
-          1,
+          2,
           ${"6".repeat(64)},
           'rejected',
           NULL,
@@ -1752,6 +1908,16 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
         )
       `.execute(db),
     ).rejects.toMatchObject({ code: "23514" });
+    await db
+      .updateTable("profile.resume_review_runs")
+      .set({
+        status: "completed",
+        revision: 2,
+        completed_at: new Date(),
+        updated_at: new Date(),
+      })
+      .where("id", "=", ids.reviewRun)
+      .executeTakeFirstOrThrow();
   });
 
   it("preserves selected assets after detaching and deleting a Case", async () => {
@@ -1806,6 +1972,55 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
   });
 
   it("keeps private and Review tables outside collector and aggregate creation outside match", async () => {
+    const privileges = await sql<{
+      collectorCanReadReview: boolean;
+      webCanInsertFinding: boolean;
+      matchCanInsertRun: boolean;
+      matchCanInsertFinding: boolean;
+      matchCanInsertSuggestion: boolean;
+      matchCanInsertDecision: boolean;
+    }>`
+      SELECT
+        has_table_privilege(
+          'aijob_collector_worker',
+          'profile.resume_review_runs',
+          'SELECT'
+        ) AS "collectorCanReadReview",
+        has_table_privilege(
+          'aijob_web_api',
+          'profile.resume_review_findings',
+          'INSERT'
+        ) AS "webCanInsertFinding",
+        has_table_privilege(
+          'aijob_match_worker',
+          'profile.resume_review_runs',
+          'INSERT'
+        ) AS "matchCanInsertRun",
+        has_table_privilege(
+          'aijob_match_worker',
+          'profile.resume_review_findings',
+          'INSERT'
+        ) AS "matchCanInsertFinding",
+        has_table_privilege(
+          'aijob_match_worker',
+          'profile.resume_review_suggestions',
+          'INSERT'
+        ) AS "matchCanInsertSuggestion",
+        has_table_privilege(
+          'aijob_match_worker',
+          'profile.resume_review_decisions',
+          'INSERT'
+        ) AS "matchCanInsertDecision"
+    `.execute(db);
+    expect(privileges.rows[0]).toEqual({
+      collectorCanReadReview: false,
+      webCanInsertFinding: false,
+      matchCanInsertRun: false,
+      matchCanInsertFinding: true,
+      matchCanInsertSuggestion: true,
+      matchCanInsertDecision: false,
+    });
+
     await expect(
       db.transaction().execute(async (transaction) => {
         await sql`SET LOCAL ROLE aijob_collector_worker`.execute(transaction);
@@ -1870,6 +2085,53 @@ describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", 
         `.execute(transaction);
       }),
     ).rejects.toMatchObject({ code: "42501" });
+  });
+
+  it("keeps a Resume until its Review graph is explicitly handled", async () => {
+    await expect(
+      db
+        .deleteFrom("profile.resume_documents")
+        .where("id", "=", ids.derivedDocument)
+        .execute(),
+    ).rejects.toMatchObject({ code: "23503" });
+
+    await db
+      .deleteFrom("profile.resume_review_decisions")
+      .where("review_run_id", "=", ids.reviewRun)
+      .execute();
+    await db
+      .deleteFrom("profile.resume_review_suggestions")
+      .where("review_run_id", "=", ids.reviewRun)
+      .execute();
+    await db
+      .deleteFrom("profile.resume_review_findings")
+      .where("review_run_id", "=", ids.reviewRun)
+      .execute();
+    await db.deleteFrom("profile.resume_review_runs").where("id", "=", ids.reviewRun).execute();
+
+    expect(
+      await db
+        .selectFrom("profile.resume_documents")
+        .select("id")
+        .where("id", "=", ids.derivedDocument)
+        .executeTakeFirst(),
+    ).toEqual({ id: ids.derivedDocument });
+
+    await db.deleteFrom("profile.resume_documents").where("id", "=", ids.derivedDocument).execute();
+    expect(
+      await db
+        .selectFrom("profile.resume_document_revisions")
+        .select(sql<number>`count(*)::int`.as("count"))
+        .where("document_id", "=", ids.derivedDocument)
+        .executeTakeFirstOrThrow(),
+    ).toEqual({ count: 0 });
+    expect(
+      await db
+        .selectFrom("profile.resume_documents")
+        .select("id")
+        .where("id", "=", ids.baseDocument)
+        .executeTakeFirst(),
+    ).toEqual({ id: ids.baseDocument });
   });
 
   it("lets the match-worker deletion path remove one owner private Case graph", async () => {
