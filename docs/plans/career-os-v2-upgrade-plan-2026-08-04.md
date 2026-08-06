@@ -1,11 +1,11 @@
 # Aijob 求职 OS 2.0 → Private Alpha 严格开发总计划
 
-- 状态：Phase 1A、Phase 1B、Phase 2 设计、Phase 2A-1 migration 023 与 Phase 2A-2 migration 024 accepted；当前只批准 Phase 2A-3 Interview/Debrief/Knowledge contracts + migrations 025-027
+- 状态：OS 2.0 初版已完成 Phase 1A/1B 与 migration 023/024；Phase 2R、023F/024F、身份隔离原型与正式 migration 025 已完成，当前执行 migration 026 ApplicationCase Long-Lived Forward Repair
 - 初版日期：2026-08-04
 - 严格化日期：2026-08-05
 - 决策者：coco
 - 当前分支：`codex/career-os-phase-1`
-- 关联决策：[ADR-0029](../decisions/0029-official-source-catalog-trust-boundary.md)、[ADR-0030](../decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md)
+- 关联决策：[ADR-0029](../decisions/0029-official-source-catalog-trust-boundary.md)、[ADR-0030](../decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md)、[ADR-0031](../decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md)
 - 动态进度：[MVP 路线与当前决策面板](../06-mvp-roadmap.md)
 
 本文只维护阶段定义、依赖、接口边界和 Gate。真实分母、当前唯一目标与下一决定只写入路线图；当前分支、未提交状态和接手入口只写入交接；每阶段命令、截图、风险和继续/修改/回退/停止决定写入独立证据。任何工程完成都不能把产品证据从 `E0` 自动提升。
@@ -31,13 +31,14 @@ flowchart LR
     K --> L
 ```
 
-单人开发初始估算约 108–177 个有效人日，不含参与者招募、云资源采购、审批和 7 天/72 小时强制观察窗口。每个 Gate 后重估，不把人日区间当发布日期。
+按新增 Phase 2R 修正后，单人开发初始估算约 110–181 个有效人日，不含参与者招募、云资源采购、审批和 7 天/72 小时强制观察窗口。每个 Gate 后重估，不把人日区间当发布日期。
 
 | 阶段 | 人日 | 唯一结果 | 当前状态 |
 |---|---:|---|---|
 | 基线收口 | 1–2 | 干净、可追溯的 Phase 1A 基线 | 已完成 |
 | Phase 1B | 4–6 | JD 能力与定制简历静态交互 Gate | 已通过 |
-| Phase 2 | 8–12 | 数据模型、契约、迁移和删除覆盖 | 当前唯一目标 |
+| Phase 2R | 2–4 | 修正长期资产、私有 JD、Resume Review、身份和唯一真源契约 | 已完成契约复核 |
+| Phase 2A | 8–12 | 按 Phase 2R 复核后的数据模型、契约、迁移和删除覆盖 | 进行中；长期 owner 为当前前置 |
 | Phase 3A Case PoC | 5–7 | 固定岗位版本的一岗一档 | 未开始 |
 | Phase 3B Resume V2 PoC | 10–14 | 两模板、编辑、确认、DOCX/打印 | 未开始 |
 | Phase 3C Interview PoC | 8–12 | 文字面试、反馈、复盘及模板降级 | 未开始 |
@@ -67,6 +68,10 @@ flowchart LR
 - Phase 6 与扩容顺序：Phase 4 通过后同时开放 Phase 5/6 产品收口和 G2/G3 供给两条工作流，最终在服务器就绪 Gate 汇合。
 - 暂无服务器：先做基础设施无关部署包；达到供给 Gate 后仍须 coco 明确授权供应商、地区、预算和数据路径。未授权时服务器 Gate 保持未通过。
 - `pending_review` 与邀请供给：本地可见不等于参与者可用；未完成准入的岗位不能计入 G4 分母，公共 `/v1/jobs` 继续为空。
+- OS 2.0 长期化冲突：ADR-0031 取代旧的“所有结构化 Career OS 数据最长 30 天”表述；用户创建/确认的职业资产默认长期保留并由用户主动删除，原始文件和临时解析数据仍最长 24 小时。
+- 公共/私有岗位边界：Case 不再只接受 `published_job_id`；公共岗位使用固定引用，私有 JD 使用 owner-only 快照，不进入公共目录、推荐、供给分母或跨用户去重。
+- Resume Review 边界：建议决定从正文 block 拆为独立 Review 聚合；正文只通过内容修订更新，布局只通过布局修订更新。
+- 旧入口唯一真源：`applications`/Case 工作台承载当前业务；`/resume`、`/recommendations`、`/insights` 只保留兼容跳转或只读历史，不得继续发展第二套写入模型。
 - 2026-08-05 `audit:ci` 冲突：仓库旧 override 固定到有漏洞的 `fast-uri` 3.1.4/4.1.1，已最小升级到 3.1.5/4.1.2 并恢复安全门。
 
 ### 2.3 每个纵向切片的固定流程
@@ -165,7 +170,23 @@ JD 能力页：
 
 退出决定：继续进入 Phase 2；不得回头把静态状态冒充持久化业务能力。
 
-### Phase 2：领域模型、契约和迁移
+### Phase 2R：OS 2.0 长期 Career OS 架构修正
+
+Phase 2R 是 025–027 之前的强制架构复核，不新增业务 UI，不调用真实 AI 或真实来源。它只修正会影响长期成品的共享契约：
+
+1. 以 ADR-0031 冻结长期资产生命周期、单项删除和 Case 选择性级联；区分职业资产、原始文件、导出物和无正文审计。
+2. 将 Case 岗位上下文改为 `PublicJobReference | PrivateJobSnapshot`，补 owner-only、非公共目录、无官方 URL 的诚实文案和版本差异契约。
+3. 将 Resume V2 固定为语义正文、布局修订、Review Run/Finding/Suggestion/Decision 三层模型，移除建议状态对正文 block 的绑定。
+4. 规划 `Account + EmailIdentity` 与邮箱验证码，保留匿名 owner 的本地兼容迁移；手机号短信、真实供应商和 BYOK 长期密钥不在本切片实现。
+5. 将 `case_events.event_data`、layout settings、review finding/suggestion 由任意 JSON 改为版本化 strict Schema。
+6. 明确旧 `/resume`、`/recommendations`、`/insights` 的兼容边界，冻结 `applications`/Case 为唯一业务真源。
+7. 复核 migrations 023/024 的 30 天约束和字段，给出继续、前向修复、回退或停止决定；没有该决定不得开始 025–027。
+
+退出 Gate：ADR、契约表、迁移影响矩阵、删除矩阵、旧路由真源规则、测试矩阵和 Phase 2R 证据报告齐全；不访问真实招聘来源、真实 AI、服务器或真实简历。
+
+Phase 2R 已完成实现前契约矩阵；023F/024F 的 contracts 与隔离 PostgreSQL 原型也已通过。原型复核发现匿名 `owner.retention_expires_at` 仍会在 30 天后拒绝访问并触发全量删除，因此正式迁移前必须先完成 `Account + EmailIdentity / 长期 owner` 前向契约；不得只放宽 Case/Resume TTL 后宣称长期生命周期已经成立。
+
+### Phase 2A：领域模型、契约和迁移
 
 只使用现有 PostgreSQL、模块化单体、认证、CSRF、任务队列和 `match-worker`；不新增数据库、Redis、消息总线、认证或 AI SDK。
 
@@ -173,7 +194,7 @@ JD 能力页：
 
 新增 `application` schema：
 
-- `application_cases`：owner、owner epoch、稳定岗位 ID、固定岗位版本、阶段、结果、乐观修订号、TTL、结束时间；同一 owner/稳定岗位只允许一个未结束 Case。
+- `application_cases`：owner、owner epoch、公共岗位引用或私有 JD 快照、固定岗位语义版本、阶段、结果、乐观修订号、删除状态和结束时间；同一 owner/同一岗位上下文只允许一个未结束 Case。
 - `case_events`：追加式阶段和行为事件，Case 内序号唯一，禁止原地更新。
 - `case_requirement_states`：要求三态、用户备注、修订号。
 - `case_requirement_evidence_links`：连接要求与已确认证据。
@@ -187,6 +208,7 @@ JD 能力页：
 - V1 只通过转换器读取；首次编辑才创建 V2 修订。
 - 模板和章节顺序使用独立不可变布局修订；换模板不得改变语义内容或证据 ID。
 - Case 派生简历固定基础简历修订、岗位版本和证据修订。
+- `ResumeContentRevision` 只保存结构化语义正文；`ResumeLayoutRevision` 只保存模板、章节顺序和受控布局 token；`ResumeReviewRun/Finding/Suggestion/Decision` 独立记录优化审查，建议状态不得写入正文 block。
 
 #### 2C Interview、Debrief、Knowledge
 
@@ -197,7 +219,7 @@ JD 能力页：
 - `knowledge_clips` 只保存 URL、标题、短摘要、适用场景、核验时间和用户笔记，不抓全文。
 - 新任务类型继续使用 PostgreSQL 队列和 `match-worker`。
 
-所有实体具备 owner 隔离、owner epoch、最长 30 天 TTL、删除墓碑和迟到任务拒绝；导出最长 24 小时，无正文审计最长 90 天。迁移只做 additive/expand；旧应用在新 Schema 下继续运行。退出 Gate：跨 owner、删除、到期、并发修订和迟到任务 PostgreSQL 集成测试通过。
+所有职业资产具备 owner 隔离、owner epoch、单项删除和迟到任务拒绝；默认不设置 30 天自动删除。原始上传/临时解析最长 24 小时，导出文件最长 24 小时，无正文审计最长 90 天。迁移只做 additive/expand；旧应用在新 Schema 下继续运行。退出 Gate：跨 owner、单项删除、选择性级联、并发修订和迟到任务 PostgreSQL 集成测试通过。
 
 ### Phase 3A：ApplicationCase PoC
 
@@ -255,7 +277,7 @@ JD 能力页：
 - `/resumes`：基础简历、Case 派生简历、模板和导出历史。
 - `/interviews`：跨 Case 文字练习历史和待练习项。
 - `/knowledge`：用户主动保存的引用式经验，不抓正文、不做社区。
-- `/settings/data`：数据范围、过期时间、导出和全部删除。
+- `/settings/data`：数据范围、单项删除、选择性级联、导出和全部删除；不以自动过期推动用户删除职业资产。
 - 公司研究只展示官方链接和用户短笔记，不扩展为新采集系统。
 
 退出 Gate：所有入口复用同一壳层、owner 和 Case；首屏不加载简历编辑器或面试模块；320px、200% 缩放和键盘全流程可用。
@@ -284,7 +306,7 @@ G3 定义：至少 3 个通过准入的确定性 canonical 来源连续运行 7 
 - 持久化邀请失败限流，不依赖单进程内存。
 - 简历解析在非特权、无外网、资源受限的独立部署单元。
 - PostgreSQL 恢复目标 `RPO ≤24h、RTO ≤8h`，并证明删除不会因恢复复活。
-- 原文确认后立即删除，异常最长 24 小时；结构化数据最长 30 天。
+- 原文确认后立即删除，异常最长 24 小时；职业资产默认长期保留并由用户主动删除。
 - 1000 岗、20 并发邀请会话下核心读取 p95 ≤750ms、错误率 <1%。
 - 日志、告警和错误正文不含简历、联系方式、提示词、密钥或完整模型输入。
 - AI 默认关闭；无供应商数据处理结论时只能用模板。
@@ -354,7 +376,7 @@ pnpm audit:ci
 CI Secret 扫描、文档链接/Schema 检查、数据库兼容验证
 ```
 
-必须覆盖 URL 刷新/前进/后退、非法 Case/标签、焦点恢复；Case 唯一性、版本固定/升级、并发冲突；V1 转换/V2 首次编辑/区块稳定/换模板；建议四态与 AI 降级；面试无效 Schema/证据/超时/限流/提示注入；跨 owner、CSRF、会话、TTL、墓碑、迟到任务与恢复；来源 SSRF/重定向/静默空/幂等/配额；1000 岗游标、冻结候选与部署负载。
+必须覆盖 URL 刷新/前进/后退、非法 Case/标签、焦点恢复；Case 唯一性、版本固定/升级、并发冲突；V1 转换/V2 首次编辑/区块稳定/换模板；Review 建议接受/编辑/拒绝与 AI 降级；面试无效 Schema/证据/超时/限流/提示注入；跨 owner、CSRF、会话、单项删除、选择性级联、删除墓碑、迟到任务与恢复不复活；来源 SSRF/重定向/静默空/幂等/配额；1000 岗游标、冻结候选与部署负载。
 
 PostgreSQL 集成测试未实际运行时必须写“未执行”，不得写“通过”。Phase 2 迁移 Gate 没有隔离 PostgreSQL 结果不能通过。
 
@@ -373,4 +395,4 @@ PostgreSQL 集成测试未实际运行时必须写“未执行”，不得写“
 - 主计划终点为 G4；公开 Beta、备案、公开运营和商业化只保留为 G5 后续 Gate。
 - 工期是有效工作量，不包含外部审批、采购、招募和观察期。
 
-Phase 2A-1 已通过 [ApplicationCase Core 验收](../evidence/product/career-os-v2/phase-2a1-application-case-core-acceptance-2026-08-05.md)，Phase 2A-2 已通过 [Resume Document V2 验收](../evidence/product/career-os-v2/phase-2a2-resume-document-v2-acceptance-2026-08-05.md)。当前唯一目标是 **Phase 2A-3 Interview/Debrief/Knowledge contracts + migrations 025-027**：只新增领域契约、additive schema、删除/TTL/迟到任务约束和离线/隔离测试，不注册 API，不调用真实 AI，不访问真实来源或真实简历。
+Phase 2A-1 已通过 [ApplicationCase Core 验收](../evidence/product/career-os-v2/phase-2a1-application-case-core-acceptance-2026-08-05.md)，Phase 2A-2 已通过 [Resume Document V2 验收](../evidence/product/career-os-v2/phase-2a2-resume-document-v2-acceptance-2026-08-05.md)。Phase 2R、023F/024F 与 [Identity Forward Contract](../evidence/product/career-os-v2/phase-2a-identity-forward-contract-acceptance-2026-08-06.md) 隔离原型已完成，[migration 025 身份前置](../evidence/product/career-os-v2/phase-2a-025-identity-account-email-expand-acceptance-2026-08-06.md) 已正式通过。当前唯一目标是 migration 026 ApplicationCase Long-Lived Forward Repair，之后才正式化 Resume Review；仍不注册 API、不调用真实 AI、不访问真实来源或真实简历。

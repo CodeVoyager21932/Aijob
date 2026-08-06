@@ -9,6 +9,13 @@ export interface OwnerScope {
   ownerEpoch: number;
 }
 
+export interface OwnerLifecycleState {
+  status: string;
+  epoch: number;
+  retention_mode: string;
+  retention_expires_at: Date | null;
+}
+
 export interface OwnerContext extends OwnerScope {
   sessionId: string;
   sessionExpiresAt: Date;
@@ -27,6 +34,25 @@ export function hashOpaqueToken(token: string): string {
 
 function createOpaqueToken(): string {
   return randomBytes(32).toString("base64url");
+}
+
+export function isActiveOwnerEpochState(
+  owner: OwnerLifecycleState | undefined,
+  expectedEpoch: number,
+  now: Date,
+): boolean {
+  if (
+    !owner ||
+    owner.status !== "active" ||
+    Number(owner.epoch) !== expectedEpoch
+  ) {
+    return false;
+  }
+  if (owner.retention_mode === "account_managed") return true;
+  if (owner.retention_mode !== "anonymous_ttl" || owner.retention_expires_at === null) {
+    return false;
+  }
+  return new Date(owner.retention_expires_at).getTime() > now.getTime();
 }
 
 export async function createAnonymousSession(input: {
@@ -100,17 +126,26 @@ export async function findActiveSession(input: {
       "session.expires_at",
       "owner.epoch as current_owner_epoch",
       "owner.status as owner_status",
+      "owner.retention_mode as owner_retention_mode",
+      "owner.retention_expires_at as owner_retention_expires_at",
     ])
     .where("session.token_hash", "=", hashOpaqueToken(input.sessionToken))
     .where("session.revoked_at", "is", null)
     .where("session.expires_at", ">", now)
-    .where("owner.retention_expires_at", ">", now)
     .executeTakeFirst();
 
   if (
     !row ||
-    row.owner_status !== "active" ||
-    Number(row.current_owner_epoch) !== Number(row.owner_epoch)
+    !isActiveOwnerEpochState(
+      {
+        status: row.owner_status,
+        epoch: Number(row.current_owner_epoch),
+        retention_mode: row.owner_retention_mode,
+        retention_expires_at: row.owner_retention_expires_at,
+      },
+      Number(row.owner_epoch),
+      now,
+    )
   ) {
     return null;
   }
@@ -160,16 +195,11 @@ export async function assertActiveOwnerEpoch(
 ): Promise<void> {
   const owner = await db
     .selectFrom("identity.owners")
-    .select(["status", "epoch", "retention_expires_at"])
+    .select(["status", "epoch", "retention_mode", "retention_expires_at"])
     .where("id", "=", ownerId)
     .forUpdate()
     .executeTakeFirst();
-  if (
-    !owner ||
-    owner.status !== "active" ||
-    Number(owner.epoch) !== ownerEpoch ||
-    new Date(owner.retention_expires_at).getTime() <= now.getTime()
-  ) {
+  if (!isActiveOwnerEpochState(owner, ownerEpoch, now)) {
     throw new Error("OWNER_EPOCH_STALE");
   }
 }

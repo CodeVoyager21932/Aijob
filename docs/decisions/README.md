@@ -33,6 +33,7 @@
 - [ADR-0028：以容量型来源族推进 Private Alpha 供给](0028-capacity-first-private-alpha-supply.md)
 - [ADR-0029：企业官网与官方 ATS 构成岗位目录唯一真源](0029-official-source-catalog-trust-boundary.md)
 - [ADR-0030：升级为岗位中心求职 OS 并先统一交互架构](0030-adopt-job-centric-career-os-and-interaction-first-integration.md)
+- [ADR-0031：将 Career OS 2.0 修正为长期职业资产架构](0031-long-lived-career-os-architecture-realignment-2026-08-06.md)
 
 尚未接受的提案：
 

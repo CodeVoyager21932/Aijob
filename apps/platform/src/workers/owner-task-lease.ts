@@ -1,5 +1,6 @@
 import type { Database } from "@aijob/database";
 import type { Kysely, Transaction } from "kysely";
+import { isActiveOwnerEpochState } from "../identity/session-repository.js";
 
 export interface OwnerTaskLease {
   taskId: string;
@@ -31,7 +32,7 @@ export async function assertOwnerTaskLease(
 ): Promise<void> {
   const owner = await transaction
     .selectFrom("identity.owners")
-    .select(["status", "epoch", "retention_expires_at"])
+    .select(["status", "epoch", "retention_mode", "retention_expires_at"])
     .where("id", "=", lease.ownerId)
     .forUpdate()
     .executeTakeFirst();
@@ -40,9 +41,7 @@ export async function assertOwnerTaskLease(
       ? owner !== undefined &&
         (owner.status === "deletion_pending" || owner.status === "deleted") &&
         Number(owner.epoch) === lease.ownerEpoch + 1
-      : owner?.status === "active" &&
-        Number(owner.epoch) === lease.ownerEpoch &&
-        new Date(owner.retention_expires_at).getTime() > now.getTime();
+      : isActiveOwnerEpochState(owner, lease.ownerEpoch, now);
   if (!ownerIsValid) {
     throw new OwnerTaskLeaseLostError();
   }

@@ -3,12 +3,19 @@ import { describe, expect, it } from "vitest";
 
 import {
   ApplicationCaseCursorSchema,
+  ApplicationCaseEventSchema,
   ApplicationCaseSchema,
+  ApplicationCaseWithJobContextSchema,
   CaseOutcomeSchema,
   CaseStageSchema,
   CreateApplicationCaseRequestSchema,
+  CreateApplicationCaseWithJobContextRequestSchema,
   CreateCaseQuestionRequestSchema,
   InterviewModeSchema,
+  JobContextSchema,
+  LegacyApplicationCaseEventSchema,
+  PrivateJobSnapshotSchema,
+  PublicJobReferenceSchema,
   PutCaseRequirementEvidenceLinksRequestSchema,
   RequirementEvidenceStateSchema,
   ResumeSuggestionDecisionSchema,
@@ -22,6 +29,8 @@ const ids = {
   job: randomUUID(),
   version: randomUUID(),
   requirementSet: randomUUID(),
+  snapshot: randomUUID(),
+  event: randomUUID(),
 };
 
 const activeCase = {
@@ -81,9 +90,9 @@ describe("ApplicationCase contracts", () => {
         endedAt: "2026-08-05T01:00:00.000Z",
       }).success,
     ).toBe(true);
-    expect(
-      ApplicationCaseSchema.safeParse({ ...activeCase, outcome: "offer" }).success,
-    ).toBe(false);
+    expect(ApplicationCaseSchema.safeParse({ ...activeCase, outcome: "offer" }).success).toBe(
+      false,
+    );
     expect(
       ApplicationCaseSchema.safeParse({
         ...activeCase,
@@ -113,6 +122,153 @@ describe("ApplicationCase contracts", () => {
         expectedRevision: 1,
         question: "岗位是否接受 2027 届学生？",
         expiresAt: "2026-09-04T00:00:00.000Z",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("keeps public and private job contexts mutually exclusive", () => {
+    expect(
+      PublicJobReferenceSchema.safeParse({
+        kind: "public",
+        publishedJobId: ids.job,
+        publishedJobVersionId: ids.version,
+        requirementSetId: ids.requirementSet,
+        officialUrl: "https://careers.example.com/jobs/1",
+      }).success,
+    ).toBe(true);
+    expect(
+      PrivateJobSnapshotSchema.safeParse({
+        kind: "private",
+        snapshotId: ids.snapshot,
+        ownerId: ids.owner,
+        title: "产品实习生",
+        companyName: null,
+        sourceLabel: "用户粘贴",
+        contentRevision: 1,
+        requirementSetRevision: 1,
+        sourceProvided: false,
+      }).success,
+    ).toBe(true);
+    expect(
+      JobContextSchema.safeParse({
+        kind: "private",
+        snapshotId: ids.snapshot,
+        ownerId: ids.owner,
+        title: "产品实习生",
+        companyName: null,
+        sourceLabel: "用户粘贴",
+        contentRevision: 1,
+        requirementSetRevision: 1,
+        sourceProvided: false,
+        publishedJobId: ids.job,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts long-lived private cases without exposing server-owned create fields", () => {
+    expect(
+      ApplicationCaseWithJobContextSchema.safeParse({
+        id: ids.case,
+        ownerId: ids.owner,
+        ownerEpoch: 1,
+        jobContext: {
+          kind: "private",
+          snapshotId: ids.snapshot,
+          ownerId: ids.owner,
+          title: "算法工程实习生",
+          companyName: "示例公司",
+          sourceLabel: "用户粘贴",
+          contentRevision: 2,
+          requirementSetRevision: 1,
+          sourceProvided: false,
+        },
+        stage: "interested",
+        outcome: null,
+        revision: 1,
+        endedAt: null,
+        deletedAt: null,
+        createdAt: "2026-08-06T00:00:00.000Z",
+        updatedAt: "2026-08-06T00:00:00.000Z",
+      }).success,
+    ).toBe(true);
+    expect(
+      CreateApplicationCaseWithJobContextRequestSchema.safeParse({
+        jobContext: {
+          kind: "private",
+          snapshotId: ids.snapshot,
+          contentRevision: 2,
+          ownerId: ids.owner,
+          publicVisibility: true,
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      CreateApplicationCaseWithJobContextRequestSchema.safeParse({
+        jobContext: {
+          kind: "public",
+          publishedJobId: ids.job,
+          publishedJobVersionId: ids.version,
+        },
+        publishedJobId: ids.job,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("validates new event payloads by event type and rejects body leakage", () => {
+    const event = {
+      id: ids.event,
+      caseId: ids.case,
+      sequence: 1,
+      eventType: "stage_transitioned" as const,
+      actorType: "owner" as const,
+      eventData: {
+        schemaVersion: "case-event-v1" as const,
+        fromStage: "interested" as const,
+        toStage: "preparing" as const,
+        outcome: null,
+        reasonCode: "USER_CONFIRMED",
+      },
+      createdAt: "2026-08-06T00:00:00.000Z",
+    };
+    expect(ApplicationCaseEventSchema.safeParse(event).success).toBe(true);
+    for (const leakedField of ["jdText", "resumeText", "answer", "modelInput"]) {
+      expect(
+        ApplicationCaseEventSchema.safeParse({
+          ...event,
+          eventData: { ...event.eventData, [leakedField]: "不应进入事件的数据" },
+        }).success,
+      ).toBe(false);
+    }
+    expect(
+      ApplicationCaseEventSchema.safeParse({
+        ...event,
+        eventType: "question_added",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("requires an explicit read-only marker for untyped legacy events", () => {
+    expect(
+      LegacyApplicationCaseEventSchema.safeParse({
+        id: ids.event,
+        caseId: ids.case,
+        sequence: 1,
+        eventType: "case_created",
+        actorType: "system",
+        eventData: { historicalField: "preserved without write-back" },
+        legacyReadOnly: true,
+        createdAt: "2026-08-05T00:00:00.000Z",
+      }).success,
+    ).toBe(true);
+    expect(
+      LegacyApplicationCaseEventSchema.safeParse({
+        id: ids.event,
+        caseId: ids.case,
+        sequence: 1,
+        eventType: "case_created",
+        actorType: "system",
+        eventData: { historicalField: "not safe for a new write" },
+        createdAt: "2026-08-05T00:00:00.000Z",
       }).success,
     ).toBe(false);
   });

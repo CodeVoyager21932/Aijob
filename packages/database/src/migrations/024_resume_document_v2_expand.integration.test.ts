@@ -3,7 +3,7 @@ import { type Kysely, sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createDatabase, type Database } from "../index.js";
-import { migrateToLatest } from "../migrate.js";
+import { migrateToForTesting } from "../migrate.js";
 
 const databaseUrl = process.env.AIJob_TEST_DATABASE_URL ?? process.env.AIJOB_TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
@@ -28,7 +28,7 @@ describeWithDatabase("resume document V2 expand migration", () => {
     const testUrl = new URL(adminUrl);
     testUrl.pathname = `/${databaseName}`;
     db = createDatabase(testUrl.toString());
-    await migrateToLatest(db);
+    await migrateToForTesting(db, "024_resume_document_v2_expand");
 
     const now = new Date();
     await db

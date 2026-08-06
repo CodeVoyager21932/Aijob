@@ -143,15 +143,7 @@ export async function getResumeAnalysis(input: {
   now?: Date;
 }): Promise<StoredResumeAnalysis | null> {
   const now = input.now ?? new Date();
-  await assertActiveOwnerEpoch(input.db, input.ownerId, input.ownerEpoch);
-  const owner = await input.db
-    .selectFrom("identity.owners")
-    .select("retention_expires_at")
-    .where("id", "=", input.ownerId)
-    .executeTakeFirst();
-  if (!owner || asDate(owner.retention_expires_at).getTime() <= now.getTime()) {
-    throw new Error("OWNER_RETENTION_EXPIRED");
-  }
+  await assertActiveOwnerEpoch(input.db, input.ownerId, input.ownerEpoch, now);
   const row = await input.db
     .selectFrom("profile.resume_analyses")
     .select([

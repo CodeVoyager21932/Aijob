@@ -380,12 +380,19 @@ export async function processOwnerDeletion(input: {
         .deleteFrom("identity.owner_sessions")
         .where("owner_id", "=", input.ownerId)
         .execute();
+      await sql`
+        SELECT identity.purge_account_identity_for_owner(
+          ${input.ownerId}::uuid,
+          ${input.requestedOwnerEpoch}::bigint
+        )
+      `.execute(transaction);
 
       await transaction
         .updateTable("identity.owners")
         .set({
           status: "deleted",
           deleted_at: now,
+          retention_mode: "anonymous_ttl",
           retention_expires_at: now,
           last_seen_at: now,
         })

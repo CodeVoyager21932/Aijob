@@ -8,7 +8,7 @@
 >
 > 本文取代 [PRD v0.1](01-prd-v0.1.md) 作为当前实现契约。完成本文只表示 `G2 Local Complete MVP` 可评审，产品证据仍保持 `E0`；2 人校准和 6 人正式验证在完整 MVP 后进行。
 >
-> 2026-08-05 校准：ADR-0027 的 100 家/1000 岗及结构指标已取代旧 30–40 家/300–500 岗供给门；ADR-0029 把用户岗位真源收紧为企业官网和官网确认的官方 ATS；ADR-0030 把产品实现组织为 Career OS Phase 1A–6。300–500 仅指 G2 通过后冻结的 G1 研究子集。
+> 2026-08-06 校准：ADR-0027 的 100 家/1000 岗及结构指标已取代旧 30–40 家/300–500 岗供给门；ADR-0029 把用户岗位真源收紧为企业官网和官网确认的官方 ATS；ADR-0030 把产品实现组织为 Career OS Phase 1A–6；ADR-0031 取代本文的职业资产 30 天自动删除规则，改为长期保存和用户主动删除。运行代码在 Identity Forward Contract 与正式迁移通过前仍处于历史兼容期。
 
 ## 1. 产品结果与完成定义
 
@@ -43,7 +43,7 @@ Aijob 的本地完整 MVP 必须在 coco 的电脑上跑通以下闭环：
 - 确定性三轴匹配、版本化推荐、五态岗位决定。
 - 确定性 JD 洞察、样本门槛、官方原句追溯和已确认简历证据对照。
 - OpenAI-compatible 模型适配器、受控 AI 简历优化、模板降级、逐段确认和 ATS 友好 DOCX 导出。
-- 原文最小保留、30 天结构化数据期限、用户主动删除和迟到任务拒绝。
+- 原文/临时解析最长 24 小时、职业资产长期保存、用户主动删除和迟到任务拒绝。
 
 ### 2.2 不在本轮
 
@@ -109,7 +109,7 @@ Aijob 的本地完整 MVP 必须在 coco 的电脑上跑通以下闭环：
 - **REQ-SESSION-001**：localhost 首次访问自动创建匿名 owner 会话；不收集手机号、邮箱或密码。
 - **REQ-SESSION-002**：会话 Cookie 使用 `HttpOnly + SameSite=Strict`；生产邀请环境额外启用 `Secure`。
 - **REQ-SESSION-003**：所有用户对象由服务端会话派生 owner，客户端不能指定 `owner_id`。
-- **REQ-SESSION-004**：所有 owner 数据固定 `owner_expires_at`，最长 30 天，普通访问和新修订不能续期。
+- **REQ-SESSION-004**：匿名 owner 在认领账号前继续使用固定最长 30 天兼容期限；已验证 account 的职业资产不因 session 到期自动删除，session 仍须短期过期和可撤销。
 - **REQ-SESSION-005**：写操作校验 Origin/Fetch Metadata 和 CSRF；对象不存在与越权使用相同外部响应。
 
 ### 5.2 简历输入和隔离解析
@@ -173,7 +173,7 @@ Aijob 的本地完整 MVP 必须在 coco 的电脑上跑通以下闭环：
 - **REQ-DELETE-002**：删除覆盖文件/原文、事实、偏好、证据、匹配、推荐、简历优化、导出文件、岗位决定和 owner 产品事件。
 - **REQ-DELETE-003**：迟到任务写入必须因 owner epoch 或墓碑失效而被拒绝。
 - **REQ-DELETE-004**：删除状态提供处理中、成功和失败重试；不得假报成功。
-- **REQ-DELETE-005**：结构化 owner 数据最多保留 30 天；不含正文的删除/安全审计最多保留 90 天。
+- **REQ-DELETE-005**：职业资产默认长期保留并支持单项或全部删除；原文/临时解析和导出最长 24 小时，不含正文的删除/安全审计最多保留 90 天。
 
 ## 6. 页面范围
 
@@ -198,7 +198,7 @@ Aijob 的本地完整 MVP 必须在 coco 的电脑上跑通以下闭环：
 - `GET /jobs`、`GET /jobs/{id}`。
 - `POST /resume-analyses`、`GET /resume-analyses/{id}`。
 - `PUT /profile/facts`、`PUT /profile/preferences`、`PUT /profile/evidence`。
-- `GET /profile/document`、`PUT /profile/evidence-selection`：复用确认后保留 30 天的结构化简历区块并重选证据，不恢复已删除原文。
+- `GET /profile/document`、`PUT /profile/evidence-selection`：兼容读取确认后的结构化简历区块并重选证据，不恢复已删除原文；新写入最终收口到 Resume V2/Case 真源。
 - `POST /match-runs`、`GET /match-runs/{id}`。
 - `POST /recommendation-runs`、`GET /recommendation-runs/{id}`。
 - `POST /job-insight-runs`、`GET /job-insight-runs/{id}`。

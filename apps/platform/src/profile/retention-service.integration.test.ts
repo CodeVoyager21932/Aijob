@@ -19,7 +19,7 @@ import {
   updateTailoringSegment,
 } from "../tailoring/service.js";
 import { type OwnerTaskLease, withOwnerTaskLease } from "../workers/owner-task-lease.js";
-import { processOwnerDeletion } from "./deletion-service.js";
+import { processOwnerDeletion, requestOwnerDeletion } from "./deletion-service.js";
 import {
   AUDIT_AND_TOMBSTONE_RETENTION_MS,
   enqueueExpiredOwnerDeletions,
@@ -634,6 +634,167 @@ describeWithDatabase("owner, export and tombstone retention", () => {
       .execute();
     return { ownerId: session.context.ownerId, deletionId, auditId };
   }
+
+  it("keeps account-managed owners active and purges their identity on deletion", async () => {
+    const now = new Date();
+    const session = await createAnonymousSession({ db, now });
+    ownerIds.add(session.context.ownerId);
+    const accountId = randomUUID();
+    const emailIdentityId = randomUUID();
+    const taskId = randomUUID();
+    const leaseOwner = `account-owner-lease-${randomUUID()}`;
+
+    await db.transaction().execute(async (transaction) => {
+      await transaction
+        .insertInto("identity.accounts")
+        .values({
+          id: accountId,
+          owner_id: session.context.ownerId,
+          status: "active",
+          revision: 1,
+          created_at: now,
+          updated_at: now,
+          deleted_at: null,
+        })
+        .execute();
+      await transaction
+        .updateTable("identity.owners")
+        .set({ retention_mode: "account_managed", retention_expires_at: null })
+        .where("id", "=", session.context.ownerId)
+        .executeTakeFirstOrThrow();
+    });
+    await db
+      .insertInto("identity.email_identities")
+      .values({
+        id: emailIdentityId,
+        account_id: accountId,
+        status: "active",
+        email_lookup_hash: "a".repeat(64),
+        email_ciphertext: Buffer.from("encrypted-email"),
+        email_nonce: Buffer.alloc(12, 1),
+        email_auth_tag: Buffer.alloc(16, 2),
+        encryption_key_version: "identity-test-v1",
+        verified_at: now,
+        revoked_at: null,
+        created_at: now,
+        updated_at: now,
+      })
+      .execute();
+    await db
+      .insertInto("task_queue.tasks")
+      .values({
+        id: taskId,
+        task_type: "match_run",
+        owner_id: session.context.ownerId,
+        owner_epoch: session.context.ownerEpoch,
+        payload: JSON.stringify({ runId: randomUUID() }),
+        idempotency_key: `account-owner-task-${taskId}`,
+        status: "running",
+        attempt: 1,
+        max_attempts: 3,
+        available_at: now,
+        backoff_policy: JSON.stringify({ kind: "fixed", seconds: 1 }),
+        lease_owner: leaseOwner,
+        lease_until: new Date(now.getTime() + 60_000),
+        heartbeat_at: now,
+        fencing_token: 1,
+        last_error_code: null,
+        last_error_summary: null,
+        completed_at: null,
+      })
+      .execute();
+
+    expect(await findActiveSession({ db, sessionToken: session.sessionToken, now })).toMatchObject({
+      ownerId: session.context.ownerId,
+      ownerEpoch: session.context.ownerEpoch,
+    });
+    await expect(
+      assertActiveOwnerEpoch(db, session.context.ownerId, session.context.ownerEpoch, now),
+    ).resolves.toBeUndefined();
+    await expect(
+      withOwnerTaskLease(
+        db,
+        {
+          taskId,
+          taskType: "match_run",
+          ownerId: session.context.ownerId,
+          ownerEpoch: session.context.ownerEpoch,
+          leaseOwner,
+          fencingToken: 1,
+        },
+        async () => "active",
+      ),
+    ).resolves.toBe("active");
+    await enqueueExpiredOwnerDeletions({ db, now });
+    expect(
+      await db
+        .selectFrom("decision.owner_deletions")
+        .select("id")
+        .where("owner_id", "=", session.context.ownerId)
+        .executeTakeFirst(),
+    ).toBeUndefined();
+
+    const requested = await requestOwnerDeletion({
+      db,
+      owner: session.context,
+      now: new Date(now.getTime() + 1),
+    });
+    const deletionTask = await db
+      .updateTable("task_queue.tasks")
+      .set({
+        status: "running",
+        attempt: 1,
+        lease_owner: leaseOwner,
+        lease_until: new Date(now.getTime() + 60_000),
+        heartbeat_at: now,
+        fencing_token: 1,
+      })
+      .where("task_type", "=", "owner_deletion")
+      .where("owner_id", "=", session.context.ownerId)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    await processOwnerDeletion({
+      db,
+      deletionId: requested.deletion.id,
+      ownerId: session.context.ownerId,
+      requestedOwnerEpoch: session.context.ownerEpoch,
+      lease: {
+        taskId: deletionTask.id,
+        taskType: "owner_deletion",
+        ownerId: session.context.ownerId,
+        ownerEpoch: session.context.ownerEpoch,
+        leaseOwner,
+        fencingToken: 1,
+      },
+      now: new Date(now.getTime() + 2),
+    });
+
+    expect(
+      await db
+        .selectFrom("identity.accounts")
+        .select("id")
+        .where("id", "=", accountId)
+        .executeTakeFirst(),
+    ).toBeUndefined();
+    expect(
+      await db
+        .selectFrom("identity.email_identities")
+        .select("id")
+        .where("id", "=", emailIdentityId)
+        .executeTakeFirst(),
+    ).toBeUndefined();
+    expect(
+      await db
+        .selectFrom("identity.owners")
+        .select(["status", "retention_mode", "retention_expires_at"])
+        .where("id", "=", session.context.ownerId)
+        .executeTakeFirstOrThrow(),
+    ).toMatchObject({
+      status: "deleted",
+      retention_mode: "anonymous_ttl",
+      retention_expires_at: new Date(now.getTime() + 2),
+    });
+  });
 
   it("enforces 24h, 30d and 90d retention without crossing owners", async () => {
     const now = new Date();

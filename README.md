@@ -1,6 +1,6 @@
 # Aijob：可信官方岗位驱动的求职 OS
 
-> 2026-08-05：coco 已接受 [ADR-0030](docs/decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md)，产品升级为“可信官方岗位驱动的完整求职 OS”。Phase 1A/1B、[Phase 2 领域契约设计](docs/plans/career-os-phase-2-domain-contract-and-migration-design-2026-08-05.md)、ApplicationCase migration 023 和 Resume Document V2 migration 024 已通过各自 Gate；当前唯一切片是 Phase 2A-3 Interview/Debrief/Knowledge contracts + migrations 025-027。没有隔离 PostgreSQL 结果不得通过迁移 Gate，新增来源扩容继续暂缓。100 家企业 / 1000 条岗位的外部 Alpha 硬门槛没有取消，完整顺序见 [严格开发总计划](docs/plans/career-os-v2-upgrade-plan-2026-08-04.md)。
+> 2026-08-06：coco 已接受 [ADR-0031](docs/decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md)。长期 owner 身份前置已由 migration 025 正式注册并通过；当前唯一切片为 `Phase 2A-026 ApplicationCase Long-Lived Forward Repair`。没有真实招聘来源、真实 AI、真实邮件、服务器或真实简历进入本阶段，完整顺序见 [严格开发总计划](docs/plans/career-os-v2-upgrade-plan-2026-08-04.md)。
 
 这是一个待验证的产品项目，面向**未来 30 天真实投递实习岗位、已有中文简历、近期使用过多个官方渠道的中国大陆在校生**。它只把企业官方招聘网站和经企业官网确认的官方 ATS 中当前存在的具体岗位整理为可追溯信息；高校就业网站、政府页面、公众号和其他二手页面只用于发现企业及其官网方向。系统依据用户确认过的约束与经历证据，帮助用户完成投递、暂缓或放弃的高质量决定，最终回到企业官网或官方 ATS 投递。
 
@@ -10,17 +10,17 @@
 
 | 项目 | 当前值 |
 |---|---|
-| 快照日期 | 2026-08-05 |
-| 当前阶段 | Career OS 2.0 Phase 2；migration 023/024 Gate 已通过，当前只做 Phase 2A-3 Interview/Debrief/Knowledge contracts 与 migrations 025-027，不接 API、真实 AI 或真实数据。100/1000 供给与服务器 Gate 通过前，G0/G1 继续暂停 |
+| 快照日期 | 2026-08-06 |
+| 当前阶段 | Career OS 2.0 Phase 2A；migration 025 已完成长期 owner、Account、EmailIdentity 与验证码 challenge 的 additive 身份前置，当前正式化长期 ApplicationCase。100/1000 供给与服务器 Gate 通过前，G0/G1 继续暂停 |
 | 当前范围 | 干净验收库 `aijob_alpha` 为 22 条可信可见活动岗位、3 家企业、3 个官方 ATS 来源；距离硬门槛仍缺 978 岗、97 家。SME 为 2/3 家、14/22 岗，人工来源为 0；Alpha 与公共岗位均为 0。开发库 14/2 及纠偏前 231/149/29 只保留为历史运行事实 |
 | 协议校准 | 尚未开始；供给硬门槛和服务器就绪 Gate 通过后，只有 coco 明确启动才做 2 人校准；历史可核验记录仍为 0/2 |
 | 正式实验 | 暂停；供给硬门槛、服务器就绪 Gate 与 G0 通过后再做 6 人正式任务和 72 小时回访 |
 | 历史研究样本 | 5 条本地产品/运营岗位；不等于完整 MVP 目录 |
 | 当前证据 | E0：尚无可复核目标用户行为证据，两个产品假设均未判定 |
-| 当前实现策略 | 保留现有 PostgreSQL、模块化单体、可信来源门、受控 AI 和删除边界；先统一求职工作台交互架构，再建设 ApplicationCase、简历 V2 和文字面试，一岗闭环通过后恢复容量型官方 ATS 扩容 |
+| 当前实现策略 | 保留现有 PostgreSQL、模块化单体、可信来源门和受控 AI 边界；以 Case 工作台为唯一业务真源，职业资产目标为长期保留并由用户主动删除，私有 JD 仅 owner 可见；长期 owner 身份前置已完成，下一步依序注册 Case/Resume 前向迁移 |
 | 来源发现进度 | 已按 ADR-0019 完成 1000/1000 家企业/机构审查记录；34 个来源配置中 12 个为 canonical（7 个活动确定性、2 个浏览器提醒、3 个硬冲突暂停），22 个高校等来源均降级为 `discovery_only`。当前审计没有 `capacity` 就绪候选 |
-| 工程切片 | 迁移 019–022 已落实统一岗位资格、岗位级新鲜度、运行角色和删除权限；Alpha 邀请门同时保护前端与后端 API，PDF/DOCX 在受限子进程解析，100 家/1000 岗候选冻结链已通过 PostgreSQL 集成验证；公共版本仍为 0 |
-| AI 状态 | 单个 `sourceBlockId` 的真实建议稿、要求/证据引用、未选区块保留和真实章节 DOCX 已通过；公开环境继续关闭 |
+| 工程切片 | 迁移 019–025 已落实统一岗位资格、岗位级新鲜度、运行角色、ApplicationCase/Resume V2 additive 基础与长期 owner 身份前置；Alpha 邀请门同时保护前端与后端 API，PDF/DOCX 在受限子进程解析，100 家/1000 岗候选冻结链已通过 PostgreSQL 集成验证；公共版本仍为 0 |
+| AI 状态 | 现有建议稿证据保留；下一步将审查建议从 Resume 正文 block 中分离，公开环境继续关闭 |
 
 以上内容只用于帮助首次阅读者定位本次文档基线。后续动态阶段、样本进度、Gate 状态和下一决策日期只更新到 [MVP 路线与当前决策面板](docs/06-mvp-roadmap.md)；如有差异，以该面板为准。
 
@@ -132,7 +132,7 @@ pnpm build
 - 当前本地假设验证全部职能实习决策，不混入校招全职或社会招聘；历史 `/research/*` 产品/运营原型不代表当前范围。
 - Private Alpha 外部测试硬门槛为 100 家企业、1000 条可见活动实习岗位，运营缓冲为 110 家、1100 条；SME 不少于企业数 50% 和可见岗位数 40%。产品、运营、工程技术、数据与 AI 各至少 100 条，其余 8 个职能各至少 15 条；北京、上海、深圳、广州、杭州、成都、武汉、南京各至少 40 条地点已知岗位；人工/浏览器来源不超过企业数 20% 和可见岗位数 10%。来源通过准入与持续性 Gate、供给硬门槛及后续服务器就绪 Gate 后，才启动外部测试。
 - localhost 自动建立匿名 owner；后续邀请环境不收手机号或邮箱。用户可上传 PDF/DOCX 或粘贴文本，只有请求个性化匹配/优化时才处理简历。
-- 简历原文在证据确认后立即删除，任何情况下最长不超过 24 小时；确认后的有序简历区块、结构化事实、偏好和原子证据保留 30 天并可提前删除。
+- 简历原文在证据确认后立即删除，任何情况下最长不超过 24 小时；确认后的有序简历区块、结构化事实、偏好和原子证据默认长期保留，由用户主动删除。长期资产生命周期以 [ADR-0031](docs/decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md) 为准。
 - 规则与模板必须在 AI 不可用时独立完成资格、匹配和推荐；本地 MVP 实现受控 AI 简历优化，公开启用仍需供应商、合规与至少 4/6 用户增量 Gate。
 - 不抓取 BOSS、实习僧、牛客等综合招聘平台，不绕过登录、验证码、访问控制或明确禁止的边界。
 - 不自动填写、批量投递或模拟登录；用户始终在官方页面完成申请。

@@ -6,6 +6,14 @@
 >
 > 上位事实源：[ADR-0030](../../../decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md)、[升级计划](../../../plans/career-os-v2-upgrade-plan-2026-08-04.md)
 
+长期架构修正以 [ADR-0031](../../../decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md) 和 [Phase 2R 对齐报告](phase-2r-architecture-realignment-2026-08-06.md) 为准；本目录的概念图仍只约束布局、信息层级和交互关系，不覆盖长期生命周期、私有 JD 或 Resume Review 数据契约。
+
+Phase 2A 前向修复的代码证据见 [Forward Contract 与隔离原型验收](phase-2a-forward-contract-acceptance-2026-08-06.md)。该记录证明 37 项 contract tests、023F/024F 隔离 PostgreSQL 7/7 和串行全仓 617 项测试通过；原型尚未注册为正式 migration，并因匿名 owner 的 30 天全量删除依赖作出“修改”决定。
+
+身份前置的后续证据见 [Identity Forward Contract 验收](phase-2a-identity-forward-contract-acceptance-2026-08-06.md)。长期 owner、Account、EmailIdentity 和验证码 challenge contracts/隔离原型分别 5/5 通过；决定继续正式 migration 025，但尚未发送真实邮件或注册身份 API。
+
+正式身份前置见 [Phase 2A-025 Identity Account/Email Expand 验收](phase-2a-025-identity-account-email-expand-acceptance-2026-08-06.md)。migration 025、owner active predicate、anonymous-only retention、运行角色与身份删除兼容已通过 6 项迁移测试和串行全仓 629 项测试；下一唯一切片为 ApplicationCase Long-Lived Forward Repair。
+
 本目录的三张 PNG 只用于表达布局、信息层级和交互关系，不是字段、状态、品牌命名或业务规则的事实源。图片中的示例公司、岗位、日期、链接、用户身份、数据和建议文案都是静态演示，不得进入业务夹具、用户事实或产品证据。
 
 ## 统一采用项

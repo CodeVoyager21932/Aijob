@@ -1,9 +1,16 @@
 import { z } from "zod";
 
-import { RevisionSchema, TimestampSchema, UuidSchema } from "./common.js";
+import {
+  HttpsUrlSchema,
+  RevisionSchema,
+  Sha256Schema,
+  TimestampSchema,
+  UuidSchema,
+} from "./common.js";
 import {
   CaseOutcomeSchema,
   CaseStageSchema,
+  InterviewModeSchema,
   RequirementEvidenceStateSchema,
 } from "./enums.js";
 
@@ -31,11 +38,63 @@ export const CaseQuestionStatusSchema = z.enum(["open", "answered", "dismissed"]
 export type CaseQuestionStatus = z.infer<typeof CaseQuestionStatusSchema>;
 
 const OptionalReasonSchema = z.string().trim().min(1).max(2_000).nullable().optional();
+const ReasonCodeSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(100)
+  .regex(/^[A-Z0-9_]+$/);
 const RequirementIdSchema = z.string().trim().min(1).max(200);
 const EvidenceIdSchema = z.string().trim().min(1).max(200);
+const CaseEventSchemaVersionSchema = z.literal("case-event-v1");
+
+export const JobContextKindSchema = z.enum(["public", "private"]);
+export type JobContextKind = z.infer<typeof JobContextKindSchema>;
+
+export const PublicJobReferenceSchema = z
+  .object({
+    kind: z.literal("public"),
+    publishedJobId: UuidSchema,
+    publishedJobVersionId: UuidSchema,
+    requirementSetId: UuidSchema,
+    officialUrl: HttpsUrlSchema,
+  })
+  .strict();
+export type PublicJobReference = z.infer<typeof PublicJobReferenceSchema>;
+
+export const PrivateJobSnapshotSchema = z
+  .object({
+    kind: z.literal("private"),
+    snapshotId: UuidSchema,
+    ownerId: UuidSchema,
+    title: z.string().trim().min(1).max(240),
+    companyName: z.string().trim().min(1).max(240).nullable(),
+    sourceLabel: z.string().trim().min(1).max(120),
+    officialUrl: HttpsUrlSchema.optional(),
+    contentRevision: RevisionSchema,
+    requirementSetRevision: RevisionSchema,
+    sourceProvided: z.boolean(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.officialUrl !== undefined && !value.sourceProvided) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["sourceProvided"],
+        message: "A private snapshot with an official URL must mark its source as provided",
+      });
+    }
+  });
+export type PrivateJobSnapshot = z.infer<typeof PrivateJobSnapshotSchema>;
+
+export const JobContextSchema = z.union([PublicJobReferenceSchema, PrivateJobSnapshotSchema]);
+export type JobContext = z.infer<typeof JobContextSchema>;
 
 function requireResolvedOutcome(
-  value: { stage: z.infer<typeof CaseStageSchema>; outcome: z.infer<typeof CaseOutcomeSchema> | null },
+  value: {
+    stage: z.infer<typeof CaseStageSchema>;
+    outcome: z.infer<typeof CaseOutcomeSchema> | null;
+  },
   context: z.RefinementCtx,
 ): void {
   if (value.stage === "resolved" && value.outcome === null) {
@@ -92,6 +151,71 @@ export const CreateApplicationCaseRequestSchema = z
   .strict();
 export type CreateApplicationCaseRequest = z.infer<typeof CreateApplicationCaseRequestSchema>;
 
+const ApplicationCaseWithJobContextFieldsSchema = z.object({
+  id: UuidSchema,
+  ownerId: UuidSchema,
+  ownerEpoch: z.number().int().positive(),
+  jobContext: JobContextSchema,
+  stage: CaseStageSchema,
+  outcome: CaseOutcomeSchema.nullable(),
+  revision: RevisionSchema,
+  endedAt: TimestampSchema.nullable(),
+  deletedAt: TimestampSchema.nullable(),
+  createdAt: TimestampSchema,
+  updatedAt: TimestampSchema,
+});
+
+export const ApplicationCaseWithJobContextSchema =
+  ApplicationCaseWithJobContextFieldsSchema.strict().superRefine((value, context) => {
+    requireResolvedOutcome(value, context);
+    if ((value.stage === "resolved") !== (value.endedAt !== null)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["endedAt"],
+        message: "endedAt must be present exactly when the case is resolved",
+      });
+    }
+    if (value.jobContext.kind === "private" && value.jobContext.ownerId !== value.ownerId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["jobContext", "ownerId"],
+        message: "Private job snapshots must belong to the case owner",
+      });
+    }
+  });
+export type ApplicationCaseWithJobContext = z.infer<typeof ApplicationCaseWithJobContextSchema>;
+
+const CreatePublicApplicationCaseContextSchema = z
+  .object({
+    kind: z.literal("public"),
+    publishedJobId: UuidSchema,
+    publishedJobVersionId: UuidSchema,
+  })
+  .strict();
+
+const CreatePrivateApplicationCaseContextSchema = z
+  .object({
+    kind: z.literal("private"),
+    snapshotId: UuidSchema,
+    contentRevision: RevisionSchema,
+  })
+  .strict();
+
+export const CreateApplicationCaseJobContextSchema = z.discriminatedUnion("kind", [
+  CreatePublicApplicationCaseContextSchema,
+  CreatePrivateApplicationCaseContextSchema,
+]);
+export type CreateApplicationCaseJobContext = z.infer<typeof CreateApplicationCaseJobContextSchema>;
+
+export const CreateApplicationCaseWithJobContextRequestSchema = z
+  .object({
+    jobContext: CreateApplicationCaseJobContextSchema,
+  })
+  .strict();
+export type CreateApplicationCaseWithJobContextRequest = z.infer<
+  typeof CreateApplicationCaseWithJobContextRequestSchema
+>;
+
 export const TransitionApplicationCaseRequestSchema = z
   .object({
     expectedRevision: RevisionSchema,
@@ -134,18 +258,254 @@ export const ListApplicationCasesQuerySchema = z
   .strict();
 export type ListApplicationCasesQuery = z.infer<typeof ListApplicationCasesQuerySchema>;
 
-export const ApplicationCaseEventSchema = z
+const CaseCreatedEventDataSchema = z
   .object({
-    id: UuidSchema,
-    caseId: UuidSchema,
-    sequence: RevisionSchema,
-    eventType: CaseEventTypeSchema,
-    actorType: CaseEventActorTypeSchema,
-    eventData: z.record(z.string(), z.unknown()),
-    createdAt: TimestampSchema,
+    schemaVersion: CaseEventSchemaVersionSchema,
+    initialStage: CaseStageSchema,
+    jobContextKind: JobContextKindSchema,
+    jobContextRevision: RevisionSchema,
   })
   .strict();
+
+const StageTransitionedEventDataSchema = z
+  .object({
+    schemaVersion: CaseEventSchemaVersionSchema,
+    fromStage: CaseStageSchema,
+    toStage: CaseStageSchema,
+    outcome: CaseOutcomeSchema.nullable(),
+    reasonCode: ReasonCodeSchema.nullable(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    requireResolvedOutcome({ stage: value.toStage, outcome: value.outcome }, context);
+    if (value.fromStage === value.toStage) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["toStage"],
+        message: "A stage transition must change the stage",
+      });
+    }
+  });
+
+const OutcomeCorrectedEventDataSchema = z
+  .object({
+    schemaVersion: CaseEventSchemaVersionSchema,
+    fromOutcome: CaseOutcomeSchema,
+    toOutcome: CaseOutcomeSchema,
+    reasonCode: ReasonCodeSchema,
+  })
+  .strict()
+  .refine((value) => value.fromOutcome !== value.toOutcome, {
+    path: ["toOutcome"],
+    message: "An outcome correction must change the outcome",
+  });
+
+const JobVersionUpgradedEventDataSchema = z
+  .object({
+    schemaVersion: CaseEventSchemaVersionSchema,
+    fromPublishedJobVersionId: UuidSchema,
+    toPublishedJobVersionId: UuidSchema,
+    fromRequirementSetId: UuidSchema,
+    toRequirementSetId: UuidSchema,
+    reasonCode: ReasonCodeSchema.nullable(),
+  })
+  .strict()
+  .refine((value) => value.fromPublishedJobVersionId !== value.toPublishedJobVersionId, {
+    path: ["toPublishedJobVersionId"],
+    message: "A job version upgrade must change the pinned version",
+  });
+
+const RequirementStateChangedEventDataSchema = z
+  .object({
+    schemaVersion: CaseEventSchemaVersionSchema,
+    requirementSetId: UuidSchema,
+    requirementId: RequirementIdSchema,
+    fromState: RequirementEvidenceStateSchema.nullable(),
+    toState: RequirementEvidenceStateSchema,
+    reasonCode: ReasonCodeSchema.nullable(),
+  })
+  .strict()
+  .refine((value) => value.fromState === null || value.fromState !== value.toState, {
+    path: ["toState"],
+    message: "A requirement state event must change the state",
+  });
+
+const RequirementEvidenceChangedEventDataSchema = z
+  .object({
+    schemaVersion: CaseEventSchemaVersionSchema,
+    requirementSetId: UuidSchema,
+    requirementId: RequirementIdSchema,
+    evidenceRevisionId: UuidSchema,
+    evidenceIds: z
+      .array(EvidenceIdSchema)
+      .min(1)
+      .max(500)
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: "evidenceIds must be unique",
+      }),
+    action: z.enum(["linked", "removed"]),
+  })
+  .strict();
+
+const QuestionAddedEventDataSchema = z
+  .object({
+    schemaVersion: CaseEventSchemaVersionSchema,
+    questionId: UuidSchema,
+    requirementId: RequirementIdSchema.nullable(),
+  })
+  .strict();
+
+const QuestionUpdatedEventDataSchema = z
+  .object({
+    schemaVersion: CaseEventSchemaVersionSchema,
+    questionId: UuidSchema,
+    fromStatus: CaseQuestionStatusSchema,
+    toStatus: CaseQuestionStatusSchema,
+  })
+  .strict()
+  .refine((value) => value.fromStatus !== value.toStatus, {
+    path: ["toStatus"],
+    message: "A question update must change the status",
+  });
+
+const OfficialLinkOpenedEventDataSchema = z
+  .object({
+    schemaVersion: CaseEventSchemaVersionSchema,
+    jobContextKind: JobContextKindSchema,
+    officialUrlHash: Sha256Schema,
+  })
+  .strict();
+
+const ManualApplicationRecordedEventDataSchema = z
+  .object({
+    schemaVersion: CaseEventSchemaVersionSchema,
+    fromStage: CaseStageSchema,
+    toStage: z.literal("applied"),
+    reasonCode: ReasonCodeSchema.nullable(),
+  })
+  .strict()
+  .refine((value) => value.fromStage !== "applied", {
+    path: ["fromStage"],
+    message: "Manual application recording must newly enter the applied stage",
+  });
+
+const ResumeDocumentDerivedEventDataSchema = z
+  .object({
+    schemaVersion: CaseEventSchemaVersionSchema,
+    documentId: UuidSchema,
+    contentRevisionId: UuidSchema,
+  })
+  .strict();
+
+const InterviewStartedEventDataSchema = z
+  .object({
+    schemaVersion: CaseEventSchemaVersionSchema,
+    interviewSessionId: UuidSchema,
+    mode: InterviewModeSchema,
+  })
+  .strict();
+
+const DebriefConfirmedEventDataSchema = z
+  .object({
+    schemaVersion: CaseEventSchemaVersionSchema,
+    debriefId: UuidSchema,
+    evidenceRevisionId: UuidSchema.nullable(),
+  })
+  .strict();
+
+export const CaseEventDataSchema = z.union([
+  CaseCreatedEventDataSchema,
+  StageTransitionedEventDataSchema,
+  OutcomeCorrectedEventDataSchema,
+  JobVersionUpgradedEventDataSchema,
+  RequirementStateChangedEventDataSchema,
+  RequirementEvidenceChangedEventDataSchema,
+  QuestionAddedEventDataSchema,
+  QuestionUpdatedEventDataSchema,
+  OfficialLinkOpenedEventDataSchema,
+  ManualApplicationRecordedEventDataSchema,
+  ResumeDocumentDerivedEventDataSchema,
+  InterviewStartedEventDataSchema,
+  DebriefConfirmedEventDataSchema,
+]);
+export type CaseEventData = z.infer<typeof CaseEventDataSchema>;
+
+const ApplicationCaseEventFieldsSchema = z.object({
+  id: UuidSchema,
+  caseId: UuidSchema,
+  sequence: RevisionSchema,
+  actorType: CaseEventActorTypeSchema,
+  createdAt: TimestampSchema,
+});
+
+export const ApplicationCaseEventSchema = z.discriminatedUnion("eventType", [
+  ApplicationCaseEventFieldsSchema.extend({
+    eventType: z.literal("case_created"),
+    eventData: CaseCreatedEventDataSchema,
+  }).strict(),
+  ApplicationCaseEventFieldsSchema.extend({
+    eventType: z.literal("stage_transitioned"),
+    eventData: StageTransitionedEventDataSchema,
+  }).strict(),
+  ApplicationCaseEventFieldsSchema.extend({
+    eventType: z.literal("outcome_corrected"),
+    eventData: OutcomeCorrectedEventDataSchema,
+  }).strict(),
+  ApplicationCaseEventFieldsSchema.extend({
+    eventType: z.literal("job_version_upgraded"),
+    eventData: JobVersionUpgradedEventDataSchema,
+  }).strict(),
+  ApplicationCaseEventFieldsSchema.extend({
+    eventType: z.literal("requirement_state_changed"),
+    eventData: RequirementStateChangedEventDataSchema,
+  }).strict(),
+  ApplicationCaseEventFieldsSchema.extend({
+    eventType: z.literal("requirement_evidence_changed"),
+    eventData: RequirementEvidenceChangedEventDataSchema,
+  }).strict(),
+  ApplicationCaseEventFieldsSchema.extend({
+    eventType: z.literal("question_added"),
+    eventData: QuestionAddedEventDataSchema,
+  }).strict(),
+  ApplicationCaseEventFieldsSchema.extend({
+    eventType: z.literal("question_updated"),
+    eventData: QuestionUpdatedEventDataSchema,
+  }).strict(),
+  ApplicationCaseEventFieldsSchema.extend({
+    eventType: z.literal("official_link_opened"),
+    eventData: OfficialLinkOpenedEventDataSchema,
+  }).strict(),
+  ApplicationCaseEventFieldsSchema.extend({
+    eventType: z.literal("manual_application_recorded"),
+    eventData: ManualApplicationRecordedEventDataSchema,
+  }).strict(),
+  ApplicationCaseEventFieldsSchema.extend({
+    eventType: z.literal("resume_document_derived"),
+    eventData: ResumeDocumentDerivedEventDataSchema,
+  }).strict(),
+  ApplicationCaseEventFieldsSchema.extend({
+    eventType: z.literal("interview_started"),
+    eventData: InterviewStartedEventDataSchema,
+  }).strict(),
+  ApplicationCaseEventFieldsSchema.extend({
+    eventType: z.literal("debrief_confirmed"),
+    eventData: DebriefConfirmedEventDataSchema,
+  }).strict(),
+]);
 export type ApplicationCaseEvent = z.infer<typeof ApplicationCaseEventSchema>;
+
+export const LegacyApplicationCaseEventSchema = ApplicationCaseEventFieldsSchema.extend({
+  eventType: CaseEventTypeSchema,
+  eventData: z.record(z.string(), z.unknown()),
+  legacyReadOnly: z.literal(true),
+}).strict();
+export type LegacyApplicationCaseEvent = z.infer<typeof LegacyApplicationCaseEventSchema>;
+
+export const ApplicationCaseEventReadModelSchema = z.union([
+  ApplicationCaseEventSchema,
+  LegacyApplicationCaseEventSchema,
+]);
+export type ApplicationCaseEventReadModel = z.infer<typeof ApplicationCaseEventReadModelSchema>;
 
 export const CaseRequirementStateSchema = z
   .object({
@@ -169,9 +529,7 @@ export const PutCaseRequirementStateRequestSchema = z
     userNote: z.string().trim().max(2_000).nullable(),
   })
   .strict();
-export type PutCaseRequirementStateRequest = z.infer<
-  typeof PutCaseRequirementStateRequestSchema
->;
+export type PutCaseRequirementStateRequest = z.infer<typeof PutCaseRequirementStateRequestSchema>;
 
 export const CaseRequirementEvidenceLinkSchema = z
   .object({

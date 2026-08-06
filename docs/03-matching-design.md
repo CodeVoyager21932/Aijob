@@ -283,7 +283,7 @@ PostgreSQL 是这些对象的唯一持久化真源。工程 MVP 不部署向量�
 
 - 所有用户侧对象都带服务端确定的 `owner_id`，API 不接受客户端指定所有者。
 - 原文件和原始文本在用户完成证据确认后立即删除；未完成确认、异常中断或用户离开的记录也必须在提交后 24 小时内删除。
-- owner 建立时固定 `owner_expires_at`，最长不超过 30 天；`ProfileFact`、`JobPreference`、`ResumeEvidence`、`MatchRun`、`RecommendationRun`、`JobInsightRun`、`ResumeTailoringRun`、导出、`JobDecision` 和 owner 产品事件都不得晚于该时间。普通访问、新修订和再次确认均不能续期，用户可以提前删除。
+- 匿名 owner 在账号认领前继续受固定 `owner_expires_at` 兼容期限约束；已验证 account 的 `ProfileFact`、`JobPreference`、`ResumeEvidence`、Case、Resume 和复盘资产默认长期保留并由用户主动删除。导出和临时正文仍最长 24 小时，owner epoch 继续阻断删除后的迟到任务。
 - 删除请求立即撤销读取能力，并清理原文、结构化对象、任务载荷和缓存；审计记录只保留不含正文的结果。
 - 安全审计记录保留 90 天，不保存简历正文、岗位全文、提示词或可复用邀请令牌。
 

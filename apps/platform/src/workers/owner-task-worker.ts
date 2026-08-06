@@ -12,6 +12,7 @@ import {
 import { processResumeAnalysis, purgeExpiredResumeContent } from "../resume/analysis-service.js";
 import { purgeExpiredResumeExports } from "../tailoring/export-retention.js";
 import { processResumeExport, processTailoringRun } from "../tailoring/service.js";
+import { isActiveOwnerEpochState } from "../identity/session-repository.js";
 import { type OwnerTaskLease, OwnerTaskLeaseLostError } from "./owner-task-lease.js";
 
 const LEASE_MS = 60_000;
@@ -113,14 +114,10 @@ async function ownerStillActive(db: Kysely<Database>, task: TaskRow): Promise<bo
   const now = new Date();
   const owner = await db
     .selectFrom("identity.owners")
-    .select(["status", "epoch", "retention_expires_at"])
+    .select(["status", "epoch", "retention_mode", "retention_expires_at"])
     .where("id", "=", task.owner_id)
     .executeTakeFirst();
-  return (
-    owner?.status === "active" &&
-    Number(owner.epoch) === Number(task.owner_epoch) &&
-    new Date(owner.retention_expires_at).getTime() > now.getTime()
-  );
+  return isActiveOwnerEpochState(owner, Number(task.owner_epoch), now);
 }
 
 async function taskLeaseStillHeld(

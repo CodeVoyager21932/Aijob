@@ -1,7 +1,10 @@
 import { type JobDecision, JobDecisionSchema } from "@aijob/contracts";
 import type { Database } from "@aijob/database";
 import type { Kysely, Selectable, Transaction } from "kysely";
-import type { OwnerScope as OwnerContext } from "../identity/session-repository.js";
+import {
+  isActiveOwnerEpochState,
+  type OwnerScope as OwnerContext,
+} from "../identity/session-repository.js";
 import { ServiceError } from "../lib/service-error.js";
 
 function toIso(value: unknown): string {
@@ -27,16 +30,11 @@ async function lockActiveOwnerEpoch(
 ): Promise<void> {
   const currentOwner = await transaction
     .selectFrom("identity.owners")
-    .select(["status", "epoch", "retention_expires_at"])
+    .select(["status", "epoch", "retention_mode", "retention_expires_at"])
     .where("id", "=", owner.ownerId)
     .forUpdate()
     .executeTakeFirst();
-  if (
-    !currentOwner ||
-    currentOwner.status !== "active" ||
-    Number(currentOwner.epoch) !== owner.ownerEpoch ||
-    new Date(currentOwner.retention_expires_at).getTime() <= Date.now()
-  ) {
+  if (!isActiveOwnerEpochState(currentOwner, owner.ownerEpoch, new Date())) {
     throw new ServiceError(409, "OWNER_EPOCH_STALE", "个人数据访问已撤销，不能再保存岗位状态。");
   }
 }
@@ -116,7 +114,12 @@ export async function listJobDecisions(
     .where("decision.owner_epoch", "=", owner.ownerEpoch)
     .where("owner.status", "=", "active")
     .where("owner.epoch", "=", owner.ownerEpoch)
-    .where("owner.retention_expires_at", ">", new Date())
+    .where((expression) =>
+      expression.or([
+        expression("owner.retention_mode", "=", "account_managed"),
+        expression("owner.retention_expires_at", ">", new Date()),
+      ]),
+    )
     .orderBy("decision.updated_at", "desc")
     .execute();
   return rows.map(mapDecision);

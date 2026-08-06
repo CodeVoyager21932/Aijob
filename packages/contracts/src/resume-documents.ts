@@ -1,5 +1,5 @@
 import { z } from "zod";
-
+import { JobContextSchema } from "./application-cases.js";
 import {
   JsonRecordSchema,
   RevisionSchema,
@@ -12,11 +12,36 @@ import { ResumeSuggestionDecisionSchema } from "./enums.js";
 export const ResumeDocumentKindSchema = z.enum(["base", "case_derived"]);
 export type ResumeDocumentKind = z.infer<typeof ResumeDocumentKindSchema>;
 
-export const ResumeTemplateKeySchema = z.enum([
-  "cn_classic_single_column",
-  "cn_compact_technical",
-]);
+export const ResumeTemplateKeySchema = z.enum(["cn_classic_single_column", "cn_compact_technical"]);
 export type ResumeTemplateKey = z.infer<typeof ResumeTemplateKeySchema>;
+
+export const ResumeLayoutFontSizeTokenSchema = z.enum(["compact", "standard", "large"]);
+export type ResumeLayoutFontSizeToken = z.infer<typeof ResumeLayoutFontSizeTokenSchema>;
+
+export const ResumeLayoutSpacingTokenSchema = z.enum(["tight", "standard", "relaxed"]);
+export type ResumeLayoutSpacingToken = z.infer<typeof ResumeLayoutSpacingTokenSchema>;
+
+export const ResumeLayoutColorTokenSchema = z.enum(["black", "charcoal", "navy"]);
+export type ResumeLayoutColorToken = z.infer<typeof ResumeLayoutColorTokenSchema>;
+
+export const ResumeLayoutPageBreakPolicySchema = z.enum([
+  "automatic",
+  "keep_sections",
+  "compact_to_fit",
+]);
+export type ResumeLayoutPageBreakPolicy = z.infer<typeof ResumeLayoutPageBreakPolicySchema>;
+
+export const ResumeLayoutSettingsSchema = z
+  .object({
+    schemaVersion: z.literal("resume-layout-settings-v1"),
+    fontSizeToken: ResumeLayoutFontSizeTokenSchema,
+    lineSpacingToken: ResumeLayoutSpacingTokenSchema,
+    sectionSpacingToken: ResumeLayoutSpacingTokenSchema,
+    colorToken: ResumeLayoutColorTokenSchema,
+    pageBreakPolicy: ResumeLayoutPageBreakPolicySchema,
+  })
+  .strict();
+export type ResumeLayoutSettings = z.infer<typeof ResumeLayoutSettingsSchema>;
 
 const OrderedIdSchema = z.object({
   id: UuidSchema,
@@ -32,7 +57,11 @@ function requireUniqueOrdering<T extends { id: string; ordinal: number }>(
   const ordinals = new Set<number>();
   values.forEach((value, index) => {
     if (ids.has(value.id)) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: [...path, index, "id"], message: "IDs must be unique" });
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...path, index, "id"],
+        message: "IDs must be unique",
+      });
     }
     if (ordinals.has(value.ordinal)) {
       context.addIssue({
@@ -55,9 +84,11 @@ export type ResumeDocumentV2Block = z.infer<typeof ResumeDocumentV2BlockSchema>;
 export const ResumeDocumentV2SectionSchema = OrderedIdSchema.extend({
   title: z.string().trim().min(1).max(100),
   blocks: z.array(ResumeDocumentV2BlockSchema).min(1).max(500),
-}).strict().superRefine((section, context) => {
-  requireUniqueOrdering(section.blocks, context, ["blocks"]);
-});
+})
+  .strict()
+  .superRefine((section, context) => {
+    requireUniqueOrdering(section.blocks, context, ["blocks"]);
+  });
 export type ResumeDocumentV2Section = z.infer<typeof ResumeDocumentV2SectionSchema>;
 
 export const ResumeDocumentV2ContentSchema = z
@@ -82,6 +113,53 @@ export const ResumeDocumentV2ContentSchema = z
     });
   });
 export type ResumeDocumentV2Content = z.infer<typeof ResumeDocumentV2ContentSchema>;
+
+const EvidenceIdSchema = z.string().trim().min(1).max(200);
+
+export const ResumeSemanticBlockSchema = OrderedIdSchema.extend({
+  text: z.string().trim().min(1).max(10_000),
+  evidenceIds: z
+    .array(EvidenceIdSchema)
+    .max(500)
+    .refine((ids) => new Set(ids).size === ids.length, {
+      message: "evidenceIds must be unique",
+    }),
+}).strict();
+export type ResumeSemanticBlock = z.infer<typeof ResumeSemanticBlockSchema>;
+
+export const ResumeSemanticSectionSchema = OrderedIdSchema.extend({
+  title: z.string().trim().min(1).max(100),
+  blocks: z.array(ResumeSemanticBlockSchema).min(1).max(500),
+})
+  .strict()
+  .superRefine((section, context) => {
+    requireUniqueOrdering(section.blocks, context, ["blocks"]);
+  });
+export type ResumeSemanticSection = z.infer<typeof ResumeSemanticSectionSchema>;
+
+export const ResumeSemanticContentSchema = z
+  .object({
+    schemaVersion: z.literal("resume-content-v1"),
+    sections: z.array(ResumeSemanticSectionSchema).min(1).max(100),
+  })
+  .strict()
+  .superRefine((content, context) => {
+    requireUniqueOrdering(content.sections, context, ["sections"]);
+    const allIds = new Set(content.sections.map((section) => section.id));
+    content.sections.forEach((section, sectionIndex) => {
+      section.blocks.forEach((block, blockIndex) => {
+        if (allIds.has(block.id)) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["sections", sectionIndex, "blocks", blockIndex, "id"],
+            message: "Section and block IDs must be unique across the document",
+          });
+        }
+        allIds.add(block.id);
+      });
+    });
+  });
+export type ResumeSemanticContent = z.infer<typeof ResumeSemanticContentSchema>;
 
 const BaseDocumentReferenceSchema = z.object({
   kind: z.literal("base"),
@@ -153,13 +231,372 @@ export const ResumeDocumentLayoutRevisionSchema = z
     sectionOrder: z
       .array(UuidSchema)
       .max(100)
-      .refine((ids) => new Set(ids).size === ids.length, { message: "sectionOrder must be unique" }),
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: "sectionOrder must be unique",
+      }),
     settings: JsonRecordSchema,
     contentHash: Sha256Schema,
     createdAt: TimestampSchema,
   })
   .strict();
 export type ResumeDocumentLayoutRevision = z.infer<typeof ResumeDocumentLayoutRevisionSchema>;
+
+export const ResumeSemanticContentRevisionSchema = z
+  .object({
+    schemaVersion: z.literal("resume-content-revision-v1"),
+    id: UuidSchema,
+    documentId: UuidSchema,
+    ownerId: UuidSchema,
+    ownerEpoch: z.number().int().positive(),
+    documentRevision: RevisionSchema,
+    baseDocumentRevisionId: UuidSchema.nullable(),
+    contentHash: Sha256Schema,
+    confirmedAt: TimestampSchema,
+    createdAt: TimestampSchema,
+    content: ResumeSemanticContentSchema,
+  })
+  .strict();
+export type ResumeSemanticContentRevision = z.infer<typeof ResumeSemanticContentRevisionSchema>;
+
+export const ResumeDocumentLayoutRevisionV2Schema = z
+  .object({
+    schemaVersion: z.literal("resume-layout-v2"),
+    id: UuidSchema,
+    documentId: UuidSchema,
+    ownerId: UuidSchema,
+    ownerEpoch: z.number().int().positive(),
+    layoutRevision: RevisionSchema,
+    baseLayoutRevision: RevisionSchema.nullable(),
+    templateKey: ResumeTemplateKeySchema,
+    sectionOrder: z
+      .array(UuidSchema)
+      .max(100)
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: "sectionOrder must be unique",
+      }),
+    settings: ResumeLayoutSettingsSchema,
+    contentHash: Sha256Schema,
+    createdAt: TimestampSchema,
+  })
+  .strict();
+export type ResumeDocumentLayoutRevisionV2 = z.infer<typeof ResumeDocumentLayoutRevisionV2Schema>;
+
+export const PutResumeDocumentLayoutRevisionV2RequestSchema = z
+  .object({
+    expectedRevision: RevisionSchema,
+    templateKey: ResumeTemplateKeySchema,
+    sectionOrder: z
+      .array(UuidSchema)
+      .max(100)
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: "sectionOrder must be unique",
+      }),
+    settings: ResumeLayoutSettingsSchema,
+  })
+  .strict();
+export type PutResumeDocumentLayoutRevisionV2Request = z.infer<
+  typeof PutResumeDocumentLayoutRevisionV2RequestSchema
+>;
+
+export const ResumeReviewRunModeSchema = z.enum(["template", "controlled_ai"]);
+export type ResumeReviewRunMode = z.infer<typeof ResumeReviewRunModeSchema>;
+
+export const ResumeReviewRunStatusSchema = z.enum([
+  "pending",
+  "completed",
+  "failed",
+  "superseded",
+  "deleted",
+]);
+export type ResumeReviewRunStatus = z.infer<typeof ResumeReviewRunStatusSchema>;
+
+export const ResumeReviewRunSchema = z
+  .object({
+    schemaVersion: z.literal("resume-review-run-v1"),
+    id: UuidSchema,
+    ownerId: UuidSchema,
+    ownerEpoch: z.number().int().positive(),
+    caseId: UuidSchema.nullable(),
+    detachedFromCaseId: UuidSchema.nullable(),
+    documentId: UuidSchema,
+    contentRevisionId: UuidSchema,
+    jobContext: JobContextSchema,
+    evidenceRevisionId: UuidSchema,
+    mode: ResumeReviewRunModeSchema,
+    status: ResumeReviewRunStatusSchema,
+    revision: RevisionSchema,
+    completedAt: TimestampSchema.nullable(),
+    deletedAt: TimestampSchema.nullable(),
+    createdAt: TimestampSchema,
+    updatedAt: TimestampSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if ((value.caseId === null) === (value.detachedFromCaseId === null)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["detachedFromCaseId"],
+        message: "A review run must reference either an active or detached case",
+      });
+    }
+    if (value.jobContext.kind === "private" && value.jobContext.ownerId !== value.ownerId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["jobContext", "ownerId"],
+        message: "Private job snapshots must belong to the review owner",
+      });
+    }
+    const requiresCompletedAt = value.status === "completed" || value.status === "superseded";
+    const forbidsCompletedAt = value.status === "pending" || value.status === "failed";
+    if (
+      (requiresCompletedAt && value.completedAt === null) ||
+      (forbidsCompletedAt && value.completedAt !== null)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["completedAt"],
+        message: "completedAt must follow the review lifecycle",
+      });
+    }
+    if ((value.status === "deleted") !== (value.deletedAt !== null)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["deletedAt"],
+        message: "deletedAt must be present exactly when the review is deleted",
+      });
+    }
+  });
+export type ResumeReviewRun = z.infer<typeof ResumeReviewRunSchema>;
+
+export const ResumeReviewFindingCategorySchema = z.enum([
+  "content_relevance",
+  "evidence_support",
+  "expression_clarity",
+  "structure_order",
+  "ats_readability",
+]);
+export type ResumeReviewFindingCategory = z.infer<typeof ResumeReviewFindingCategorySchema>;
+
+export const ResumeReviewFindingSeveritySchema = z.enum(["info", "warning", "critical"]);
+export type ResumeReviewFindingSeverity = z.infer<typeof ResumeReviewFindingSeveritySchema>;
+
+const ResumeReviewReasonCodeSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(100)
+  .regex(/^[A-Z0-9_]+$/);
+
+export const ResumeReviewFindingSchema = z
+  .object({
+    schemaVersion: z.literal("resume-review-finding-v1"),
+    id: UuidSchema,
+    ownerId: UuidSchema,
+    ownerEpoch: z.number().int().positive(),
+    reviewRunId: UuidSchema,
+    category: ResumeReviewFindingCategorySchema,
+    severity: ResumeReviewFindingSeveritySchema,
+    sourceBlockId: UuidSchema,
+    evidenceIds: z
+      .array(EvidenceIdSchema)
+      .max(500)
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: "evidenceIds must be unique",
+      }),
+    reasonCode: ResumeReviewReasonCodeSchema,
+    createdAt: TimestampSchema,
+  })
+  .strict();
+export type ResumeReviewFinding = z.infer<typeof ResumeReviewFindingSchema>;
+
+export const ResumeReviewChangeTypeSchema = z.enum([
+  "rewrite_block",
+  "remove_block",
+  "split_block",
+  "merge_blocks",
+  "reorder_section",
+  "add_confirmed_evidence",
+]);
+export type ResumeReviewChangeType = z.infer<typeof ResumeReviewChangeTypeSchema>;
+
+export const ResumeReviewTargetTypeSchema = z.enum(["block", "section"]);
+export type ResumeReviewTargetType = z.infer<typeof ResumeReviewTargetTypeSchema>;
+
+export const ResumeReviewSuggestionSchema = z
+  .object({
+    schemaVersion: z.literal("resume-review-suggestion-v1"),
+    id: UuidSchema,
+    ownerId: UuidSchema,
+    ownerEpoch: z.number().int().positive(),
+    reviewRunId: UuidSchema,
+    findingId: UuidSchema,
+    targetType: ResumeReviewTargetTypeSchema,
+    targetIds: z.array(UuidSchema).min(1).max(500),
+    changeType: ResumeReviewChangeTypeSchema,
+    suggestedText: z.string().trim().min(1).max(10_000).nullable(),
+    evidenceIds: z
+      .array(EvidenceIdSchema)
+      .max(500)
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: "evidenceIds must be unique",
+      }),
+    decision: ResumeSuggestionDecisionSchema,
+    revision: RevisionSchema,
+    createdAt: TimestampSchema,
+    updatedAt: TimestampSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const uniqueTargetIds = new Set(value.targetIds);
+    if (uniqueTargetIds.size !== value.targetIds.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["targetIds"],
+        message: "targetIds must be unique",
+      });
+    }
+
+    const isLayoutChange = value.changeType === "reorder_section";
+    if ((value.targetType === "section") !== isLayoutChange) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["targetType"],
+        message: "Only section reordering may target sections",
+      });
+    }
+
+    if (value.changeType === "merge_blocks" && value.targetIds.length < 2) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["targetIds"],
+        message: "Merging blocks requires at least two target IDs",
+      });
+    }
+    if (isLayoutChange && value.targetIds.length < 2) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["targetIds"],
+        message: "Reordering sections requires at least two target IDs",
+      });
+    }
+    if (value.changeType !== "merge_blocks" && !isLayoutChange && value.targetIds.length !== 1) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["targetIds"],
+        message: "This change type requires exactly one target ID",
+      });
+    }
+
+    const removesText = value.changeType === "remove_block" || isLayoutChange;
+    if (removesText !== (value.suggestedText === null)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["suggestedText"],
+        message: "Only removal and layout suggestions may omit suggested text",
+      });
+    }
+
+    if (!removesText && value.evidenceIds.length === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["evidenceIds"],
+        message: "Text suggestions must cite confirmed evidence",
+      });
+    }
+  });
+export type ResumeReviewSuggestion = z.infer<typeof ResumeReviewSuggestionSchema>;
+
+export const ResumeReviewFinalDecisionSchema = z.enum(["accepted", "edited", "rejected"]);
+export type ResumeReviewFinalDecision = z.infer<typeof ResumeReviewFinalDecisionSchema>;
+
+export const ResumeReviewDecisionSchema = z
+  .object({
+    schemaVersion: z.literal("resume-review-decision-v1"),
+    id: UuidSchema,
+    ownerId: UuidSchema,
+    ownerEpoch: z.number().int().positive(),
+    reviewRunId: UuidSchema,
+    suggestionId: UuidSchema,
+    basedOnSuggestionRevision: RevisionSchema,
+    idempotencyKeyHash: Sha256Schema,
+    decision: ResumeReviewFinalDecisionSchema,
+    editedText: z.string().trim().min(1).max(10_000).nullable(),
+    resultContentRevisionId: UuidSchema.nullable(),
+    reasonCode: ResumeReviewReasonCodeSchema.nullable(),
+    createdAt: TimestampSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.decision === "accepted") {
+      if (
+        value.editedText !== null ||
+        value.resultContentRevisionId === null ||
+        value.reasonCode !== null
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["resultContentRevisionId"],
+          message: "Accepted suggestions require only a result revision",
+        });
+      }
+      return;
+    }
+    if (value.decision === "edited") {
+      if (
+        value.editedText === null ||
+        value.resultContentRevisionId === null ||
+        value.reasonCode !== null
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["editedText"],
+          message: "Edited suggestions require only edited text and a result revision",
+        });
+      }
+      return;
+    }
+    if (
+      value.editedText !== null ||
+      value.resultContentRevisionId !== null ||
+      value.reasonCode === null
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["reasonCode"],
+        message: "Rejected suggestions require only a reason code",
+      });
+    }
+  });
+export type ResumeReviewDecision = z.infer<typeof ResumeReviewDecisionSchema>;
+
+const ResumeReviewDecisionRequestFieldsSchema = z.object({
+  expectedRevision: RevisionSchema,
+  idempotencyKey: UuidSchema,
+});
+
+export const DecideResumeReviewSuggestionRequestSchema = z.discriminatedUnion("decision", [
+  ResumeReviewDecisionRequestFieldsSchema.extend({
+    decision: z.literal("accepted"),
+  }).strict(),
+  ResumeReviewDecisionRequestFieldsSchema.extend({
+    decision: z.literal("edited"),
+    editedText: z.string().trim().min(1).max(10_000),
+    evidenceIds: z
+      .array(EvidenceIdSchema)
+      .min(1)
+      .max(500)
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: "evidenceIds must be unique",
+      }),
+  }).strict(),
+  ResumeReviewDecisionRequestFieldsSchema.extend({
+    decision: z.literal("rejected"),
+    reasonCode: ResumeReviewReasonCodeSchema,
+  }).strict(),
+]);
+export type DecideResumeReviewSuggestionRequest = z.infer<
+  typeof DecideResumeReviewSuggestionRequestSchema
+>;
 
 export const LegacyResumeDocumentVirtualSchema = z
   .object({
@@ -233,7 +670,9 @@ export const PutResumeDocumentLayoutRevisionRequestSchema = z
     sectionOrder: z
       .array(UuidSchema)
       .max(100)
-      .refine((ids) => new Set(ids).size === ids.length, { message: "sectionOrder must be unique" }),
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: "sectionOrder must be unique",
+      }),
     settings: JsonRecordSchema,
   })
   .strict();

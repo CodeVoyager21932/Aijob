@@ -3,9 +3,16 @@ import { describe, expect, it } from "vitest";
 
 import {
   CreateResumeDocumentRequestSchema,
+  DecideResumeReviewSuggestionRequestSchema,
   PutResumeDocumentContentRevisionRequestSchema,
+  PutResumeDocumentLayoutRevisionV2RequestSchema,
   ResumeDocumentReadModelSchema,
   ResumeDocumentSchema,
+  ResumeLayoutSettingsSchema,
+  ResumeReviewDecisionSchema,
+  ResumeReviewRunSchema,
+  ResumeReviewSuggestionSchema,
+  ResumeSemanticContentSchema,
   ResumeTemplateKeySchema,
 } from "./index.js";
 
@@ -13,6 +20,7 @@ const ids = {
   document: randomUUID(),
   revision: randomUUID(),
   section: randomUUID(),
+  secondSection: randomUUID(),
   block: randomUUID(),
   owner: randomUUID(),
   case: randomUUID(),
@@ -20,6 +28,11 @@ const ids = {
   version: randomUUID(),
   requirements: randomUUID(),
   evidence: randomUUID(),
+  finding: randomUUID(),
+  reviewRun: randomUUID(),
+  suggestion: randomUUID(),
+  decision: randomUUID(),
+  snapshot: randomUUID(),
 };
 
 const content = {
@@ -185,5 +198,247 @@ describe("Resume Document V2 contracts", () => {
 
   it("does not allow an arbitrary template", () => {
     expect(ResumeTemplateKeySchema.safeParse("modern").success).toBe(false);
+  });
+
+  it("separates semantic content from legacy block review state", () => {
+    const semanticContent = {
+      schemaVersion: "resume-content-v1",
+      sections: [
+        {
+          id: ids.section,
+          ordinal: 0,
+          title: "项目经历",
+          blocks: [
+            {
+              id: ids.block,
+              ordinal: 0,
+              text: "负责用户访谈与需求分析",
+              evidenceIds: ["evidence-1"],
+            },
+          ],
+        },
+      ],
+    };
+    expect(ResumeSemanticContentSchema.safeParse(semanticContent).success).toBe(true);
+    expect(
+      ResumeSemanticContentSchema.safeParse({
+        ...semanticContent,
+        sections: [
+          {
+            ...semanticContent.sections[0],
+            blocks: [
+              {
+                ...semanticContent.sections[0]?.blocks[0],
+                suggestionDecision: "accepted",
+              },
+            ],
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      PutResumeDocumentContentRevisionRequestSchema.safeParse({
+        expectedRevision: 1,
+        baseDocumentRevisionId: ids.revision,
+        content: {
+          sections: [
+            {
+              id: ids.section,
+              ordinal: 0,
+              title: "项目经历",
+              blocks: [
+                {
+                  id: ids.block,
+                  ordinal: 0,
+                  text: "兼容旧 024 正文",
+                  suggestionDecision: "rejected",
+                },
+              ],
+            },
+          ],
+        },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("allows only versioned layout tokens and rejects content or CSS fields", () => {
+    const settings = {
+      schemaVersion: "resume-layout-settings-v1" as const,
+      fontSizeToken: "standard" as const,
+      lineSpacingToken: "standard" as const,
+      sectionSpacingToken: "tight" as const,
+      colorToken: "charcoal" as const,
+      pageBreakPolicy: "keep_sections" as const,
+    };
+    expect(ResumeLayoutSettingsSchema.safeParse(settings).success).toBe(true);
+    expect(
+      ResumeLayoutSettingsSchema.safeParse({ ...settings, css: "body { display: none }" }).success,
+    ).toBe(false);
+    expect(
+      PutResumeDocumentLayoutRevisionV2RequestSchema.safeParse({
+        expectedRevision: 1,
+        templateKey: "cn_classic_single_column",
+        sectionOrder: [ids.section],
+        settings,
+        resumeText: "正文不能进入布局",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("requires text-changing review suggestions to cite confirmed evidence", () => {
+    const suggestion = {
+      schemaVersion: "resume-review-suggestion-v1" as const,
+      id: ids.suggestion,
+      ownerId: ids.owner,
+      ownerEpoch: 1,
+      reviewRunId: ids.reviewRun,
+      findingId: ids.finding,
+      targetType: "block" as const,
+      targetIds: [ids.block],
+      changeType: "rewrite_block" as const,
+      suggestedText: "基于 8 次用户访谈梳理 3 项核心需求",
+      evidenceIds: ["evidence-1"],
+      decision: "pending" as const,
+      revision: 1,
+      createdAt: "2026-08-06T00:00:00.000Z",
+      updatedAt: "2026-08-06T00:00:00.000Z",
+    };
+    expect(ResumeReviewSuggestionSchema.safeParse(suggestion).success).toBe(true);
+    expect(ResumeReviewSuggestionSchema.safeParse({ ...suggestion, evidenceIds: [] }).success).toBe(
+      false,
+    );
+    expect(
+      ResumeReviewSuggestionSchema.safeParse({
+        ...suggestion,
+        targetType: "section",
+      }).success,
+    ).toBe(false);
+    expect(
+      ResumeReviewSuggestionSchema.safeParse({
+        ...suggestion,
+        targetType: "section",
+        targetIds: [ids.section, ids.secondSection],
+        changeType: "reorder_section",
+        suggestedText: null,
+        evidenceIds: [],
+      }).success,
+    ).toBe(true);
+  });
+
+  it("keeps review decisions traceable without overwriting the suggestion", () => {
+    const common = {
+      schemaVersion: "resume-review-decision-v1" as const,
+      id: ids.decision,
+      ownerId: ids.owner,
+      ownerEpoch: 1,
+      reviewRunId: ids.reviewRun,
+      suggestionId: ids.suggestion,
+      basedOnSuggestionRevision: 1,
+      idempotencyKeyHash: "b".repeat(64),
+      createdAt: "2026-08-06T00:00:00.000Z",
+    };
+    expect(
+      ResumeReviewDecisionSchema.safeParse({
+        ...common,
+        decision: "accepted",
+        editedText: null,
+        resultContentRevisionId: ids.revision,
+        reasonCode: null,
+      }).success,
+    ).toBe(true);
+    expect(
+      ResumeReviewDecisionSchema.safeParse({
+        ...common,
+        decision: "accepted",
+        editedText: null,
+        resultContentRevisionId: ids.revision,
+        reasonCode: "UNEXPECTED_REASON",
+      }).success,
+    ).toBe(false);
+    expect(
+      ResumeReviewDecisionSchema.safeParse({
+        ...common,
+        decision: "edited",
+        editedText: "用户确认后的表达",
+        resultContentRevisionId: ids.revision,
+        reasonCode: null,
+      }).success,
+    ).toBe(true);
+    expect(
+      ResumeReviewDecisionSchema.safeParse({
+        ...common,
+        decision: "rejected",
+        editedText: null,
+        resultContentRevisionId: ids.revision,
+        reasonCode: "USER_REJECTED",
+      }).success,
+    ).toBe(false);
+    expect(
+      DecideResumeReviewSuggestionRequestSchema.safeParse({
+        expectedRevision: 1,
+        idempotencyKey: randomUUID(),
+        decision: "accepted",
+        ownerId: ids.owner,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("keeps private review runs owner-scoped", () => {
+    const reviewRun = {
+      schemaVersion: "resume-review-run-v1" as const,
+      id: ids.reviewRun,
+      ownerId: ids.owner,
+      ownerEpoch: 1,
+      caseId: ids.case,
+      detachedFromCaseId: null,
+      documentId: ids.document,
+      contentRevisionId: ids.revision,
+      jobContext: {
+        kind: "private" as const,
+        snapshotId: ids.snapshot,
+        ownerId: ids.owner,
+        title: "产品实习生",
+        companyName: null,
+        sourceLabel: "用户粘贴",
+        contentRevision: 1,
+        requirementSetRevision: 1,
+        sourceProvided: false,
+      },
+      evidenceRevisionId: ids.evidence,
+      mode: "template" as const,
+      status: "pending" as const,
+      revision: 1,
+      completedAt: null,
+      deletedAt: null,
+      createdAt: "2026-08-06T00:00:00.000Z",
+      updatedAt: "2026-08-06T00:00:00.000Z",
+    };
+    expect(ResumeReviewRunSchema.safeParse(reviewRun).success).toBe(true);
+    expect(
+      ResumeReviewRunSchema.safeParse({
+        ...reviewRun,
+        caseId: null,
+        detachedFromCaseId: ids.case,
+      }).success,
+    ).toBe(true);
+    expect(
+      ResumeReviewRunSchema.safeParse({
+        ...reviewRun,
+        status: "superseded",
+        completedAt: "2026-08-06T01:00:00.000Z",
+      }).success,
+    ).toBe(true);
+    expect(
+      ResumeReviewRunSchema.safeParse({
+        ...reviewRun,
+        status: "superseded",
+      }).success,
+    ).toBe(false);
+    expect(
+      ResumeReviewRunSchema.safeParse({
+        ...reviewRun,
+        jobContext: { ...reviewRun.jobContext, ownerId: randomUUID() },
+      }).success,
+    ).toBe(false);
   });
 });

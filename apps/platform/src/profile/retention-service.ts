@@ -25,6 +25,7 @@ export async function enqueueExpiredOwnerDeletions(input: {
       .selectFrom("identity.owners")
       .select(["id", "epoch"])
       .where("status", "=", "active")
+      .where("retention_mode", "=", "anonymous_ttl")
       .where("retention_expires_at", "<=", now)
       .orderBy("retention_expires_at", "asc")
       .orderBy("id", "asc")

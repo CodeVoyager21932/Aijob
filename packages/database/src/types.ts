@@ -370,7 +370,8 @@ export interface OwnerTable {
   id: string;
   status: Generated<string>;
   epoch: Generated<number>;
-  retention_expires_at: Generated<Timestamp>;
+  retention_mode: Generated<string>;
+  retention_expires_at: Generated<Timestamp | null>;
   created_at: Generated<Timestamp>;
   last_seen_at: Generated<Timestamp>;
   deleted_at: Timestamp | null;
@@ -469,6 +470,52 @@ export interface ResumeDocumentRevisionTable {
   document_id: Generated<string | null>;
   document_revision: Generated<number | null>;
   base_document_revision_id: Generated<string | null>;
+}
+
+export interface AccountTable {
+  id: Generated<string>;
+  owner_id: string;
+  status: Generated<string>;
+  revision: Generated<number>;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  deleted_at: Timestamp | null;
+}
+
+export interface EmailIdentityTable {
+  id: Generated<string>;
+  account_id: string;
+  status: Generated<string>;
+  email_lookup_hash: string;
+  email_ciphertext: BinaryValue;
+  email_nonce: BinaryValue;
+  email_auth_tag: BinaryValue;
+  encryption_key_version: string;
+  verified_at: Timestamp;
+  revoked_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface EmailVerificationChallengeTable {
+  id: Generated<string>;
+  purpose: string;
+  status: Generated<string>;
+  owner_id: string | null;
+  owner_epoch: number | null;
+  account_id: string | null;
+  email_lookup_hash: string;
+  verification_token_hash: string;
+  attempt_count: Generated<number>;
+  max_attempts: Generated<number>;
+  expires_at: Timestamp;
+  retry_after_at: Timestamp;
+  consumed_at: Timestamp | null;
+  locked_at: Timestamp | null;
+  idempotency_key_hash: string;
+  request_hash: string;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface MatchRunTable {
@@ -858,6 +905,9 @@ export interface Database {
   "catalog.company_quota_selections": CompanyQuotaSelectionTable;
   "identity.owners": OwnerTable;
   "identity.owner_sessions": OwnerSessionTable;
+  "identity.accounts": AccountTable;
+  "identity.email_identities": EmailIdentityTable;
+  "identity.email_verification_challenges": EmailVerificationChallengeTable;
   "profile.resume_analyses": ResumeAnalysisTable;
   "profile.profile_fact_revisions": ProfileFactRevisionTable;
   "profile.job_preference_revisions": JobPreferenceRevisionTable;
