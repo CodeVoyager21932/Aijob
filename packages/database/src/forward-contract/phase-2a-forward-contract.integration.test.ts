@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase, type Database } from "../index.js";
 import { migrateToForTesting, migrateToLatest } from "../migrate.js";
 import { applicationCaseLongLivedForwardRepairMigration } from "../migrations/026_application_case_long_lived_forward_repair.js";
+import { privateRequirementContextForwardRepairMigration } from "../migrations/026b_private_requirement_context_forward_repair.js";
 import { applyResumeDocumentReviewForwardContract } from "./024f_resume_document_review.js";
 
 const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
@@ -13,7 +14,7 @@ const unknown = JSON.stringify({ state: "unknown", reason: "source_not_stated" }
 const known = (value: unknown, evidenceRef: string) =>
   JSON.stringify({ state: "known", value, evidenceRefs: [evidenceRef] });
 
-describeWithDatabase("migration 026 and remaining Phase 2A forward contracts", () => {
+describeWithDatabase("migration 026B and remaining Phase 2A forward contracts", () => {
   const ids = {
     organization: randomUUID(),
     source: randomUUID(),
@@ -29,6 +30,9 @@ describeWithDatabase("migration 026 and remaining Phase 2A forward contracts", (
     otherEvidenceRevision: randomUUID(),
     legacyCase: randomUUID(),
     legacyEvent: randomUUID(),
+    legacyRequirementState: randomUUID(),
+    legacyEvidenceLink: randomUUID(),
+    legacyQuestion: randomUUID(),
     baseDocument: randomUUID(),
     legacyContentRevision: randomUUID(),
     legacyLayoutRevision: randomUUID(),
@@ -36,6 +40,10 @@ describeWithDatabase("migration 026 and remaining Phase 2A forward contracts", (
     privateSnapshotRevision: randomUUID(),
     privateCase: randomUUID(),
     privateEvent: randomUUID(),
+    privateRequirementState: randomUUID(),
+    privateEvidenceLink: randomUUID(),
+    privateQuestion: randomUUID(),
+    privateUnscopedQuestion: randomUUID(),
     semanticBaseRevision: randomUUID(),
     strictLayoutRevision: randomUUID(),
     derivedDocument: randomUUID(),
@@ -308,6 +316,89 @@ describeWithDatabase("migration 026 and remaining Phase 2A forward contracts", (
         request_hash: "1".repeat(64),
       })
       .execute();
+    await sql`
+      INSERT INTO application.case_requirement_states (
+        id,
+        owner_id,
+        owner_epoch,
+        case_id,
+        requirement_set_id,
+        requirement_id,
+        state,
+        user_note,
+        revision,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${ids.legacyRequirementState},
+        ${ids.owner},
+        1,
+        ${ids.legacyCase},
+        ${ids.requirementSet},
+        'legacy-requirement',
+        'needs_work',
+        'Preserve this synthetic note.',
+        3,
+        ${now},
+        ${now}
+      )
+    `.execute(db);
+    await sql`
+      INSERT INTO application.case_requirement_evidence_links (
+        id,
+        owner_id,
+        owner_epoch,
+        case_id,
+        requirement_set_id,
+        requirement_id,
+        evidence_revision_id,
+        evidence_id,
+        revision,
+        linked_at,
+        removed_at
+      ) VALUES (
+        ${ids.legacyEvidenceLink},
+        ${ids.owner},
+        1,
+        ${ids.legacyCase},
+        ${ids.requirementSet},
+        'legacy-requirement',
+        ${ids.evidenceRevision},
+        'legacy-evidence',
+        2,
+        ${now},
+        NULL
+      )
+    `.execute(db);
+    await sql`
+      INSERT INTO application.case_questions (
+        id,
+        owner_id,
+        owner_epoch,
+        case_id,
+        requirement_set_id,
+        requirement_id,
+        question,
+        answer,
+        status,
+        revision,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${ids.legacyQuestion},
+        ${ids.owner},
+        1,
+        ${ids.legacyCase},
+        ${ids.requirementSet},
+        'legacy-requirement',
+        'Synthetic legacy question?',
+        NULL,
+        'open',
+        4,
+        ${now},
+        ${now}
+      )
+    `.execute(db);
     await db
       .insertInto("profile.resume_documents")
       .values({
@@ -405,9 +496,9 @@ describeWithDatabase("migration 026 and remaining Phase 2A forward contracts", (
         SELECT name FROM kysely_migration ORDER BY timestamp DESC LIMIT 1
       `.execute(emptyDb),
     ]);
-    expect(migration.rows[0]?.name).toBe("026_application_case_long_lived_forward_repair");
+    expect(migration.rows[0]?.name).toBe("026b_private_requirement_context_forward_repair");
     expect(emptyMigration.rows[0]?.name).toBe(
-      "026_application_case_long_lived_forward_repair",
+      "026b_private_requirement_context_forward_repair",
     );
 
     const accountOwner = await db
@@ -453,6 +544,43 @@ describeWithDatabase("migration 026 and remaining Phase 2A forward contracts", (
       eventData: { stage: "interested" },
     });
 
+    const legacyRequirementGraph = await sql<{
+      kind: string;
+      requirementSetRevision: number | null;
+      stateRevision: number;
+      userNote: string | null;
+      evidenceStateId: string;
+      evidenceRevision: number;
+      questionStateId: string;
+      questionRevision: number;
+    }>`
+      SELECT
+        requirement_state.requirement_context_kind AS kind,
+        requirement_state.requirement_set_revision AS "requirementSetRevision",
+        requirement_state.revision AS "stateRevision",
+        requirement_state.user_note AS "userNote",
+        evidence_link.requirement_state_id AS "evidenceStateId",
+        evidence_link.revision AS "evidenceRevision",
+        question.requirement_state_id AS "questionStateId",
+        question.revision AS "questionRevision"
+      FROM application.case_requirement_states AS requirement_state
+      JOIN application.case_requirement_evidence_links AS evidence_link
+        ON evidence_link.id = ${ids.legacyEvidenceLink}
+      JOIN application.case_questions AS question
+        ON question.id = ${ids.legacyQuestion}
+      WHERE requirement_state.id = ${ids.legacyRequirementState}
+    `.execute(db);
+    expect(legacyRequirementGraph.rows[0]).toEqual({
+      kind: "public",
+      requirementSetRevision: null,
+      stateRevision: 3,
+      userNote: "Preserve this synthetic note.",
+      evidenceStateId: ids.legacyRequirementState,
+      evidenceRevision: 2,
+      questionStateId: ids.legacyRequirementState,
+      questionRevision: 4,
+    });
+
     const legacyResume = await sql<{ contentSchema: string; layoutSchema: string }>`
       SELECT
         revision.schema_version AS "contentSchema",
@@ -468,8 +596,9 @@ describeWithDatabase("migration 026 and remaining Phase 2A forward contracts", (
     });
   });
 
-  it("keeps migration 026 rollback forward-only", async () => {
+  it("keeps migrations 026 and 026B rollback forward-only", async () => {
     await applicationCaseLongLivedForwardRepairMigration.down?.(db);
+    await privateRequirementContextForwardRepairMigration.down?.(db);
     const privateTable = await sql<{ name: string }>`
       SELECT to_regclass('application.private_job_snapshots')::text AS name
     `.execute(db);
@@ -657,6 +786,233 @@ describeWithDatabase("migration 026 and remaining Phase 2A forward contracts", (
     ).rejects.toMatchObject({ code: "23514" });
   });
 
+  it("supports private requirement states, evidence links and questions by state ID", async () => {
+    await sql`
+      INSERT INTO application.case_requirement_states (
+        id,
+        owner_id,
+        owner_epoch,
+        case_id,
+        requirement_context_kind,
+        requirement_set_id,
+        requirement_set_revision,
+        requirement_id,
+        state,
+        user_note,
+        revision
+      ) VALUES (
+        ${ids.privateRequirementState},
+        ${ids.owner},
+        1,
+        ${ids.privateCase},
+        'private',
+        NULL,
+        1,
+        'private-requirement',
+        'confirmed',
+        NULL,
+        1
+      )
+    `.execute(db);
+    await sql`
+      INSERT INTO application.case_requirement_evidence_links (
+        id,
+        owner_id,
+        owner_epoch,
+        case_id,
+        requirement_state_id,
+        requirement_set_id,
+        requirement_id,
+        evidence_revision_id,
+        evidence_id,
+        revision,
+        removed_at
+      ) VALUES (
+        ${ids.privateEvidenceLink},
+        ${ids.owner},
+        1,
+        ${ids.privateCase},
+        ${ids.privateRequirementState},
+        NULL,
+        'private-requirement',
+        ${ids.evidenceRevision},
+        'private-evidence',
+        1,
+        NULL
+      )
+    `.execute(db);
+    await sql`
+      INSERT INTO application.case_questions (
+        id,
+        owner_id,
+        owner_epoch,
+        case_id,
+        requirement_state_id,
+        requirement_set_id,
+        requirement_id,
+        question,
+        answer,
+        status,
+        revision
+      ) VALUES (
+        ${ids.privateQuestion},
+        ${ids.owner},
+        1,
+        ${ids.privateCase},
+        ${ids.privateRequirementState},
+        NULL,
+        'private-requirement',
+        'What evidence is still needed?',
+        NULL,
+        'open',
+        1
+      )
+    `.execute(db);
+    await sql`
+      INSERT INTO application.case_questions (
+        id,
+        owner_id,
+        owner_epoch,
+        case_id,
+        requirement_state_id,
+        requirement_set_id,
+        requirement_id,
+        question,
+        answer,
+        status,
+        revision
+      ) VALUES (
+        ${ids.privateUnscopedQuestion},
+        ${ids.owner},
+        1,
+        ${ids.privateCase},
+        NULL,
+        NULL,
+        NULL,
+        'Unscoped synthetic question?',
+        NULL,
+        'open',
+        1
+      )
+    `.execute(db);
+
+    const graph = await sql<{
+      requirementStateId: string;
+      evidenceSetId: string | null;
+      questionSetId: string | null;
+    }>`
+      SELECT
+        requirement_state.id AS "requirementStateId",
+        evidence_link.requirement_set_id AS "evidenceSetId",
+        question.requirement_set_id AS "questionSetId"
+      FROM application.case_requirement_states AS requirement_state
+      JOIN application.case_requirement_evidence_links AS evidence_link
+        ON evidence_link.requirement_state_id = requirement_state.id
+      JOIN application.case_questions AS question
+        ON question.requirement_state_id = requirement_state.id
+      WHERE requirement_state.id = ${ids.privateRequirementState}
+    `.execute(db);
+    expect(graph.rows[0]).toEqual({
+      requirementStateId: ids.privateRequirementState,
+      evidenceSetId: null,
+      questionSetId: null,
+    });
+
+    await expect(
+      sql`
+        INSERT INTO application.case_requirement_states (
+          owner_id,
+          owner_epoch,
+          case_id,
+          requirement_context_kind,
+          requirement_set_id,
+          requirement_set_revision,
+          requirement_id,
+          state,
+          revision
+        ) VALUES (
+          ${ids.owner},
+          1,
+          ${ids.privateCase},
+          'private',
+          NULL,
+          2,
+          'wrong-private-revision',
+          'unconfirmed',
+          1
+        )
+      `.execute(db),
+    ).rejects.toThrow(/PRIVATE_REQUIREMENT_STATE_CONTEXT_MISMATCH/);
+
+    await expect(
+      sql`
+        INSERT INTO application.case_requirement_states (
+          owner_id,
+          owner_epoch,
+          case_id,
+          requirement_context_kind,
+          requirement_set_id,
+          requirement_set_revision,
+          requirement_id,
+          state,
+          revision
+        ) VALUES (
+          ${ids.owner},
+          1,
+          ${ids.privateCase},
+          'public',
+          ${ids.requirementSet},
+          NULL,
+          'wrong-context-kind',
+          'unconfirmed',
+          1
+        )
+      `.execute(db),
+    ).rejects.toThrow(/REQUIREMENT_STATE_CONTEXT_KIND_MISMATCH/);
+
+    await expect(
+      sql`
+        INSERT INTO application.case_requirement_evidence_links (
+          owner_id,
+          owner_epoch,
+          case_id,
+          requirement_state_id,
+          requirement_set_id,
+          requirement_id,
+          evidence_revision_id,
+          evidence_id,
+          revision
+        ) VALUES (
+          ${ids.otherOwner},
+          1,
+          ${ids.privateCase},
+          ${ids.privateRequirementState},
+          NULL,
+          'private-requirement',
+          ${ids.otherEvidenceRevision},
+          'cross-owner-evidence',
+          1
+        )
+      `.execute(db),
+    ).rejects.toThrow(/REQUIREMENT_STATE_REFERENCE_NOT_FOUND/);
+
+    await expect(
+      sql`
+        UPDATE application.case_requirement_states
+        SET requirement_id = 'mutated-requirement'
+        WHERE id = ${ids.privateRequirementState}
+      `.execute(db),
+    ).rejects.toThrow(/IMMUTABLE_REQUIREMENT_STATE_CONTEXT/);
+
+    await privateRequirementContextForwardRepairMigration.down?.(db);
+    const retained = await sql<{ count: number }>`
+      SELECT count(*)::integer AS count
+      FROM application.case_requirement_states
+      WHERE id = ${ids.privateRequirementState}
+    `.execute(db);
+    expect(retained.rows[0]?.count).toBe(1);
+  });
+
   it("accepts only strict new Case events and keeps legacy events read-only", async () => {
     const validData = {
       schemaVersion: "case-event-v1",
@@ -692,6 +1048,73 @@ describeWithDatabase("migration 026 and remaining Phase 2A forward contracts", (
       )
     `.execute(db);
 
+    await sql`
+      INSERT INTO application.case_events (
+        owner_id,
+        owner_epoch,
+        case_id,
+        sequence,
+        event_type,
+        actor_type,
+        event_data,
+        idempotency_scope,
+        idempotency_key,
+        request_hash
+      ) VALUES (
+        ${ids.owner},
+        1,
+        ${ids.privateCase},
+        2,
+        'requirement_state_changed',
+        'owner',
+        ${JSON.stringify({
+          schemaVersion: "case-event-v1",
+          requirementContextKind: "private",
+          requirementSetRevision: 1,
+          requirementId: "private-requirement",
+          fromState: null,
+          toState: "confirmed",
+          reasonCode: null,
+        })}::jsonb,
+        'private-requirement:state',
+        ${`private-requirement-event-${randomUUID()}`},
+        ${"b".repeat(64)}
+      )
+    `.execute(db);
+
+    await sql`
+      INSERT INTO application.case_events (
+        owner_id,
+        owner_epoch,
+        case_id,
+        sequence,
+        event_type,
+        actor_type,
+        event_data,
+        idempotency_scope,
+        idempotency_key,
+        request_hash
+      ) VALUES (
+        ${ids.owner},
+        1,
+        ${ids.legacyCase},
+        2,
+        'requirement_evidence_changed',
+        'owner',
+        ${JSON.stringify({
+          schemaVersion: "case-event-v1",
+          requirementSetId: ids.requirementSet,
+          requirementId: "legacy-requirement",
+          evidenceRevisionId: ids.evidenceRevision,
+          evidenceIds: ["legacy-evidence"],
+          action: "linked",
+        })}::jsonb,
+        'public-requirement:evidence',
+        ${`public-requirement-event-${randomUUID()}`},
+        ${"c".repeat(64)}
+      )
+    `.execute(db);
+
     await expect(
       sql`
         INSERT INTO application.case_events (
@@ -709,7 +1132,7 @@ describeWithDatabase("migration 026 and remaining Phase 2A forward contracts", (
           ${ids.owner},
           1,
           ${ids.privateCase},
-          2,
+          3,
           'case_created',
           'owner',
           ${JSON.stringify({ ...validData, jdText: "must not enter events" })}::jsonb,
@@ -737,13 +1160,50 @@ describeWithDatabase("migration 026 and remaining Phase 2A forward contracts", (
           ${ids.owner},
           1,
           ${ids.privateCase},
-          2,
+          3,
           'case_created',
           'owner',
           ${JSON.stringify({ ...validData, jobContextRevision: "not-an-integer" })}::jsonb,
           'private-case:invalid-type',
           ${`invalid-type-event-${randomUUID()}`},
           ${"b".repeat(64)}
+        )
+      `.execute(db),
+    ).rejects.toThrow(/INVALID_CASE_EVENT_DATA/);
+
+    await expect(
+      sql`
+        INSERT INTO application.case_events (
+          owner_id,
+          owner_epoch,
+          case_id,
+          sequence,
+          event_type,
+          actor_type,
+          event_data,
+          idempotency_scope,
+          idempotency_key,
+          request_hash
+        ) VALUES (
+          ${ids.owner},
+          1,
+          ${ids.privateCase},
+          3,
+          'requirement_state_changed',
+          'owner',
+          ${JSON.stringify({
+            schemaVersion: "case-event-v1",
+            requirementContextKind: "private",
+            requirementSetRevision: 1,
+            requirementSetId: ids.requirementSet,
+            requirementId: "private-requirement",
+            fromState: null,
+            toState: "confirmed",
+            reasonCode: null,
+          })}::jsonb,
+          'private-requirement:invalid',
+          ${`invalid-private-requirement-event-${randomUUID()}`},
+          ${"d".repeat(64)}
         )
       `.execute(db),
     ).rejects.toThrow(/INVALID_CASE_EVENT_DATA/);
@@ -766,7 +1226,7 @@ describeWithDatabase("migration 026 and remaining Phase 2A forward contracts", (
           ${ids.owner},
           1,
           ${ids.privateCase},
-          2,
+          3,
           'case_created',
           'system',
           '{}'::jsonb,
@@ -1355,6 +1815,15 @@ describeWithDatabase("migration 026 and remaining Phase 2A forward contracts", (
 
     await expect(
       db.transaction().execute(async (transaction) => {
+        await sql`SET LOCAL ROLE aijob_collector_worker`.execute(transaction);
+        await sql`SELECT id FROM application.case_requirement_states LIMIT 1`.execute(
+          transaction,
+        );
+      }),
+    ).rejects.toMatchObject({ code: "42501" });
+
+    await expect(
+      db.transaction().execute(async (transaction) => {
         await sql`SET LOCAL ROLE aijob_match_worker`.execute(transaction);
         await sql`
           INSERT INTO profile.resume_review_runs (
@@ -1408,6 +1877,9 @@ describeWithDatabase("migration 026 and remaining Phase 2A forward contracts", (
     const snapshotRevisionId = randomUUID();
     const caseId = randomUUID();
     const eventId = randomUUID();
+    const requirementStateId = randomUUID();
+    const evidenceLinkId = randomUUID();
+    const questionId = randomUUID();
     await db
       .insertInto("application.private_job_snapshots")
       .values({
@@ -1488,6 +1960,81 @@ describeWithDatabase("migration 026 and remaining Phase 2A forward contracts", (
         request_hash: "b".repeat(64),
       })
       .execute();
+    await sql`
+      INSERT INTO application.case_requirement_states (
+        id,
+        owner_id,
+        owner_epoch,
+        case_id,
+        requirement_context_kind,
+        requirement_set_id,
+        requirement_set_revision,
+        requirement_id,
+        state,
+        revision
+      ) VALUES (
+        ${requirementStateId},
+        ${ids.otherOwner},
+        1,
+        ${caseId},
+        'private',
+        NULL,
+        1,
+        'deletion-requirement',
+        'unconfirmed',
+        1
+      )
+    `.execute(db);
+    await sql`
+      INSERT INTO application.case_requirement_evidence_links (
+        id,
+        owner_id,
+        owner_epoch,
+        case_id,
+        requirement_state_id,
+        requirement_set_id,
+        requirement_id,
+        evidence_revision_id,
+        evidence_id,
+        revision
+      ) VALUES (
+        ${evidenceLinkId},
+        ${ids.otherOwner},
+        1,
+        ${caseId},
+        ${requirementStateId},
+        NULL,
+        'deletion-requirement',
+        ${ids.otherEvidenceRevision},
+        'deletion-evidence',
+        1
+      )
+    `.execute(db);
+    await sql`
+      INSERT INTO application.case_questions (
+        id,
+        owner_id,
+        owner_epoch,
+        case_id,
+        requirement_state_id,
+        requirement_set_id,
+        requirement_id,
+        question,
+        status,
+        revision
+      ) VALUES (
+        ${questionId},
+        ${ids.otherOwner},
+        1,
+        ${caseId},
+        ${requirementStateId},
+        NULL,
+        'deletion-requirement',
+        'Deletion fixture question?',
+        'open',
+        1
+      )
+    `.execute(db);
 
     await db.transaction().execute(async (transaction) => {
       await sql`SET LOCAL ROLE aijob_match_worker`.execute(transaction);
@@ -1533,7 +2080,29 @@ describeWithDatabase("migration 026 and remaining Phase 2A forward contracts", (
         .select(sql<number>`count(*)::int`.as("count"))
         .where("id", "=", snapshotRevisionId)
         .executeTakeFirstOrThrow(),
+      db
+        .selectFrom("application.case_requirement_states")
+        .select(sql<number>`count(*)::int`.as("count"))
+        .where("id", "=", requirementStateId)
+        .executeTakeFirstOrThrow(),
+      db
+        .selectFrom("application.case_requirement_evidence_links")
+        .select(sql<number>`count(*)::int`.as("count"))
+        .where("id", "=", evidenceLinkId)
+        .executeTakeFirstOrThrow(),
+      db
+        .selectFrom("application.case_questions")
+        .select(sql<number>`count(*)::int`.as("count"))
+        .where("id", "=", questionId)
+        .executeTakeFirstOrThrow(),
     ]);
-    expect(remaining).toEqual([{ count: 0 }, { count: 0 }, { count: 0 }]);
+    expect(remaining).toEqual([
+      { count: 0 },
+      { count: 0 },
+      { count: 0 },
+      { count: 0 },
+      { count: 0 },
+      { count: 0 },
+    ]);
   });
 });

@@ -787,7 +787,9 @@ export interface CaseRequirementStateTable {
   owner_id: string;
   owner_epoch: number;
   case_id: string;
-  requirement_set_id: string;
+  requirement_context_kind: Generated<string>;
+  requirement_set_id: string | null;
+  requirement_set_revision: number | null;
   requirement_id: string;
   state: string;
   user_note: string | null;
@@ -801,7 +803,8 @@ export interface CaseRequirementEvidenceLinkTable {
   owner_id: string;
   owner_epoch: number;
   case_id: string;
-  requirement_set_id: string;
+  requirement_state_id: string;
+  requirement_set_id: string | null;
   requirement_id: string;
   evidence_revision_id: string;
   evidence_id: string;
@@ -815,6 +818,7 @@ export interface CaseQuestionTable {
   owner_id: string;
   owner_epoch: number;
   case_id: string;
+  requirement_state_id: string | null;
   requirement_set_id: string | null;
   requirement_id: string | null;
   question: string;

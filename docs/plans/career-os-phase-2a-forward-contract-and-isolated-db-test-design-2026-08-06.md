@@ -1,13 +1,13 @@
 # Phase 2A 前向修复契约与隔离 PostgreSQL 测试设计
 
 - 日期：2026-08-06
-- 状态：migrations 025/026 registered; migration 026 decision = modify
-- 当前后续切片：`Phase 2A-026B Private Requirement Context Forward Repair`
+- 状态：migrations 025/026/026B registered; migration 026B decision = continue
+- 当前后续切片：`Phase 2A-027 Resume/Review Forward Repair`
 - 上位决策：[ADR-0031](../decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md)
 - 前置矩阵：[Phase 2R 契约与迁移影响矩阵](career-os-phase-2r-contract-and-migration-impact-matrix-2026-08-06.md)
 - 实现基线：[migration 023](../../packages/database/src/migrations/023_application_case_core_expand.ts)、[migration 024](../../packages/database/src/migrations/024_resume_document_v2_expand.ts)
 
-本文最初只冻结前向修复和测试设计。`023F` 的长期 Case 部分已由 migration 026 正式注册，`024F` Resume/Review 仍是未注册隔离原型。026 复核发现私有 requirement context 缺口，因此先执行 026B，再进入 migration 027；所有切片都不注册业务 API，也不访问真实招聘来源、真实 AI 或真实简历。
+本文最初只冻结前向修复和测试设计。`023F` 的长期 Case 与 requirement context 已由 migrations 026/026B 正式注册，`024F` Resume/Review 仍是未注册隔离原型。当前进入 migration 027；所有切片都不注册业务 API，也不访问真实招聘来源、真实 AI 或真实简历。
 
 ## 1. 目标与禁止事项
 
@@ -175,3 +175,5 @@ V1 `ResumeDocumentRevisionSchema` 继续只读；V2 新 DTO 明确 `contentRevis
 - 已证明旧 023/024 行兼容、私有 JD owner 复合外键、长期 Case/Resume 可空 expiry、strict Case event/layout、独立 Resume Review、选择性 Case 删除和角色权限。
 - 发现阻断：现有匿名 `identity.owners.retention_expires_at`、session 校验和 retention worker 仍会在 30 天后拒绝 owner 并删除全部 owner 数据。只注册 023F/024F 不能兑现 ADR-0031 的长期职业资产。
 - 四选一决定为 **修改**：保留原型结论，先完成 `Account + EmailIdentity / 长期 owner` 前向契约与隔离测试，再把身份、ApplicationCase 和 Resume Review 按依赖顺序重排为正式 additive migrations。
+
+后续执行结果：migrations 025/026/026B 已按依赖顺序注册；026B 以隔离 PostgreSQL 10/10 与全仓 635/635 证明 public/private requirement context、strict event、legacy backfill、owner 隔离和删除覆盖，决定 **继续**到 migration 027 Resume/Review Forward Repair。

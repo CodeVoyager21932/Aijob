@@ -1,6 +1,6 @@
 # Aijob 求职 OS 2.0 → Private Alpha 严格开发总计划
 
-- 状态：OS 2.0 初版已完成 Phase 1A/1B 与 migration 023/024；Phase 2R、023F/024F、身份隔离原型与正式 migration 025 已完成，当前执行 migration 026 ApplicationCase Long-Lived Forward Repair
+- 状态：OS 2.0 初版已完成 Phase 1A/1B 与 migration 023/024；Phase 2R 与正式 migrations 025/026/026B 已完成，当前执行 migration 027 Resume/Review Forward Repair
 - 初版日期：2026-08-04
 - 严格化日期：2026-08-05
 - 决策者：coco
@@ -184,7 +184,7 @@ Phase 2R 是 025–027 之前的强制架构复核，不新增业务 UI，不调
 
 退出 Gate：ADR、契约表、迁移影响矩阵、删除矩阵、旧路由真源规则、测试矩阵和 Phase 2R 证据报告齐全；不访问真实招聘来源、真实 AI、服务器或真实简历。
 
-Phase 2R 已完成实现前契约矩阵；长期 owner 身份前置和公共/私有 ApplicationCase 已分别由 migrations 025/026 正式注册。026 复核进一步发现要求状态、证据连接、问题和对应 strict event 仍只接受公共 requirement set，因此在 Resume/Review migration 027 前插入 `Phase 2A-026B Private Requirement Context Forward Repair`；不得用只能保存私有 JD 快照的 Case 冒充私有岗位准备闭环。
+Phase 2R 已完成实现前契约矩阵；长期 owner 身份前置、公共/私有 ApplicationCase 和对等 requirement context 已分别由 migrations 025/026/026B 正式注册。026B 已通过 public/private 状态、证据、问题、strict event、legacy backfill、owner 隔离和删除 Gate，决定继续 migration 027；不得用未进入 owner 删除服务的 024F 原型冒充长期 Resume/Review 已正式落地。
 
 ### Phase 2A：领域模型、契约和迁移
 
@@ -395,4 +395,4 @@ PostgreSQL 集成测试未实际运行时必须写“未执行”，不得写“
 - 主计划终点为 G4；公开 Beta、备案、公开运营和商业化只保留为 G5 后续 Gate。
 - 工期是有效工作量，不包含外部审批、采购、招募和观察期。
 
-Phase 2A-1 已通过 [ApplicationCase Core 验收](../evidence/product/career-os-v2/phase-2a1-application-case-core-acceptance-2026-08-05.md)，Phase 2A-2 已通过 [Resume Document V2 验收](../evidence/product/career-os-v2/phase-2a2-resume-document-v2-acceptance-2026-08-05.md)。[migration 025 身份前置](../evidence/product/career-os-v2/phase-2a-025-identity-account-email-expand-acceptance-2026-08-06.md) 已正式通过；[migration 026 ApplicationCase 前向修复](../evidence/product/career-os-v2/phase-2a-026-application-case-long-lived-forward-repair-acceptance-2026-08-06.md) 的工程 Gate 通过，但因私有 requirement context 缺口作出“修改”决定。当前唯一目标是 Phase 2A-026B；通过后才正式化 migration 027 Resume Review。仍不注册 API、不调用真实 AI、不访问真实来源或真实简历。
+Phase 2A-1 已通过 [ApplicationCase Core 验收](../evidence/product/career-os-v2/phase-2a1-application-case-core-acceptance-2026-08-05.md)，Phase 2A-2 已通过 [Resume Document V2 验收](../evidence/product/career-os-v2/phase-2a2-resume-document-v2-acceptance-2026-08-05.md)。[migration 025 身份前置](../evidence/product/career-os-v2/phase-2a-025-identity-account-email-expand-acceptance-2026-08-06.md)、[migration 026 ApplicationCase 前向修复](../evidence/product/career-os-v2/phase-2a-026-application-case-long-lived-forward-repair-acceptance-2026-08-06.md) 与 [migration 026B requirement context 修复](../evidence/product/career-os-v2/phase-2a-026b-private-requirement-context-forward-repair-acceptance-2026-08-06.md) 已形成依赖闭环。当前唯一目标是 migration 027 Resume/Review Forward Repair：正式化长期 Resume、strict Content/Layout、独立 Review 聚合与 owner 删除覆盖。仍不注册 API、不调用真实 AI、不访问真实来源或真实简历。

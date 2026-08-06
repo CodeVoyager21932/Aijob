@@ -90,6 +90,28 @@ export type PrivateJobSnapshot = z.infer<typeof PrivateJobSnapshotSchema>;
 export const JobContextSchema = z.union([PublicJobReferenceSchema, PrivateJobSnapshotSchema]);
 export type JobContext = z.infer<typeof JobContextSchema>;
 
+export const PublicRequirementContextSchema = z
+  .object({
+    kind: z.literal("public"),
+    requirementSetId: UuidSchema,
+  })
+  .strict();
+export type PublicRequirementContext = z.infer<typeof PublicRequirementContextSchema>;
+
+export const PrivateRequirementContextSchema = z
+  .object({
+    kind: z.literal("private"),
+    requirementSetRevision: RevisionSchema,
+  })
+  .strict();
+export type PrivateRequirementContext = z.infer<typeof PrivateRequirementContextSchema>;
+
+export const RequirementContextSchema = z.discriminatedUnion("kind", [
+  PublicRequirementContextSchema,
+  PrivateRequirementContextSchema,
+]);
+export type RequirementContext = z.infer<typeof RequirementContextSchema>;
+
 function requireResolvedOutcome(
   value: {
     stage: z.infer<typeof CaseStageSchema>;
@@ -315,7 +337,7 @@ const JobVersionUpgradedEventDataSchema = z
     message: "A job version upgrade must change the pinned version",
   });
 
-const RequirementStateChangedEventDataSchema = z
+const PublicRequirementStateChangedEventDataSchema = z
   .object({
     schemaVersion: CaseEventSchemaVersionSchema,
     requirementSetId: UuidSchema,
@@ -330,7 +352,28 @@ const RequirementStateChangedEventDataSchema = z
     message: "A requirement state event must change the state",
   });
 
-const RequirementEvidenceChangedEventDataSchema = z
+const PrivateRequirementStateChangedEventDataSchema = z
+  .object({
+    schemaVersion: CaseEventSchemaVersionSchema,
+    requirementContextKind: z.literal("private"),
+    requirementSetRevision: RevisionSchema,
+    requirementId: RequirementIdSchema,
+    fromState: RequirementEvidenceStateSchema.nullable(),
+    toState: RequirementEvidenceStateSchema,
+    reasonCode: ReasonCodeSchema.nullable(),
+  })
+  .strict()
+  .refine((value) => value.fromState === null || value.fromState !== value.toState, {
+    path: ["toState"],
+    message: "A requirement state event must change the state",
+  });
+
+const RequirementStateChangedEventDataSchema = z.union([
+  PublicRequirementStateChangedEventDataSchema,
+  PrivateRequirementStateChangedEventDataSchema,
+]);
+
+const PublicRequirementEvidenceChangedEventDataSchema = z
   .object({
     schemaVersion: CaseEventSchemaVersionSchema,
     requirementSetId: UuidSchema,
@@ -346,6 +389,29 @@ const RequirementEvidenceChangedEventDataSchema = z
     action: z.enum(["linked", "removed"]),
   })
   .strict();
+
+const PrivateRequirementEvidenceChangedEventDataSchema = z
+  .object({
+    schemaVersion: CaseEventSchemaVersionSchema,
+    requirementContextKind: z.literal("private"),
+    requirementSetRevision: RevisionSchema,
+    requirementId: RequirementIdSchema,
+    evidenceRevisionId: UuidSchema,
+    evidenceIds: z
+      .array(EvidenceIdSchema)
+      .min(1)
+      .max(500)
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: "evidenceIds must be unique",
+      }),
+    action: z.enum(["linked", "removed"]),
+  })
+  .strict();
+
+const RequirementEvidenceChangedEventDataSchema = z.union([
+  PublicRequirementEvidenceChangedEventDataSchema,
+  PrivateRequirementEvidenceChangedEventDataSchema,
+]);
 
 const QuestionAddedEventDataSchema = z
   .object({
@@ -511,7 +577,7 @@ export const CaseRequirementStateSchema = z
   .object({
     id: UuidSchema,
     caseId: UuidSchema,
-    requirementSetId: UuidSchema,
+    requirementContext: RequirementContextSchema,
     requirementId: RequirementIdSchema,
     state: RequirementEvidenceStateSchema,
     userNote: z.string().trim().max(2_000).nullable(),
@@ -535,7 +601,8 @@ export const CaseRequirementEvidenceLinkSchema = z
   .object({
     id: UuidSchema,
     caseId: UuidSchema,
-    requirementSetId: UuidSchema,
+    requirementStateId: UuidSchema,
+    requirementContext: RequirementContextSchema,
     requirementId: RequirementIdSchema,
     evidenceRevisionId: UuidSchema,
     evidenceId: EvidenceIdSchema,
@@ -566,7 +633,8 @@ export const CaseQuestionSchema = z
   .object({
     id: UuidSchema,
     caseId: UuidSchema,
-    requirementSetId: UuidSchema.nullable(),
+    requirementStateId: UuidSchema.nullable(),
+    requirementContext: RequirementContextSchema.nullable(),
     requirementId: RequirementIdSchema.nullable(),
     question: z.string().trim().min(1).max(1_000),
     answer: z.string().trim().min(1).max(3_000).nullable(),
@@ -577,11 +645,15 @@ export const CaseQuestionSchema = z
   })
   .strict()
   .superRefine((value, context) => {
-    if ((value.requirementSetId === null) !== (value.requirementId === null)) {
+    const hasRequirement = value.requirementId !== null;
+    if (
+      (value.requirementStateId !== null) !== hasRequirement ||
+      (value.requirementContext !== null) !== hasRequirement
+    ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["requirementId"],
-        message: "requirementSetId and requirementId must be present together",
+        message: "Requirement state, context and ID must be present together",
       });
     }
     if ((value.status === "answered") !== (value.answer !== null)) {

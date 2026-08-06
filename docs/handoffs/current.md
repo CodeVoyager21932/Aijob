@@ -1,165 +1,109 @@
-# 当前项目交接：Aijob 求职 OS 2.0 Phase 2A-026B
+# 当前项目交接：Aijob 求职 OS 2.0 Phase 2A-027
 
 > 交接日期：2026-08-06
 >
 > 当前分支：`codex/career-os-phase-1`
 >
-> 最近已推送基线：`3c92ba9 feat(career-os): add long-lived identity foundation`。本交接包含随后完成的 migration 026 代码与证据。
+> 最近已推送前置基线：`92fbd33 feat(database): add long-lived application cases`；026B 对应当前分支最新提交与下方验收证据。
 >
-> 工作树预期：提交后只剩未跟踪 `.claude/`；不得读取、提交、覆盖或清理它。仍须用 `git status --short` 复核。
->
-> 动态事实源：[MVP 路线](../06-mvp-roadmap.md)
->
-> 稳定主计划：[Private Alpha 严格开发总计划](../plans/career-os-v2-upgrade-plan-2026-08-04.md)
->
-> Phase 2 设计：[领域契约与迁移设计](../plans/career-os-phase-2-domain-contract-and-migration-design-2026-08-05.md)
->
-> 本轮架构决定：[ADR-0031](../decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md)
->
-> Phase 2R 证据：[架构对齐报告](../evidence/product/career-os-v2/phase-2r-architecture-realignment-2026-08-06.md)
->
-> Phase 2R 契约：[契约与迁移影响矩阵](../plans/career-os-phase-2r-contract-and-migration-impact-matrix-2026-08-06.md)
->
-> 前向修复设计：[Phase 2A 前向修复契约与隔离 PostgreSQL 测试设计](../plans/career-os-phase-2a-forward-contract-and-isolated-db-test-design-2026-08-06.md)
->
-> Forward Contract 证据：[离线契约子切片验收](../evidence/product/career-os-v2/phase-2a-forward-contract-acceptance-2026-08-06.md)
->
-> Identity Forward Contract 证据：[长期 owner 与邮箱身份验收](../evidence/product/career-os-v2/phase-2a-identity-forward-contract-acceptance-2026-08-06.md)
->
-> Migration 025 证据：[Identity Account/Email Expand 验收](../evidence/product/career-os-v2/phase-2a-025-identity-account-email-expand-acceptance-2026-08-06.md)
+> 提交后工作树预期：只剩未跟踪 `.claude/`；不得读取、提交、覆盖或清理它。
 
-> Migration 026 证据：[ApplicationCase Long-Lived Forward Repair 验收](../evidence/product/career-os-v2/phase-2a-026-application-case-long-lived-forward-repair-acceptance-2026-08-06.md)
+动态事实源：[MVP 路线](../06-mvp-roadmap.md)
+
+稳定主计划：[Private Alpha 严格开发总计划](../plans/career-os-v2-upgrade-plan-2026-08-04.md)
+
+架构决定：[ADR-0031](../decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md)
+
+Phase 2R 契约：[契约与迁移影响矩阵](../plans/career-os-phase-2r-contract-and-migration-impact-matrix-2026-08-06.md)
+
+前向修复设计：[Phase 2A 前向修复契约与隔离 PostgreSQL 测试设计](../plans/career-os-phase-2a-forward-contract-and-isolated-db-test-design-2026-08-06.md)
+
+最近验收：[Phase 2A-026B Private Requirement Context Forward Repair](../evidence/product/career-os-v2/phase-2a-026b-private-requirement-context-forward-repair-acceptance-2026-08-06.md)
 
 ## 1. 当前唯一目标
 
-OS 2.0 初版已完成 Phase 1A/1B，并有 migration 023/024 的历史实现与验收记录。Phase 2R、Identity Forward Contract 与正式 migrations 025/026 已完成；026 已通过迁移、角色和删除工程门，但复核证明私有 Case 的要求子表与 strict event 仍只能表达公共 requirement set，四选一决定为“修改”。当前唯一工程切片是 **Phase 2A-026B Private Requirement Context Forward Repair：让要求状态、证据连接、问题和事件同时支持公共与私有岗位上下文**。
+当前唯一工程切片是 **Phase 2A-027 Resume/Review Forward Repair**：审查 `024F` 未注册原型并将长期 Resume、public/private Case 派生引用、strict Content/Layout、独立 Review 聚合和 owner 删除覆盖正式注册为 additive migration 027。
 
 ```text
-Phase 2R contracts（已通过）
--> 023F/024F 未注册隔离原型（7/7，决定修改）
--> Identity contracts / 隔离原型（5/5 + 5/5，决定继续）
--> migration 025 Identity Account/Email Expand（6/6，决定继续）
--> migration 026 ApplicationCase Long-Lived Forward Repair（9/9，决定修改）
--> Phase 2A-026B Private Requirement Context Forward Repair
--> 公共/私有 requirement context / strict event / owner 隔离 / legacy / 删除
--> 通过后进入 migration 027 Resume/Review Forward Repair
+migration 025 Identity Account/Email Expand（已通过）
+-> migration 026 ApplicationCase Long-Lived Forward Repair（工程门通过，决定修改）
+-> migration 026B Private Requirement Context Forward Repair（10/10，决定继续）
+-> migration 027 Resume/Review Forward Repair（当前唯一目标）
+-> 通过后再决定 Phase 2 后续领域迁移、修改、回退或停止
 ```
 
-本切片只修复私有要求上下文，不注册 Case HTTP API，不导入真实 JD，不发送真实邮件，不接真实 AI，不访问真实招聘来源或真实简历，也不创建 Resume/Interview 后续迁移。
+本切片不注册 Resume/Review HTTP API，不调用真实 AI，不读取真实 JD/简历，不访问真实招聘来源、邮件或服务器，也不实现 Interview、Debrief、Knowledge 或前端编辑器。
 
 ## 2. 已通过基线
 
-- Phase 1A：`7bb2140`，统一壳层、静态看板、Case 路由、功能旗标与响应式 Gate。
-- 依赖安全修复：`5da2390`，`fast-uri` advisory 已清除。
-- Phase 1B：`24368f5`，JD 三态与 Resume 静态建议四态、URL/焦点/旗标/浏览器 Gate。
-- Phase 2 设计：`baf3276`，冻结复用矩阵、领域表、状态机、API、删除顺序、任务、权限、023–027 迁移和测试矩阵。
-- Phase 2A-1：ApplicationCase strict contracts、application core 五表、复合岗位/owner 约束、30 天 TTL、不可变事件、索引和角色权限已落地；该 30 天约束现由 ADR-0031 标记为待复核历史实现。证据见 [Phase 2A-1 验收](../evidence/product/career-os-v2/phase-2a1-application-case-core-acceptance-2026-08-05.md)。
-- Phase 2A-2：Resume V2 contracts、`resume_documents`、`resume_layout_revisions` 和既有 revision additive 扩展已落地；其 30 天约束和正文建议建模现由 Phase 2R 复核。证据见 [Phase 2A-2 验收](../evidence/product/career-os-v2/phase-2a2-resume-document-v2-acceptance-2026-08-05.md)。
-- Forward Contract 与隔离原型：新增公共/私有 JobContext、strict Case event、Resume semantic content、strict layout 与 Review 聚合；contracts 37 项、023F/024F 隔离 PostgreSQL 7/7 通过。原型位于 `packages/database/src/forward-contract/` 且未加入 `migrateToLatest`；证据见 [Forward Contract 与隔离原型验收](../evidence/product/career-os-v2/phase-2a-forward-contract-acceptance-2026-08-06.md)。
-- Identity Forward Contract：长期 owner、Account、EmailIdentity、验证码 challenge 和匿名 owner 认领 contracts/隔离原型分别 5/5 通过；历史记录见 [长期 owner 与邮箱身份验收](../evidence/product/career-os-v2/phase-2a-identity-forward-contract-acceptance-2026-08-06.md)。
-- Migration 025：正式注册 Account/EmailIdentity/challenge 与长期 owner；统一 session、业务、任务 owner active predicate，retention 只处理匿名 owner，身份删除受 deletion epoch 保护。迁移 6/6 通过，证据见 [Migration 025 验收](../evidence/product/career-os-v2/phase-2a-025-identity-account-email-expand-acceptance-2026-08-06.md)。
-- Migration 026：正式注册 owner-only 私有 JD snapshot/revision、公共/私有 Case、长期生命周期与 strict event，并补 ApplicationCase owner 删除覆盖。迁移 9/9、owner 删除/retention 2/2 通过；因私有 requirement context 缺口，决定为“修改”。证据见 [Migration 026 验收](../evidence/product/career-os-v2/phase-2a-026-application-case-long-lived-forward-repair-acceptance-2026-08-06.md)。
-- 最新串行全仓工程门：config 17、contracts 42、database 47、web 91、platform 434，共 631 项测试通过。lint 375 文件、TypeScript、build 和 `audit:ci` 通过；audit 保留 1 high ignored/1 moderate 已登记 advisory，web 主包 530.73 kB。本轮最终 `git diff --check` 仍须在文档收口后复跑。
+- Phase 1A/1B 已通过统一壳层、静态 JD 三态、静态 Resume 建议四态、URL/焦点/响应式与功能旗标 Gate。
+- migration 025 已注册长期 owner、Account/EmailIdentity 与删除 epoch 保护。
+- migration 026 已注册 owner-only 私有 JD snapshot/revision、公共/私有 Case、长期 Case 和 strict Case event。
+- migration 026B 已注册 `PublicRequirementContext | PrivateRequirementContext`、state-scoped evidence/question FK、public/private 唯一性、private strict event 与 legacy public backfill。
+- 026B 隔离 PostgreSQL 10/10、database 48/48、owner 删除/retention 2/2、全仓 635/635 通过；lint 376、typecheck、build、audit 和 `git diff --check` 通过。
+- 产品证据仍为 `E0`；可信供给仍为 22 岗 / 3 家企业 / 3 个官方 ATS，公共与 Alpha 岗位均为 0。Phase 4 前不恢复真实供给扩容。
 
-产品证据仍为 `E0`；可信供给仍为 22 岗 / 3 家企业 / 3 个官方 ATS，公共与 Alpha 岗位均为 0。Phase 4 前不恢复真实供给扩容。
+## 3. Migration 027 固定范围
 
-## 3. Phase 2A-2 已完成：migration 024
+### Resume document 前向修复
 
-### Contracts
+- `profile.resume_documents.expires_at` 对长期文档改为 nullable；历史 expiry 保留可读，不再由长期职业资产 retention 自动删除。
+- `base` 文档保持无岗位上下文；`case_derived` 文档严格固定 public 或 private JobContext、source content revision、evidence revision 与 base document revision。
+- private 派生文档引用 owner-only snapshot/content revision，不伪造公共岗位或 requirement-set UUID。
+- Case 删除时只允许显式执行 `case_id -> detached_from_case_id` 的选择性脱离；默认不静默删除用户选择保留的 Resume/Review。
 
-新增并从 `packages/contracts/src/index.ts` 导出：
+### Strict Content/Layout
 
-- `ResumeDocumentKind = base | case_derived`
-- `ResumeTemplateKey = cn_classic_single_column | cn_compact_technical`
-- Resume V2 section/block/content DTO；section 与 block ID 必须稳定且唯一。
-- Resume document、content revision、layout revision DTO 与 strict create/update contracts。
-- virtual legacy V1 DTO 与 V2 DTO 必须可判别；V1 update 只能提交 `legacySourceRevisionId + expectedRevision=0` 进入首次转换命令。
-- 请求不能接受客户端 owner、owner epoch、TTL、当前修订指针或派生文档的服务端固定字段。
+- 新内容写入使用 `resume-content-v1` 语义 section/block Schema；稳定 section/block/evidence ID、顺序和正文边界由数据库验证。
+- 新布局写入使用 `resume-layout-v2`；只允许固定模板、章节顺序和受控 layout token，不保存正文或任意 CSS/HTML。
+- 既有 `resume-document-v1/v2` 与 `resume-layout-v1` 只读兼容，不批量回填、不原地更新。
 
-### Migration 024
+### Resume Review 聚合
 
-新建 `profile.resume_documents`：
+- 正式注册 `resume_review_runs/findings/suggestions/decisions`。
+- Review 固定 owner/epoch、Case 或 detached Case、document/content revision、JobContext、evidence revision 与模式。
+- Finding/Suggestion/Decision 使用 strict Schema；suggestion 的 pending/accepted/edited/rejected 不写入 Resume 正文 block。
+- accepted/edited 必须引用新 content revision；rejected 不创建正文修订；findings 和 decisions 追加/不可原地修改。
+- `aijob_match_worker` 只生成任务结果所需 finding/suggestion，不得创建用户 Review aggregate 或决定。
 
-- owner/epoch、`base/case_derived`、title、可选同 owner ApplicationCase。
-- 派生文档固定 source content revision、job version、requirement set 和 evidence revision；base 文档这些引用全部为空。
-- current content/layout 指针、aggregate revision、owner 内创建幂等、历史 30 天 TTL（Phase 2R 待前向修复）、deleted/created/updated 时间。
-- 同一未删除 Case 首轮最多一个派生文档；列表、到期、Case 和 FK 索引齐全。
+### 删除、权限与回退
 
-additive 扩展既有 `profile.resume_document_revisions`：
+- 扩展 owner 全量删除顺序，先删 decision/suggestion/finding/run，再删 layout/content/document；owner epoch 改变后迟到结果不得写回。
+- collector 对所有 Resume/Review 表继续不可读；web/match/ops/migrator 权限按职责最小化。
+- 单项 Review 删除不自动删除 Resume；单项 Resume 删除必须处理 Review 引用而不能留下悬空正文。
+- migration 027 只做 expand/migrate；`down` 非破坏，不删除 Resume/Review 历史。
 
-- 新增 nullable `document_id`、`document_revision`、`base_document_revision`。
-- V1：`resume-document-v1` 且三个新列全部为空；旧行逐列不变。
-- V2：`resume-document-v2` 且 document/document revision 非空，base 只指向同 owner、同 document 的旧内容修订。
-- 保留既有 owner 全局 `revision/base_revision`，内容修订继续禁止 UPDATE。
+## 4. 开始前必须复核的冲突
 
-新建 `profile.resume_layout_revisions`：
+- `024F` 目前只在隔离测试中手动执行，不能直接因测试通过就注册；必须逐项复核它对 migration 026B、owner deletion service 和最新 Kysely 类型的兼容。
+- migration 024 的 `expires_at NOT NULL + 30 天` 是历史实现；ADR-0031 要求职业资产默认长期保留，但原始上传/临时解析仍最长 24 小时，不能一起放宽。
+- `ResumeSuggestionDecision` 已存在于旧正文 block DTO；027 的真源必须是 Review aggregate，旧字段只作 legacy 读取，不能双写成两个业务真源。
+- Case 当前版本可升级；已生成 Resume/Review 必须继续固定生成时的 JobContext revision，不能随 Case 指针漂移。
+- 当前 owner 删除服务尚未删除 Resume V2/Review 新表；没有删除、跨 owner 与迟到任务证据，不得宣称 migration 027 通过。
 
-- owner/document/layout revision、同文档 base、固定 template key、`section_order` 和无正文 settings、content hash、created time。
-- 布局修订禁止 UPDATE；换模板和排序不创建内容修订，不改变 section/block/evidence ID。
+## 5. 首轮代码入口
 
-所有新表显式 GRANT/REVOKE；collector 不得获得 profile 新表权限。migration 024 只 expand，`down` 使用前向修复。
+按顺序检查：
 
-### Tests
+1. `packages/contracts/src/resume-documents.ts` 与测试：semantic content、strict layout、Review DTO 和 legacy V1/V2 边界。
+2. `packages/database/src/migrations/024_resume_document_v2_expand.ts`：历史表、TTL、FK、不可变触发器和角色权限。
+3. `packages/database/src/forward-contract/024f_resume_document_review.ts`：未注册原型；不得未经复核直接复制或注册。
+4. `packages/database/src/forward-contract/phase-2a-forward-contract.integration.test.ts`：已有 public/private Resume/Review 夹具、选择性 Case 删除和角色测试。
+5. `packages/database/src/types.ts`、`packages/database/src/migrate.ts`。
+6. `apps/platform/src/profile/deletion-service.ts` 与 `retention-service.integration.test.ts`：补 owner 删除顺序和迟到写入拒绝。
 
-- contracts：V1/V2 判别、strict object、固定模板、稳定/唯一 ID、base/derived 配对与长度边界。
-- 空库 `001 -> 024`。
-- 含 Resume V1、Resume Evidence V1、ApplicationCase 和旧 task/decision 的 023 fixture 升级到 024；比较 V1 行所有旧列。
-- base/derived 字段配对、跨 owner Case/evidence/document FK、文档内修订序列/base owner、布局不可变、历史 30 天 TTL 复核、活动 Case 唯一派生文档、索引和五角色权限。
-- PostgreSQL 地址继续通过 loopback + `aijob_test*` 隔离守卫；临时数据库必须在测试后删除。
+## 6. 退出 Gate
 
-## 4. Phase 2A-026B 固定范围
+至少证明：
 
-下一切片只修复 migration 026 暴露的私有要求上下文缺口：
+- 空库 `001 -> 027` 与含 V1、024 V2、public/private Case、026B requirement context 的升级库均成功。
+- V1/V2 历史行逐列兼容；长期 Resume 不再自动到期，短期原文/导出限制不变。
+- public/private 派生文档、strict content/layout、Review 四表状态机与跨 owner 约束通过。
+- Case 选择性脱离、单项删除、owner 全量删除、collector 拒绝、match-worker 最小权限、迟到任务和非破坏回退通过。
+- `git diff --check`、`pnpm lint`、`pnpm typecheck`、使用隔离 PostgreSQL 的 `pnpm test`、`pnpm build`、`pnpm audit:ci` 全部有明确退出码。
 
-- 先在 contracts 中冻结 `PublicRequirementContext | PrivateRequirementContext`，不得让客户端提交 owner 或跨 Case snapshot。
-- additive migration 名称固定为 `026b_private_requirement_context_forward_repair`；历史 public 行逐列兼容，`down` 不删除要求状态、证据连接、问题或事件。
-- `case_requirement_states` 同时表达公共 `requirement_set_id` 与私有 `requirement_set_revision`，并由数据库约束保证分支与 Case JobContext 一致。
-- evidence link 和 question 通过 owner-scoped requirement-state 引用复用同一要求；不能继续依赖只适用于公共 UUID 的复合外键。
-- requirement state/evidence strict event 必须接受精确的公共或私有 payload，同时继续读取 026 已产生的合法 public `case-event-v1`。
-- 服务端后续必须验证私有 `requirement_id` 存在于 Case 固定的 snapshot revision；本切片先冻结数据库与 contract，不注册业务 API。
-- owner 全量删除、collector 拒绝、match-worker 删除、跨 owner、legacy public row 和 rollback 必须用隔离 PostgreSQL 证明。
+通过后形成独立 migration 027 验收证据，并只作“继续、修改、回退、停止”之一决定。没有前端变化时不重复伪造浏览器验收或产品价值证据。
 
-非目标：Case HTTP API、真实私有 JD、Resume/Review migration 027、Interview、真实邮件供应商、手机号短信、密码登录、OAuth、真实 AI、真实招聘来源、真实简历、服务器和云资源。
+## 7. 排除项
 
-## 5. 实现时必须保持的决定
-
-- migration 026 已正式注册，只允许 additive 026B；不得重写 026 或破坏已存在 public/private Case。
-- 不能把 private requirements 写入 `catalog.job_requirement_sets`，也不能给私有 JD 伪造公共 UUID。
-- 公共要求继续固定 `requirement_set_id`；私有要求固定 Case snapshot 的 `requirement_set_revision`，两者必须是严格联合类型。
-- evidence link 和 question 的 owner/Case/requirement-state 引用必须可由 FK 验证；仅靠应用层字符串拼接不够。
-- 事件不得复制 JD 正文、简历正文或用户证据正文，只保存上下文类型、修订、要求 ID、证据引用和原因码。
-- 新外键列必须有索引；历史 public 数据只允许确定性 backfill，不改变 revision、时间、状态或用户备注。
-- Resume V2/Review 的长期生命周期和删除覆盖仍由 migration 027 负责，不能混入 026B。
-
-## 6. 已知冲突与风险
-
-- Phase 2R 的公共/私有 JobContext 允许私有 JD 做资格/证据核对，但原 5.3 要求子表仍只写公共 `requirement_set_id`；026 实测确认该冲突，026B 必须显式修正。
-- `case_requirement_evidence_links` 与 `case_questions` 当前通过公共 requirement-set 复合键引用 state；直接把 UUID 改 nullable 会破坏 FK 和唯一性，必须先设计 owner-scoped state 引用与兼容 backfill。
-- migration 026 的 strict validator 已允许 public `case-event-v1`；026B 扩展 private payload 时必须保留这些历史事件可读且不可更新。
-- Resume V2 新表仍未进入 owner 全量删除服务；只能在 migration 027 后宣称 Resume 删除覆盖。
-- ADR-0005 要求 session Cookie SameSite=Strict，当前代码为 session Lax/CSRF Strict；属于服务器就绪前身份安全债，不混入 026B。
-
-## 7. 首轮代码入口
-
-按顺序只读检查：
-
-1. `packages/contracts/src/application-cases.ts` 中 requirement state/evidence/question 与 event schemas，以及对应 tests。
-2. `packages/database/src/migrations/023_application_case_core_expand.ts` 的三个要求子表与 `026_application_case_long_lived_forward_repair.ts`。
-3. `packages/database/src/forward-contract/023f_application_case_long_lived.ts` 中 strict event validator、角色权限和 026 隔离测试。
-4. `packages/database/src/types.ts`、`apps/platform/src/profile/deletion-service.ts` 与 retention integration tests；本切片不注册新服务路由。
-
-## 8. Gate 与排除项
-
-至少运行：
-
-```text
-git diff --check
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm audit:ci
-隔离 PostgreSQL：空库 001 -> 026B、026 fixture、public/private requirement context、legacy event、跨 owner、删除、角色与前向回退
-```
-
-不得读取、暂存或提交 `.claude/`、`.data/`、密钥、令牌、简历原文、本地数据库、下载 DOCX 或本机快照；不得访问真实招聘来源、真实 AI 或服务器。已有改动属于 coco；冲突必须记录并复现，不能静默覆盖。
+不得读取、暂存或提交 `.claude/`、`.data/`、密钥、令牌、简历原文、本地数据库、下载 DOCX 或本机快照；不得访问真实招聘来源、真实 AI、邮件或服务器。已有改动属于 coco；冲突必须记录并复现，不能静默覆盖。

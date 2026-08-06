@@ -6,6 +6,9 @@ import {
   ApplicationCaseEventSchema,
   ApplicationCaseSchema,
   ApplicationCaseWithJobContextSchema,
+  CaseQuestionSchema,
+  CaseRequirementEvidenceLinkSchema,
+  CaseRequirementStateSchema,
   CaseOutcomeSchema,
   CaseStageSchema,
   CreateApplicationCaseRequestSchema,
@@ -15,8 +18,11 @@ import {
   JobContextSchema,
   LegacyApplicationCaseEventSchema,
   PrivateJobSnapshotSchema,
+  PrivateRequirementContextSchema,
   PublicJobReferenceSchema,
+  PublicRequirementContextSchema,
   PutCaseRequirementEvidenceLinksRequestSchema,
+  RequirementContextSchema,
   RequirementEvidenceStateSchema,
   ResumeSuggestionDecisionSchema,
   TransitionApplicationCaseRequestSchema,
@@ -165,6 +171,28 @@ describe("ApplicationCase contracts", () => {
     ).toBe(false);
   });
 
+  it("keeps public and private requirement contexts strict and mutually exclusive", () => {
+    expect(
+      PublicRequirementContextSchema.safeParse({
+        kind: "public",
+        requirementSetId: ids.requirementSet,
+      }).success,
+    ).toBe(true);
+    expect(
+      PrivateRequirementContextSchema.safeParse({
+        kind: "private",
+        requirementSetRevision: 2,
+      }).success,
+    ).toBe(true);
+    expect(
+      RequirementContextSchema.safeParse({
+        kind: "private",
+        requirementSetRevision: 2,
+        requirementSetId: ids.requirementSet,
+      }).success,
+    ).toBe(false);
+  });
+
   it("accepts long-lived private cases without exposing server-owned create fields", () => {
     expect(
       ApplicationCaseWithJobContextSchema.safeParse({
@@ -243,6 +271,114 @@ describe("ApplicationCase contracts", () => {
       ApplicationCaseEventSchema.safeParse({
         ...event,
         eventType: "question_added",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts exact public and private requirement events without weakening public v1", () => {
+    const eventBase = {
+      id: ids.event,
+      caseId: ids.case,
+      sequence: 2,
+      actorType: "owner" as const,
+      createdAt: "2026-08-06T00:00:00.000Z",
+    };
+    const publicEvent = {
+      ...eventBase,
+      eventType: "requirement_state_changed" as const,
+      eventData: {
+        schemaVersion: "case-event-v1" as const,
+        requirementSetId: ids.requirementSet,
+        requirementId: "requirement-1",
+        fromState: null,
+        toState: "unconfirmed" as const,
+        reasonCode: null,
+      },
+    };
+    const privateEvent = {
+      ...eventBase,
+      eventType: "requirement_evidence_changed" as const,
+      eventData: {
+        schemaVersion: "case-event-v1" as const,
+        requirementContextKind: "private" as const,
+        requirementSetRevision: 3,
+        requirementId: "requirement-1",
+        evidenceRevisionId: randomUUID(),
+        evidenceIds: ["evidence-1"],
+        action: "linked" as const,
+      },
+    };
+    expect(ApplicationCaseEventSchema.safeParse(publicEvent).success).toBe(true);
+    expect(ApplicationCaseEventSchema.safeParse(privateEvent).success).toBe(true);
+    expect(
+      ApplicationCaseEventSchema.safeParse({
+        ...privateEvent,
+        eventData: { ...privateEvent.eventData, requirementSetId: ids.requirementSet },
+      }).success,
+    ).toBe(false);
+    expect(
+      ApplicationCaseEventSchema.safeParse({
+        ...publicEvent,
+        eventData: { ...publicEvent.eventData, requirementContextKind: "public" },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("uses one requirement context shape across states, evidence links and questions", () => {
+    const common = {
+      caseId: ids.case,
+      requirementContext: { kind: "private" as const, requirementSetRevision: 1 },
+      requirementId: "requirement-1",
+    };
+    expect(
+      CaseRequirementStateSchema.safeParse({
+        id: randomUUID(),
+        ...common,
+        state: "needs_work",
+        userNote: null,
+        revision: 1,
+        createdAt: "2026-08-06T00:00:00.000Z",
+        updatedAt: "2026-08-06T00:00:00.000Z",
+      }).success,
+    ).toBe(true);
+    expect(
+      CaseRequirementEvidenceLinkSchema.safeParse({
+        id: randomUUID(),
+        requirementStateId: randomUUID(),
+        ...common,
+        evidenceRevisionId: randomUUID(),
+        evidenceId: "evidence-1",
+        revision: 1,
+        linkedAt: "2026-08-06T00:00:00.000Z",
+        removedAt: null,
+      }).success,
+    ).toBe(true);
+    expect(
+      CaseQuestionSchema.safeParse({
+        id: randomUUID(),
+        requirementStateId: randomUUID(),
+        ...common,
+        question: "该要求需要怎样的项目证据？",
+        answer: null,
+        status: "open",
+        revision: 1,
+        createdAt: "2026-08-06T00:00:00.000Z",
+        updatedAt: "2026-08-06T00:00:00.000Z",
+      }).success,
+    ).toBe(true);
+    expect(
+      CaseQuestionSchema.safeParse({
+        id: randomUUID(),
+        caseId: ids.case,
+        requirementStateId: null,
+        requirementContext: null,
+        requirementId: "orphan-requirement",
+        question: "不允许孤立要求引用",
+        answer: null,
+        status: "open",
+        revision: 1,
+        createdAt: "2026-08-06T00:00:00.000Z",
+        updatedAt: "2026-08-06T00:00:00.000Z",
       }).success,
     ).toBe(false);
   });

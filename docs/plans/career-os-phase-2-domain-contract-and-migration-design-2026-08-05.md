@@ -1,6 +1,6 @@
 # Career OS 2.0 Phase 2 领域契约与迁移设计
 
-- 状态：historical base accepted；长期契约由 Phase 2R/ADR-0031 前向修正，migrations 025/026 已完成，026B 修复私有 requirement context
+- 状态：historical base accepted；长期契约由 Phase 2R/ADR-0031 前向修正，migrations 025/026/026B 已完成，当前正式化 migration 027 Resume/Review
 - 日期：2026-08-05；Phase 2R 复核：2026-08-06
 - 决策者：coco
 - 适用阶段：Phase 2
@@ -11,7 +11,7 @@
 
 ## 1. 本切片结论与非目标
 
-原设计已支撑 migration 023/024 的历史实现。正式 migrations 025/026 已注册长期 owner 与公共/私有 ApplicationCase；026 复核证明原要求子表仍只接受公共 requirement set，当前按 ADR-0031 执行 Phase 2A-026B Private Requirement Context Forward Repair。本文件保留为历史领域基线，冲突时以 Phase 2R、动态路线和当前交接为准。
+原设计已支撑 migration 023/024 的历史实现。正式 migrations 025/026/026B 已注册长期 owner、公共/私有 ApplicationCase 与对等 requirement context；当前按 ADR-0031 执行 migration 027 Resume/Review Forward Repair。本文件保留为历史领域基线，冲突时以 Phase 2R、动态路线和当前交接为准。
 
 固定非目标：
 

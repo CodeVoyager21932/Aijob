@@ -515,37 +515,56 @@ describeWithDatabase("application case core expand migration", () => {
     ).rejects.toThrow(/IMMUTABLE_CASE_EVENT/);
 
     await expect(
-      db
-        .insertInto("application.case_requirement_evidence_links")
-        .values({
-          owner_id: ids.owner,
-          owner_epoch: 1,
-          case_id: ids.applicationCase,
-          requirement_set_id: ids.requirementSet,
-          requirement_id: "requirement-1",
-          evidence_revision_id: ids.otherEvidenceRevision,
-          evidence_id: "evidence-1",
-          revision: 3,
-          removed_at: null,
-        })
-        .execute(),
+      sql`
+        INSERT INTO application.case_requirement_evidence_links (
+          owner_id,
+          owner_epoch,
+          case_id,
+          requirement_set_id,
+          requirement_id,
+          evidence_revision_id,
+          evidence_id,
+          revision,
+          removed_at
+        ) VALUES (
+          ${ids.owner},
+          1,
+          ${ids.applicationCase},
+          ${ids.requirementSet},
+          'requirement-1',
+          ${ids.otherEvidenceRevision},
+          'evidence-1',
+          3,
+          NULL
+        )
+      `.execute(db),
     ).rejects.toMatchObject({ code: "23503" });
 
-    await db
-      .insertInto("application.case_requirement_evidence_links")
-      .values({
-        id: ids.evidenceLink,
-        owner_id: ids.owner,
-        owner_epoch: 1,
-        case_id: ids.applicationCase,
-        requirement_set_id: ids.requirementSet,
-        requirement_id: "requirement-1",
-        evidence_revision_id: ids.evidenceRevision,
-        evidence_id: "evidence-1",
-        revision: 3,
-        removed_at: null,
-      })
-      .execute();
+    await sql`
+      INSERT INTO application.case_requirement_evidence_links (
+        id,
+        owner_id,
+        owner_epoch,
+        case_id,
+        requirement_set_id,
+        requirement_id,
+        evidence_revision_id,
+        evidence_id,
+        revision,
+        removed_at
+      ) VALUES (
+        ${ids.evidenceLink},
+        ${ids.owner},
+        1,
+        ${ids.applicationCase},
+        ${ids.requirementSet},
+        'requirement-1',
+        ${ids.evidenceRevision},
+        'evidence-1',
+        3,
+        NULL
+      )
+    `.execute(db);
     await db
       .insertInto("application.case_questions")
       .values({
