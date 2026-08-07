@@ -908,6 +908,130 @@ export interface CaseQuestionTable {
   updated_at: Generated<Timestamp>;
 }
 
+export interface InterviewSessionTable {
+  id: Generated<string>;
+  owner_id: string;
+  owner_epoch: number;
+  case_id: string | null;
+  detached_from_case_id: string | null;
+  job_context_kind: string;
+  published_job_id: string | null;
+  published_job_version_id: string | null;
+  requirement_set_id: string | null;
+  private_job_snapshot_id: string | null;
+  job_context_revision: number;
+  evidence_revision_id: string;
+  resume_document_id: string | null;
+  resume_content_revision_id: string | null;
+  mode: string;
+  status: string;
+  template_version: string;
+  prompt_version: string | null;
+  provider_adapter: string | null;
+  model: string | null;
+  revision: Generated<number>;
+  creation_idempotency_key: string;
+  creation_request_hash: string;
+  completed_at: Timestamp | null;
+  deleted_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface InterviewTurnTable {
+  id: Generated<string>;
+  owner_id: string;
+  owner_epoch: number;
+  interview_session_id: string;
+  sequence: number;
+  schema_version: Generated<string>;
+  kind: string;
+  content: string;
+  requirement_ids: Generated<JsonValue>;
+  evidence_ids: Generated<JsonValue>;
+  created_at: Generated<Timestamp>;
+}
+
+export interface InterviewFeedbackTable {
+  id: Generated<string>;
+  owner_id: string;
+  owner_epoch: number;
+  interview_session_id: string;
+  revision: number;
+  schema_version: Generated<string>;
+  generator_mode: string;
+  feedback: JsonValue;
+  created_at: Generated<Timestamp>;
+}
+
+export interface DebriefTable {
+  id: Generated<string>;
+  owner_id: string;
+  owner_epoch: number;
+  case_id: string | null;
+  detached_from_case_id: string | null;
+  interview_session_id: string | null;
+  job_context_kind: string;
+  published_job_id: string | null;
+  published_job_version_id: string | null;
+  requirement_set_id: string | null;
+  private_job_snapshot_id: string | null;
+  job_context_revision: number;
+  evidence_revision_id: string;
+  schema_version: Generated<string>;
+  expression_issues: Generated<JsonValue>;
+  evidence_gaps: Generated<JsonValue>;
+  practice_plan: Generated<JsonValue>;
+  status: Generated<string>;
+  revision: Generated<number>;
+  creation_idempotency_key: string;
+  creation_request_hash: string;
+  confirmed_at: Timestamp | null;
+  deleted_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface DebriefConfirmationTable {
+  id: Generated<string>;
+  owner_id: string;
+  owner_epoch: number;
+  debrief_id: string;
+  schema_version: Generated<string>;
+  based_on_debrief_revision: number;
+  idempotency_key_hash: string;
+  confirmed_at: Generated<Timestamp>;
+}
+
+export interface KnowledgeClipTable {
+  id: Generated<string>;
+  owner_id: string;
+  owner_epoch: number;
+  schema_version: Generated<string>;
+  url: string;
+  title: string;
+  summary: string;
+  use_cases: Generated<JsonValue>;
+  user_notes: string | null;
+  verified_at: Timestamp;
+  revision: Generated<number>;
+  creation_idempotency_key: string;
+  creation_request_hash: string;
+  deleted_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface KnowledgeClipCaseLinkTable {
+  id: Generated<string>;
+  owner_id: string;
+  owner_epoch: number;
+  knowledge_clip_id: string;
+  case_id: string;
+  schema_version: Generated<string>;
+  created_at: Generated<Timestamp>;
+}
+
 export interface InternalJobPreviewView {
   job_id: string;
   revision_id: string;
@@ -1053,5 +1177,12 @@ export interface Database {
   "application.case_requirement_states": CaseRequirementStateTable;
   "application.case_requirement_evidence_links": CaseRequirementEvidenceLinkTable;
   "application.case_questions": CaseQuestionTable;
+  "application.interview_sessions": InterviewSessionTable;
+  "application.interview_turns": InterviewTurnTable;
+  "application.interview_feedback": InterviewFeedbackTable;
+  "application.debriefs": DebriefTable;
+  "application.debrief_confirmations": DebriefConfirmationTable;
+  "application.knowledge_clips": KnowledgeClipTable;
+  "application.knowledge_clip_case_links": KnowledgeClipCaseLinkTable;
   "decision_feedback_audit.audit_events": AuditEventTable;
 }

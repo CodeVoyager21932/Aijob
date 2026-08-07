@@ -7,6 +7,7 @@ import { migrateToForTesting, migrateToLatest } from "../migrate.js";
 import { applicationCaseLongLivedForwardRepairMigration } from "../migrations/026_application_case_long_lived_forward_repair.js";
 import { privateRequirementContextForwardRepairMigration } from "../migrations/026b_private_requirement_context_forward_repair.js";
 import { resumeDocumentReviewForwardRepairMigration } from "../migrations/027_resume_document_review_forward_repair.js";
+import { interviewDebriefKnowledgeExpandMigration } from "../migrations/028_interview_debrief_knowledge_expand.js";
 
 const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
@@ -14,7 +15,7 @@ const unknown = JSON.stringify({ state: "unknown", reason: "source_not_stated" }
 const known = (value: unknown, evidenceRef: string) =>
   JSON.stringify({ state: "known", value, evidenceRefs: [evidenceRef] });
 
-describeWithDatabase("migrations 026B and 027 Phase 2A forward repairs", () => {
+describeWithDatabase("migrations 026B through 028 Phase 2A forward repairs", () => {
   const ids = {
     organization: randomUUID(),
     source: randomUUID(),
@@ -58,6 +59,18 @@ describeWithDatabase("migrations 026B and 027 Phase 2A forward repairs", () => {
     finding: randomUUID(),
     suggestion: randomUUID(),
     decision: randomUUID(),
+    interviewSession: randomUUID(),
+    interviewQuestionTurn: randomUUID(),
+    interviewAnswerTurn: randomUUID(),
+    interviewFeedback: randomUUID(),
+    interviewFeedbackItem: randomUUID(),
+    debrief: randomUUID(),
+    debriefIssue: randomUUID(),
+    debriefGap: randomUUID(),
+    debriefPractice: randomUUID(),
+    debriefConfirmation: randomUUID(),
+    knowledgeClip: randomUUID(),
+    knowledgeClipLink: randomUUID(),
   };
   const databaseName = `aijob_test_phase2a_forward_${randomUUID().replaceAll("-", "")}`;
   const emptyDatabaseName = `aijob_test_phase2a_026_empty_${randomUUID().replaceAll("-", "")}`;
@@ -553,8 +566,8 @@ describeWithDatabase("migrations 026B and 027 Phase 2A forward repairs", () => {
         SELECT name FROM kysely_migration ORDER BY timestamp DESC LIMIT 1
       `.execute(emptyDb),
     ]);
-    expect(migration.rows[0]?.name).toBe("027_resume_document_review_forward_repair");
-    expect(emptyMigration.rows[0]?.name).toBe("027_resume_document_review_forward_repair");
+    expect(migration.rows[0]?.name).toBe("028_interview_debrief_knowledge_expand");
+    expect(emptyMigration.rows[0]?.name).toBe("028_interview_debrief_knowledge_expand");
 
     const accountOwner = await db
       .selectFrom("identity.owners")
@@ -675,10 +688,11 @@ describeWithDatabase("migrations 026B and 027 Phase 2A forward repairs", () => {
     expect(legacyDerived.rows[0]?.expiresAt).not.toBeNull();
   });
 
-  it("keeps migrations 026, 026B and 027 rollback forward-only", async () => {
+  it("keeps migrations 026 through 028 rollback forward-only", async () => {
     await applicationCaseLongLivedForwardRepairMigration.down?.(db);
     await privateRequirementContextForwardRepairMigration.down?.(db);
     await resumeDocumentReviewForwardRepairMigration.down?.(db);
+    await interviewDebriefKnowledgeExpandMigration.down?.(db);
     const privateTable = await sql<{ name: string }>`
       SELECT to_regclass('application.private_job_snapshots')::text AS name
     `.execute(db);
@@ -916,7 +930,7 @@ describeWithDatabase("migrations 026B and 027 Phase 2A forward repairs", () => {
         NULL,
         'private-requirement',
         ${ids.evidenceRevision},
-        'private-evidence',
+        'evidence-1',
         1,
         NULL
       )
@@ -1588,6 +1602,259 @@ describeWithDatabase("migrations 026B and 027 Phase 2A forward repairs", () => {
     expect(derived.rows[0]).toEqual({ expiresAt: null, kind: "private" });
   });
 
+  it("keeps Interview, Debrief and Knowledge evidence-bound and owner-private", async () => {
+    await db
+      .insertInto("application.interview_sessions")
+      .values({
+        id: ids.interviewSession,
+        owner_id: ids.owner,
+        owner_epoch: 1,
+        case_id: ids.privateCase,
+        detached_from_case_id: null,
+        job_context_kind: "private",
+        published_job_id: null,
+        published_job_version_id: null,
+        requirement_set_id: null,
+        private_job_snapshot_id: ids.privateSnapshot,
+        job_context_revision: 1,
+        evidence_revision_id: ids.evidenceRevision,
+        resume_document_id: ids.derivedDocument,
+        resume_content_revision_id: ids.derivedContentRevision,
+        mode: "template",
+        status: "active",
+        template_version: "template-v1",
+        prompt_version: null,
+        provider_adapter: null,
+        model: null,
+        creation_idempotency_key: `interview-${ids.interviewSession}`,
+        creation_request_hash: "3".repeat(64),
+        completed_at: null,
+        deleted_at: null,
+      })
+      .execute();
+
+    await db
+      .insertInto("application.interview_turns")
+      .values([
+        {
+          id: ids.interviewQuestionTurn,
+          owner_id: ids.owner,
+          owner_epoch: 1,
+          interview_session_id: ids.interviewSession,
+          sequence: 1,
+          kind: "question",
+          content: "Describe the confirmed product example.",
+          requirement_ids: JSON.stringify(["private-requirement"]),
+          evidence_ids: JSON.stringify([]),
+        },
+        {
+          id: ids.interviewAnswerTurn,
+          owner_id: ids.owner,
+          owner_epoch: 1,
+          interview_session_id: ids.interviewSession,
+          sequence: 2,
+          kind: "answer",
+          content: "Synthetic answer grounded in the confirmed example.",
+          requirement_ids: JSON.stringify(["private-requirement"]),
+          evidence_ids: JSON.stringify(["evidence-1"]),
+        },
+      ])
+      .execute();
+
+    await expect(
+      db
+        .insertInto("application.interview_turns")
+        .values({
+          owner_id: ids.owner,
+          owner_epoch: 1,
+          interview_session_id: ids.interviewSession,
+          sequence: 3,
+          kind: "follow_up",
+          content: "Synthetic unsupported follow-up.",
+          requirement_ids: JSON.stringify(["private-requirement"]),
+          evidence_ids: JSON.stringify(["invented-evidence"]),
+        })
+        .execute(),
+    ).rejects.toThrow(/INTERVIEW_EVIDENCE_NOT_CONFIRMED/);
+
+    await db
+      .updateTable("application.interview_sessions")
+      .set({
+        status: "completed",
+        revision: 2,
+        completed_at: new Date(),
+        updated_at: new Date(),
+      })
+      .where("id", "=", ids.interviewSession)
+      .executeTakeFirstOrThrow();
+
+    const feedback = {
+      schemaVersion: "interview-feedback-v1",
+      summary: "The answer needs a clearer evidence chain.",
+      strengths: ["Direct response"],
+      items: [
+        {
+          id: ids.interviewFeedbackItem,
+          category: "evidence",
+          severity: "warning",
+          message: "The result is not connected clearly enough.",
+          improvement: "State the action and cite the confirmed result.",
+          turnIds: [ids.interviewAnswerTurn],
+          requirementIds: ["private-requirement"],
+          evidenceIds: ["evidence-1"],
+        },
+      ],
+      practicePriorities: ["Evidence-first STAR answer"],
+    };
+    await expect(
+      sql`
+        INSERT INTO application.interview_feedback (
+          owner_id,
+          owner_epoch,
+          interview_session_id,
+          revision,
+          generator_mode,
+          feedback
+        ) VALUES (
+          ${ids.owner},
+          1,
+          ${ids.interviewSession},
+          1,
+          'template',
+          ${JSON.stringify({ ...feedback, atsScore: 98 })}::jsonb
+        )
+      `.execute(db),
+    ).rejects.toMatchObject({ code: "23514" });
+
+    await db
+      .insertInto("application.interview_feedback")
+      .values({
+        id: ids.interviewFeedback,
+        owner_id: ids.owner,
+        owner_epoch: 1,
+        interview_session_id: ids.interviewSession,
+        revision: 1,
+        generator_mode: "template",
+        feedback: JSON.stringify(feedback),
+      })
+      .execute();
+
+    await db
+      .insertInto("application.debriefs")
+      .values({
+        id: ids.debrief,
+        owner_id: ids.owner,
+        owner_epoch: 1,
+        case_id: ids.privateCase,
+        detached_from_case_id: null,
+        interview_session_id: ids.interviewSession,
+        job_context_kind: "private",
+        published_job_id: null,
+        published_job_version_id: null,
+        requirement_set_id: null,
+        private_job_snapshot_id: ids.privateSnapshot,
+        job_context_revision: 1,
+        evidence_revision_id: ids.evidenceRevision,
+        expression_issues: JSON.stringify([
+          {
+            id: ids.debriefIssue,
+            description: "The answer was too broad.",
+            turnIds: [ids.interviewAnswerTurn],
+          },
+        ]),
+        evidence_gaps: JSON.stringify([
+          {
+            id: ids.debriefGap,
+            description: "The confirmed result needs a clearer explanation.",
+            requirementIds: ["private-requirement"],
+          },
+        ]),
+        practice_plan: JSON.stringify([
+          {
+            id: ids.debriefPractice,
+            action: "Practice a concise evidence-first STAR answer.",
+            targetDate: null,
+          },
+        ]),
+        status: "draft",
+        creation_idempotency_key: `debrief-${ids.debrief}`,
+        creation_request_hash: "4".repeat(64),
+        confirmed_at: null,
+        deleted_at: null,
+      })
+      .execute();
+
+    await db
+      .insertInto("application.debrief_confirmations")
+      .values({
+        id: ids.debriefConfirmation,
+        owner_id: ids.owner,
+        owner_epoch: 1,
+        debrief_id: ids.debrief,
+        based_on_debrief_revision: 1,
+        idempotency_key_hash: "5".repeat(64),
+      })
+      .execute();
+    expect(
+      await db
+        .selectFrom("application.debriefs")
+        .select(["status", "revision", "confirmed_at"])
+        .where("id", "=", ids.debrief)
+        .executeTakeFirstOrThrow(),
+    ).toMatchObject({ status: "confirmed", revision: 2 });
+
+    await expect(
+      db
+        .updateTable("application.debriefs")
+        .set({
+          expression_issues: JSON.stringify([]),
+          revision: 3,
+          updated_at: new Date(),
+        })
+        .where("id", "=", ids.debrief)
+        .execute(),
+    ).rejects.toThrow(/CONFIRMED_DEBRIEF_IMMUTABLE/);
+
+    await db
+      .insertInto("application.knowledge_clips")
+      .values({
+        id: ids.knowledgeClip,
+        owner_id: ids.owner,
+        owner_epoch: 1,
+        url: "https://example.test/interview-guide",
+        title: "Synthetic interview guide",
+        summary: "A short owner-saved summary.",
+        use_cases: JSON.stringify(["Product interview"]),
+        user_notes: null,
+        verified_at: new Date(),
+        creation_idempotency_key: `knowledge-${ids.knowledgeClip}`,
+        creation_request_hash: "6".repeat(64),
+        deleted_at: null,
+      })
+      .execute();
+    await db
+      .insertInto("application.knowledge_clip_case_links")
+      .values({
+        id: ids.knowledgeClipLink,
+        owner_id: ids.owner,
+        owner_epoch: 1,
+        knowledge_clip_id: ids.knowledgeClip,
+        case_id: ids.privateCase,
+      })
+      .execute();
+    await expect(
+      db
+        .insertInto("application.knowledge_clip_case_links")
+        .values({
+          owner_id: ids.otherOwner,
+          owner_epoch: 1,
+          knowledge_clip_id: ids.knowledgeClip,
+          case_id: ids.privateCase,
+        })
+        .execute(),
+    ).rejects.toMatchObject({ code: "23503" });
+  });
+
   it("keeps Review decisions evidence-bound and separate from Resume content", async () => {
     const resultSectionId = randomUUID();
     const resultBlockId = randomUUID();
@@ -1935,6 +2202,26 @@ describeWithDatabase("migrations 026B and 027 Phase 2A forward repairs", () => {
         updated_at = now()
       WHERE id = ${ids.reviewRun}
     `.execute(db);
+    await db
+      .updateTable("application.interview_sessions")
+      .set({
+        case_id: null,
+        detached_from_case_id: ids.privateCase,
+        revision: 3,
+        updated_at: new Date(),
+      })
+      .where("id", "=", ids.interviewSession)
+      .executeTakeFirstOrThrow();
+    await db
+      .updateTable("application.debriefs")
+      .set({
+        case_id: null,
+        detached_from_case_id: ids.privateCase,
+        revision: 3,
+        updated_at: new Date(),
+      })
+      .where("id", "=", ids.debrief)
+      .executeTakeFirstOrThrow();
     await sql`
       DELETE FROM application.application_cases
       WHERE id = ${ids.privateCase}
@@ -1945,15 +2232,27 @@ describeWithDatabase("migrations 026B and 027 Phase 2A forward repairs", () => {
       documentDetachedId: string | null;
       reviewCaseId: string | null;
       reviewDetachedId: string | null;
+      interviewCaseId: string | null;
+      interviewDetachedId: string | null;
+      debriefCaseId: string | null;
+      debriefDetachedId: string | null;
     }>`
       SELECT
         documents.case_id AS "documentCaseId",
         documents.detached_from_case_id AS "documentDetachedId",
         reviews.case_id AS "reviewCaseId",
-        reviews.detached_from_case_id AS "reviewDetachedId"
+        reviews.detached_from_case_id AS "reviewDetachedId",
+        interview.case_id AS "interviewCaseId",
+        interview.detached_from_case_id AS "interviewDetachedId",
+        debrief.case_id AS "debriefCaseId",
+        debrief.detached_from_case_id AS "debriefDetachedId"
       FROM profile.resume_documents AS documents
       JOIN profile.resume_review_runs AS reviews
         ON reviews.document_id = documents.id
+      JOIN application.interview_sessions AS interview
+        ON interview.resume_document_id = documents.id
+      JOIN application.debriefs AS debrief
+        ON debrief.interview_session_id = interview.id
       WHERE documents.id = ${ids.derivedDocument}
         AND reviews.id = ${ids.reviewRun}
     `.execute(db);
@@ -1962,6 +2261,10 @@ describeWithDatabase("migrations 026B and 027 Phase 2A forward repairs", () => {
       documentDetachedId: ids.privateCase,
       reviewCaseId: null,
       reviewDetachedId: ids.privateCase,
+      interviewCaseId: null,
+      interviewDetachedId: ids.privateCase,
+      debriefCaseId: null,
+      debriefDetachedId: ids.privateCase,
     });
     const deletedCase = await sql<{ count: number }>`
       SELECT count(*)::integer AS count
@@ -1969,6 +2272,20 @@ describeWithDatabase("migrations 026B and 027 Phase 2A forward repairs", () => {
       WHERE id = ${ids.privateCase}
     `.execute(db);
     expect(deletedCase.rows[0]?.count).toBe(0);
+    expect(
+      await db
+        .selectFrom("application.knowledge_clips")
+        .select("id")
+        .where("id", "=", ids.knowledgeClip)
+        .executeTakeFirst(),
+    ).toEqual({ id: ids.knowledgeClip });
+    expect(
+      await db
+        .selectFrom("application.knowledge_clip_case_links")
+        .select(sql<number>`count(*)::int`.as("count"))
+        .where("id", "=", ids.knowledgeClipLink)
+        .executeTakeFirstOrThrow(),
+    ).toEqual({ count: 0 });
   });
 
   it("keeps private and Review tables outside collector and aggregate creation outside match", async () => {
@@ -1979,6 +2296,14 @@ describeWithDatabase("migrations 026B and 027 Phase 2A forward repairs", () => {
       matchCanInsertFinding: boolean;
       matchCanInsertSuggestion: boolean;
       matchCanInsertDecision: boolean;
+      collectorCanReadInterview: boolean;
+      matchCanInsertInterviewSession: boolean;
+      matchCanInsertInterviewTurn: boolean;
+      matchCanInsertInterviewFeedback: boolean;
+      matchCanInsertDebrief: boolean;
+      matchCanInsertDebriefConfirmation: boolean;
+      matchCanInsertKnowledge: boolean;
+      webCanInsertDebriefConfirmation: boolean;
     }>`
       SELECT
         has_table_privilege(
@@ -2010,7 +2335,47 @@ describeWithDatabase("migrations 026B and 027 Phase 2A forward repairs", () => {
           'aijob_match_worker',
           'profile.resume_review_decisions',
           'INSERT'
-        ) AS "matchCanInsertDecision"
+        ) AS "matchCanInsertDecision",
+        has_table_privilege(
+          'aijob_collector_worker',
+          'application.interview_sessions',
+          'SELECT'
+        ) AS "collectorCanReadInterview",
+        has_table_privilege(
+          'aijob_match_worker',
+          'application.interview_sessions',
+          'INSERT'
+        ) AS "matchCanInsertInterviewSession",
+        has_table_privilege(
+          'aijob_match_worker',
+          'application.interview_turns',
+          'INSERT'
+        ) AS "matchCanInsertInterviewTurn",
+        has_table_privilege(
+          'aijob_match_worker',
+          'application.interview_feedback',
+          'INSERT'
+        ) AS "matchCanInsertInterviewFeedback",
+        has_table_privilege(
+          'aijob_match_worker',
+          'application.debriefs',
+          'INSERT'
+        ) AS "matchCanInsertDebrief",
+        has_table_privilege(
+          'aijob_match_worker',
+          'application.debrief_confirmations',
+          'INSERT'
+        ) AS "matchCanInsertDebriefConfirmation",
+        has_table_privilege(
+          'aijob_match_worker',
+          'application.knowledge_clips',
+          'INSERT'
+        ) AS "matchCanInsertKnowledge",
+        has_table_privilege(
+          'aijob_web_api',
+          'application.debrief_confirmations',
+          'INSERT'
+        ) AS "webCanInsertDebriefConfirmation"
     `.execute(db);
     expect(privileges.rows[0]).toEqual({
       collectorCanReadReview: false,
@@ -2019,6 +2384,14 @@ describeWithDatabase("migrations 026B and 027 Phase 2A forward repairs", () => {
       matchCanInsertFinding: true,
       matchCanInsertSuggestion: true,
       matchCanInsertDecision: false,
+      collectorCanReadInterview: false,
+      matchCanInsertInterviewSession: false,
+      matchCanInsertInterviewTurn: true,
+      matchCanInsertInterviewFeedback: true,
+      matchCanInsertDebrief: false,
+      matchCanInsertDebriefConfirmation: false,
+      matchCanInsertKnowledge: false,
+      webCanInsertDebriefConfirmation: true,
     });
 
     await expect(
@@ -2034,6 +2407,13 @@ describeWithDatabase("migrations 026B and 027 Phase 2A forward repairs", () => {
         await sql`SELECT id FROM application.case_requirement_states LIMIT 1`.execute(
           transaction,
         );
+      }),
+    ).rejects.toMatchObject({ code: "42501" });
+
+    await expect(
+      db.transaction().execute(async (transaction) => {
+        await sql`SET LOCAL ROLE aijob_collector_worker`.execute(transaction);
+        await sql`SELECT id FROM application.interview_sessions LIMIT 1`.execute(transaction);
       }),
     ).rejects.toMatchObject({ code: "42501" });
 
@@ -2087,7 +2467,7 @@ describeWithDatabase("migrations 026B and 027 Phase 2A forward repairs", () => {
     ).rejects.toMatchObject({ code: "42501" });
   });
 
-  it("keeps a Resume until its Review graph is explicitly handled", async () => {
+  it("keeps a Resume until its Review and Interview references are explicitly handled", async () => {
     await expect(
       db
         .deleteFrom("profile.resume_documents")
@@ -2116,6 +2496,16 @@ describeWithDatabase("migrations 026B and 027 Phase 2A forward repairs", () => {
         .where("id", "=", ids.derivedDocument)
         .executeTakeFirst(),
     ).toEqual({ id: ids.derivedDocument });
+
+    await expect(
+      db.deleteFrom("profile.resume_documents").where("id", "=", ids.derivedDocument).execute(),
+    ).rejects.toMatchObject({ code: "23503" });
+
+    await db.deleteFrom("application.debriefs").where("id", "=", ids.debrief).execute();
+    await db
+      .deleteFrom("application.interview_sessions")
+      .where("id", "=", ids.interviewSession)
+      .execute();
 
     await db.deleteFrom("profile.resume_documents").where("id", "=", ids.derivedDocument).execute();
     expect(

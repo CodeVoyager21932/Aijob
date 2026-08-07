@@ -247,6 +247,31 @@ describeWithDatabase("owner, export and tombstone retention", () => {
       .deleteFrom("profile.resume_review_runs")
       .where("owner_id", "=", ownerId)
       .execute();
+    await db
+      .deleteFrom("application.interview_feedback")
+      .where("owner_id", "=", ownerId)
+      .execute();
+    await db
+      .deleteFrom("application.interview_turns")
+      .where("owner_id", "=", ownerId)
+      .execute();
+    await db
+      .deleteFrom("application.debrief_confirmations")
+      .where("owner_id", "=", ownerId)
+      .execute();
+    await db.deleteFrom("application.debriefs").where("owner_id", "=", ownerId).execute();
+    await db
+      .deleteFrom("application.interview_sessions")
+      .where("owner_id", "=", ownerId)
+      .execute();
+    await db
+      .deleteFrom("application.knowledge_clip_case_links")
+      .where("owner_id", "=", ownerId)
+      .execute();
+    await db
+      .deleteFrom("application.knowledge_clips")
+      .where("owner_id", "=", ownerId)
+      .execute();
     await db.deleteFrom("profile.resume_documents").where("owner_id", "=", ownerId).execute();
     await db
       .deleteFrom("application.case_requirement_evidence_links")
@@ -365,6 +390,18 @@ describeWithDatabase("owner, export and tombstone retention", () => {
       reviewFinding: randomUUID(),
       reviewSuggestion: randomUUID(),
       reviewDecision: randomUUID(),
+      interviewSession: randomUUID(),
+      interviewQuestion: randomUUID(),
+      interviewAnswer: randomUUID(),
+      interviewFeedback: randomUUID(),
+      interviewFeedbackItem: randomUUID(),
+      debrief: randomUUID(),
+      debriefIssue: randomUUID(),
+      debriefGap: randomUUID(),
+      debriefPractice: randomUUID(),
+      debriefConfirmation: randomUUID(),
+      knowledgeClip: randomUUID(),
+      knowledgeClipLink: randomUUID(),
       staleTask: randomUUID(),
     };
     await db
@@ -898,6 +935,184 @@ describeWithDatabase("owner, export and tombstone retention", () => {
         reason_code: null,
       })
       .execute();
+    await db
+      .insertInto("application.interview_sessions")
+      .values({
+        id: ids.interviewSession,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        case_id: ids.applicationCase,
+        detached_from_case_id: null,
+        job_context_kind: "private",
+        published_job_id: null,
+        published_job_version_id: null,
+        requirement_set_id: null,
+        private_job_snapshot_id: ids.privateSnapshot,
+        job_context_revision: 1,
+        evidence_revision_id: ids.evidence,
+        resume_document_id: ids.derivedResumeDocument,
+        resume_content_revision_id: ids.derivedResumeContent,
+        mode: "template",
+        status: "active",
+        template_version: "retention-v1",
+        prompt_version: null,
+        provider_adapter: null,
+        model: null,
+        revision: 1,
+        creation_idempotency_key: `retention-interview-${suffix}`,
+        creation_request_hash: "3".repeat(64),
+        completed_at: null,
+        deleted_at: null,
+      })
+      .execute();
+    await db
+      .insertInto("application.interview_turns")
+      .values([
+        {
+          id: ids.interviewQuestion,
+          owner_id: owner.ownerId,
+          owner_epoch: owner.ownerEpoch,
+          interview_session_id: ids.interviewSession,
+          sequence: 1,
+          kind: "question",
+          content: "Describe the confirmed result.",
+          requirement_ids: JSON.stringify([]),
+          evidence_ids: JSON.stringify([]),
+        },
+        {
+          id: ids.interviewAnswer,
+          owner_id: owner.ownerId,
+          owner_epoch: owner.ownerEpoch,
+          interview_session_id: ids.interviewSession,
+          sequence: 2,
+          kind: "answer",
+          content: "I used the confirmed evidence from the retained career profile.",
+          requirement_ids: JSON.stringify([]),
+          evidence_ids: JSON.stringify([ids.confirmedEvidence]),
+        },
+      ])
+      .execute();
+    await db
+      .updateTable("application.interview_sessions")
+      .set({
+        status: "completed",
+        revision: 2,
+        completed_at: now,
+        updated_at: now,
+      })
+      .where("id", "=", ids.interviewSession)
+      .executeTakeFirstOrThrow();
+    await db
+      .insertInto("application.interview_feedback")
+      .values({
+        id: ids.interviewFeedback,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        interview_session_id: ids.interviewSession,
+        revision: 1,
+        generator_mode: "template",
+        feedback: JSON.stringify({
+          schemaVersion: "interview-feedback-v1",
+          summary: "The retained answer needs a clearer evidence chain.",
+          strengths: ["Direct response"],
+          items: [
+            {
+              id: ids.interviewFeedbackItem,
+              category: "evidence",
+              severity: "warning",
+              message: "The result is not connected clearly enough.",
+              improvement: "State the action and cite the confirmed result.",
+              turnIds: [ids.interviewAnswer],
+              requirementIds: [],
+              evidenceIds: [ids.confirmedEvidence],
+            },
+          ],
+          practicePriorities: ["Evidence-first STAR answer"],
+        }),
+      })
+      .execute();
+    await db
+      .insertInto("application.debriefs")
+      .values({
+        id: ids.debrief,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        case_id: ids.applicationCase,
+        detached_from_case_id: null,
+        interview_session_id: ids.interviewSession,
+        job_context_kind: "private",
+        published_job_id: null,
+        published_job_version_id: null,
+        requirement_set_id: null,
+        private_job_snapshot_id: ids.privateSnapshot,
+        job_context_revision: 1,
+        evidence_revision_id: ids.evidence,
+        expression_issues: JSON.stringify([
+          {
+            id: ids.debriefIssue,
+            description: "The answer was too broad.",
+            turnIds: [ids.interviewAnswer],
+          },
+        ]),
+        evidence_gaps: JSON.stringify([
+          {
+            id: ids.debriefGap,
+            description: "The confirmed result needs a clearer explanation.",
+            requirementIds: [],
+          },
+        ]),
+        practice_plan: JSON.stringify([
+          {
+            id: ids.debriefPractice,
+            action: "Practice a concise evidence-first STAR answer.",
+            targetDate: null,
+          },
+        ]),
+        status: "draft",
+        creation_idempotency_key: `retention-debrief-${suffix}`,
+        creation_request_hash: "4".repeat(64),
+        confirmed_at: null,
+        deleted_at: null,
+      })
+      .execute();
+    await db
+      .insertInto("application.debrief_confirmations")
+      .values({
+        id: ids.debriefConfirmation,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        debrief_id: ids.debrief,
+        based_on_debrief_revision: 1,
+        idempotency_key_hash: "5".repeat(64),
+      })
+      .execute();
+    await db
+      .insertInto("application.knowledge_clips")
+      .values({
+        id: ids.knowledgeClip,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        url: `https://retention.example.test/knowledge/${suffix}`,
+        title: "Synthetic retained interview guide",
+        summary: "A short owner-saved summary without copied source content.",
+        use_cases: JSON.stringify(["Interview practice"]),
+        user_notes: null,
+        verified_at: now,
+        creation_idempotency_key: `retention-knowledge-${suffix}`,
+        creation_request_hash: "6".repeat(64),
+        deleted_at: null,
+      })
+      .execute();
+    await db
+      .insertInto("application.knowledge_clip_case_links")
+      .values({
+        id: ids.knowledgeClipLink,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        knowledge_clip_id: ids.knowledgeClip,
+        case_id: ids.applicationCase,
+      })
+      .execute();
     const leaseOwner = `retention-stale-worker-${suffix}`;
     await db
       .insertInto("task_queue.tasks")
@@ -1108,6 +1323,19 @@ describeWithDatabase("owner, export and tombstone retention", () => {
         .where("owner_id", "=", session.context.ownerId)
         .executeTakeFirst(),
     ).toBeUndefined();
+    for (const table of [
+      "application.interview_sessions",
+      "application.debriefs",
+      "application.knowledge_clips",
+    ] as const) {
+      expect(
+        await db
+          .selectFrom(table)
+          .select(sql<number>`count(*)::int`.as("count"))
+          .where("owner_id", "=", session.context.ownerId)
+          .executeTakeFirstOrThrow(),
+      ).toEqual({ count: 1 });
+    }
 
     const requested = await requestOwnerDeletion({
       db,
@@ -1126,6 +1354,66 @@ describeWithDatabase("owner, export and tombstone retention", () => {
           source_block_id: ownerGraph.resumeBlock,
           evidence_ids: JSON.stringify([ownerGraph.confirmedEvidence]),
           reason_code: "LATE_REVIEW_RESULT",
+        })
+        .execute(),
+    ).rejects.toThrow(/OWNER_EPOCH_STALE/);
+    await expect(
+      db
+        .insertInto("application.interview_turns")
+        .values({
+          owner_id: session.context.ownerId,
+          owner_epoch: session.context.ownerEpoch,
+          interview_session_id: ownerGraph.interviewSession,
+          sequence: 3,
+          kind: "follow_up",
+          content: "This stale worker result must not be retained.",
+          requirement_ids: JSON.stringify([]),
+          evidence_ids: JSON.stringify([ownerGraph.confirmedEvidence]),
+        })
+        .execute(),
+    ).rejects.toThrow(/OWNER_EPOCH_STALE/);
+    await expect(
+      db
+        .insertInto("application.debriefs")
+        .values({
+          owner_id: session.context.ownerId,
+          owner_epoch: session.context.ownerEpoch,
+          case_id: ownerGraph.applicationCase,
+          detached_from_case_id: null,
+          interview_session_id: ownerGraph.interviewSession,
+          job_context_kind: "private",
+          published_job_id: null,
+          published_job_version_id: null,
+          requirement_set_id: null,
+          private_job_snapshot_id: ownerGraph.privateSnapshot,
+          job_context_revision: 1,
+          evidence_revision_id: ownerGraph.evidence,
+          expression_issues: JSON.stringify([]),
+          evidence_gaps: JSON.stringify([]),
+          practice_plan: JSON.stringify([]),
+          status: "draft",
+          creation_idempotency_key: `late-debrief-${randomUUID()}`,
+          creation_request_hash: "7".repeat(64),
+          confirmed_at: null,
+          deleted_at: null,
+        })
+        .execute(),
+    ).rejects.toThrow(/OWNER_EPOCH_STALE/);
+    await expect(
+      db
+        .insertInto("application.knowledge_clips")
+        .values({
+          owner_id: session.context.ownerId,
+          owner_epoch: session.context.ownerEpoch,
+          url: `https://retention.example.test/late/${randomUUID()}`,
+          title: "Stale knowledge result",
+          summary: "This stale owner write must not be retained.",
+          use_cases: JSON.stringify([]),
+          user_notes: null,
+          verified_at: now,
+          creation_idempotency_key: `late-knowledge-${randomUUID()}`,
+          creation_request_hash: "8".repeat(64),
+          deleted_at: null,
         })
         .execute(),
     ).rejects.toThrow(/OWNER_EPOCH_STALE/);
@@ -1189,6 +1477,13 @@ describeWithDatabase("owner, export and tombstone retention", () => {
       "profile.resume_review_suggestions",
       "profile.resume_review_findings",
       "profile.resume_review_runs",
+      "application.interview_feedback",
+      "application.interview_turns",
+      "application.debrief_confirmations",
+      "application.debriefs",
+      "application.interview_sessions",
+      "application.knowledge_clip_case_links",
+      "application.knowledge_clips",
       "profile.resume_layout_revisions",
       "profile.resume_documents",
     ] as const) {
@@ -1655,6 +1950,13 @@ describeWithDatabase("owner, export and tombstone retention", () => {
       "profile.resume_review_suggestions",
       "profile.resume_review_findings",
       "profile.resume_review_runs",
+      "application.interview_feedback",
+      "application.interview_turns",
+      "application.debrief_confirmations",
+      "application.debriefs",
+      "application.interview_sessions",
+      "application.knowledge_clip_case_links",
+      "application.knowledge_clips",
       "profile.resume_layout_revisions",
       "profile.resume_documents",
       "application.case_requirement_evidence_links",
@@ -1721,6 +2023,19 @@ describeWithDatabase("owner, export and tombstone retention", () => {
         .where("id", "=", freshExportId)
         .executeTakeFirstOrThrow(),
     ).toMatchObject({ status: "succeeded", ciphertext: Buffer.from("fresh-ciphertext") });
+    for (const table of [
+      "application.interview_sessions",
+      "application.debriefs",
+      "application.knowledge_clips",
+    ] as const) {
+      expect(
+        await db
+          .selectFrom(table)
+          .select(sql<number>`count(*)::int`.as("count"))
+          .where("owner_id", "=", survivorSession.context.ownerId)
+          .executeTakeFirstOrThrow(),
+      ).toEqual({ count: 1 });
+    }
 
     expect(await runOwnerRetentionMaintenance({ db, now })).toEqual({
       expiredOwnersQueued: 0,
