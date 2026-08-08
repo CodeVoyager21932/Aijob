@@ -280,6 +280,22 @@ export const ListApplicationCasesQuerySchema = z
   .strict();
 export type ListApplicationCasesQuery = z.infer<typeof ListApplicationCasesQuerySchema>;
 
+export const ListApplicationCasesResponseSchema = z
+  .object({
+    items: z.array(ApplicationCaseWithJobContextSchema),
+    nextCursor: z.string().trim().min(1).nullable(),
+  })
+  .strict();
+export type ListApplicationCasesResponse = z.infer<typeof ListApplicationCasesResponseSchema>;
+
+export const CreateApplicationCaseResponseSchema = z
+  .object({
+    applicationCase: ApplicationCaseWithJobContextSchema,
+    created: z.boolean(),
+  })
+  .strict();
+export type CreateApplicationCaseResponse = z.infer<typeof CreateApplicationCaseResponseSchema>;
+
 const CaseCreatedEventDataSchema = z
   .object({
     schemaVersion: CaseEventSchemaVersionSchema,

@@ -6,17 +6,19 @@ import {
   ApplicationCaseEventSchema,
   ApplicationCaseSchema,
   ApplicationCaseWithJobContextSchema,
+  CaseOutcomeSchema,
   CaseQuestionSchema,
   CaseRequirementEvidenceLinkSchema,
   CaseRequirementStateSchema,
-  CaseOutcomeSchema,
   CaseStageSchema,
   CreateApplicationCaseRequestSchema,
+  CreateApplicationCaseResponseSchema,
   CreateApplicationCaseWithJobContextRequestSchema,
   CreateCaseQuestionRequestSchema,
   InterviewModeSchema,
   JobContextSchema,
   LegacyApplicationCaseEventSchema,
+  ListApplicationCasesResponseSchema,
   PrivateJobSnapshotSchema,
   PrivateRequirementContextSchema,
   PublicJobReferenceSchema,
@@ -238,6 +240,48 @@ describe("ApplicationCase contracts", () => {
           publishedJobVersionId: ids.version,
         },
         publishedJobId: ids.job,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("keeps list and create responses explicit and strict", () => {
+    const applicationCase = {
+      id: ids.case,
+      ownerId: ids.owner,
+      ownerEpoch: 1,
+      jobContext: {
+        kind: "public" as const,
+        publishedJobId: ids.job,
+        publishedJobVersionId: ids.version,
+        requirementSetId: ids.requirementSet,
+        officialUrl: "https://careers.example.com/jobs/1/apply",
+      },
+      stage: "interested" as const,
+      outcome: null,
+      revision: 1,
+      endedAt: null,
+      deletedAt: null,
+      createdAt: "2026-08-06T00:00:00.000Z",
+      updatedAt: "2026-08-06T00:00:00.000Z",
+    };
+
+    expect(
+      ListApplicationCasesResponseSchema.safeParse({
+        items: [applicationCase],
+        nextCursor: "opaque-cursor",
+      }).success,
+    ).toBe(true);
+    expect(
+      CreateApplicationCaseResponseSchema.safeParse({
+        applicationCase,
+        created: true,
+      }).success,
+    ).toBe(true);
+    expect(
+      CreateApplicationCaseResponseSchema.safeParse({
+        applicationCase,
+        created: true,
+        idempotencyKey: "must-not-leak",
       }).success,
     ).toBe(false);
   });

@@ -963,6 +963,8 @@ describeWithDatabase("owner, export and tombstone retention", () => {
         creation_request_hash: "3".repeat(64),
         completed_at: null,
         deleted_at: null,
+        created_at: now,
+        updated_at: now,
       })
       .execute();
     await db

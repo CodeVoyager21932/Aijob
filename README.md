@@ -1,6 +1,6 @@
 # Aijob：可信官方岗位驱动的求职 OS
 
-> 2026-08-07：coco 已接受 [ADR-0031](docs/decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md)。migrations 025/026/026B/027/028 已正式注册长期 owner、公共/私有 ApplicationCase、对等 requirement context、Resume/Review 与 Interview/Debrief/Knowledge；当前唯一切片为 `Phase 2B-1 ApplicationCase Service/API`。没有真实招聘来源、真实 AI、真实邮件、服务器或真实简历进入本阶段，完整顺序见 [严格开发总计划](docs/plans/career-os-v2-upgrade-plan-2026-08-04.md)。
+> 2026-08-08：coco 已接受 [ADR-0031](docs/decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md)。migrations 025/026/026B/027/028 已正式注册长期 owner、公共/私有 ApplicationCase、对等 requirement context、Resume/Review 与 Interview/Debrief/Knowledge；`Phase 2B-1 ApplicationCase Service/API` 已通过，当前唯一切片为 `Phase 2B-2 Case Transition/Job Version`。没有真实招聘来源、真实 AI、真实邮件、服务器或真实简历进入本阶段，完整顺序见 [严格开发总计划](docs/plans/career-os-v2-upgrade-plan-2026-08-04.md)。
 
 这是一个待验证的产品项目，面向**未来 30 天真实投递实习岗位、已有中文简历、近期使用过多个官方渠道的中国大陆在校生**。它只把企业官方招聘网站和经企业官网确认的官方 ATS 中当前存在的具体岗位整理为可追溯信息；高校就业网站、政府页面、公众号和其他二手页面只用于发现企业及其官网方向。系统依据用户确认过的约束与经历证据，帮助用户完成投递、暂缓或放弃的高质量决定，最终回到企业官网或官方 ATS 投递。
 
@@ -10,17 +10,17 @@
 
 | 项目 | 当前值 |
 |---|---|
-| 快照日期 | 2026-08-07 |
-| 当前阶段 | Career OS 2.0 Phase 2B；migrations 025/026/026B/027/028 已完成长期 owner、Account/EmailIdentity、公共/私有 ApplicationCase、requirement context、Resume/Review 与 Interview/Debrief/Knowledge 的 additive 前向修复，当前开始 owner-protected 业务服务/API。100/1000 供给与服务器 Gate 通过前，G0/G1 继续暂停 |
+| 快照日期 | 2026-08-08 |
+| 当前阶段 | Career OS 2.0 Phase 2B；migrations 025/026/026B/027/028 已完成长期领域的 additive 前向修复，Phase 2B-1 已接入 ApplicationCase list/create/detail，当前实现追加式阶段/结果事件和显式岗位版本升级。100/1000 供给与服务器 Gate 通过前，G0/G1 继续暂停 |
 | 当前范围 | 干净验收库 `aijob_alpha` 为 22 条可信可见活动岗位、3 家企业、3 个官方 ATS 来源；距离硬门槛仍缺 978 岗、97 家。SME 为 2/3 家、14/22 岗，人工来源为 0；Alpha 与公共岗位均为 0。开发库 14/2 及纠偏前 231/149/29 只保留为历史运行事实 |
 | 协议校准 | 尚未开始；供给硬门槛和服务器就绪 Gate 通过后，只有 coco 明确启动才做 2 人校准；历史可核验记录仍为 0/2 |
 | 正式实验 | 暂停；供给硬门槛、服务器就绪 Gate 与 G0 通过后再做 6 人正式任务和 72 小时回访 |
 | 历史研究样本 | 5 条本地产品/运营岗位；不等于完整 MVP 目录 |
 | 当前证据 | E0：尚无可复核目标用户行为证据，两个产品假设均未判定 |
-| 当前实现策略 | 保留现有 PostgreSQL、模块化单体、可信来源门和受控 AI 边界；以 Case 工作台为唯一业务真源，职业资产长期保留并由用户主动删除，私有 JD 仅 owner 可见；长期领域契约已到 migration 028，下一步只为 ApplicationCase 列表、幂等创建和详情建立 owner-protected 服务/API |
+| 当前实现策略 | 保留现有 PostgreSQL、模块化单体、可信来源门和受控 AI 边界；以 Case 工作台为唯一业务真源，职业资产长期保留并由用户主动删除，私有 JD 仅 owner 可见；下一步只实现 `expectedRevision` 保护的阶段/结果事件、确定性岗位版本差异、用户显式升级和可无损旧决定兼容 |
 | 来源发现进度 | 已按 ADR-0019 完成 1000/1000 家企业/机构审查记录；34 个来源配置中 12 个为 canonical（7 个活动确定性、2 个浏览器提醒、3 个硬冲突暂停），22 个高校等来源均降级为 `discovery_only`。当前审计没有 `capacity` 就绪候选 |
-| 工程切片 | 迁移 019–028 已落实统一岗位资格、岗位级新鲜度、运行角色、长期 owner、公共/私有 Case 与 requirement context、长期 Resume/Review、Interview/Debrief/Knowledge；Alpha 邀请门同时保护前端与后端 API，PDF/DOCX 在受限子进程解析，100 家/1000 岗候选冻结链已通过 PostgreSQL 集成验证；公共版本仍为 0 |
-| AI 状态 | Review 与 Interview 生成结果均与用户确认事实分离；公开环境继续关闭，Phase 2B-1 不调用真实 AI |
+| 工程切片 | 迁移 019–028 已落实长期领域边界；Phase 2B-1 已提供 owner-protected ApplicationCase list/create/detail、public/private JobContext、幂等并发、CSRF、`no-store` 和不可枚举 404，串行全仓 648/648、lint 382、typecheck、build 与 audit 通过；公共版本仍为 0 |
+| AI 状态 | Review 与 Interview 生成结果均与用户确认事实分离；公开环境继续关闭，Phase 2B-2 不调用真实 AI |
 
 以上内容只用于帮助首次阅读者定位本次文档基线。后续动态阶段、样本进度、Gate 状态和下一决策日期只更新到 [MVP 路线与当前决策面板](docs/06-mvp-roadmap.md)；如有差异，以该面板为准。
 

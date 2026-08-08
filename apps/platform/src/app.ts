@@ -6,6 +6,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
 import { ZodError, z } from "zod";
 import { getInternalPreviewJob, listInternalPreviewJobs } from "./api/job-repository.js";
+import { registerApplicationCaseRoutes } from "./applications/routes.js";
 import { catalogRoutes } from "./catalog/routes.js";
 import { registerDecisionRoutes } from "./decisions/routes.js";
 import { installAnonymousIdentity } from "./identity/fastify.js";
@@ -63,6 +64,7 @@ export function buildApp(input: { config: AppConfig; db: Kysely<Database> }): Fa
       "/v1/resume-exports",
       "/v1/job-decisions",
       "/v1/job-insight-runs",
+      "/v1/application-cases",
       "/v1/session",
     ];
     if (ownerScopedPrefixes.some((prefix) => request.url.startsWith(prefix))) {
@@ -108,6 +110,10 @@ export function buildApp(input: { config: AppConfig; db: Kysely<Database> }): Fa
   });
   registerTailoringRoutes(app, { db: input.db, config: input.config });
   registerDecisionRoutes(app, { db: input.db });
+  registerApplicationCaseRoutes(app, {
+    db: input.db,
+    enableLocalMvp: input.config.enableLocalMvp,
+  });
 
   if (
     input.config.enableInternalPreview &&
