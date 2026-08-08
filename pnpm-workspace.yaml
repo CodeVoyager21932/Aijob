@@ -6,6 +6,7 @@ overrides:
   "fast-uri@3": "3.1.5"
   "fast-uri@4": "4.1.2"
   "find-my-way@9": "9.7.0"
+  postcss: 8.5.23
   vite: 6.4.3
 
 allowBuilds:
@@ -13,4 +14,6 @@ allowBuilds:
 
 auditConfig:
   ignoreGhsas:
+    # Dev-only postcss path; remove once the registry resolves nanoid >=3.3.17.
+    - GHSA-2v37-7h3g-55p8
     - GHSA-qwww-vcr4-c8h2
