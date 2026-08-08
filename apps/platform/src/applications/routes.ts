@@ -1,6 +1,8 @@
 import {
   CreateApplicationCaseWithJobContextRequestSchema,
   ListApplicationCasesQuerySchema,
+  TransitionApplicationCaseRequestSchema,
+  UpgradeApplicationCaseJobVersionRequestSchema,
 } from "@aijob/contracts";
 import type { Database } from "@aijob/database";
 import type { FastifyInstance } from "fastify";
@@ -9,10 +11,25 @@ import { z } from "zod";
 import { requireOwnerContext } from "../identity/fastify.js";
 import { ApiProblem, sendApiProblem } from "../identity/http.js";
 import { ServiceError } from "../lib/service-error.js";
-import { createApplicationCase, getApplicationCase, listApplicationCases } from "./service.js";
+import {
+  createApplicationCase,
+  getApplicationCase,
+  getApplicationCaseJobVersionDiff,
+  listApplicationCases,
+  transitionApplicationCase,
+  upgradeApplicationCaseJobVersion,
+} from "./service.js";
 
 const ParamsSchema = z.object({ caseId: z.string().uuid() }).strict();
 const IdempotencyKeySchema = z.string().trim().min(1).max(200);
+
+function requireIdempotencyKey(headers: Record<string, unknown>): string {
+  const rawIdempotencyKey = headers["idempotency-key"];
+  if (typeof rawIdempotencyKey !== "string") {
+    throw new ServiceError(400, "IDEMPOTENCY_KEY_REQUIRED", "该求职项目操作必须提供请求编号。");
+  }
+  return IdempotencyKeySchema.parse(rawIdempotencyKey);
+}
 
 function handleError(
   error: unknown,
@@ -59,11 +76,7 @@ export function registerApplicationCaseRoutes(
     try {
       const owner = requireOwnerContext(request);
       const body = CreateApplicationCaseWithJobContextRequestSchema.parse(request.body);
-      const rawIdempotencyKey = request.headers["idempotency-key"];
-      if (typeof rawIdempotencyKey !== "string") {
-        throw new ServiceError(400, "IDEMPOTENCY_KEY_REQUIRED", "创建求职项目时必须提供请求编号。");
-      }
-      const idempotencyKey = IdempotencyKeySchema.parse(rawIdempotencyKey);
+      const idempotencyKey = requireIdempotencyKey(request.headers);
       const result = await createApplicationCase({
         db: options.db,
         owner,
@@ -95,6 +108,64 @@ export function registerApplicationCaseRoutes(
         );
       }
       return reply.send(applicationCase);
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.post("/v1/application-cases/:caseId/transitions", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { caseId } = ParamsSchema.parse(request.params);
+      const body = TransitionApplicationCaseRequestSchema.parse(request.body);
+      const idempotencyKey = requireIdempotencyKey(request.headers);
+      return reply.send(
+        await transitionApplicationCase({
+          db: options.db,
+          owner,
+          caseId,
+          request: body,
+          idempotencyKey,
+        }),
+      );
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.get("/v1/application-cases/:caseId/job-version-diff", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { caseId } = ParamsSchema.parse(request.params);
+      return reply.send(
+        await getApplicationCaseJobVersionDiff({
+          db: options.db,
+          owner,
+          caseId,
+          enableLocalMvp: options.enableLocalMvp,
+        }),
+      );
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.post("/v1/application-cases/:caseId/job-version-upgrades", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { caseId } = ParamsSchema.parse(request.params);
+      const body = UpgradeApplicationCaseJobVersionRequestSchema.parse(request.body);
+      const idempotencyKey = requireIdempotencyKey(request.headers);
+      return reply.send(
+        await upgradeApplicationCaseJobVersion({
+          db: options.db,
+          owner,
+          caseId,
+          request: body,
+          idempotencyKey,
+          enableLocalMvp: options.enableLocalMvp,
+        }),
+      );
     } catch (error) {
       return handleError(error, request, reply);
     }

@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { AppConfig } from "@aijob/config";
 import {
+  ApplicationCaseCommandResponseSchema,
+  ApplicationCaseJobVersionDiffResponseSchema,
   CreateApplicationCaseResponseSchema,
   ListApplicationCasesResponseSchema,
 } from "@aijob/contracts";
@@ -68,6 +70,11 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
     revisionId: randomUUID(),
     index,
   }));
+  const upgradeFixture = {
+    versionId: randomUUID(),
+    requirementSetId: randomUUID(),
+    revisionId: randomUUID(),
+  };
   const privateSnapshotId = randomUUID();
 
   beforeAll(async () => {
@@ -220,7 +227,32 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
             id: fixture.requirementSetId,
             published_job_version_id: fixture.versionId,
             schema_version: "application-case-fixture-v1",
-            requirements: JSON.stringify([]),
+            requirements: JSON.stringify(
+              fixture.index === 0
+                ? [
+                    {
+                      id: "requirement-old-sql",
+                      kind: "skill",
+                      operator: "contains",
+                      expectedValue: ["SQL"],
+                      sourceText: "掌握 SQL",
+                      evidenceRefs: [`${fixture.revisionId}#sql`],
+                      sourceSpan: null,
+                      necessity: "required",
+                    },
+                    {
+                      id: "requirement-old-language",
+                      kind: "language",
+                      operator: "contains",
+                      expectedValue: "英语六级",
+                      sourceText: "英语六级",
+                      evidenceRefs: [`${fixture.revisionId}#language`],
+                      sourceSpan: null,
+                      necessity: "preferred",
+                    },
+                  ]
+                : [],
+            ),
             content_hash: String.fromCharCode(100 + fixture.index).repeat(64),
           })
           .execute();
@@ -235,6 +267,111 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
           .where("id", "=", fixture.jobId)
           .execute();
       }
+
+      const firstPublic = publicFixtures[0];
+      if (!firstPublic) throw new Error("PUBLIC_FIXTURE_MISSING");
+      const upgradedSourceUrl = `https://application-case.example.test/jobs/${firstPublic.recordId}`;
+      await transaction
+        .insertInto("ingestion.source_job_revisions")
+        .values({
+          id: upgradeFixture.revisionId,
+          source_job_record_id: firstPublic.recordId,
+          revision_content_hash: "9".repeat(64),
+          import_mode: "manual",
+          adapter_version: "2",
+          normalizer_version: "1",
+          company_name: "Application Case Fixture Company",
+          title: "Synthetic AI product internship",
+          job_family: JSON.stringify({
+            state: "known",
+            value: "product",
+            evidenceRefs: [`${upgradeFixture.revisionId}#family`],
+          }),
+          locations: JSON.stringify({
+            state: "known",
+            value: ["Shanghai"],
+            evidenceRefs: [`${upgradeFixture.revisionId}#location`],
+          }),
+          business_groups: JSON.stringify([]),
+          entry_scope: "internship",
+          source_project_name: null,
+          recruit_label_name: "internship",
+          recruitment_type: JSON.stringify({
+            state: "known",
+            value: "internship",
+            evidenceRefs: [`${upgradeFixture.revisionId}#type`],
+          }),
+          responsibilities: "Synthetic AI product research and delivery responsibilities.",
+          requirements: "掌握 SQL 与 Python；具备用户研究项目经验。",
+          structured_fields: JSON.stringify({}),
+          ingestion_state: "validated",
+          publication_state: "published",
+          activity_state: "active",
+          source_url: upgradedSourceUrl,
+          apply_url: `${upgradedSourceUrl}/apply`,
+          quality_flags: JSON.stringify([]),
+        })
+        .execute();
+      await transaction
+        .insertInto("catalog.published_job_versions")
+        .values({
+          id: upgradeFixture.versionId,
+          published_job_id: firstPublic.jobId,
+          source_job_revision_id: upgradeFixture.revisionId,
+          content_hash: "9".repeat(64),
+          company_name: "Application Case Fixture Company",
+          title: "Synthetic AI product internship",
+          job_family: JSON.stringify({
+            state: "known",
+            value: "product",
+            evidenceRefs: [`${upgradeFixture.revisionId}#family`],
+          }),
+          locations: unknown,
+          responsibilities: "Synthetic AI product research and delivery responsibilities.",
+          requirements: "掌握 SQL 与 Python；具备用户研究项目经验。",
+          structured_fields: JSON.stringify({}),
+          activity_state: "active",
+          source_url: upgradedSourceUrl,
+          apply_url: `${upgradedSourceUrl}/apply`,
+          effective_at: new Date(Date.now() + 1_000),
+        })
+        .execute();
+      await transaction
+        .insertInto("catalog.job_requirement_sets")
+        .values({
+          id: upgradeFixture.requirementSetId,
+          published_job_version_id: upgradeFixture.versionId,
+          schema_version: "application-case-fixture-v2",
+          requirements: JSON.stringify([
+            {
+              id: "requirement-new-sql",
+              kind: "skill",
+              operator: "contains",
+              expectedValue: ["SQL", "Python"],
+              sourceText: "掌握 SQL",
+              evidenceRefs: [`${upgradeFixture.revisionId}#sql`],
+              sourceSpan: null,
+              necessity: "required",
+            },
+            {
+              id: "requirement-new-project",
+              kind: "experience",
+              operator: "contains",
+              expectedValue: ["用户研究"],
+              sourceText: "具备用户研究项目经验",
+              evidenceRefs: [`${upgradeFixture.revisionId}#project`],
+              sourceSpan: null,
+              necessity: "required",
+            },
+          ]),
+          content_hash: "8".repeat(64),
+        })
+        .execute();
+      await transaction
+        .updateTable("catalog.published_job_versions")
+        .set({ active_requirement_set_id: upgradeFixture.requirementSetId })
+        .where("id", "=", upgradeFixture.versionId)
+        .execute();
 
       await transaction
         .insertInto("application.private_job_snapshots")
@@ -306,7 +443,10 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       await transaction.deleteFrom("identity.owners").where("id", "in", ownerIds).execute();
 
       const jobIds = publicFixtures.map(({ jobId }) => jobId);
-      const versionIds = publicFixtures.map(({ versionId }) => versionId);
+      const versionIds = [
+        ...publicFixtures.map(({ versionId }) => versionId),
+        upgradeFixture.versionId,
+      ];
       await transaction
         .deleteFrom("catalog.company_quota_selections")
         .where("published_job_id", "in", jobIds)
@@ -332,11 +472,10 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       await transaction.deleteFrom("catalog.published_jobs").where("id", "in", jobIds).execute();
       await transaction
         .deleteFrom("ingestion.source_job_revisions")
-        .where(
-          "id",
-          "in",
-          publicFixtures.map(({ revisionId }) => revisionId),
-        )
+        .where("id", "in", [
+          ...publicFixtures.map(({ revisionId }) => revisionId),
+          upgradeFixture.revisionId,
+        ])
         .execute();
       await transaction
         .deleteFrom("ingestion.source_job_records")
@@ -681,7 +820,333 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
     });
     expect(legacyDecisions.statusCode).toBe(200);
     expect(legacyDecisions.json()).toEqual([]);
-  }, 20_000);
+
+    const initialDiff = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${createdBody.applicationCase.id}/job-version-diff`,
+      headers,
+    });
+    expect(initialDiff.statusCode).toBe(200);
+    expect(initialDiff.headers["cache-control"]).toBe("no-store");
+    expect(ApplicationCaseJobVersionDiffResponseSchema.parse(initialDiff.json())).toMatchObject({
+      status: "up_to_date",
+      pinnedPublishedJobVersionId: firstPublic.versionId,
+      targetPublishedJobVersionId: firstPublic.versionId,
+      fieldChanges: [],
+    });
+
+    const privateDiff = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${privateBody.applicationCase.id}/job-version-diff`,
+      headers,
+    });
+    expect(privateDiff.statusCode).toBe(409);
+    expect(privateDiff.json()).toMatchObject({ code: "JOB_VERSION_UPGRADE_NOT_APPLICABLE" });
+
+    await db
+      .updateTable("catalog.published_jobs")
+      .set({
+        current_version_id: upgradeFixture.versionId,
+        public_version_id: upgradeFixture.versionId,
+      })
+      .where("id", "=", firstPublic.jobId)
+      .execute();
+    const availableDiffResponse = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${createdBody.applicationCase.id}/job-version-diff`,
+      headers,
+    });
+    expect(availableDiffResponse.statusCode).toBe(200);
+    const availableDiff = ApplicationCaseJobVersionDiffResponseSchema.parse(
+      availableDiffResponse.json(),
+    );
+    expect(availableDiff).toMatchObject({
+      status: "update_available",
+      targetPublishedJobVersionId: upgradeFixture.versionId,
+      targetRequirementSetId: upgradeFixture.requirementSetId,
+    });
+    expect(availableDiff.fieldChanges.map(({ field }) => field)).toEqual(
+      expect.arrayContaining(["title", "responsibilities", "requirements"]),
+    );
+    expect(availableDiff.requirementChanges.added.map(({ id }) => id)).toEqual([
+      "requirement-new-project",
+    ]);
+    expect(availableDiff.requirementChanges.removed.map(({ id }) => id)).toEqual([
+      "requirement-old-language",
+    ]);
+    expect(availableDiff.requirementChanges.changed).toMatchObject([
+      {
+        from: { id: "requirement-old-sql" },
+        to: { id: "requirement-new-sql" },
+      },
+    ]);
+
+    const upgradeKey = `upgrade-${randomUUID()}`;
+    const upgraded = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${createdBody.applicationCase.id}/job-version-upgrades`,
+      headers: { ...headers, "idempotency-key": upgradeKey },
+      payload: {
+        expectedRevision: 1,
+        targetPublishedJobVersionId: upgradeFixture.versionId,
+      },
+    });
+    expect(upgraded.statusCode).toBe(200);
+    const upgradedBody = ApplicationCaseCommandResponseSchema.parse(upgraded.json());
+    expect(upgradedBody.event).toMatchObject({
+      caseId: createdBody.applicationCase.id,
+      sequence: 2,
+      eventType: "job_version_upgraded",
+      eventData: {
+        fromPublishedJobVersionId: firstPublic.versionId,
+        toPublishedJobVersionId: upgradeFixture.versionId,
+        fromRequirementSetId: firstPublic.requirementSetId,
+        toRequirementSetId: upgradeFixture.requirementSetId,
+      },
+    });
+    const upgradeReplay = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${createdBody.applicationCase.id}/job-version-upgrades`,
+      headers: { ...headers, "idempotency-key": upgradeKey },
+      payload: {
+        expectedRevision: 1,
+        targetPublishedJobVersionId: upgradeFixture.versionId,
+      },
+    });
+    expect(upgradeReplay.statusCode).toBe(200);
+    expect(upgradeReplay.json()).toEqual(upgradedBody);
+    const upgradeKeyConflict = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${createdBody.applicationCase.id}/job-version-upgrades`,
+      headers: { ...headers, "idempotency-key": upgradeKey },
+      payload: {
+        expectedRevision: 2,
+        targetPublishedJobVersionId: firstPublic.versionId,
+      },
+    });
+    expect(upgradeKeyConflict.statusCode).toBe(409);
+    expect(upgradeKeyConflict.json()).toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+    const staleUpgrade = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${createdBody.applicationCase.id}/job-version-upgrades`,
+      headers: { ...headers, "idempotency-key": `stale-upgrade-${randomUUID()}` },
+      payload: {
+        expectedRevision: 1,
+        targetPublishedJobVersionId: upgradeFixture.versionId,
+      },
+    });
+    expect(staleUpgrade.statusCode).toBe(409);
+    expect(staleUpgrade.json()).toMatchObject({ code: "APPLICATION_CASE_REVISION_CONFLICT" });
+    const crossJobUpgrade = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${createdBody.applicationCase.id}/job-version-upgrades`,
+      headers: { ...headers, "idempotency-key": `cross-upgrade-${randomUUID()}` },
+      payload: {
+        expectedRevision: 2,
+        targetPublishedJobVersionId: secondPublic.versionId,
+      },
+    });
+    expect(crossJobUpgrade.statusCode).toBe(422);
+    expect(crossJobUpgrade.json()).toMatchObject({ code: "PUBLIC_JOB_CONTEXT_UNAVAILABLE" });
+    const upgradedCase = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${createdBody.applicationCase.id}`,
+      headers,
+    });
+    expect(upgradedCase.json()).toMatchObject({
+      revision: 2,
+      jobContext: {
+        publishedJobVersionId: upgradeFixture.versionId,
+        requirementSetId: upgradeFixture.requirementSetId,
+      },
+    });
+
+    const missingTransitionCsrf = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${secondPublicBody.applicationCase.id}/transitions`,
+      headers: { ...headersWithoutCsrf, "idempotency-key": `csrf-${randomUUID()}` },
+      payload: { expectedRevision: 1, toStage: "preparing" },
+    });
+    expect(missingTransitionCsrf.statusCode).toBe(403);
+    const invalidTransition = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${secondPublicBody.applicationCase.id}/transitions`,
+      headers: { ...headers, "idempotency-key": `invalid-${randomUUID()}` },
+      payload: { expectedRevision: 1, toStage: "applied" },
+    });
+    expect(invalidTransition.statusCode).toBe(409);
+    expect(invalidTransition.json()).toMatchObject({ code: "INVALID_CASE_TRANSITION" });
+    const transitionKey = `transition-${randomUUID()}`;
+    const transitioned = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${secondPublicBody.applicationCase.id}/transitions`,
+      headers: { ...headers, "idempotency-key": transitionKey },
+      payload: { expectedRevision: 1, toStage: "preparing", reason: "USER_CONFIRMED" },
+    });
+    expect(transitioned.statusCode).toBe(200);
+    const transitionedBody = ApplicationCaseCommandResponseSchema.parse(transitioned.json());
+    expect(transitionedBody.event).toMatchObject({
+      sequence: 2,
+      eventType: "stage_transitioned",
+      eventData: {
+        fromStage: "interested",
+        toStage: "preparing",
+        outcome: null,
+        reasonCode: "USER_CONFIRMED",
+      },
+    });
+    const transitionReplay = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${secondPublicBody.applicationCase.id}/transitions`,
+      headers: { ...headers, "idempotency-key": transitionKey },
+      payload: { expectedRevision: 1, toStage: "preparing", reason: "USER_CONFIRMED" },
+    });
+    expect(transitionReplay.json()).toEqual(transitionedBody);
+    const transitionKeyConflict = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${secondPublicBody.applicationCase.id}/transitions`,
+      headers: { ...headers, "idempotency-key": transitionKey },
+      payload: { expectedRevision: 2, toStage: "interested" },
+    });
+    expect(transitionKeyConflict.statusCode).toBe(409);
+    expect(transitionKeyConflict.json()).toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+    const concurrentTransitions = await Promise.all(
+      ["interested", "applied"].map((toStage) =>
+        app.inject({
+          method: "POST",
+          url: `/v1/application-cases/${secondPublicBody.applicationCase.id}/transitions`,
+          headers: { ...headers, "idempotency-key": `race-${toStage}-${randomUUID()}` },
+          payload: { expectedRevision: 2, toStage },
+        }),
+      ),
+    );
+    expect(concurrentTransitions.map(({ statusCode }) => statusCode).sort()).toEqual([200, 409]);
+    expect(
+      concurrentTransitions.find(({ statusCode }) => statusCode === 409)?.json(),
+    ).toMatchObject({ code: "APPLICATION_CASE_REVISION_CONFLICT" });
+    const crossOwnerTransition = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${createdBody.applicationCase.id}/transitions`,
+      headers: {
+        ...sessionHeaders(secondSession),
+        "idempotency-key": `cross-transition-${randomUUID()}`,
+      },
+      payload: { expectedRevision: 2, toStage: "preparing" },
+    });
+    expect(crossOwnerTransition.statusCode).toBe(404);
+    expect(crossOwnerTransition.headers["cache-control"]).toBe("no-store");
+
+    const resolved = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${privateBody.applicationCase.id}/transitions`,
+      headers: { ...headers, "idempotency-key": `resolve-${randomUUID()}` },
+      payload: { expectedRevision: 1, toStage: "resolved", outcome: "withdrawn" },
+    });
+    expect(resolved.statusCode).toBe(200);
+    expect(ApplicationCaseCommandResponseSchema.parse(resolved.json()).event).toMatchObject({
+      sequence: 2,
+      eventType: "stage_transitioned",
+      eventData: { toStage: "resolved", outcome: "withdrawn" },
+    });
+    const corrected = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${privateBody.applicationCase.id}/transitions`,
+      headers: { ...headers, "idempotency-key": `correct-${randomUUID()}` },
+      payload: {
+        expectedRevision: 2,
+        toStage: "resolved",
+        outcome: "rejected",
+        reason: "USER_CORRECTION",
+      },
+    });
+    expect(corrected.statusCode).toBe(200);
+    expect(ApplicationCaseCommandResponseSchema.parse(corrected.json()).event).toMatchObject({
+      sequence: 3,
+      eventType: "outcome_corrected",
+      eventData: { fromOutcome: "withdrawn", toOutcome: "rejected" },
+    });
+    const correctionWithoutReason = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${privateBody.applicationCase.id}/transitions`,
+      headers: { ...headers, "idempotency-key": `correct-missing-${randomUUID()}` },
+      payload: { expectedRevision: 3, toStage: "resolved", outcome: "offer" },
+    });
+    expect(correctionWithoutReason.statusCode).toBe(409);
+    expect(correctionWithoutReason.json()).toMatchObject({ code: "INVALID_CASE_TRANSITION" });
+    const reopened = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${privateBody.applicationCase.id}/transitions`,
+      headers: { ...headers, "idempotency-key": `reopen-${randomUUID()}` },
+      payload: { expectedRevision: 3, toStage: "interested" },
+    });
+    expect(reopened.statusCode).toBe(409);
+    expect(reopened.json()).toMatchObject({ code: "INVALID_CASE_TRANSITION" });
+
+    const savedDecision = await app.inject({
+      method: "PUT",
+      url: `/v1/job-decisions/${firstPublic.jobId}`,
+      headers,
+      payload: { expectedRevision: 0, status: "saved", reason: null },
+    });
+    expect(savedDecision.statusCode).toBe(200);
+    expect(savedDecision.json()).toMatchObject({ revision: 1, status: "saved" });
+    const preparingDecision = await app.inject({
+      method: "PUT",
+      url: `/v1/job-decisions/${firstPublic.jobId}`,
+      headers,
+      payload: { expectedRevision: 1, status: "preparing_to_apply", reason: "继续准备" },
+    });
+    expect(preparingDecision.statusCode).toBe(200);
+    const appliedDecision = await app.inject({
+      method: "PUT",
+      url: `/v1/job-decisions/${firstPublic.jobId}`,
+      headers,
+      payload: { expectedRevision: 2, status: "applied", reason: "用户手动确认" },
+    });
+    expect(appliedDecision.statusCode).toBe(200);
+    const interviewing = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${createdBody.applicationCase.id}/transitions`,
+      headers: { ...headers, "idempotency-key": `interviewing-${randomUUID()}` },
+      payload: { expectedRevision: 4, toStage: "interviewing" },
+    });
+    expect(interviewing.statusCode).toBe(200);
+    const lossyLegacyWrite = await app.inject({
+      method: "PUT",
+      url: `/v1/job-decisions/${firstPublic.jobId}`,
+      headers,
+      payload: { expectedRevision: 3, status: "abandoned", reason: "旧页面写入" },
+    });
+    expect(lossyLegacyWrite.statusCode).toBe(409);
+    expect(lossyLegacyWrite.json()).toMatchObject({
+      code: "CAREER_OS_STATE_NOT_REPRESENTABLE",
+    });
+    const decisionsAfterRollback = await app.inject({
+      method: "GET",
+      url: "/v1/job-decisions",
+      headers,
+    });
+    expect(decisionsAfterRollback.json()).toContainEqual(
+      expect.objectContaining({
+        publishedJobId: firstPublic.jobId,
+        revision: 3,
+        status: "applied",
+      }),
+    );
+    const firstCaseEvents = await db
+      .selectFrom("application.case_events")
+      .select(["sequence", "event_type"])
+      .where("case_id", "=", createdBody.applicationCase.id)
+      .orderBy("sequence")
+      .execute();
+    expect(firstCaseEvents).toEqual([
+      { sequence: 1, event_type: "case_created" },
+      { sequence: 2, event_type: "job_version_upgraded" },
+      { sequence: 3, event_type: "stage_transitioned" },
+      { sequence: 4, event_type: "stage_transitioned" },
+      { sequence: 5, event_type: "stage_transitioned" },
+    ]);
+  }, 40_000);
 
   it("rejects an expired owner session without enumerating Case data", async () => {
     const alphaApp = buildApp({

@@ -1,6 +1,7 @@
 import { type JobDecision, JobDecisionSchema } from "@aijob/contracts";
 import type { Database } from "@aijob/database";
 import type { Kysely, Selectable, Transaction } from "kysely";
+import { syncApplicationCaseFromLegacyDecision } from "../applications/service.js";
 import {
   isActiveOwnerEpochState,
   type OwnerScope as OwnerContext,
@@ -59,8 +60,9 @@ export async function putJobDecision(
   const row = await db.transaction().execute(async (transaction) => {
     await lockActiveOwnerEpoch(transaction, owner);
 
+    let persisted: Selectable<Database["decision.job_decisions"]> | undefined;
     if (input.expectedRevision === 0) {
-      const inserted = await transaction
+      persisted = await transaction
         .insertInto("decision.job_decisions")
         .values({
           owner_id: owner.ownerId,
@@ -75,9 +77,8 @@ export async function putJobDecision(
         .onConflict((conflict) => conflict.doNothing())
         .returningAll()
         .executeTakeFirst();
-      if (inserted) return inserted;
     } else {
-      const updated = await transaction
+      persisted = await transaction
         .updateTable("decision.job_decisions")
         .set({
           status: input.status,
@@ -91,13 +92,22 @@ export async function putJobDecision(
         .where("revision", "=", input.expectedRevision)
         .returningAll()
         .executeTakeFirst();
-      if (updated) return updated;
     }
-    throw new ServiceError(
-      409,
-      "DECISION_REVISION_CONFLICT",
-      "岗位状态已在其他页面更新，请刷新后重试。",
-    );
+    if (!persisted) {
+      throw new ServiceError(
+        409,
+        "DECISION_REVISION_CONFLICT",
+        "岗位状态已在其他页面更新，请刷新后重试。",
+      );
+    }
+    await syncApplicationCaseFromLegacyDecision(transaction, {
+      owner,
+      publishedJobId,
+      decisionExpectedRevision: input.expectedRevision,
+      status: input.status,
+      reason: input.reason,
+    });
+    return persisted;
   });
   return mapDecision(row);
 }

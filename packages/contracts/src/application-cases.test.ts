@@ -2,8 +2,10 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import {
+  ApplicationCaseCommandResponseSchema,
   ApplicationCaseCursorSchema,
   ApplicationCaseEventSchema,
+  ApplicationCaseJobVersionDiffResponseSchema,
   ApplicationCaseSchema,
   ApplicationCaseWithJobContextSchema,
   CaseOutcomeSchema,
@@ -474,6 +476,91 @@ describe("ApplicationCase contracts", () => {
         outcome: "offer",
       }).success,
     ).toBe(false);
+    expect(
+      TransitionApplicationCaseRequestSchema.safeParse({
+        expectedRevision: 2,
+        toStage: "preparing",
+        reason: "USER_CONFIRMED",
+      }).success,
+    ).toBe(true);
+    expect(
+      TransitionApplicationCaseRequestSchema.safeParse({
+        expectedRevision: 2,
+        toStage: "preparing",
+        reason: "用户填写的自由文本不能进入审计事件",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("keeps command and deterministic job-version diff responses strict", () => {
+    const event = {
+      id: ids.event,
+      caseId: ids.case,
+      sequence: 2,
+      eventType: "stage_transitioned" as const,
+      actorType: "owner" as const,
+      eventData: {
+        schemaVersion: "case-event-v1" as const,
+        fromStage: "interested" as const,
+        toStage: "preparing" as const,
+        outcome: null,
+        reasonCode: "USER_CONFIRMED",
+      },
+      createdAt: "2026-08-08T00:00:00.000Z",
+    };
+    expect(ApplicationCaseCommandResponseSchema.safeParse({ event }).success).toBe(true);
+    expect(
+      ApplicationCaseCommandResponseSchema.safeParse({ event, requestHash: "must-not-leak" })
+        .success,
+    ).toBe(false);
+
+    const targetVersionId = randomUUID();
+    const targetRequirementSetId = randomUUID();
+    const diff = {
+      caseId: ids.case,
+      publishedJobId: ids.job,
+      pinnedPublishedJobVersionId: ids.version,
+      pinnedRequirementSetId: ids.requirementSet,
+      status: "update_available" as const,
+      targetPublishedJobVersionId: targetVersionId,
+      targetRequirementSetId,
+      fieldChanges: [
+        {
+          field: "title" as const,
+          fromValue: "产品实习生",
+          toValue: "AI 产品实习生",
+        },
+      ],
+      requirementChanges: {
+        added: [
+          {
+            id: "requirement-skill-new",
+            kind: "skill" as const,
+            necessity: "required" as const,
+            sourceText: "掌握 SQL",
+          },
+        ],
+        removed: [],
+        changed: [],
+      },
+    };
+    expect(ApplicationCaseJobVersionDiffResponseSchema.safeParse(diff).success).toBe(true);
+    expect(
+      ApplicationCaseJobVersionDiffResponseSchema.safeParse({
+        ...diff,
+        status: "up_to_date",
+      }).success,
+    ).toBe(false);
+    expect(
+      ApplicationCaseJobVersionDiffResponseSchema.safeParse({
+        ...diff,
+        status: "target_unavailable",
+        targetPublishedJobVersionId: null,
+        targetRequirementSetId: null,
+        fieldChanges: [],
+        requirementChanges: { added: [], removed: [], changed: [] },
+      }).success,
+    ).toBe(true);
   });
 
   it("rejects duplicate evidence IDs and inconsistent question answers", () => {

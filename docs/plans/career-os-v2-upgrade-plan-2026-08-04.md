@@ -1,6 +1,6 @@
 # Aijob 求职 OS 2.0 → Private Alpha 严格开发总计划
 
-- 状态：OS 2.0 初版已完成 Phase 1A/1B；Phase 2R、Phase 2A、正式 migrations 023–028 与 Phase 2B-1 已完成，当前执行 Phase 2B-2 Case Transition/Job Version
+- 状态：OS 2.0 初版已完成 Phase 1A/1B；Phase 2R、Phase 2A、正式 migrations 023–028 与 Phase 2B-1/2 已完成，当前执行 Phase 2B-3 Requirement Service/API
 - 初版日期：2026-08-04
 - 严格化日期：2026-08-05
 - 最近进度更新：2026-08-08
@@ -231,7 +231,9 @@ Phase 2A 只证明领域契约和数据库边界，Phase 2B 才把它们接入�
 3. `Phase 2B-3 Requirement Service/API`：读取固定要求上下文，原子更新三态、证据链接和未知问题；所有 evidence 必须来自同 owner 已确认 revision。
 4. `Phase 2B-4 Resume/Interview/Knowledge Service Boundary`：只建立后续 PoC 所需的聚合服务和任务引用，不在本阶段实现完整编辑器、生成器或真实 AI。
 
-`Phase 2B-1` 已通过 [ApplicationCase Service/API 验收](../evidence/product/career-os-v2/phase-2b1-application-case-service-api-acceptance-2026-08-08.md)：public/private list/create/detail、owner/epoch 隔离、幂等并发、CSRF、`no-store` 和不可枚举 404 已稳定，决定继续 `Phase 2B-2`。
+`Phase 2B-1` 已通过 [ApplicationCase Service/API 验收](../evidence/product/career-os-v2/phase-2b1-application-case-service-api-acceptance-2026-08-08.md)：public/private list/create/detail、owner/epoch 隔离、幂等并发、CSRF、`no-store` 和不可枚举 404 已稳定。
+
+`Phase 2B-2` 已通过 [Case Transition/Job Version 验收](../evidence/product/career-os-v2/phase-2b2-case-transition-job-version-acceptance-2026-08-08.md)：追加式阶段/结果事件、聚合 revision、确定性版本差异、显式升级和无损旧决定兼容已稳定，决定继续 `Phase 2B-3`。
 
 Phase 2B 每个子切片独立验收；只有服务/API 的 owner、幂等、并发、删除、CSRF 和错误契约全部稳定后，才进入 Phase 3 可用 PoC。
 
@@ -409,4 +411,4 @@ PostgreSQL 集成测试未实际运行时必须写“未执行”，不得写“
 - 主计划终点为 G4；公开 Beta、备案、公开运营和商业化只保留为 G5 后续 Gate。
 - 工期是有效工作量，不包含外部审批、采购、招募和观察期。
 
-Phase 2A-1 已通过 [ApplicationCase Core 验收](../evidence/product/career-os-v2/phase-2a1-application-case-core-acceptance-2026-08-05.md)，Phase 2A-2 已通过 [Resume Document V2 验收](../evidence/product/career-os-v2/phase-2a2-resume-document-v2-acceptance-2026-08-05.md)。[migration 025 身份前置](../evidence/product/career-os-v2/phase-2a-025-identity-account-email-expand-acceptance-2026-08-06.md)、[migration 026 ApplicationCase 前向修复](../evidence/product/career-os-v2/phase-2a-026-application-case-long-lived-forward-repair-acceptance-2026-08-06.md)、[migration 026B requirement context 修复](../evidence/product/career-os-v2/phase-2a-026b-private-requirement-context-forward-repair-acceptance-2026-08-06.md)、[migration 027 Resume/Review 修复](../evidence/product/career-os-v2/phase-2a-027-resume-document-review-forward-repair-acceptance-2026-08-06.md) 与 [migration 028 Interview/Debrief/Knowledge](../evidence/product/career-os-v2/phase-2a-028-interview-debrief-knowledge-expand-acceptance-2026-08-07.md) 已形成长期领域依赖闭环；[Phase 2B-1 ApplicationCase Service/API](../evidence/product/career-os-v2/phase-2b1-application-case-service-api-acceptance-2026-08-08.md) 已完成首个 owner-protected 纵向服务切片。当前唯一目标是 `Phase 2B-2 Case Transition/Job Version`：只实现追加式阶段/结果事件、`expectedRevision`、确定性岗位版本差异、用户显式升级和可无损旧决定兼容。仍不实现 requirement 写入、前端，不调用真实 AI，不访问真实来源或真实简历。
+Phase 2A-1 已通过 [ApplicationCase Core 验收](../evidence/product/career-os-v2/phase-2a1-application-case-core-acceptance-2026-08-05.md)，Phase 2A-2 已通过 [Resume Document V2 验收](../evidence/product/career-os-v2/phase-2a2-resume-document-v2-acceptance-2026-08-05.md)。[migration 025 身份前置](../evidence/product/career-os-v2/phase-2a-025-identity-account-email-expand-acceptance-2026-08-06.md)、[migration 026 ApplicationCase 前向修复](../evidence/product/career-os-v2/phase-2a-026-application-case-long-lived-forward-repair-acceptance-2026-08-06.md)、[migration 026B requirement context 修复](../evidence/product/career-os-v2/phase-2a-026b-private-requirement-context-forward-repair-acceptance-2026-08-06.md)、[migration 027 Resume/Review 修复](../evidence/product/career-os-v2/phase-2a-027-resume-document-review-forward-repair-acceptance-2026-08-06.md) 与 [migration 028 Interview/Debrief/Knowledge](../evidence/product/career-os-v2/phase-2a-028-interview-debrief-knowledge-expand-acceptance-2026-08-07.md) 已形成长期领域依赖闭环；[Phase 2B-1 ApplicationCase Service/API](../evidence/product/career-os-v2/phase-2b1-application-case-service-api-acceptance-2026-08-08.md) 与 [Phase 2B-2 Case Transition/Job Version](../evidence/product/career-os-v2/phase-2b2-case-transition-job-version-acceptance-2026-08-08.md) 已完成 Case 纵向服务基础。当前唯一目标是 `Phase 2B-3 Requirement Service/API`：只实现公共/私有固定要求读取、Case revision 保护的三态、同 owner 已确认证据链接和未知问题。仍不实现前端或 Resume/Interview/Knowledge 服务，不调用真实 AI，不访问真实来源或真实简历。

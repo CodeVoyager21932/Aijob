@@ -6,16 +6,16 @@
 
 - [ADR-0030](decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md) 已接受：Aijob 升级为可信官方岗位驱动的完整求职 OS，首个交付为“一岗全闭环”。
 - [ADR-0031](decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md) 已接受：OS 2.0 初版进入长期 Career OS 架构修正。用户创建/确认的职业资产默认长期保留并由用户主动删除；原始文件和临时解析仍最长 24 小时。Case 支持公共岗位引用与 owner-only 私有 JD；Resume Review 从正文中分离。
-- Phase 1A、Phase 1B、Phase 2 领域设计、migration 023/024 的历史 Gate 记录保留；migrations 025/026/026B/027/028 已正式完成长期领域前向修复，`Phase 2B-1 ApplicationCase Service/API` 已完成 owner-protected list/create/detail。其决定为“继续”；当前唯一工程切片为 `Phase 2B-2 Case Transition/Job Version`。
+- Phase 1A、Phase 1B、Phase 2 领域设计、migration 023/024 的历史 Gate 记录保留；migrations 025/026/026B/027/028 已正式完成长期领域前向修复，`Phase 2B-1 ApplicationCase Service/API` 与 `Phase 2B-2 Case Transition/Job Version` 已通过。其决定为“继续”；当前唯一工程切片为 `Phase 2B-3 Requirement Service/API`。
 - 采用一套全局侧栏、顶部工具栏、主画布和右侧检查器；单岗位标签固定为概览、JD能力、定制简历、投递、面试、复盘。
 - 开源项目只做审计后的选择性移植，不整仓拼接；引用式经验库不抓全文，不做社区；语音、OCR、自动投递和浏览器代填继续排除。
 - 100/1000 与 110/1100 目标没有取消；一岗闭环通过后恢复 ADR-0028 的容量型官方 ATS 扩容。完整计划见 [Career OS 2.0 升级计划](plans/career-os-v2-upgrade-plan-2026-08-04.md)。
 
 ## 最新执行增量（2026-08-08）
 
-- `Phase 2B-1 ApplicationCase Service/API` 已完成 `GET /v1/application-cases`、`POST /v1/application-cases` 与 `GET /v1/application-cases/:caseId`，覆盖 public/private JobContext、owner/epoch 隔离、动态公共目录准入、私有 snapshot 不可枚举 404、幂等并发锁和 Case/`case_created` 事件原子提交。证据见 [Phase 2B-1 验收](evidence/product/career-os-v2/phase-2b1-application-case-service-api-acceptance-2026-08-08.md)。
-- 最新干净串行全仓测试通过 config 17、contracts 54、database 50、platform 436、web 91，共 648/648；lint 382 files、typecheck、build 与 `audit:ci` 通过。依赖审计仍保留 1 个仅开发链的 high ignored；该例外不是漏洞已修复，移除条件已记录在验收证据中。
-- 四选一决定为“继续”到 `Phase 2B-2 Case Transition/Job Version`：只实现追加式阶段/结果事件、`expectedRevision` 冲突、确定性岗位版本差异、用户显式升级和可无损旧决定兼容；不做 requirement 写入、前端、Resume/Interview/Knowledge 服务或真实外部调用。
+- `Phase 2B-2 Case Transition/Job Version` 已完成三个 owner-protected endpoint、25 组合状态矩阵、追加式阶段/结果事件、`expectedRevision` 冲突、确定性 public 岗位版本 diff、用户显式升级和可无损旧决定事务兼容。证据见 [Phase 2B-2 验收](evidence/product/career-os-v2/phase-2b2-case-transition-job-version-acceptance-2026-08-08.md)。
+- 最新干净串行全仓测试通过 config 17、contracts 55、database 50、platform 438、web 91，共 651/651；lint 383 files、typecheck、build 与 `audit:ci` 通过。依赖审计仍保留 1 个仅开发链的 high ignored；该例外不是漏洞已修复，移除条件已记录在验收证据中。
+- 四选一决定为“继续”到 `Phase 2B-3 Requirement Service/API`：只实现公共/私有固定要求上下文读取、Case revision 保护的三态更新、同 owner 已确认证据原子链接和未知问题；不做前端、Resume/Interview/Knowledge 服务或真实外部调用。
 - 产品证据仍为 `E0`；可信供给仍为 22 岗 / 3 家企业 / 3 个官方 ATS，公共与 Alpha 岗位均为 0；Phase 4 前不恢复真实来源。
 
 ## 上一执行增量（2026-08-07）
@@ -52,18 +52,18 @@
 | 项目 | 当前值 |
 |---|---|
 | 更新日期 | 2026-08-08 |
-| 当前阶段 | Career OS 2.0 → Phase 2B owner-protected service/API；Phase 1A/1B、Phase 2A 长期领域迁移与 Phase 2B-1 已通过，100 家企业 / 1000 条可信岗位与服务器就绪 Gate 通过前，G0/G1 暂停 |
-| 当前切片 | `Phase 2B-2 Case Transition/Job Version`：只实现追加式阶段/结果事件、`expectedRevision`、确定性岗位版本差异、用户显式升级和可无损旧决定兼容；不做 requirement 写入、前端或真实外部调用 |
+| 当前阶段 | Career OS 2.0 → Phase 2B owner-protected service/API；Phase 1A/1B、Phase 2A 长期领域迁移与 Phase 2B-1/2 已通过，100 家企业 / 1000 条可信岗位与服务器就绪 Gate 通过前，G0/G1 暂停 |
+| 当前切片 | `Phase 2B-3 Requirement Service/API`：只实现公共/私有固定要求上下文读取、Case `expectedRevision` 保护的三态更新、同 owner 已确认证据原子链接和未知问题；不做前端、Resume/Interview/Knowledge 服务或真实外部调用 |
 | 当前实现契约 | [PRD v0.2：本地完整 MVP](01-prd-v0.2.md)；长期 owner、公共/私有 Case、requirement context、Resume/Review、Interview/Debrief/Knowledge 已注册为 migrations 025/026/026B/027/028 |
 | 当前产品证据 | `E0`：没有可复核目标用户行为证据；H-PROBLEM-001、H-VALUE-001 均未判定 |
 | 本地岗位目录 | 干净 `aijob_alpha` 为 22 条岗位 / 3 家企业 / 3 个官方 ATS 来源；开发库 14/2 与纠偏前 231/149/29、152/30 仅保留为历史运行事实 |
 | 来源政策 | 34 个 Git 配置中 12 个 `canonical`：7 个活动确定性、2 个浏览器提醒、3 个硬冲突暂停；22 个高校等来源全部为 `discovery_only` 且零调度；公共 `/v1/jobs` 为 0 |
 | 金标 | 50 条跨职能分类金标覆盖 12 个职能且 A/B 盲标 50/50 一致；40 条三轴工程金标继续通过；均不计为用户研究样本 |
-| 工程质量 | 串行全仓 648/648 通过；ApplicationCase PostgreSQL/HTTP 2/2、database 50/50、platform 436/436。lint 382 files、typecheck、build、audit 通过；audit 保留 1 个有明确移除条件的 dev-only high ignored，UI 继续沿用 Phase 1B 的 1920/1280/768/320 Gate |
+| 工程质量 | 串行全仓 651/651 通过；ApplicationCase focused 4/4、database 50/50、platform 438/438。lint 383 files、typecheck、build、audit 通过；audit 保留 1 个有明确移除条件的 dev-only high ignored，UI 继续沿用 Phase 1B 的 1920/1280/768/320 Gate |
 | AI | 单块真实 `suggestedText`、要求/证据引用、未选区块保留、编辑和真实章节 DOCX 已通过；公开环境关闭 |
 | 参与者验证 | 尚未开始；G0 为 0/2，只有 coco 明确启动后才执行，G1 仍未开始 |
-| 下一决定 | Phase 2B-2 完成状态机、结果纠正、岗位版本 diff/显式升级、并发修订和无损旧决定兼容后，四选一：继续 requirement 服务、修改、回退或停止 |
-| 下一决定日期 | Phase 2B-2 证据包完成后 |
+| 下一决定 | Phase 2B-3 完成公共/私有 requirement 读取、三态、证据链接、问题、并发修订和 owner 删除回归后，四选一：继续 Phase 2B-4、修改、回退或停止 |
+| 下一决定日期 | Phase 2B-3 证据包完成后 |
 
 工程证据见 [Private Alpha 官方来源资格硬门](evidence/ingestion/private-alpha-official-source-gate-2026-08-03.md)、[Private Alpha 容量审计](evidence/ingestion/private-alpha-capacity-audit-2026-08-03.md)、[本机自动来源刷新验收](evidence/ingestion/source-refresh-automation-2026-08-01.md)、[首轮扩展运行观察](evidence/ingestion/source-refresh-first-rollout-observation-2026-08-02.md)、[G2 正确性重新验收记录](evidence/g2/correctness-reacceptance-2026-07-20.md)、[验收反馈修正记录](evidence/g2/acceptance-followup-2026-07-20.md)、[全部职能扩容离线基础验收](evidence/g2/all-function-expansion-foundation-2026-07-20.md)和[新公司官方来源首批评估与低频探测](evidence/ingestion/new-source-batch-2026-07-20.md)；旧工程基线见 [2026-07-18 工程验收记录](evidence/g2/local-complete-mvp-engineering-2026-07-18.md)。
 
@@ -281,7 +281,8 @@ Phase 1A/1B（已通过）
 16. [x] `Phase 2A-027 Resume/Review Forward Repair` 已正式化长期 Resume、public/private Case 派生引用、strict Content/Layout、Review 四表、owner 删除和非破坏回退；隔离 PostgreSQL 11/11、全仓 636/636 通过，决定“继续”。
 17. [x] `Phase 2A-028 Interview/Debrief/Knowledge Expand` 已正式注册三个长期领域聚合、strict contracts、public/private JobContext、owner/epoch、Case 选择性脱离、迟到任务、角色权限、owner 全量删除和非破坏回退；隔离 PostgreSQL 12/12、全仓 645/645 通过，决定“继续”。
 18. [x] `Phase 2B-1 ApplicationCase Service/API` 已完成 Case 列表、public/private 幂等创建和同 owner 详情，复用既有 owner session、CSRF、`no-store` 与 Problem Details；串行全仓 648/648 通过，决定“继续”。
-19. [ ] 当前实现 `Phase 2B-2 Case Transition/Job Version`：追加式阶段/结果事件使用 `expectedRevision`，提供确定性岗位版本差异与用户显式升级，只兼容可无损表示的旧决定；不做 requirement 写入、前端、Resume/Interview/Knowledge 服务或真实外部调用。
+19. [x] `Phase 2B-2 Case Transition/Job Version` 已完成追加式阶段/结果事件、`expectedRevision`、确定性岗位版本差异、显式升级和可无损旧决定兼容；状态矩阵 25 组合、隔离 PostgreSQL 和串行全仓 651/651 通过，决定“继续”。
+20. [ ] 当前实现 `Phase 2B-3 Requirement Service/API`：读取公共/私有固定要求上下文，以 Case 聚合 revision 原子更新三态、同 owner 已确认证据链接和未知问题；不做前端、Resume/Interview/Knowledge 服务或真实外部调用。
 
 ### 一岗闭环后恢复的规模化行动
 

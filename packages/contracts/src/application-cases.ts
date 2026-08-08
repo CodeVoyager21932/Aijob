@@ -13,6 +13,7 @@ import {
   InterviewModeSchema,
   RequirementEvidenceStateSchema,
 } from "./enums.js";
+import { RequirementKindSchema, RequirementNecessitySchema } from "./matching.js";
 
 export const CaseEventTypeSchema = z.enum([
   "case_created",
@@ -37,13 +38,13 @@ export type CaseEventActorType = z.infer<typeof CaseEventActorTypeSchema>;
 export const CaseQuestionStatusSchema = z.enum(["open", "answered", "dismissed"]);
 export type CaseQuestionStatus = z.infer<typeof CaseQuestionStatusSchema>;
 
-const OptionalReasonSchema = z.string().trim().min(1).max(2_000).nullable().optional();
 const ReasonCodeSchema = z
   .string()
   .trim()
   .min(1)
   .max(100)
   .regex(/^[A-Z0-9_]+$/);
+const OptionalReasonSchema = ReasonCodeSchema.nullable().optional();
 const RequirementIdSchema = z.string().trim().min(1).max(200);
 const EvidenceIdSchema = z.string().trim().min(1).max(200);
 const CaseEventSchemaVersionSchema = z.literal("case-event-v1");
@@ -575,6 +576,152 @@ export const ApplicationCaseEventSchema = z.discriminatedUnion("eventType", [
   }).strict(),
 ]);
 export type ApplicationCaseEvent = z.infer<typeof ApplicationCaseEventSchema>;
+
+export const ApplicationCaseCommandResponseSchema = z
+  .object({
+    event: ApplicationCaseEventSchema,
+  })
+  .strict();
+export type ApplicationCaseCommandResponse = z.infer<typeof ApplicationCaseCommandResponseSchema>;
+
+export const JobVersionDiffStatusSchema = z.enum([
+  "up_to_date",
+  "update_available",
+  "target_unavailable",
+]);
+export type JobVersionDiffStatus = z.infer<typeof JobVersionDiffStatusSchema>;
+
+export const JobVersionDiffFieldSchema = z.enum([
+  "companyName",
+  "title",
+  "jobFamily",
+  "locations",
+  "department",
+  "jobCode",
+  "recruitmentType",
+  "employmentType",
+  "recruitmentBatch",
+  "weeklyAttendanceDays",
+  "durationMonths",
+  "earliestStartDate",
+  "graduationYears",
+  "educationLevels",
+  "majors",
+  "languages",
+  "salary",
+  "workMode",
+  "postedAt",
+  "deadlineAt",
+  "responsibilities",
+  "requirements",
+  "structuredFields",
+  "activityState",
+  "sourceUrl",
+  "applyUrl",
+]);
+export type JobVersionDiffField = z.infer<typeof JobVersionDiffFieldSchema>;
+
+const JobVersionDiffTextSchema = z.string().max(200_000).nullable();
+
+export const JobVersionFieldChangeSchema = z
+  .object({
+    field: JobVersionDiffFieldSchema,
+    fromValue: JobVersionDiffTextSchema,
+    toValue: JobVersionDiffTextSchema,
+  })
+  .strict();
+export type JobVersionFieldChange = z.infer<typeof JobVersionFieldChangeSchema>;
+
+export const JobVersionRequirementSummarySchema = z
+  .object({
+    id: RequirementIdSchema,
+    kind: RequirementKindSchema,
+    necessity: RequirementNecessitySchema,
+    sourceText: z.string().trim().min(1).max(200_000),
+  })
+  .strict();
+export type JobVersionRequirementSummary = z.infer<typeof JobVersionRequirementSummarySchema>;
+
+export const JobVersionRequirementChangeSchema = z
+  .object({
+    from: JobVersionRequirementSummarySchema,
+    to: JobVersionRequirementSummarySchema,
+  })
+  .strict();
+export type JobVersionRequirementChange = z.infer<typeof JobVersionRequirementChangeSchema>;
+
+export const JobVersionRequirementDiffSchema = z
+  .object({
+    added: z.array(JobVersionRequirementSummarySchema),
+    removed: z.array(JobVersionRequirementSummarySchema),
+    changed: z.array(JobVersionRequirementChangeSchema),
+  })
+  .strict();
+export type JobVersionRequirementDiff = z.infer<typeof JobVersionRequirementDiffSchema>;
+
+export const ApplicationCaseJobVersionDiffResponseSchema = z
+  .object({
+    caseId: UuidSchema,
+    publishedJobId: UuidSchema,
+    pinnedPublishedJobVersionId: UuidSchema,
+    pinnedRequirementSetId: UuidSchema,
+    status: JobVersionDiffStatusSchema,
+    targetPublishedJobVersionId: UuidSchema.nullable(),
+    targetRequirementSetId: UuidSchema.nullable(),
+    fieldChanges: z
+      .array(JobVersionFieldChangeSchema)
+      .refine((changes) => new Set(changes.map(({ field }) => field)).size === changes.length, {
+        message: "fieldChanges must contain each field at most once",
+      }),
+    requirementChanges: JobVersionRequirementDiffSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const hasTarget =
+      value.targetPublishedJobVersionId !== null && value.targetRequirementSetId !== null;
+    if (hasTarget !== (value.status === "up_to_date" || value.status === "update_available")) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["targetPublishedJobVersionId"],
+        message: "Available diff statuses require a complete target version",
+      });
+    }
+    const hasChanges =
+      value.fieldChanges.length > 0 ||
+      value.requirementChanges.added.length > 0 ||
+      value.requirementChanges.removed.length > 0 ||
+      value.requirementChanges.changed.length > 0;
+    if (value.status !== "update_available" && hasChanges) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["fieldChanges"],
+        message: "Only available updates may contain changes",
+      });
+    }
+    if (
+      value.status === "up_to_date" &&
+      value.targetPublishedJobVersionId !== value.pinnedPublishedJobVersionId
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["targetPublishedJobVersionId"],
+        message: "An up-to-date target must equal the pinned version",
+      });
+    }
+    if (
+      value.status === "update_available" &&
+      value.targetPublishedJobVersionId === value.pinnedPublishedJobVersionId
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["targetPublishedJobVersionId"],
+        message: "An available update must change the pinned version",
+      });
+    }
+  });
+export type ApplicationCaseJobVersionDiffResponse = z.infer<
+  typeof ApplicationCaseJobVersionDiffResponseSchema
+>;
 
 export const LegacyApplicationCaseEventSchema = ApplicationCaseEventFieldsSchema.extend({
   eventType: CaseEventTypeSchema,
