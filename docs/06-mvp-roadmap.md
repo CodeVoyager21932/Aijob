@@ -7,7 +7,7 @@
 - 旧的 G4-first 严格总计划已废止并归档，不再提供当前任务或工期基线。
 - 当前采用 [Career OS 当前交付计划](plans/career-os-current-delivery-plan.md)：先完成 coco 可在本地完整体验的 OS 2.0 测试候选，再单独进入 Private Alpha 和推广上线 Gate。
 - 已完成的 migrations 025–030、Phase 2B-1/2/3/4A/4B 全部保留；尚未开始的 Phase 2B-4C Interview/Debrief/Knowledge Service Boundary 停止作为下一任务。
-- 当前唯一里程碑为 **M1 真实 Case 工作台**：把 Phase 1B 静态工作台接入已经完成的 Case、Requirement 和 Resume API。
+- `M1 真实 Case 工作台` 已通过[独立工程验收](evidence/product/career-os-v2/m1-real-case-workspace-acceptance-2026-08-09.md)；当前唯一里程碑切换为 **M2 专业简历闭环**。
 - 旧计划的真实性、安全、隐私、供给和服务器要求已提取为 [Private Alpha 与上线就绪 Gate](plans/private-alpha-readiness-gates.md)，标准不降低，但不再阻塞当前本地可测试闭环。
 
 ## 2. 当前快照
@@ -15,16 +15,16 @@
 | 项目 | 当前事实 |
 |---|---|
 | 更新日期 | 2026-08-09 |
-| 当前阶段 | Career OS 2.0 M1 真实 Case 工作台 |
-| 当前唯一目标 | 离线岗位 → 创建/重开 Case → 刷新恢复 → JD 要求读写 → 打开 Case 派生简历 |
-| 工程基线 | 7c68bb8 feat(platform): add resume content and layout revision API；migrations 025–030、Case/Transition/Requirement/Resume Document/Revision API 已完成 |
-| 前端基线 | Phase 1B 的统一壳层、Case 路由、JD 能力和定制简历静态交互已通过；尚未接入新业务 API |
+| 当前阶段 | Career OS 2.0 M2 专业简历闭环 |
+| 当前唯一目标 | 基础简历资产 → 解析与事实确认 → 结构化编辑 → 岗位派生简历 → 逐条建议 → 两模板与导出 |
+| 工程基线 | `27dd433`、`8750211` 与 `91b4a37` 已完成 M1；migrations 025–030 和既有 Case/Requirement/Resume V2/tailoring/DOCX 能力保留 |
+| 前端基线 | `/applications`、公共/私有 Case、Requirements 与 Case-derived Resume 只读工作区已接入真实 API；静态 Case 不再是正常会话真源 |
 | 当前产品证据 | E0：没有可复核目标用户行为证据 |
 | 可信供给 | 22 岗 / 3 家企业 / 3 个官方 ATS；公共与 Alpha 岗位均为 0 |
-| 当前 AI | 公开和远程环境关闭；M1 不调用真实 AI |
+| 当前 AI | 公开和远程环境关闭；M2 首轮只用确定性模板或模拟 provider，不调用真实 AI |
 | 参与者验证 | 未开始；G0 为 0/2，G1 未开始 |
-| 当前下一决定 | M1 证据包完成后，只能选择继续 M2、修改、回退或停止 |
-| 时间盒 | M1 为 1–2 个有效开发日；M1–M4 剩余基线为 6–10 个有效开发日 |
+| 当前下一决定 | M2 证据包完成后，只能选择继续 M3、修改、回退或停止 |
+| 时间盒 | M2 为 2–3 个有效开发日；M2–M4 剩余基线为 5–8 个有效开发日 |
 
 岗位数量、工程测试、页面完成或 AI 调用都不能把产品证据从 E0 自动提升。
 
@@ -32,8 +32,8 @@
 
 ~~~mermaid
 flowchart LR
-    M0["M0 核心地基<br/>已完成"] --> M1["M1 真实 Case 工作台<br/>当前"]
-    M1 --> M2["M2 专业简历闭环"]
+    M0["M0 核心地基<br/>已完成"] --> M1["M1 真实 Case 工作台<br/>已完成"]
+    M1 --> M2["M2 专业简历闭环<br/>当前"]
     M2 --> M3["M3 投递与持续改进"]
     M3 --> M4["M4 本地测试候选"]
     M4 --> A["Private Alpha 准备<br/>100/1000 + 服务器"]
@@ -45,41 +45,39 @@ flowchart LR
 | 里程碑 | 用户可见结果 | 状态 |
 |---|---|---|
 | M0 核心地基 | 静态统一工作台，以及 owner-protected Case、Requirement、Resume V2 API | 已完成 |
-| M1 真实 Case 工作台 | Case/要求读取与写入真实内部状态，岗位简历读取真实修订 | **进行中** |
-| M2 专业简历闭环 | 解析确认、结构编辑、章节调整、逐条建议、两模板和导出统一 | 未开始 |
+| M1 真实 Case 工作台 | Case/要求读取与写入真实内部状态，岗位简历读取真实修订 | 已完成；[验收证据](evidence/product/career-os-v2/m1-real-case-workspace-acceptance-2026-08-09.md) |
+| M2 专业简历闭环 | 解析确认、结构编辑、章节调整、逐条建议、两模板和导出统一 | **当前唯一目标** |
 | M3 投递与持续改进 | 手动投递、模板文字面试、反馈和复盘回流 | 未开始 |
 | M4 本地测试候选 | 重复入口收口、删除/异常完整、一岗端到端通过 | 未开始 |
 
-## 4. M1 执行清单
+## 4. M2 当前执行边界
 
 ### 用户任务
 
-用户从离线岗位夹具或 owner 私有 JD 创建/重新打开 Case，在刷新或返回后继续核对要求，并查看对应的岗位派生简历。
+用户准备并确认一份基础简历，在同一 Career OS 中结构化编辑职业资产，再基于真实 Case 形成可逐条审查、可切换中文模板并可导出的岗位专属简历。
 
 ### 固定交付
 
-- [ ] 建立 Career OS 前端 API 客户端和查询键，复用现有 owner session、CSRF、Problem Details 与幂等键。
-- [ ] /applications 使用 Case 列表；创建相同岗位 Case 时幂等返回已有活动 Case。
-- [ ] /applications/:caseId/* 使用 Case 详情恢复阶段、固定岗位版本和公共/私有 JobContext。
-- [ ] requirements 使用真实要求、状态、备注、证据关联和未知问题接口。
-- [ ] resume 读取或幂等建立 Case 派生 Resume Document，并读取当前 content/layout revision；编辑能力留到 M2。
-- [ ] 覆盖加载、空状态、非法 Case、不可枚举 404、409 revision conflict、会话过期和重试。
-- [ ] 静态 Case/Requirement/Resume 数据降级为测试夹具，不在正常会话充当持久化真源。
-- [ ] 通过刷新、前进/后退、URL 检查器、焦点恢复、1280/320、键盘和旗标关闭回退。
-- [ ] 形成 M1 独立验收证据，并作继续/修改/回退/停止决定。
+- [ ] 先核对既有 `/resume` 解析、事实确认、V1→V2 转换、tailoring 和 DOCX 边界，形成复用矩阵；不建设第二套解析器或事实库。
+- [ ] 建立 `/resumes` 基础简历资产入口，完成 V1 只读兼容、首次编辑生成 V2 与真实结构化编辑。
+- [ ] 将 Case `resume` 从只读预览升级为岗位派生编辑器，支持章节增删、上移/下移、正文修改与不可变修订。
+- [ ] 建议只允许逐条接受、编辑后采用或拒绝，保留原修订、决策状态和证据引用；AI 不可用时可完整降级。
+- [ ] 统一中文经典单栏与中文紧凑技术模板、A4 预览和既有 DOCX 导出，不引入服务器 PDF 服务。
+- [ ] 覆盖 owner、CSRF、幂等、revision conflict、删除、空/失败状态、1280/320、200% 等效视口、键盘、包体和旗标回退。
+- [ ] 形成 M2 独立验收证据，并作继续 M3、修改、回退或停止决定。
 
 ### 明确排除
 
-- 不实现 Interview、Debrief、Knowledge 或新的后台任务类型。
-- 不接真实招聘来源、真实 AI、真实简历、邮件、服务器或参与者数据。
-- 不重做 Resume 编辑器、tailoring、DOCX 或旧页面迁移；它们属于 M2/M4。
+- 不实现 Interview、Debrief、Knowledge、投递状态界面或新的后台任务类型。
+- 不接真实招聘来源、真实 AI、真实简历、邮件、服务器或参与者数据；只使用合成简历夹具和模拟 provider。
+- 不在 M2 迁移 `/recommendations`、`/insights` 等旧页面；重复入口收口属于 M4。
 - 不因未来需求新增数据库、Redis、向量库、队列或第二套认证。
 
 ## 5. 后续 Gate
 
 | Gate | 最低条件 | 当前状态 |
 |---|---|---|
-| Private Alpha 产品 | M1–M4 与完整一岗闭环通过 | 未开始 |
+| Private Alpha 产品 | M1–M4 与完整一岗闭环通过 | M1 已通过；M2–M4 未通过 |
 | 可信供给 | 100 家企业 / 1000 条活动可信实习岗位及既定 SME、职能、城市、人工来源分布 | 22 岗 / 3 家，未通过 |
 | 来源持续性 | 至少 3 个已准入确定性来源连续 7 天按 12 小时周期运行 | 0/3，未开始 |
 | 服务器就绪 | 邀请、邮箱身份、安全、隔离解析、备份恢复、监控和负载通过 | 未授权、未开始 |

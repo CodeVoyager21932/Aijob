@@ -1,6 +1,6 @@
 # Aijob：可信官方岗位驱动的求职 OS
 
-> 2026-08-09：计划体系已切换到 [Career OS 当前交付计划](docs/plans/career-os-current-delivery-plan.md)。migrations 025–030 与 `Phase 2B-1/2/3/4A/4B` 的工程成果全部保留；旧 G4-first 严格总计划已[废止并归档](docs/plans/career-os-v2-upgrade-plan-2026-08-04.md)，不得再提供下一任务。当前唯一里程碑是 `M1 真实 Case 工作台`：把 Phase 1B 静态工作台接入现有 Case、Requirement 和 Resume API。本阶段不访问真实招聘来源、真实 AI、邮件、服务器或真实简历。
+> 2026-08-09：`M1 真实 Case 工作台` 已[通过工程验收](docs/evidence/product/career-os-v2/m1-real-case-workspace-acceptance-2026-08-09.md)，当前唯一里程碑切换为 `M2 专业简历闭环`。migrations 025–030 与历史 `Phase 2B-*` 工程成果继续保留，但旧 G4-first 严格总计划已[废止并归档](docs/plans/career-os-v2-upgrade-plan-2026-08-04.md)，不得再提供下一任务。M2 不访问真实招聘来源、真实 AI、邮件、服务器或真实简历。
 
 这是一个待验证的产品项目，面向**未来 30 天真实投递实习岗位、已有中文简历、近期使用过多个官方渠道的中国大陆在校生**。它只把企业官方招聘网站和经企业官网确认的官方 ATS 中当前存在的具体岗位整理为可追溯信息；高校就业网站、政府页面、公众号和其他二手页面只用于发现企业及其官网方向。系统依据用户确认过的约束与经历证据，帮助用户完成投递、暂缓或放弃的高质量决定，最终回到企业官网或官方 ATS 投递。
 
@@ -11,16 +11,16 @@
 | 项目 | 当前值 |
 |---|---|
 | 快照日期 | 2026-08-09 |
-| 当前阶段 | Career OS 2.0 `M1 真实 Case 工作台`；停止继续扩建 Phase 2B-4C，先形成 coco 可在本地完整体验的 OS 2.0 测试候选。Private Alpha 供给与服务器 Gate 通过前，G0/G1 继续暂停 |
+| 当前阶段 | Career OS 2.0 `M2 专业简历闭环`；M1 已完成真实 Case、要求和派生简历只读工作区。Private Alpha 供给与服务器 Gate 通过前，G0/G1 继续暂停 |
 | 当前范围 | 干净验收库 `aijob_alpha` 为 22 条可信可见活动岗位、3 家企业、3 个官方 ATS 来源；距离硬门槛仍缺 978 岗、97 家。SME 为 2/3 家、14/22 岗，人工来源为 0；Alpha 与公共岗位均为 0。开发库 14/2 及纠偏前 231/149/29 只保留为历史运行事实 |
 | 协议校准 | 尚未开始；供给硬门槛和服务器就绪 Gate 通过后，只有 coco 明确启动才做 2 人校准；历史可核验记录仍为 0/2 |
 | 正式实验 | 暂停；供给硬门槛、服务器就绪 Gate 与 G0 通过后再做 6 人正式任务和 72 小时回访 |
 | 历史研究样本 | 5 条本地产品/运营岗位；不等于完整 MVP 目录 |
 | 当前证据 | E0：尚无可复核目标用户行为证据，两个产品假设均未判定 |
-| 当前实现策略 | 保留现有 PostgreSQL、模块化单体、可信来源门和受控 AI 边界；以 Case 工作台为唯一业务真源，职业资产长期保留并由用户主动删除，私有 JD 仅 owner 可见；下一步只把 Case、Requirement 和 Resume API 接入现有工作台 |
+| 当前实现策略 | 保留现有 PostgreSQL、模块化单体、可信来源门和受控 AI 边界；以 Case 工作台为唯一业务真源，职业资产长期保留并由用户主动删除，私有 JD 仅 owner 可见；下一步复用既有解析、事实确认、tailoring 和 DOCX，形成统一的基础简历与岗位派生简历闭环 |
 | 来源发现进度 | 已按 ADR-0019 完成 1000/1000 家企业/机构审查记录；34 个来源配置中 12 个为 canonical（7 个活动确定性、2 个浏览器提醒、3 个硬冲突暂停），22 个高校等来源均降级为 `discovery_only`。当前审计没有 `capacity` 就绪候选 |
-| 工程切片 | 迁移 019–030 与 Phase 2B-1/2/3/4A/4B 已落实长期领域、严格事件、Case/Requirement 及 Resume 聚合/不可变修订 API；隔离 PostgreSQL 串行全仓 664/664、lint 390、typecheck、build 与 audit 通过；公共版本仍为 0 |
-| AI 状态 | Review 与 Interview 生成结果均与用户确认事实分离；公开环境继续关闭，M1 不调用真实 AI |
+| 工程切片 | M1 已把公共/私有 Case、Requirement 与 Case-derived Resume 接入真实工作台；隔离 PostgreSQL 串行全仓 676/676、lint 402、typecheck、build、audit 与浏览器 Gate 通过；公共版本仍为 0 |
+| AI 状态 | Review 与 Interview 生成结果均与用户确认事实分离；公开环境继续关闭，M2 首轮只使用确定性模板或模拟 provider，不调用真实 AI |
 
 以上内容只用于帮助首次阅读者定位本次文档基线。后续动态阶段、样本进度、Gate 状态和下一决策日期只更新到 [MVP 路线与当前决策面板](docs/06-mvp-roadmap.md)；如有差异，以该面板为准。
 
@@ -68,11 +68,11 @@ pnpm ai:configure
 
 然后打开 <http://127.0.0.1:5173/jobs> 使用原产品闭环。简历入口为 <http://127.0.0.1:5173/resume>，推荐为 <http://127.0.0.1:5173/recommendations>，岗位洞察为 <http://127.0.0.1:5173/insights>，数据删除为 <http://127.0.0.1:5173/data-control>。`/research/*` 仅保留为历史研究原型，`/internal-preview/jobs` 用于内部字段复核。
 
-Phase 1 的 Career OS 静态工作台默认关闭。只启动前端并显式打开本机会话旗标后，可在 <http://127.0.0.1:5173/applications> 查看；该模式使用仓库静态 Case，不需要平台服务，也不会访问真实招聘来源或真实 AI：
+Career OS 2.0 工作台默认关闭。确保本地 PostgreSQL 与 Platform 已启动，并在启动开发进程前显式打开旗标，即可在 <http://127.0.0.1:5173/applications> 使用真实 Case 工作台；正常会话不再回退到仓库静态 Case，也不会访问真实招聘来源或真实 AI：
 
 ```powershell
 $env:VITE_CAREER_OS_V2 = "true"
-pnpm --filter @aijob/web dev
+pnpm dev
 ```
 
 未设置或设置为其他值时继续使用原 `ProductShell`；有效开启值只有 `1`、`true` 和 `on`（忽略大小写与首尾空格）。

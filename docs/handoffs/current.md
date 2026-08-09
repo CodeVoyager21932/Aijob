@@ -1,14 +1,16 @@
-# 当前项目交接：Aijob Career OS M1 真实 Case 工作台
+# 当前项目交接：Aijob Career OS M2 专业简历闭环
 
 > 交接日期：2026-08-09
 >
 > 当前分支：codex/career-os-phase-1
 >
-> 功能实现基线：7c68bb8 feat(platform): add resume content and layout revision API
+> 功能实现基线：`91b4a37 feat(web): connect real career os case workspace`
 >
-> 本轮先独立提交计划体系清洗；提交后的精确 HEAD 以 git log -1 为准。
+> 平台 M1 基线：`27dd433 feat(platform): complete m1 case workflow contracts`、`8750211 fix(platform): preserve case display and revision conflicts`
 >
-> 工作树预期只剩未跟踪 .claude/；不得读取、修改、暂存、覆盖或清理它。
+> 文档提交后的精确 HEAD 以 `git log -1` 为准。
+>
+> 工作树预期只剩未跟踪 `.claude/`；不得读取、修改、暂存、覆盖或清理它。
 
 动态事实源：[MVP 路线](../06-mvp-roadmap.md)
 
@@ -18,72 +20,84 @@
 
 计划索引：[docs/plans](../plans/README.md)
 
-最近功能验收：[Phase 2B-4B Resume Content/Layout Revision API](../evidence/product/career-os-v2/phase-2b4b-resume-content-layout-revision-api-acceptance-2026-08-09.md)
+最近功能验收：[M1 真实 Case 工作台](../evidence/product/career-os-v2/m1-real-case-workspace-acceptance-2026-08-09.md)
 
 ## 1. 当前唯一目标
 
-当前唯一里程碑是 **M1 真实 Case 工作台**：
+当前唯一里程碑是 **M2 专业简历闭环**：
 
-~~~text
-离线岗位或 owner 私有 JD
-→ 创建/重开 Case
-→ 刷新后恢复
-→ 读取并修改 JD 要求
-→ 打开对应 Case 派生简历
-~~~
+```text
+基础简历资产
+→ 解析与用户事实确认
+→ 结构化编辑和章节调整
+→ 基于真实 Case 创建岗位派生简历
+→ 逐条接受、编辑后采用或拒绝建议
+→ 切换两种中文模板
+→ DOCX/浏览器打印交接
+```
 
-不继续旧计划中的 Phase 2B-4C Interview/Debrief/Knowledge Service Boundary。migration 028 和既有 contracts 保留，但没有当前界面调用前不得继续扩建其服务、任务或 API。
+M2 先复用已经存在的解析、Profile 确认、Resume V2、tailoring 和 DOCX 能力，再补当前界面真正缺少的最小契约。不得从历史 Phase 2B 验收继续启动 Interview/Debrief/Knowledge，也不得在 M2 偷跑 M3 投递或 M4 旧页面迁移。
 
 ## 2. 已通过工程基线
 
-- Phase 1A/1B 已完成统一壳层、Case 路由、JD 能力和定制简历静态交互。
-- migrations 025–030 已注册长期 owner、公共/私有 Case、Requirement、Resume/Review、Interview/Debrief/Knowledge、strict Case event v2 与 Resume mutation receipts。
-- Case list/create/detail、阶段/岗位版本、Requirement 状态/证据/问题、Resume Document 和 content/layout revision API 已完成。
-- 最近全仓基线为 config 17、contracts 60、database 54、platform 442、web 91，共 664/664；lint 390、typecheck、build 与 audit 通过。
+- M1 已完成真实公共/私有 Case 创建和重开、Case 列表/详情、Requirements 三态/备注/证据/问题，以及 Case-derived Resume 显式创建和只读恢复。
+- 公共 Case 展示固定岗位版本；私有 JD 仅 owner 可见，不进入公共目录、推荐或供给统计。
+- 正常 Career OS 会话不再把静态 Case/Requirement/Resume 当业务真源；`VITE_CAREER_OS_V2` 关闭后旧壳层与旧岗位页面保持不变。
+- M1 全仓基线为 config 17、contracts 62、database 54、platform 443、web 100，共 676/676；lint 402、typecheck、build、audit 与浏览器 Gate 通过。
+- Web main chunk 为 548.24 kB，相对 Phase 1A 510.96 kB 增长约 7.3%；Requirements 和 Resume 仍是独立 lazy chunk。既有 main chunk 大于 500 kB warning 未消除。
 - 产品证据仍为 E0；可信供给仍为 22 岗 / 3 家企业 / 3 个官方 ATS，公共与 Alpha 岗位均为 0。
 
-## 3. M1 执行清单
+## 3. M2 串行执行清单
 
-按顺序执行，单次只允许一个条目进入 in_progress：
+时间盒为 2–3 个有效开发日。同一时间只允许一个切片 `in_progress`；开始时只有 M2-0 可进入执行。
 
-1. 冻结前端所需的现有响应映射和查询键；不得为了方便创建第二套宽松 DTO。
-2. 将 ApplicationsPage 的静态列表替换为 Case list，并提供从离线岗位或私有 JD 幂等创建/重开 Case 的入口。
-3. 将 CaseWorkspacePage 改为按 URL caseId 加载 Case 详情，恢复公共/私有 JobContext、阶段和固定版本。
-4. 将 CaseRequirementsWorkspace 接入 requirements read/write，覆盖三态、备注、证据链接、未知问题和 revision conflict。
-5. 将 CaseResumeWorkspace 接入 Case-derived Resume Document 和当前 content/layout 读取；M1 不实现正文编辑。
-6. 补齐 loading、empty、404、409、session expired、retry 与旗标关闭回退。
-7. 运行针对性 Web/Platform 测试和隔离 PostgreSQL 集成测试。
-8. 完成 1280/320、键盘、URL 前进/后退、检查器焦点和控制台验收。
-9. 运行里程碑全仓 Gate，形成独立验收证据并更新路线图/交接。
+1. **M2-0 基线与复用矩阵**：用合成简历核对旧 `/resume`、解析隔离、事实确认、V1→V2 转换、tailoring、两模板和 DOCX 的真实可复用边界；记录重复能力、契约缺口和删除影响，不修改业务行为。
+2. **M2-1 基础简历资产入口**：建立 `/resumes`，列出真实 base Resume Document；旧 V1 只读，用户首次编辑才生成 V2，不创建第二套解析器或事实库。
+3. **M2-2 结构化编辑器**：支持 section/block 内容编辑、增删和可访问的上移/下移；每次确认生成不可变 content/layout revision，稳定 ID 和 evidence 引用不得漂移。
+4. **M2-3 岗位派生编辑器**：在 Case `resume` 上编辑真实 derived document，固定 Case、岗位版本、基础修订和证据修订；刷新、深链与 revision conflict 不静默覆盖。
+5. **M2-4 建议决策**：复用 tailoring，支持逐条接受、编辑后采用、拒绝和撤销；首轮只用确定性模板或模拟 provider，AI 关闭仍可完成全流程。
+6. **M2-5 模板与导出**：统一中文经典单栏、中文紧凑技术、A4 浏览器预览、现有 DOCX DTO 和打印；换模板不得修改正文或 evidence ID。
+7. **M2-6 工程与浏览器 Gate**：覆盖 owner、CSRF、幂等、并发、删除、空/错误、1280/320、200% 等效视口、键盘、包体、旗标回退和全仓检查，形成 M2 独立验收证据。
 
-## 4. 首轮代码入口
+任何切片超过其预计边界时，先证明缺口属于当前用户任务，再允许最小 additive repair；不得用扩建未来后端延长 M2。
 
-- apps/web/src/career-os/pages/ApplicationsPage.tsx
-- apps/web/src/career-os/pages/CaseWorkspacePage.tsx
-- apps/web/src/career-os/pages/CaseRequirementsWorkspace.tsx
-- apps/web/src/career-os/pages/CaseResumeWorkspace.tsx
-- apps/web/src/api/
-- apps/platform/src/applications/routes.ts
-- apps/platform/src/resume-documents/routes.ts
-- packages/contracts/src/application-cases.ts
-- packages/contracts/src/resume-documents.ts
+## 4. M2-0 首轮代码入口
 
-优先复用现有接口；只有可复现地证明当前 API 无法支持 M1 用户任务时，才允许最小契约或 additive migration 修复。
+- `apps/web/src/pages/ResumePage.tsx`
+- `apps/web/src/pages/ResumeConfirmPage.tsx`
+- `apps/web/src/pages/ResumeTailoringPage.tsx`
+- `apps/web/src/career-os/pages/CaseResumeWorkspace.tsx`
+- `apps/web/src/career-os/resume-suggestion-state.ts`
+- `apps/platform/src/resume/routes.ts`
+- `apps/platform/src/resume/analysis-service.ts`
+- `apps/platform/src/resume/export-docx.ts`
+- `apps/platform/src/profile/routes.ts`
+- `apps/platform/src/tailoring/routes.ts`
+- `apps/platform/src/tailoring/service.ts`
+- `apps/platform/src/resume-documents/service.ts`
+- `apps/platform/src/resume-documents/revision-service.ts`
+- `packages/contracts/src/profile.ts`
+- `packages/contracts/src/tailoring.ts`
+- `packages/contracts/src/resume-documents.ts`
 
-## 5. M1 退出 Gate
+M2-0 只读检查这些入口及其直接测试和稳定规范。只有可复现地证明既有契约无法支持 M2 用户任务时，才允许进入契约修改；不得读取真实简历或本地业务数据。
 
-- Case 能创建、幂等重开、列表和详情恢复；公共/私有 JobContext 都 fail closed。
-- 刷新、深链、前进/后退和非法 Case 不回退到静态业务数据。
-- Requirement 三态、备注、证据和问题写入具有 owner、CSRF、幂等/并发和错误回执。
-- Case 派生 Resume 能幂等发现/创建并读取当前内容和布局；不在 M1 伪造编辑持久化。
-- 1280/320、键盘、焦点和旗标回退通过；无新增控制台 warning/error。
-- 相关测试、git diff --check、lint、typecheck、隔离 PostgreSQL 串行全仓、build 和 audit 均有明确退出码。
+## 5. M2 退出 Gate
 
-通过后只允许“继续 M2、修改、回退、停止”之一。
+- `/resumes` 与 Case `resume` 使用同一 Resume Document/Revision 真源，不存在第二套写入模型。
+- V1 保持只读兼容，第一次编辑生成 V2；section/block ID、正文、布局和 evidence 引用在修订间可追溯。
+- 章节增删/排序、正文编辑、建议三决策、两模板、A4 预览、DOCX 和打印完成一条合成简历闭环。
+- AI 不可用时仍能编辑、模板建议和导出；模拟 provider 的超时、限流、无效 Schema 与无效证据引用 fail closed。
+- owner、CSRF、幂等、revision conflict、墓碑与删除无复活通过；跨 owner 继续不可枚举 404。
+- 1280/320、200% 等效视口、键盘、焦点、刷新/历史、包体与旗标回退通过；无新增控制台 warning/error。
+- `git diff --check`、lint、typecheck、随机隔离 PostgreSQL 串行全仓、build 和 audit 均有明确退出码。
+
+通过后只允许“继续 M3、修改、回退、停止”之一。
 
 ## 6. 明确排除
 
-- 不实现 Interview、Debrief、Knowledge、真实 AI 或新的任务类型。
-- 不恢复真实来源扩容，不访问真实 JD、真实简历、邮件、服务器或参与者数据。
-- 不重做 Resume 编辑器、tailoring、DOCX 或旧页面迁移。
-- 不读取、暂存或提交 .claude/、.data/、密钥、令牌、简历原文、本地数据库、下载 DOCX 或本机快照。
+- 不实现 Interview、Debrief、Knowledge、投递状态界面或新的后台任务类型。
+- 不恢复真实来源扩容，不访问真实 JD、真实 AI、真实简历、邮件、服务器或参与者数据。
+- 不迁移或删除 `/resume`、`/recommendations`、`/insights` 等旧入口；兼容收口属于 M4。
+- 不新增数据库、Redis、队列、向量库、第二套认证、通用富文本编辑器或服务器 PDF 服务。
+- 不读取、暂存或提交 `.claude/`、`.data/`、密钥、令牌、简历原文、本地数据库、下载 DOCX 或本机截图。

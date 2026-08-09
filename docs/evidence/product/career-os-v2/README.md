@@ -6,6 +6,8 @@
 >
 > 上位事实源：[ADR-0030](../../../decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md)、[当前交付计划](../../../plans/career-os-current-delivery-plan.md)
 
+当前新路线的首个真实工作台里程碑见 [M1 真实 Case 工作台验收](m1-real-case-workspace-acceptance-2026-08-09.md)。该证据取代本目录历史 Phase 2B 验收中的“下一步”，但不删除历史工程事实；当前唯一目标由动态路线与交接确定。
+
 长期架构修正以 [ADR-0031](../../../decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md) 和 [Phase 2R 对齐报告](phase-2r-architecture-realignment-2026-08-06.md) 为准；本目录的概念图仍只约束布局、信息层级和交互关系，不覆盖长期生命周期、私有 JD 或 Resume Review 数据契约。
 
 Phase 2A 前向修复的代码证据见 [Forward Contract 与隔离原型验收](phase-2a-forward-contract-acceptance-2026-08-06.md)。该记录证明 37 项 contract tests、023F/024F 隔离 PostgreSQL 7/7 和串行全仓 617 项测试通过；原型尚未注册为正式 migration，并因匿名 owner 的 30 天全量删除依赖作出“修改”决定。
