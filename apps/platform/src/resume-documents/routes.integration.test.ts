@@ -2,7 +2,13 @@ import { randomUUID } from "node:crypto";
 import type { AppConfig } from "@aijob/config";
 import {
   CreateResumeDocumentResponseSchema,
+  CurrentResumeDocumentSchema,
+  LegacyResumeContentConversionSchema,
+  ListResumeDocumentContentRevisionsResponseSchema,
+  ListResumeDocumentLayoutRevisionsResponseSchema,
   ListResumeDocumentsResponseSchema,
+  PutResumeDocumentContentRevisionResponseSchema,
+  PutResumeDocumentLayoutRevisionResponseSchema,
   ResumeDocumentSchema,
 } from "@aijob/contracts";
 import { createDatabase, type Database, migrateToLatest } from "@aijob/database";
@@ -838,6 +844,94 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       .executeTakeFirstOrThrow();
     expect(catalogPointer.public_version_id).toBe(publicVersionV2Id);
 
+    const derivedContent = {
+      schemaVersion: "resume-content-v1" as const,
+      sections: [
+        {
+          id: mainResume.sectionId,
+          ordinal: 0,
+          title: "项目经历",
+          blocks: [
+            {
+              id: mainResume.blockId,
+              ordinal: 0,
+              text: "Synthetic statement tailored for the fixed public job version.",
+              evidenceIds: [mainResume.evidenceId],
+            },
+          ],
+        },
+      ],
+    };
+    const initializedDerived = await app.inject({
+      method: "POST",
+      url: `/v1/resume-documents/${publicCreated.resumeDocument.id}/revisions`,
+      headers: {
+        ...mainHeaders,
+        "idempotency-key": `initialize-public-derived-${randomUUID()}`,
+      },
+      payload: {
+        expectedRevision: 1,
+        baseDocumentRevisionId: mainResume.baseContentRevisionId,
+        content: derivedContent,
+      },
+    });
+    expect(initializedDerived.statusCode, JSON.stringify(initializedDerived.json())).toBe(201);
+    const initializedDerivedBody = PutResumeDocumentContentRevisionResponseSchema.parse(
+      initializedDerived.json(),
+    );
+    expect(initializedDerivedBody).toMatchObject({
+      documentRevision: 2,
+      contentRevision: {
+        documentRevision: 1,
+        baseDocumentRevisionId: null,
+        content: derivedContent,
+      },
+    });
+    const initializedDerivedDocument = ResumeDocumentSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/resume-documents/${publicCreated.resumeDocument.id}`,
+          headers: mainHeaders,
+        })
+      ).json(),
+    );
+    expect(initializedDerivedDocument).toMatchObject({
+      revision: 2,
+      currentContentRevisionId: initializedDerivedBody.contentRevision.id,
+      currentLayoutRevisionId: expect.any(String),
+      baseDocumentRevisionId: mainResume.baseContentRevisionId,
+      evidenceRevisionId: mainResume.evidenceRevisionId,
+    });
+
+    const invalidPinnedEvidence = await app.inject({
+      method: "POST",
+      url: `/v1/resume-documents/${publicCreated.resumeDocument.id}/revisions`,
+      headers: {
+        ...mainHeaders,
+        "idempotency-key": `invalid-derived-evidence-${randomUUID()}`,
+      },
+      payload: {
+        expectedRevision: 2,
+        baseDocumentRevisionId: initializedDerivedBody.contentRevision.id,
+        content: {
+          ...derivedContent,
+          sections: derivedContent.sections.map((section) => ({
+            ...section,
+            blocks: section.blocks.map((block) => ({
+              ...block,
+              text: `${block.text} changed`,
+              evidenceIds: ["not-confirmed-in-pinned-revision"],
+            })),
+          })),
+        },
+      },
+    });
+    expect(invalidPinnedEvidence.statusCode).toBe(422);
+    expect(invalidPinnedEvidence.json()).toMatchObject({
+      code: "RESUME_EVIDENCE_REFERENCE_INVALID",
+    });
+
     const privateKey = `private-derived-${randomUUID()}`;
     const privateCreatedResponse = await app.inject({
       method: "POST",
@@ -946,5 +1040,536 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       headers: sessionHeaders(otherSession),
     });
     expect(crossOwnerRead.statusCode).toBe(404);
+  });
+
+  it("converts legacy V1 without writes and appends immutable base content/layout revisions", async () => {
+    const headers = sessionHeaders(mainSession);
+    const beforeConversionCount = await db
+      .selectFrom("profile.resume_document_revisions")
+      .select(({ fn }) => fn.countAll<number>().as("count"))
+      .where("owner_id", "=", mainSession.context.ownerId)
+      .executeTakeFirstOrThrow();
+    const conversionResponse = await app.inject({
+      method: "GET",
+      url: `/v1/resume-documents/legacy-source/${mainResume.legacyRevisionId}`,
+      headers,
+    });
+    expect(conversionResponse.statusCode).toBe(200);
+    expect(conversionResponse.headers["cache-control"]).toBe("no-store");
+    const conversion = LegacyResumeContentConversionSchema.parse(conversionResponse.json());
+    expect(conversion).toMatchObject({
+      legacySource: {
+        legacySourceRevisionId: mainResume.legacyRevisionId,
+        ownerId: mainSession.context.ownerId,
+        ownerEpoch: mainSession.context.ownerEpoch,
+        readOnly: true,
+      },
+      content: { schemaVersion: "resume-content-v1" },
+    });
+    expect(
+      conversion.content.sections.flatMap((section) =>
+        section.blocks.flatMap((block) => block.evidenceIds),
+      ),
+    ).toEqual([]);
+    const afterConversionCount = await db
+      .selectFrom("profile.resume_document_revisions")
+      .select(({ fn }) => fn.countAll<number>().as("count"))
+      .where("owner_id", "=", mainSession.context.ownerId)
+      .executeTakeFirstOrThrow();
+    expect(Number(afterConversionCount.count)).toBe(Number(beforeConversionCount.count));
+
+    const crossOwnerLegacy = await app.inject({
+      method: "GET",
+      url: `/v1/resume-documents/legacy-source/${mainResume.legacyRevisionId}`,
+      headers: sessionHeaders(otherSession),
+    });
+    expect(crossOwnerLegacy.statusCode).toBe(404);
+    expect(crossOwnerLegacy.json()).toMatchObject({ code: "LEGACY_RESUME_SOURCE_NOT_FOUND" });
+
+    const baseCreate = await app.inject({
+      method: "POST",
+      url: "/v1/resume-documents",
+      headers: { ...headers, "idempotency-key": `revision-base-${randomUUID()}` },
+      payload: { kind: "base", title: "由旧版简历初始化的基础简历" },
+    });
+    expect(baseCreate.statusCode).toBe(201);
+    const baseDocument = CreateResumeDocumentResponseSchema.parse(baseCreate.json()).resumeDocument;
+    const firstContent = {
+      ...conversion.content,
+      sections: conversion.content.sections.map((section) => ({
+        ...section,
+        blocks: section.blocks.map((block) => ({
+          ...block,
+          text: `${block.text}（用户确认后的首版）`,
+        })),
+      })),
+    };
+    const firstContentKey = `first-content-${randomUUID()}`;
+    const firstContentRequest = {
+      method: "POST" as const,
+      url: `/v1/resume-documents/${baseDocument.id}/revisions`,
+      headers: { ...headers, "idempotency-key": firstContentKey },
+      payload: {
+        expectedRevision: 0,
+        legacySourceRevisionId: mainResume.legacyRevisionId,
+        content: firstContent,
+      },
+    };
+    const missingCsrf = await app.inject({
+      ...firstContentRequest,
+      headers: {
+        host: "127.0.0.1:3000",
+        origin: "http://127.0.0.1:3000",
+        cookie: `${SESSION_COOKIE_NAME}=${mainSession.sessionToken}; ${CSRF_COOKIE_NAME}=${mainSession.csrfToken}`,
+        "idempotency-key": `missing-csrf-${randomUUID()}`,
+      },
+    });
+    expect(missingCsrf.statusCode).toBe(403);
+
+    const [firstWrite, firstReplay] = await Promise.all([
+      app.inject(firstContentRequest),
+      app.inject(firstContentRequest),
+    ]);
+    expect(firstWrite.statusCode, JSON.stringify(firstWrite.json())).toBe(201);
+    expect(firstReplay.statusCode, JSON.stringify(firstReplay.json())).toBe(201);
+    expect(firstWrite.headers["cache-control"]).toBe("no-store");
+    const firstWriteBody = PutResumeDocumentContentRevisionResponseSchema.parse(firstWrite.json());
+    expect(PutResumeDocumentContentRevisionResponseSchema.parse(firstReplay.json())).toEqual(
+      firstWriteBody,
+    );
+    expect(firstWriteBody).toMatchObject({
+      documentRevision: 2,
+      contentRevision: {
+        documentId: baseDocument.id,
+        documentRevision: 1,
+        baseDocumentRevisionId: null,
+        content: firstContent,
+      },
+    });
+
+    const initializedDocumentResponse = await app.inject({
+      method: "GET",
+      url: `/v1/resume-documents/${baseDocument.id}`,
+      headers,
+    });
+    const initializedDocument = ResumeDocumentSchema.parse(initializedDocumentResponse.json());
+    expect(initializedDocument).toMatchObject({
+      revision: 2,
+      currentContentRevisionId: firstWriteBody.contentRevision.id,
+      currentLayoutRevisionId: expect.any(String),
+    });
+    const firstLayoutPage = ListResumeDocumentLayoutRevisionsResponseSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/resume-documents/${baseDocument.id}/layout-revisions`,
+          headers,
+        })
+      ).json(),
+    );
+    expect(firstLayoutPage).toMatchObject({
+      documentRevision: 2,
+      currentLayoutRevisionId: initializedDocument.currentLayoutRevisionId,
+      current: {
+        schemaVersion: "resume-layout-v2",
+        layoutRevision: 1,
+        templateKey: "cn_classic_single_column",
+        sectionOrder: firstContent.sections.map((section) => section.id),
+      },
+    });
+
+    const legacyProfileDocument = CurrentResumeDocumentSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: "/v1/profile/document",
+          headers,
+        })
+      ).json(),
+    );
+    expect(legacyProfileDocument.document?.id).toBe(mainResume.legacyRevisionId);
+    expect(legacyProfileDocument.document?.schemaVersion).toBe("resume-document-v1");
+
+    const changedReplay = await app.inject({
+      ...firstContentRequest,
+      payload: {
+        ...firstContentRequest.payload,
+        content: {
+          ...firstContent,
+          sections: firstContent.sections.map((section) => ({
+            ...section,
+            title: `${section.title} changed`,
+          })),
+        },
+      },
+    });
+    expect(changedReplay.statusCode).toBe(409);
+    expect(changedReplay.json()).toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+
+    const noOp = await app.inject({
+      method: "POST",
+      url: `/v1/resume-documents/${baseDocument.id}/revisions`,
+      headers: { ...headers, "idempotency-key": `content-no-op-${randomUUID()}` },
+      payload: {
+        expectedRevision: 2,
+        baseDocumentRevisionId: firstWriteBody.contentRevision.id,
+        content: firstContent,
+      },
+    });
+    expect(noOp.statusCode).toBe(409);
+    expect(noOp.json()).toMatchObject({ code: "RESUME_CONTENT_UNCHANGED" });
+
+    const secondContent = {
+      ...firstContent,
+      sections: firstContent.sections.map((section) => ({
+        ...section,
+        blocks: section.blocks.map((block) => ({
+          ...block,
+          text: `${block.text} 第二次明确编辑`,
+        })),
+      })),
+    };
+    const secondWrite = await app.inject({
+      method: "POST",
+      url: `/v1/resume-documents/${baseDocument.id}/revisions`,
+      headers: { ...headers, "idempotency-key": `second-content-${randomUUID()}` },
+      payload: {
+        expectedRevision: 2,
+        baseDocumentRevisionId: firstWriteBody.contentRevision.id,
+        content: secondContent,
+      },
+    });
+    expect(secondWrite.statusCode, JSON.stringify(secondWrite.json())).toBe(201);
+    const secondWriteBody = PutResumeDocumentContentRevisionResponseSchema.parse(
+      secondWrite.json(),
+    );
+    expect(secondWriteBody).toMatchObject({
+      documentRevision: 3,
+      contentRevision: {
+        documentRevision: 2,
+        baseDocumentRevisionId: firstWriteBody.contentRevision.id,
+      },
+    });
+
+    const concurrentRequests = ["A", "B"].map((suffix) =>
+      app.inject({
+        method: "POST",
+        url: `/v1/resume-documents/${baseDocument.id}/revisions`,
+        headers: { ...headers, "idempotency-key": `concurrent-content-${suffix}-${randomUUID()}` },
+        payload: {
+          expectedRevision: 3,
+          baseDocumentRevisionId: secondWriteBody.contentRevision.id,
+          content: {
+            ...secondContent,
+            sections: secondContent.sections.map((section) => ({
+              ...section,
+              blocks: section.blocks.map((block) => ({
+                ...block,
+                text: `${block.text} 并发版本 ${suffix}`,
+              })),
+            })),
+          },
+        },
+      }),
+    );
+    const concurrentResponses = await Promise.all(concurrentRequests);
+    expect(concurrentResponses.map((response) => response.statusCode).sort()).toEqual([201, 409]);
+    const concurrentWinner = concurrentResponses.find((response) => response.statusCode === 201);
+    const concurrentLoser = concurrentResponses.find((response) => response.statusCode === 409);
+    if (!concurrentWinner || !concurrentLoser)
+      throw new Error("CONTENT_CONCURRENCY_RESULT_MISSING");
+    const concurrentWinnerBody = PutResumeDocumentContentRevisionResponseSchema.parse(
+      concurrentWinner.json(),
+    );
+    expect(concurrentWinnerBody.documentRevision).toBe(4);
+    expect(concurrentLoser.json()).toMatchObject({
+      code: "RESUME_DOCUMENT_REVISION_CONFLICT",
+    });
+
+    const addedSectionId = randomUUID();
+    const structuralContent = {
+      ...concurrentWinnerBody.contentRevision.content,
+      sections: [
+        ...concurrentWinnerBody.contentRevision.content.sections,
+        {
+          id: addedSectionId,
+          ordinal: 1,
+          title: "技能",
+          blocks: [
+            {
+              id: randomUUID(),
+              ordinal: 0,
+              text: "Synthetic user-confirmed skill section.",
+              evidenceIds: [],
+            },
+          ],
+        },
+      ],
+    };
+    const structuralWrite = await app.inject({
+      method: "POST",
+      url: `/v1/resume-documents/${baseDocument.id}/revisions`,
+      headers: { ...headers, "idempotency-key": `structural-content-${randomUUID()}` },
+      payload: {
+        expectedRevision: 4,
+        baseDocumentRevisionId: concurrentWinnerBody.contentRevision.id,
+        content: structuralContent,
+      },
+    });
+    expect(structuralWrite.statusCode, JSON.stringify(structuralWrite.json())).toBe(201);
+    const structuralWriteBody = PutResumeDocumentContentRevisionResponseSchema.parse(
+      structuralWrite.json(),
+    );
+    expect(structuralWriteBody).toMatchObject({
+      documentRevision: 5,
+      contentRevision: {
+        documentRevision: 4,
+        baseDocumentRevisionId: concurrentWinnerBody.contentRevision.id,
+        content: structuralContent,
+      },
+    });
+    const rebasedLayoutPage = ListResumeDocumentLayoutRevisionsResponseSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/resume-documents/${baseDocument.id}/layout-revisions`,
+          headers,
+        })
+      ).json(),
+    );
+    expect(rebasedLayoutPage.current).toMatchObject({
+      layoutRevision: 2,
+      baseLayoutRevision: 1,
+      sectionOrder: structuralContent.sections.map((section) => section.id),
+    });
+
+    const pageOne = ListResumeDocumentContentRevisionsResponseSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/resume-documents/${baseDocument.id}/revisions?limit=1`,
+          headers,
+        })
+      ).json(),
+    );
+    expect(pageOne).toMatchObject({
+      documentRevision: 5,
+      currentContentRevisionId: structuralWriteBody.contentRevision.id,
+      current: { id: structuralWriteBody.contentRevision.id, documentRevision: 4 },
+    });
+    expect(pageOne.items).toHaveLength(1);
+    expect(pageOne.nextBeforeRevision).toBe(4);
+    const pageTwo = ListResumeDocumentContentRevisionsResponseSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/resume-documents/${baseDocument.id}/revisions?limit=1&beforeRevision=${pageOne.nextBeforeRevision}`,
+          headers,
+        })
+      ).json(),
+    );
+    expect(pageTwo.items[0]?.documentRevision).toBe(3);
+
+    const sectionOrder = structuralContent.sections.map((section) => section.id);
+    const layoutSettings = {
+      schemaVersion: "resume-layout-settings-v1" as const,
+      fontSizeToken: "compact" as const,
+      lineSpacingToken: "tight" as const,
+      sectionSpacingToken: "tight" as const,
+      colorToken: "navy" as const,
+      pageBreakPolicy: "compact_to_fit" as const,
+    };
+    const invalidLayout = await app.inject({
+      method: "POST",
+      url: `/v1/resume-documents/${baseDocument.id}/layout-revisions`,
+      headers: { ...headers, "idempotency-key": `invalid-layout-${randomUUID()}` },
+      payload: {
+        expectedRevision: 5,
+        templateKey: "cn_compact_technical",
+        sectionOrder: [],
+        settings: layoutSettings,
+      },
+    });
+    expect(invalidLayout.statusCode).toBe(422);
+    expect(invalidLayout.json()).toMatchObject({ code: "RESUME_LAYOUT_SECTION_ORDER_INVALID" });
+
+    const layoutKey = `layout-change-${randomUUID()}`;
+    const layoutRequest = {
+      method: "POST" as const,
+      url: `/v1/resume-documents/${baseDocument.id}/layout-revisions`,
+      headers: { ...headers, "idempotency-key": layoutKey },
+      payload: {
+        expectedRevision: 5,
+        templateKey: "cn_compact_technical",
+        sectionOrder,
+        settings: layoutSettings,
+      },
+    };
+    const layoutWrite = await app.inject(layoutRequest);
+    expect(layoutWrite.statusCode, JSON.stringify(layoutWrite.json())).toBe(201);
+    expect(layoutWrite.headers["cache-control"]).toBe("no-store");
+    const layoutWriteBody = PutResumeDocumentLayoutRevisionResponseSchema.parse(layoutWrite.json());
+    expect(layoutWriteBody).toMatchObject({
+      documentRevision: 6,
+      layoutRevision: {
+        layoutRevision: 3,
+        baseLayoutRevision: 2,
+        templateKey: "cn_compact_technical",
+        sectionOrder,
+        settings: layoutSettings,
+      },
+    });
+    const layoutReplay = await app.inject(layoutRequest);
+    expect(layoutReplay.statusCode).toBe(201);
+    expect(PutResumeDocumentLayoutRevisionResponseSchema.parse(layoutReplay.json())).toEqual(
+      layoutWriteBody,
+    );
+    const layoutKeyConflict = await app.inject({
+      ...layoutRequest,
+      payload: {
+        ...layoutRequest.payload,
+        settings: { ...layoutSettings, colorToken: "black" },
+      },
+    });
+    expect(layoutKeyConflict.statusCode).toBe(409);
+    expect(layoutKeyConflict.json()).toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+    const layoutNoOp = await app.inject({
+      ...layoutRequest,
+      headers: { ...headers, "idempotency-key": `layout-no-op-${randomUUID()}` },
+      payload: { ...layoutRequest.payload, expectedRevision: 6 },
+    });
+    expect(layoutNoOp.statusCode).toBe(409);
+    expect(layoutNoOp.json()).toMatchObject({ code: "RESUME_LAYOUT_UNCHANGED" });
+
+    const layoutPage = ListResumeDocumentLayoutRevisionsResponseSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/resume-documents/${baseDocument.id}/layout-revisions`,
+          headers,
+        })
+      ).json(),
+    );
+    expect(layoutPage.items).toHaveLength(3);
+    expect(layoutPage.currentLayoutRevisionId).toBe(layoutWriteBody.layoutRevision.id);
+
+    const duplicateBaseResponse = await app.inject({
+      method: "POST",
+      url: "/v1/resume-documents",
+      headers: { ...headers, "idempotency-key": `duplicate-legacy-base-${randomUUID()}` },
+      payload: { kind: "base", title: "不得成为第二个旧版真源" },
+    });
+    const duplicateBase = CreateResumeDocumentResponseSchema.parse(
+      duplicateBaseResponse.json(),
+    ).resumeDocument;
+    const duplicateLegacy = await app.inject({
+      method: "POST",
+      url: `/v1/resume-documents/${duplicateBase.id}/revisions`,
+      headers: { ...headers, "idempotency-key": `duplicate-legacy-${randomUUID()}` },
+      payload: {
+        expectedRevision: 0,
+        legacySourceRevisionId: mainResume.legacyRevisionId,
+        content: conversion.content,
+      },
+    });
+    expect(duplicateLegacy.statusCode).toBe(409);
+    expect(duplicateLegacy.json()).toMatchObject({
+      code: "LEGACY_RESUME_SOURCE_ALREADY_MIGRATED",
+    });
+
+    const crossOwnerHistory = await app.inject({
+      method: "GET",
+      url: `/v1/resume-documents/${baseDocument.id}/revisions`,
+      headers: sessionHeaders(otherSession),
+    });
+    expect(crossOwnerHistory.statusCode).toBe(404);
+
+    const laterLegacySectionId = randomUUID();
+    const laterLegacyBlockId = randomUUID();
+    const laterLegacyWrite = await app.inject({
+      method: "PUT",
+      url: "/v1/profile/evidence",
+      headers,
+      payload: {
+        expectedRevision: 1,
+        resumeAnalysisId: null,
+        document: {
+          schemaVersion: "resume-document-v1",
+          sections: [
+            {
+              id: laterLegacySectionId,
+              ordinal: 0,
+              title: "兼容旧页面",
+              blocks: [
+                {
+                  id: laterLegacyBlockId,
+                  ordinal: 0,
+                  text: "Synthetic legacy write after V2 revisions.",
+                },
+              ],
+            },
+          ],
+        },
+        evidence: [],
+      },
+    });
+    expect(laterLegacyWrite.statusCode, JSON.stringify(laterLegacyWrite.json())).toBe(200);
+    const latestLegacyAfterV2 = CurrentResumeDocumentSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: "/v1/profile/document",
+          headers,
+        })
+      ).json(),
+    );
+    expect(latestLegacyAfterV2.document).toMatchObject({
+      schemaVersion: "resume-document-v1",
+      baseRevision: 1,
+      sections: [
+        expect.objectContaining({
+          id: laterLegacySectionId,
+          blocks: [expect.objectContaining({ id: laterLegacyBlockId })],
+        }),
+      ],
+    });
+    expect(latestLegacyAfterV2.document?.id).not.toBe(mainResume.legacyRevisionId);
+
+    const tombstonedResponse = await app.inject({
+      method: "POST",
+      url: "/v1/resume-documents",
+      headers: { ...headers, "idempotency-key": `tombstoned-revision-base-${randomUUID()}` },
+      payload: { kind: "base", title: "修订墓碑回归" },
+    });
+    const tombstoned = CreateResumeDocumentResponseSchema.parse(
+      tombstonedResponse.json(),
+    ).resumeDocument;
+    const deletedAt = new Date(Date.now() + 120_000);
+    await db
+      .updateTable("profile.resume_documents")
+      .set({ deleted_at: deletedAt, updated_at: deletedAt })
+      .where("id", "=", tombstoned.id)
+      .executeTakeFirstOrThrow();
+    const tombstonedHistory = await app.inject({
+      method: "GET",
+      url: `/v1/resume-documents/${tombstoned.id}/revisions`,
+      headers,
+    });
+    expect(tombstonedHistory.statusCode).toBe(404);
+
+    await expect(
+      db
+        .updateTable("profile.resume_document_revisions")
+        .set({ content_hash: "f".repeat(64) })
+        .where("id", "=", structuralWriteBody.contentRevision.id)
+        .execute(),
+    ).rejects.toThrow("IMMUTABLE_PROFILE_REVISION");
+    await expect(
+      db
+        .updateTable("profile.resume_layout_revisions")
+        .set({ content_hash: "e".repeat(64) })
+        .where("id", "=", layoutWriteBody.layoutRevision.id)
+        .execute(),
+    ).rejects.toThrow("IMMUTABLE_PROFILE_REVISION");
   });
 });

@@ -470,6 +470,10 @@ export interface ResumeDocumentRevisionTable {
   document_id: Generated<string | null>;
   document_revision: Generated<number | null>;
   base_document_revision_id: Generated<string | null>;
+  legacy_source_revision_id: Generated<string | null>;
+  mutation_idempotency_key: Generated<string | null>;
+  mutation_request_hash: Generated<string | null>;
+  result_document_revision: Generated<number | null>;
 }
 
 export interface AccountTable {
@@ -783,6 +787,9 @@ export interface ResumeLayoutRevisionTable {
   section_order: JsonValue;
   settings: JsonValue;
   content_hash: string;
+  mutation_idempotency_key: Generated<string | null>;
+  mutation_request_hash: Generated<string | null>;
+  result_document_revision: Generated<number | null>;
   created_at: Generated<Timestamp>;
 }
 

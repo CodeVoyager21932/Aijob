@@ -146,7 +146,11 @@ export function registerProfileRoutes(app: FastifyInstance, options: ProfileRout
     try {
       const owner = requireOwnerContext(request);
       return reply.send({
-        document: await getCurrentResumeDocument({ db: options.db, ownerId: owner.ownerId }),
+        document: await getCurrentResumeDocument({
+          db: options.db,
+          ownerId: owner.ownerId,
+          ownerEpoch: owner.ownerEpoch,
+        }),
       });
     } catch (error) {
       return handleMutationError(error, request, reply);

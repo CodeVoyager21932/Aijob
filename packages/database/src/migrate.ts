@@ -30,6 +30,7 @@ import { privateRequirementContextForwardRepairMigration } from "./migrations/02
 import { resumeDocumentReviewForwardRepairMigration } from "./migrations/027_resume_document_review_forward_repair.js";
 import { interviewDebriefKnowledgeExpandMigration } from "./migrations/028_interview_debrief_knowledge_expand.js";
 import { caseMutationEventV2ForwardRepairMigration } from "./migrations/029_case_mutation_event_v2_forward_repair.js";
+import { resumeRevisionMutationReceiptsMigration } from "./migrations/030_resume_revision_mutation_receipts.js";
 import type { Database } from "./types.js";
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -70,6 +71,7 @@ class StaticMigrationProvider implements MigrationProvider {
       "027_resume_document_review_forward_repair": resumeDocumentReviewForwardRepairMigration,
       "028_interview_debrief_knowledge_expand": interviewDebriefKnowledgeExpandMigration,
       "029_case_mutation_event_v2_forward_repair": caseMutationEventV2ForwardRepairMigration,
+      "030_resume_revision_mutation_receipts": resumeRevisionMutationReceiptsMigration,
     };
   }
 }

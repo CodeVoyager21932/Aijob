@@ -211,9 +211,9 @@ Phase 2R 补充：Resume V2 的语义正文、布局和审查过程必须分层�
 | `id`, `owner_id`, `owner_epoch` | 文档聚合与 owner 快照 |
 | `kind` | `base/case_derived` |
 | `title` | 1–200 字；属于个人数据 |
-| `application_case_id` | base 必须 NULL；case_derived 必须非空且同 owner |
-| `source_document_revision_id` | 派生文档固定基础简历 V2 修订；base 为 NULL |
-| `published_job_version_id`, `requirement_set_id`, `evidence_revision_id` | 派生文档全部固定；base 全部为 NULL |
+| `case_id`, `detached_from_case_id` | base 必须全 NULL；case_derived 创建时固定同 owner Case，后续只允许按删除契约显式脱离 |
+| `job_context_kind` 与 public/private JobContext 列 | 派生文档固定创建时的公共岗位版本/要求集或 owner-only 私有 JD revision；base 全部为 NULL |
+| `base_document_id`, `base_document_revision_id`, `evidence_revision_id` | 派生文档固定基础简历及其 strict content revision、已确认证据 revision；base 全部为 NULL |
 | `current_content_revision_id`, `current_layout_revision_id` | 受约束的活动指针，建表后再添加复合外键 |
 | `revision` | 聚合乐观修订号 |
 | `creation_idempotency_key`, `creation_request_hash` | owner 内创建幂等 |
@@ -221,33 +221,38 @@ Phase 2R 补充：Resume V2 的语义正文、布局和审查过程必须分层�
 
 约束：
 
-- `case_derived` 四个派生引用必须同时非空；`base` 必须全部为空。
+- `case_derived` 的 Case、JobContext、基础正文与证据引用必须组成一组合法 public/private 固定上下文；`base` 必须全部为空。
 - 同一未删除 Case 首轮最多一个 `case_derived` 文档；base 文档可有多个。
 - 所有个人引用使用 owner 复合外键；岗位版本/要求集使用版本归属复合外键。
 
 ### 6.2 additive 扩展 `profile.resume_document_revisions`
 
-既有列和旧行不改值。新增 nullable 列：
+迁移 024/027 已在不修改旧行值的前提下新增或前向修正以下 nullable 列：
 
 - `document_id uuid`
 - `document_revision integer`
-- `base_document_revision integer`
+- `base_document_revision_id uuid`
+
+迁移 030 为持久幂等回执和 legacy 唯一来源追加 nullable `legacy_source_revision_id`、`mutation_idempotency_key`、`mutation_request_hash`、`result_document_revision`；旧行全部保持 NULL、值不改。
 
 配对约束：
 
-- 旧 V1：`schema_version='resume-document-v1'` 且三个新列全部 NULL。
-- 新 V2：`schema_version='resume-document-v2'`、`document_id/document_revision` 非空、`document_revision > 0`；首修订的 `base_document_revision` 为 NULL，后续指向同 owner、同 document 的上一内容修订。
-- 保留既有 owner 全局 `revision/base_revision` 列，V2 行继续获得唯一 owner 全局 revision 以避免破坏旧表约束，但 V2 并发与展示使用 `document_revision`。
+- 旧 V1：`schema_version='resume-document-v1'` 且 document 链、legacy 来源和 mutation 回执列全部 NULL。
+- 新语义正文：`schema_version='resume-content-v1'`、`document_id/document_revision` 非空、`document_revision > 0`；首修订的 `base_document_revision_id` 为 NULL，后续指向同 owner、同 document 的上一内容修订。
+- 保留既有 owner 全局 `revision/base_revision` 列；新正文继续获得唯一 owner 全局 `revision` 以兼容旧唯一约束，但服务将 `base_revision` 写为 NULL，真实链只使用 `base_document_revision_id`，防止不同文档通过旧全局链互相阻塞删除。并发与展示使用文档聚合 revision 和 `document_revision`。
 - 新增 `UNIQUE (owner_id, document_id, document_revision)` 和同文档 base 复合外键。
+- mutation key 以 `(owner_id, document_id, key)` 唯一；同键同请求从不可变行恢复原始 `result_document_revision`，同键不同请求返回冲突。
+- `legacy_source_revision_id` 只允许首个 `resume-content-v1` 修订引用同 owner/epoch 的真实 V1 行；同一 legacy 来源只能初始化一个 V2 基础简历真源。
 - V2 内容仍存结构化 sections；语义区块/证据 ID 在编辑和换模板时稳定。内容修订继续禁止 UPDATE。审查建议不再写入正文 block 状态。
 
 ### 6.3 `profile.resume_layout_revisions`
 
-列：`id`、owner、`document_id`、`layout_revision`、`base_layout_revision`、`template_key`、`section_order`、版本化 `settings`、`content_hash`、`created_at`。
+列：`id`、owner、`document_id`、`layout_revision`、`base_layout_revision`、`template_key`、`section_order`、版本化 `settings`、`content_hash`、mutation 回执、`created_at`。
 
 - `template_key` 首轮只允许 `cn_classic_single_column/cn_compact_technical`。
 - `section_order` 只含稳定 section ID；`settings` 只含布局 token，不得复制正文或证据，且必须通过 strict layout Schema。
 - owner/document/revision 唯一；同文档 base 外键；禁止 UPDATE。
+- mutation key 在 owner/document 内唯一；重放返回当次聚合 revision，不以当前 pointer 伪造历史结果。
 - 换模板或章节排序只创建布局修订，不创建内容修订，不改变 block/evidence ID。
 
 ### 6.4 V1 只读转换与首次编辑
@@ -256,13 +261,17 @@ Phase 2R 补充：Resume V2 的语义正文、布局和审查过程必须分层�
 读取旧 owner 最新 V1 行
 -> 转换器暴露 virtual legacy document（ID 使用该 V1 revision ID）
 -> 不插入、不回填、不修改旧行
--> 用户第一次编辑时提交 legacySourceRevisionId + expectedRevision=0
--> 同一事务创建 base ResumeDocument + V2 content revision + layout revision
+-> 用户先显式创建一个空 base ResumeDocument（聚合 revision=1）
+-> 用户第一次编辑该空聚合时提交 legacySourceRevisionId + expectedRevision=0
+-> 同一事务创建 content revision 1 + 默认 layout revision 1，并推进两个 pointer 和聚合 revision
 -> 后续只在该 document 内追加 V2 修订
 ```
 
 - 旧 `/v1/profile/document` 在 V2 写入开放前改为只读取 `schema_version='resume-document-v1' AND document_id IS NULL`，旗标关闭时不会误把 V2 当 V1。
+- `GET /v1/resume-documents/legacy-source/:legacySourceRevisionId` 只转换当前 owner/epoch 的最新 V1 来源，零写入；跨 owner、旧 epoch、非最新或非 V1 均不可枚举为有效来源。
+- `expectedRevision=0` 是“已存在的 base 聚合仍为空”的显式哨兵，不等于聚合真实 revision；服务必须同时验证聚合仍为初始 base 且 content/layout pointer 均为空，禁止从 legacy 隐式创建第二个聚合。
 - 转换器必须保留所有 V1 section/block ID；首次 V2 修订的内容 hash 基于规范化 V2 DTO。
+- Case-derived 聚合第一次写正文使用其真实 `expectedRevision`，并要求正文 section/block ID 集与创建时固定的基础 content revision 完全一致。
 - V1 行永久只读；G4 前不回填 document_id，也不 contract 旧列。
 
 ## 7. Interview、Debrief 与 Knowledge 数据契约
@@ -318,7 +327,8 @@ Phase 2R 补充：Resume V2 的语义正文、布局和审查过程必须分层�
 
 | 接口族 | 固定语义 |
 |---|---|
-| `/v1/resume-documents` | 列表、创建 base/derived、详情；旧 V1 通过 virtual legacy DTO 返回 |
+| `/v1/resume-documents` | 列表、创建 base/derived、详情；列表顶层只暴露最新 V1 来源摘要，不把它伪装成聚合 |
+| `/v1/resume-documents/legacy-source/:legacySourceRevisionId` | 只读转换当前 owner/epoch 最新 V1 正文；GET 零写入 |
 | `/v1/resume-documents/:id/revisions` | 内容修订；POST 同时要求幂等键和文档 `expectedRevision` |
 | `/v1/resume-documents/:id/layout-revisions` | 模板/排序修订，不接收语义正文 |
 | `/v1/application-cases/:caseId/resume-tailorings` | 适配现有 tailoring；固定 Case、岗位版本、Resume V2 与证据修订 |
@@ -463,6 +473,7 @@ type InterviewMode = "template" | "controlled_ai";
 | 冲突 | 处理 |
 |---|---|
 | 计划写“新增 Resume Document V2”，代码已存在同名修订表 | 明确为新增聚合 `resume_documents` + additive 扩展既有 revisions；禁止重建第二张修订表 |
+| 2B-4A 已允许先创建空 base，但旧设计仍写“从 legacy 直接创建新 base”；既有修订表又缺少持久 mutation 回执 | 2B-4B 改为初始化已有空 base；migration 030 additive 增加不可变幂等回执和 legacy 来源唯一绑定。GET 继续零写入，应用回退不删除新列或历史 |
 | `docs/05-system-architecture.md` 仍描述受限任务函数，ADR-0023 与迁移 021 已改为任务表 RLS | 本切片同步文档为当前 RLS/直接表访问事实；未来新增外部写入方时再复审函数层 |
 | 架构文档写 JobDecision 可选 `match_run_id`，当前表和 ADR-0008 没有该列 | 删除该过时描述；Phase 2 通过 Case 固定上下文，不给旧决定补隐式匹配归属 |
 | ADR-0005 要求会话 Cookie `SameSite=Strict`，当前实现为 session `Lax`、CSRF `Strict` | 记录为服务器就绪前安全债；不在本设计切片顺手改变登录导航行为，必须在身份专项测试后处理 |

@@ -1,6 +1,6 @@
 # Aijob 求职 OS 2.0 → Private Alpha 严格开发总计划
 
-- 状态：OS 2.0 初版已完成 Phase 1A/1B；Phase 2R、Phase 2A、正式 migrations 023–029 与 Phase 2B-1/2/3/4A 已完成，当前执行 Phase 2B-4B Resume Content/Layout Revision API
+- 状态：OS 2.0 初版已完成 Phase 1A/1B；Phase 2R、Phase 2A、正式 migrations 023–030 与 Phase 2B-1/2/3/4A/4B 已完成，当前执行 Phase 2B-4C Interview/Debrief/Knowledge Service Boundary
 - 初版日期：2026-08-04
 - 严格化日期：2026-08-05
 - 最近进度更新：2026-08-09
@@ -39,7 +39,7 @@ flowchart LR
 | 基线收口 | 1–2 | 干净、可追溯的 Phase 1A 基线 | 已完成 |
 | Phase 1B | 4–6 | JD 能力与定制简历静态交互 Gate | 已通过 |
 | Phase 2R | 2–4 | 修正长期资产、私有 JD、Resume Review、身份和唯一真源契约 | 已完成契约复核 |
-| Phase 2A/2B | 8–12 | 数据模型、契约、迁移、删除覆盖及 owner-protected service/API | 2A、2B-1/2/3/4A 已完成；当前执行 2B-4B |
+| Phase 2A/2B | 8–12 | 数据模型、契约、迁移、删除覆盖及 owner-protected service/API | 2A、2B-1/2/3/4A/4B 已完成；当前执行 2B-4C |
 | Phase 3A Case PoC | 5–7 | 固定岗位版本的一岗一档 | 未开始 |
 | Phase 3B Resume V2 PoC | 10–14 | 两模板、编辑、确认、DOCX/打印 | 未开始 |
 | Phase 3C Interview PoC | 8–12 | 文字面试、反馈、复盘及模板降级 | 未开始 |
@@ -185,7 +185,7 @@ Phase 2R 是 025–027 之前的强制架构复核，不新增业务 UI，不调
 
 退出 Gate：ADR、契约表、迁移影响矩阵、删除矩阵、旧路由真源规则、测试矩阵和 Phase 2R 证据报告齐全；不访问真实招聘来源、真实 AI、服务器或真实简历。
 
-Phase 2R 已完成实现前契约矩阵；长期 owner 身份前置、公共/私有 ApplicationCase、对等 requirement context、长期 Resume/Review 与 Interview/Debrief/Knowledge 已分别由 migrations 025/026/026B/027/028 正式注册。Phase 2B-3 实现时确认 `case-event-v1` 不能无损表达已冻结的混合证据增删、仅备注变化和仅答案变化，因此 migration 029 以前向兼容方式保留 legacy/v1 可读并严格注册 `case-event-v2`；该修复不新增业务表或列。不得把数据库或服务可写冒充用户闭环已可用。
+Phase 2R 已完成实现前契约矩阵；长期 owner 身份前置、公共/私有 ApplicationCase、对等 requirement context、长期 Resume/Review 与 Interview/Debrief/Knowledge 已分别由 migrations 025/026/026B/027/028 正式注册。Phase 2B-3 实现时确认 `case-event-v1` 不能无损表达已冻结的混合证据增删、仅备注变化和仅答案变化，因此 migration 029 以前向兼容方式保留 legacy/v1 可读并严格注册 `case-event-v2`。Phase 2B-4B 又确认正文/布局 POST 的进程无关幂等回执与 legacy 唯一真源无法由既有列无损表达，因此 migration 030 additive 增加 nullable mutation receipts 和 legacy source binding；旧行不改、迁移 forward-only。不得把数据库或服务可写冒充用户闭环已可用。
 
 ### Phase 2A：领域模型、契约和迁移
 
@@ -240,6 +240,8 @@ Phase 2A 只证明领域契约和数据库边界，Phase 2B 才把它们接入�
 `Phase 2B-3` 已通过 [Requirement Service/API 验收](../evidence/product/career-os-v2/phase-2b3-requirement-service-api-acceptance-2026-08-09.md)：public/private 固定要求读取、三态与备注、同 owner 已确认证据链接、未知问题、聚合并发和不可变事件回执已稳定。实现前“无需 migration”的假设已由可复现的 v1 事件表达冲突否定，并以前向 migration 029 收口；决定继续 `Phase 2B-4A`。
 
 `Phase 2B-4A` 已通过 [Resume Document Aggregate API 验收](../evidence/product/career-os-v2/phase-2b4a-resume-document-aggregate-api-acceptance-2026-08-09.md)：稳定列表、同 owner 详情、幂等 base/case-derived 创建、V1 只读来源发现和 public/private 固定引用已稳定。执行中复现的应用/数据库时间精度竞态已用 PostgreSQL 单调时间修复且未放宽约束；决定继续 `Phase 2B-4B`。
+
+`Phase 2B-4B` 已通过 [Resume Content/Layout Revision API 验收](../evidence/product/career-os-v2/phase-2b4b-resume-content-layout-revision-api-acceptance-2026-08-09.md)：V1 转换 GET 零写入、初始化已有空 base、不可变正文/布局历史、稳定 ID、持久幂等回执、并发、owner、删除与旧 V1 兼容已稳定。执行前 Schema 冲突由 migration 030 最小前向修复；决定继续 `Phase 2B-4C`。
 
 Phase 2B 每个子切片独立验收；只有服务/API 的 owner、幂等、并发、删除、CSRF 和错误契约全部稳定后，才进入 Phase 3 可用 PoC。
 
@@ -417,4 +419,4 @@ PostgreSQL 集成测试未实际运行时必须写“未执行”，不得写“
 - 主计划终点为 G4；公开 Beta、备案、公开运营和商业化只保留为 G5 后续 Gate。
 - 工期是有效工作量，不包含外部审批、采购、招募和观察期。
 
-Phase 2A-1 已通过 [ApplicationCase Core 验收](../evidence/product/career-os-v2/phase-2a1-application-case-core-acceptance-2026-08-05.md)，Phase 2A-2 已通过 [Resume Document V2 验收](../evidence/product/career-os-v2/phase-2a2-resume-document-v2-acceptance-2026-08-05.md)。[migration 025 身份前置](../evidence/product/career-os-v2/phase-2a-025-identity-account-email-expand-acceptance-2026-08-06.md)、[migration 026 ApplicationCase 前向修复](../evidence/product/career-os-v2/phase-2a-026-application-case-long-lived-forward-repair-acceptance-2026-08-06.md)、[migration 026B requirement context 修复](../evidence/product/career-os-v2/phase-2a-026b-private-requirement-context-forward-repair-acceptance-2026-08-06.md)、[migration 027 Resume/Review 修复](../evidence/product/career-os-v2/phase-2a-027-resume-document-review-forward-repair-acceptance-2026-08-06.md)、[migration 028 Interview/Debrief/Knowledge](../evidence/product/career-os-v2/phase-2a-028-interview-debrief-knowledge-expand-acceptance-2026-08-07.md) 与 [migration 029 Case mutation event v2](../evidence/product/career-os-v2/phase-2b3-requirement-service-api-acceptance-2026-08-09.md) 已形成长期领域与严格事件依赖闭环；Phase 2B-1/2/3/4A 已完成 Case、岗位版本、固定要求和 Resume Document 聚合的 owner-protected 服务基础。当前唯一目标是 `Phase 2B-4B Resume Content/Layout Revision API`：只实现 V1 只读转换、首次编辑生成 V2、不可变正文/布局修订、并发与稳定 ID。仍不实现 Review/Tailoring、DOCX、Interview、Knowledge、前端或真实 AI，不访问真实来源或真实简历。
+Phase 2A-1 已通过 [ApplicationCase Core 验收](../evidence/product/career-os-v2/phase-2a1-application-case-core-acceptance-2026-08-05.md)，Phase 2A-2 已通过 [Resume Document V2 验收](../evidence/product/career-os-v2/phase-2a2-resume-document-v2-acceptance-2026-08-05.md)。[migration 025 身份前置](../evidence/product/career-os-v2/phase-2a-025-identity-account-email-expand-acceptance-2026-08-06.md)、[migration 026 ApplicationCase 前向修复](../evidence/product/career-os-v2/phase-2a-026-application-case-long-lived-forward-repair-acceptance-2026-08-06.md)、[migration 026B requirement context 修复](../evidence/product/career-os-v2/phase-2a-026b-private-requirement-context-forward-repair-acceptance-2026-08-06.md)、[migration 027 Resume/Review 修复](../evidence/product/career-os-v2/phase-2a-027-resume-document-review-forward-repair-acceptance-2026-08-06.md)、[migration 028 Interview/Debrief/Knowledge](../evidence/product/career-os-v2/phase-2a-028-interview-debrief-knowledge-expand-acceptance-2026-08-07.md)、[migration 029 Case mutation event v2](../evidence/product/career-os-v2/phase-2b3-requirement-service-api-acceptance-2026-08-09.md) 与 [migration 030 Resume revision mutation receipts](../evidence/product/career-os-v2/phase-2b4b-resume-content-layout-revision-api-acceptance-2026-08-09.md) 已形成长期领域、严格事件和 Resume 不可变写入依赖闭环；Phase 2B-1/2/3/4A/4B 已完成 Case、岗位版本、固定要求与 Resume 聚合/修订的 owner-protected 服务基础。当前唯一目标是 `Phase 2B-4C Interview/Debrief/Knowledge Service Boundary`：只建立后续 PoC 所需的聚合服务和既有 PostgreSQL 任务引用。仍不实现完整生成器、前端或真实 AI，不访问真实来源或真实简历。

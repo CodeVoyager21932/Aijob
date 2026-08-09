@@ -16,7 +16,7 @@ const unknown = JSON.stringify({ state: "unknown", reason: "source_not_stated" }
 const known = (value: unknown, evidenceRef: string) =>
   JSON.stringify({ state: "known", value, evidenceRefs: [evidenceRef] });
 
-describeWithDatabase("migrations 026B through 029 Phase 2A/2B forward repairs", () => {
+describeWithDatabase("migrations 026B through 030 Phase 2A/2B forward repairs", () => {
   const ids = {
     organization: randomUUID(),
     source: randomUUID(),
@@ -565,8 +565,8 @@ describeWithDatabase("migrations 026B through 029 Phase 2A/2B forward repairs", 
         SELECT name FROM kysely_migration ORDER BY timestamp DESC LIMIT 1
       `.execute(emptyDb),
     ]);
-    expect(migration.rows[0]?.name).toBe("029_case_mutation_event_v2_forward_repair");
-    expect(emptyMigration.rows[0]?.name).toBe("029_case_mutation_event_v2_forward_repair");
+    expect(migration.rows[0]?.name).toBe("030_resume_revision_mutation_receipts");
+    expect(emptyMigration.rows[0]?.name).toBe("030_resume_revision_mutation_receipts");
 
     const accountOwner = await db
       .selectFrom("identity.owners")
@@ -1748,8 +1748,8 @@ describeWithDatabase("migrations 026B through 029 Phase 2A/2B forward repairs", 
       .set({
         status: "completed",
         revision: 2,
-        completed_at: new Date(),
-        updated_at: new Date(),
+        completed_at: sql<Date>`GREATEST(created_at, clock_timestamp())`,
+        updated_at: sql<Date>`GREATEST(updated_at, clock_timestamp())`,
       })
       .where("id", "=", ids.interviewSession)
       .executeTakeFirstOrThrow();
@@ -1875,7 +1875,7 @@ describeWithDatabase("migrations 026B through 029 Phase 2A/2B forward repairs", 
         .set({
           expression_issues: JSON.stringify([]),
           revision: 3,
-          updated_at: new Date(),
+          updated_at: sql<Date>`GREATEST(updated_at, clock_timestamp())`,
         })
         .where("id", "=", ids.debrief)
         .execute(),
@@ -2016,8 +2016,8 @@ describeWithDatabase("migrations 026B through 029 Phase 2A/2B forward repairs", 
         .set({
           status: "superseded",
           revision: 2,
-          completed_at: new Date(),
-          updated_at: new Date(),
+          completed_at: sql<Date>`GREATEST(created_at, clock_timestamp())`,
+          updated_at: sql<Date>`GREATEST(updated_at, clock_timestamp())`,
         })
         .where("id", "=", ids.reviewRun)
         .execute(),
@@ -2246,8 +2246,8 @@ describeWithDatabase("migrations 026B through 029 Phase 2A/2B forward repairs", 
       .set({
         status: "completed",
         revision: 2,
-        completed_at: new Date(),
-        updated_at: new Date(),
+        completed_at: sql<Date>`GREATEST(created_at, clock_timestamp())`,
+        updated_at: sql<Date>`GREATEST(updated_at, clock_timestamp())`,
       })
       .where("id", "=", ids.reviewRun)
       .executeTakeFirstOrThrow();
@@ -2274,7 +2274,7 @@ describeWithDatabase("migrations 026B through 029 Phase 2A/2B forward repairs", 
         case_id: null,
         detached_from_case_id: ids.privateCase,
         revision: 3,
-        updated_at: new Date(),
+        updated_at: sql<Date>`GREATEST(updated_at, clock_timestamp())`,
       })
       .where("id", "=", ids.interviewSession)
       .executeTakeFirstOrThrow();
@@ -2284,7 +2284,7 @@ describeWithDatabase("migrations 026B through 029 Phase 2A/2B forward repairs", 
         case_id: null,
         detached_from_case_id: ids.privateCase,
         revision: 3,
-        updated_at: new Date(),
+        updated_at: sql<Date>`GREATEST(updated_at, clock_timestamp())`,
       })
       .where("id", "=", ids.debrief)
       .executeTakeFirstOrThrow();

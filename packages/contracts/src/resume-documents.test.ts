@@ -5,12 +5,18 @@ import {
   CreateResumeDocumentRequestSchema,
   CreateResumeDocumentResponseSchema,
   DecideResumeReviewSuggestionRequestSchema,
+  LegacyResumeContentConversionSchema,
+  ListResumeDocumentContentRevisionsResponseSchema,
+  ListResumeDocumentLayoutRevisionsResponseSchema,
   ListResumeDocumentsQuerySchema,
   ListResumeDocumentsResponseSchema,
   PutResumeDocumentContentRevisionRequestSchema,
+  PutResumeDocumentContentRevisionResponseSchema,
+  PutResumeDocumentLayoutRevisionResponseSchema,
   PutResumeDocumentLayoutRevisionV2RequestSchema,
   ResumeDocumentCursorSchema,
   ResumeDocumentReadModelSchema,
+  ResumeDocumentRevisionPageQuerySchema,
   ResumeDocumentSchema,
   ResumeLayoutSettingsSchema,
   ResumeReviewDecisionSchema,
@@ -247,6 +253,102 @@ describe("Resume Document V2 contracts", () => {
           createdAt: "2026-08-09T00:00:00.000Z",
           updatedAt: "2026-08-09T00:00:00.000Z",
         },
+        created: true,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("keeps legacy conversion read-only and freezes revision page/result envelopes", () => {
+    const semanticContent = {
+      schemaVersion: "resume-content-v1" as const,
+      sections: content.sections.map((item) => ({
+        ...item,
+        blocks: item.blocks.map((block) => ({ ...block, evidenceIds: [] })),
+      })),
+    };
+    const semanticRevision = {
+      schemaVersion: "resume-content-revision-v1" as const,
+      id: ids.revision,
+      documentId: ids.document,
+      ownerId: ids.owner,
+      ownerEpoch: 1,
+      documentRevision: 1,
+      baseDocumentRevisionId: null,
+      contentHash: "a".repeat(64),
+      confirmedAt: "2026-08-09T00:00:00.000Z",
+      createdAt: "2026-08-09T00:00:00.000Z",
+      content: semanticContent,
+    };
+    const layoutRevision = {
+      schemaVersion: "resume-layout-v2" as const,
+      id: randomUUID(),
+      documentId: ids.document,
+      ownerId: ids.owner,
+      ownerEpoch: 1,
+      layoutRevision: 1,
+      baseLayoutRevision: null,
+      templateKey: "cn_classic_single_column" as const,
+      sectionOrder: [ids.section],
+      settings: {
+        schemaVersion: "resume-layout-settings-v1" as const,
+        fontSizeToken: "standard" as const,
+        lineSpacingToken: "standard" as const,
+        sectionSpacingToken: "standard" as const,
+        colorToken: "charcoal" as const,
+        pageBreakPolicy: "keep_sections" as const,
+      },
+      contentHash: "b".repeat(64),
+      createdAt: "2026-08-09T00:00:00.000Z",
+    };
+
+    expect(
+      LegacyResumeContentConversionSchema.safeParse({
+        schemaVersion: "resume-legacy-content-conversion-v1",
+        legacySource: {
+          legacySourceRevisionId: ids.revision,
+          legacySchemaVersion: "resume-document-v1",
+          legacyRevision: 1,
+          ownerId: ids.owner,
+          ownerEpoch: 1,
+          confirmedAt: "2026-08-09T00:00:00.000Z",
+          readOnly: true,
+        },
+        content: semanticContent,
+      }).success,
+    ).toBe(true);
+    expect(ResumeDocumentRevisionPageQuerySchema.parse({})).toEqual({ limit: 50 });
+    expect(ResumeDocumentRevisionPageQuerySchema.safeParse({ beforeRevision: 0 }).success).toBe(
+      false,
+    );
+    expect(
+      ListResumeDocumentContentRevisionsResponseSchema.safeParse({
+        documentRevision: 2,
+        currentContentRevisionId: ids.revision,
+        current: semanticRevision,
+        items: [semanticRevision],
+        nextBeforeRevision: null,
+      }).success,
+    ).toBe(true);
+    expect(
+      PutResumeDocumentContentRevisionResponseSchema.safeParse({
+        contentRevision: semanticRevision,
+        documentRevision: 2,
+        created: true,
+      }).success,
+    ).toBe(true);
+    expect(
+      ListResumeDocumentLayoutRevisionsResponseSchema.safeParse({
+        documentRevision: 2,
+        currentLayoutRevisionId: layoutRevision.id,
+        current: layoutRevision,
+        items: [layoutRevision],
+        nextBeforeRevision: null,
+      }).success,
+    ).toBe(true);
+    expect(
+      PutResumeDocumentLayoutRevisionResponseSchema.safeParse({
+        layoutRevision,
+        documentRevision: 3,
         created: true,
       }).success,
     ).toBe(true);

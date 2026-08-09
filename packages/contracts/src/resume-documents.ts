@@ -695,6 +695,13 @@ export const ResumeDocumentIdSchema = z
   .strict();
 export type ResumeDocumentId = z.infer<typeof ResumeDocumentIdSchema>;
 
+export const LegacyResumeDocumentSourceIdSchema = z
+  .object({
+    legacySourceRevisionId: UuidSchema,
+  })
+  .strict();
+export type LegacyResumeDocumentSourceId = z.infer<typeof LegacyResumeDocumentSourceIdSchema>;
+
 export const ResumeDocumentLegacySourceSchema = z
   .object({
     legacySourceRevisionId: UuidSchema,
@@ -712,6 +719,87 @@ export const LegacyResumeDocumentSourceSummarySchema = ResumeDocumentLegacySourc
 }).strict();
 export type LegacyResumeDocumentSourceSummary = z.infer<
   typeof LegacyResumeDocumentSourceSummarySchema
+>;
+
+export const LegacyResumeContentConversionSchema = z
+  .object({
+    schemaVersion: z.literal("resume-legacy-content-conversion-v1"),
+    legacySource: LegacyResumeDocumentSourceSummarySchema,
+    content: ResumeSemanticContentSchema,
+  })
+  .strict();
+export type LegacyResumeContentConversion = z.infer<typeof LegacyResumeContentConversionSchema>;
+
+export const ResumeDocumentRevisionPageQuerySchema = z
+  .object({
+    beforeRevision: z.coerce.number().int().positive().optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+  })
+  .strict();
+export type ResumeDocumentRevisionPageQuery = z.infer<typeof ResumeDocumentRevisionPageQuerySchema>;
+
+export const ResumeDocumentContentRevisionReadModelSchema = z.union([
+  ResumeDocumentContentRevisionSchema,
+  ResumeSemanticContentRevisionSchema,
+]);
+export type ResumeDocumentContentRevisionReadModel = z.infer<
+  typeof ResumeDocumentContentRevisionReadModelSchema
+>;
+
+export const ListResumeDocumentContentRevisionsResponseSchema = z
+  .object({
+    documentRevision: RevisionSchema,
+    currentContentRevisionId: UuidSchema.nullable(),
+    current: ResumeDocumentContentRevisionReadModelSchema.nullable(),
+    items: z.array(ResumeDocumentContentRevisionReadModelSchema).max(100),
+    nextBeforeRevision: RevisionSchema.nullable(),
+  })
+  .strict();
+export type ListResumeDocumentContentRevisionsResponse = z.infer<
+  typeof ListResumeDocumentContentRevisionsResponseSchema
+>;
+
+export const PutResumeDocumentContentRevisionResponseSchema = z
+  .object({
+    contentRevision: ResumeSemanticContentRevisionSchema,
+    documentRevision: RevisionSchema,
+    created: z.boolean(),
+  })
+  .strict();
+export type PutResumeDocumentContentRevisionResponse = z.infer<
+  typeof PutResumeDocumentContentRevisionResponseSchema
+>;
+
+export const ResumeDocumentLayoutRevisionReadModelSchema = z.union([
+  ResumeDocumentLayoutRevisionSchema,
+  ResumeDocumentLayoutRevisionV2Schema,
+]);
+export type ResumeDocumentLayoutRevisionReadModel = z.infer<
+  typeof ResumeDocumentLayoutRevisionReadModelSchema
+>;
+
+export const ListResumeDocumentLayoutRevisionsResponseSchema = z
+  .object({
+    documentRevision: RevisionSchema,
+    currentLayoutRevisionId: UuidSchema.nullable(),
+    current: ResumeDocumentLayoutRevisionReadModelSchema.nullable(),
+    items: z.array(ResumeDocumentLayoutRevisionReadModelSchema).max(100),
+    nextBeforeRevision: RevisionSchema.nullable(),
+  })
+  .strict();
+export type ListResumeDocumentLayoutRevisionsResponse = z.infer<
+  typeof ListResumeDocumentLayoutRevisionsResponseSchema
+>;
+
+export const PutResumeDocumentLayoutRevisionResponseSchema = z
+  .object({
+    layoutRevision: ResumeDocumentLayoutRevisionV2Schema,
+    documentRevision: RevisionSchema,
+    created: z.boolean(),
+  })
+  .strict();
+export type PutResumeDocumentLayoutRevisionResponse = z.infer<
+  typeof PutResumeDocumentLayoutRevisionResponseSchema
 >;
 
 export const ResumeDocumentCursorSchema = z

@@ -247,13 +247,18 @@ function resumeDocumentRevisionFromRow(row: {
 export async function getCurrentResumeDocument(input: {
   db: Kysely<Database>;
   ownerId: string;
+  ownerEpoch?: number;
 }): Promise<ResumeDocumentRevision | null> {
-  const row = await input.db
+  let query = input.db
     .selectFrom("profile.resume_document_revisions")
     .selectAll()
     .where("owner_id", "=", input.ownerId)
-    .orderBy("revision", "desc")
-    .executeTakeFirst();
+    .where("schema_version", "=", "resume-document-v1")
+    .where("document_id", "is", null);
+  if (input.ownerEpoch !== undefined) {
+    query = query.where("owner_epoch", "=", input.ownerEpoch);
+  }
+  const row = await query.orderBy("revision", "desc").executeTakeFirst();
   return row ? resumeDocumentRevisionFromRow(row) : null;
 }
 
@@ -387,12 +392,23 @@ export async function putResumeEvidence(input: {
     const id = randomUUID();
     let documentRevisionId: string | null = null;
     if (input.document) {
-      const currentDocument = await transaction
-        .selectFrom("profile.resume_document_revisions")
-        .select(["id", "revision"])
-        .where("owner_id", "=", input.owner.ownerId)
-        .orderBy("revision", "desc")
-        .executeTakeFirst();
+      const [currentDocument, currentGlobalDocumentRevision] = await Promise.all([
+        transaction
+          .selectFrom("profile.resume_document_revisions")
+          .select(["id", "revision"])
+          .where("owner_id", "=", input.owner.ownerId)
+          .where("owner_epoch", "=", input.owner.ownerEpoch)
+          .where("schema_version", "=", "resume-document-v1")
+          .where("document_id", "is", null)
+          .orderBy("revision", "desc")
+          .executeTakeFirst(),
+        transaction
+          .selectFrom("profile.resume_document_revisions")
+          .select("revision")
+          .where("owner_id", "=", input.owner.ownerId)
+          .orderBy("revision", "desc")
+          .executeTakeFirst(),
+      ]);
       documentRevisionId = randomUUID();
       await transaction
         .insertInto("profile.resume_document_revisions")
@@ -401,7 +417,7 @@ export async function putResumeEvidence(input: {
           owner_id: input.owner.ownerId,
           owner_epoch: input.owner.ownerEpoch,
           resume_analysis_id: input.resumeAnalysisId,
-          revision: (currentDocument?.revision ?? 0) + 1,
+          revision: (currentGlobalDocumentRevision?.revision ?? 0) + 1,
           base_revision: currentDocument?.revision ?? null,
           schema_version: input.document.schemaVersion,
           sections: JSON.stringify(input.document.sections) as unknown as JsonValue,
@@ -495,6 +511,7 @@ export async function putSavedResumeEvidenceSelection(input: {
     const document = await getCurrentResumeDocument({
       db: transaction,
       ownerId: input.owner.ownerId,
+      ownerEpoch: input.owner.ownerEpoch,
     });
     if (!document || document.id !== input.documentRevisionId) {
       throw new ApiProblem(

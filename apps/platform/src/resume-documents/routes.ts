@@ -1,7 +1,11 @@
 import {
   CreateResumeDocumentRequestSchema,
+  LegacyResumeDocumentSourceIdSchema,
   ListResumeDocumentsQuerySchema,
+  PutResumeDocumentContentRevisionRequestSchema,
+  PutResumeDocumentLayoutRevisionRequestSchema,
   ResumeDocumentIdSchema,
+  ResumeDocumentRevisionPageQuerySchema,
 } from "@aijob/contracts";
 import type { Database } from "@aijob/database";
 import type { FastifyInstance } from "fastify";
@@ -10,6 +14,13 @@ import { z } from "zod";
 import { requireOwnerContext } from "../identity/fastify.js";
 import { ApiProblem, sendApiProblem } from "../identity/http.js";
 import { ServiceError } from "../lib/service-error.js";
+import {
+  getLegacyResumeContentConversion,
+  listResumeDocumentContentRevisions,
+  listResumeDocumentLayoutRevisions,
+  putResumeDocumentContentRevision,
+  putResumeDocumentLayoutRevision,
+} from "./revision-service.js";
 import { createResumeDocument, getResumeDocument, listResumeDocuments } from "./service.js";
 
 const IdempotencyKeySchema = z.string().trim().min(1).max(200);
@@ -71,6 +82,107 @@ export function registerResumeDocumentRoutes(
       const result = await createResumeDocument({
         db: options.db,
         owner,
+        request: body,
+        idempotencyKey,
+      });
+      return reply.code(result.created ? 201 : 200).send(result);
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.get("/v1/resume-documents/legacy-source/:legacySourceRevisionId", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { legacySourceRevisionId } = LegacyResumeDocumentSourceIdSchema.parse(request.params);
+      const conversion = await getLegacyResumeContentConversion({
+        db: options.db,
+        owner,
+        legacySourceRevisionId,
+      });
+      if (!conversion) {
+        return sendApiProblem(
+          request,
+          reply,
+          new ApiProblem(
+            404,
+            "LEGACY_RESUME_SOURCE_NOT_FOUND",
+            "没有找到该旧版简历来源",
+            "记录不存在、不是当前最新版本或不属于当前账户。",
+          ),
+        );
+      }
+      return reply.send(conversion);
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.get("/v1/resume-documents/:documentId/revisions", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { documentId } = ResumeDocumentIdSchema.parse(request.params);
+      const query = ResumeDocumentRevisionPageQuerySchema.parse(request.query);
+      return reply.send(
+        await listResumeDocumentContentRevisions({
+          db: options.db,
+          owner,
+          documentId,
+          query,
+        }),
+      );
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.post("/v1/resume-documents/:documentId/revisions", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { documentId } = ResumeDocumentIdSchema.parse(request.params);
+      const body = PutResumeDocumentContentRevisionRequestSchema.parse(request.body);
+      const idempotencyKey = requireIdempotencyKey(request.headers);
+      const result = await putResumeDocumentContentRevision({
+        db: options.db,
+        owner,
+        documentId,
+        request: body,
+        idempotencyKey,
+      });
+      return reply.code(result.created ? 201 : 200).send(result);
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.get("/v1/resume-documents/:documentId/layout-revisions", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { documentId } = ResumeDocumentIdSchema.parse(request.params);
+      const query = ResumeDocumentRevisionPageQuerySchema.parse(request.query);
+      return reply.send(
+        await listResumeDocumentLayoutRevisions({
+          db: options.db,
+          owner,
+          documentId,
+          query,
+        }),
+      );
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.post("/v1/resume-documents/:documentId/layout-revisions", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { documentId } = ResumeDocumentIdSchema.parse(request.params);
+      const body = PutResumeDocumentLayoutRevisionRequestSchema.parse(request.body);
+      const idempotencyKey = requireIdempotencyKey(request.headers);
+      const result = await putResumeDocumentLayoutRevision({
+        db: options.db,
+        owner,
+        documentId,
         request: body,
         idempotencyKey,
       });
