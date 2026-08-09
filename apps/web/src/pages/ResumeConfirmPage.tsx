@@ -17,6 +17,7 @@ import {
   ProductError,
   ProductLoading,
 } from "../components/ProductStates";
+import { shouldEnableCareerOsV2 } from "../environment";
 import { jobFamilyLabels, piiLabel, splitList } from "../product/domain";
 import { removeConfirmedResumeAnalysisCache } from "../product/privacy-cache";
 import { buildConfirmedEvidence, profileConfirmationError } from "../product/resume-confirmation";
@@ -50,6 +51,7 @@ export function ResumeConfirmPage() {
   const { analysisId = "" } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const careerOsV2Enabled = shouldEnableCareerOsV2({ flag: import.meta.env.VITE_CAREER_OS_V2 });
   const [selectedEvidence, setSelectedEvidence] = useState<Set<string>>(new Set());
   const [manualFacts, setManualFacts] = useState(initialManualFacts);
   const [cities, setCities] = useState("");
@@ -175,7 +177,7 @@ export function ResumeConfirmPage() {
     onSuccess: () => {
       removeConfirmedResumeAnalysisCache(queryClient, analysisId);
       writeJourneyId("analysisId", analysisId);
-      navigate("/recommendations?start=1");
+      navigate(careerOsV2Enabled ? "/resumes?source=confirmed" : "/recommendations?start=1");
     },
   });
 
@@ -489,14 +491,18 @@ export function ResumeConfirmPage() {
         <section className="confirmation-submit">
           <div>
             <strong>保存后立即删除简历原文件与原文</strong>
-            <p>只保留你确认的结构化事实、偏好和证据，最长 30 天。</p>
+            <p>只保留你确认的结构化事实、偏好和证据；默认长期保留，由你主动删除。</p>
           </div>
           <button
             className="button button--primary"
             type="submit"
             disabled={saveMutation.isPending || !privacyConfirmed}
           >
-            {saveMutation.isPending ? "正在确认并删除原文…" : "确认资料并生成岗位推荐"}
+            {saveMutation.isPending
+              ? "正在确认并删除原文…"
+              : careerOsV2Enabled
+                ? "确认资料并进入简历资产"
+                : "确认资料并生成岗位推荐"}
           </button>
         </section>
         {saveMutation.isError ? (

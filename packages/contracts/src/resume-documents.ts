@@ -717,6 +717,7 @@ export const LegacyResumeDocumentSourceSummarySchema = ResumeDocumentLegacySourc
   ownerEpoch: z.number().int().positive(),
   confirmedAt: TimestampSchema,
   readOnly: z.literal(true),
+  migratedDocumentId: UuidSchema.nullable(),
 }).strict();
 export type LegacyResumeDocumentSourceSummary = z.infer<
   typeof LegacyResumeDocumentSourceSummarySchema

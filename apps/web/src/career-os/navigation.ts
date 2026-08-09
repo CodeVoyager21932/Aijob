@@ -45,6 +45,10 @@ export function getWorkspaceBreadcrumbs(pathname: string): BreadcrumbItem[] {
     ];
   }
 
+  if (/^\/resumes\/[^/]+$/.test(pathname)) {
+    return [{ label: "简历资产", to: "/resumes" }, { label: "基础简历" }];
+  }
+
   const legacyLabels = new Map([
     ["/insights", "岗位洞察"],
     ["/resume", "简历与画像"],

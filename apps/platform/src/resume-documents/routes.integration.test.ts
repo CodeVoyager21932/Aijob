@@ -710,6 +710,7 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       ownerId: mainSession.context.ownerId,
       ownerEpoch: mainSession.context.ownerEpoch,
       readOnly: true,
+      migratedDocumentId: null,
     });
     expect(pageOne.items.map((item) => item.id)).not.toContain(mainResume.legacyRevisionId);
 
@@ -1217,6 +1218,7 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
         ownerId: mainSession.context.ownerId,
         ownerEpoch: mainSession.context.ownerEpoch,
         readOnly: true,
+        migratedDocumentId: null,
       },
       content: { schemaVersion: "resume-content-v1" },
     });
@@ -1312,6 +1314,26 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       currentContentRevisionId: firstWriteBody.contentRevision.id,
       currentLayoutRevisionId: expect.any(String),
     });
+    const migratedSourcePage = ListResumeDocumentsResponseSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: "/v1/resume-documents?kind=base",
+          headers,
+        })
+      ).json(),
+    );
+    expect(migratedSourcePage.legacySource?.migratedDocumentId).toBe(baseDocument.id);
+    const migratedConversion = LegacyResumeContentConversionSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/resume-documents/legacy-source/${mainResume.legacyRevisionId}`,
+          headers,
+        })
+      ).json(),
+    );
+    expect(migratedConversion.legacySource.migratedDocumentId).toBe(baseDocument.id);
     const firstLayoutPage = ListResumeDocumentLayoutRevisionsResponseSchema.parse(
       (
         await app.inject({

@@ -248,17 +248,25 @@ async function loadLegacySource(
     .orderBy("revision", "desc")
     .orderBy("id", "desc")
     .executeTakeFirst();
-  return row
-    ? LegacyResumeDocumentSourceSummarySchema.parse({
-        legacySourceRevisionId: row.id,
-        legacySchemaVersion: "resume-document-v1",
-        legacyRevision: Number(row.revision),
-        ownerId: row.owner_id,
-        ownerEpoch: Number(row.owner_epoch),
-        confirmedAt: toIso(row.confirmed_at),
-        readOnly: true,
-      })
-    : null;
+  if (!row) return null;
+  const migration = await db
+    .selectFrom("profile.resume_document_revisions")
+    .select("document_id")
+    .where("owner_id", "=", owner.ownerId)
+    .where("owner_epoch", "=", owner.ownerEpoch)
+    .where("legacy_source_revision_id", "=", row.id)
+    .where("document_id", "is not", null)
+    .executeTakeFirst();
+  return LegacyResumeDocumentSourceSummarySchema.parse({
+    legacySourceRevisionId: row.id,
+    legacySchemaVersion: "resume-document-v1",
+    legacyRevision: Number(row.revision),
+    ownerId: row.owner_id,
+    ownerEpoch: Number(row.owner_epoch),
+    confirmedAt: toIso(row.confirmed_at),
+    readOnly: true,
+    migratedDocumentId: migration?.document_id ?? null,
+  });
 }
 
 function cursorQueryHash(query: ListResumeDocumentsQuery): string {

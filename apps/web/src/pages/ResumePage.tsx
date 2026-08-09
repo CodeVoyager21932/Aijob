@@ -9,6 +9,7 @@ import {
   submitResumeText,
 } from "../api/product";
 import { JourneySteps, ProductError } from "../components/ProductStates";
+import { shouldEnableCareerOsV2 } from "../environment";
 import { detectBrowserPii, piiLabel } from "../product/domain";
 import { writeJourneyId } from "../product/session-state";
 
@@ -65,6 +66,7 @@ export function browserPrivacyState(
 export function ResumePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const careerOsV2Enabled = shouldEnableCareerOsV2({ flag: import.meta.env.VITE_CAREER_OS_V2 });
   const [{ mode, text, file, privacyChecked }, dispatch] = useReducer(
     resumeFormReducer,
     initialResumeFormState,
@@ -116,7 +118,7 @@ export function ResumePage() {
     },
     onSuccess: (revision) => {
       queryClient.setQueryData(["product", "profile", "evidence"], revision);
-      navigate("/recommendations?start=1");
+      navigate(careerOsV2Enabled ? "/resumes" : "/recommendations?start=1");
     },
   });
 
@@ -199,8 +201,8 @@ export function ResumePage() {
             </div>
           </div>
           <p>
-            原文件和原文已经按约定删除；下方是你确认后保留的结构化简历区块。它们最长保留 30
-            天，可以继续用于匹配、推荐和逐条优化。
+            原文件和原文已经按约定删除；下方是你确认后保留的结构化简历区块。职业资产默认长期保留，
+            可以继续用于匹配、推荐和逐条优化，也可以由你主动删除。
           </p>
           {selectedSavedBlocks.size === 0 ? (
             <div className="product-callout is-warning">
@@ -358,7 +360,7 @@ export function ResumePage() {
             <ul className="privacy-list">
               <li>文件仅在本机 PostgreSQL 中加密临时保存。</li>
               <li>原文件不会直接发送给 AI。</li>
-              <li>你确认的事实、偏好和证据最长保留 30 天。</li>
+              <li>你确认的事实、偏好和证据默认长期保留，由你主动删除。</li>
               <li>可以随时在“数据控制”删除全部个人数据。</li>
             </ul>
             <label className="consent-row">

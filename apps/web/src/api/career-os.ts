@@ -7,12 +7,18 @@ import type {
   CreateCaseQuestionRequest,
   CreateResumeDocumentRequest,
   CreateResumeDocumentResponse,
+  LegacyResumeContentConversion,
   ListApplicationCasesResponse,
   ListResumeDocumentContentRevisionsResponse,
   ListResumeDocumentLayoutRevisionsResponse,
   ListResumeDocumentsResponse,
   PutCaseRequirementEvidenceLinksRequest,
   PutCaseRequirementStateRequest,
+  PutResumeDocumentContentRevisionRequest,
+  PutResumeDocumentContentRevisionResponse,
+  PutResumeDocumentLayoutRevisionRequest,
+  PutResumeDocumentLayoutRevisionResponse,
+  ResumeDocument,
   ResumeEvidenceRevision,
   UpdateCaseQuestionRequest,
 } from "@aijob/contracts";
@@ -36,6 +42,8 @@ export const careerOsQueryKeys = {
     ] as const,
   resumeDocument: (documentId: string) =>
     ["career-os", "resume-documents", "detail", documentId] as const,
+  legacyResumeSource: (legacySourceRevisionId: string) =>
+    ["career-os", "resume-documents", "legacy-source", legacySourceRevisionId] as const,
   resumeContent: (documentId: string) =>
     ["career-os", "resume-documents", documentId, "content"] as const,
   resumeLayout: (documentId: string) =>
@@ -169,6 +177,22 @@ export function createResumeDocument(request: CreateResumeDocumentRequest, idemp
   });
 }
 
+export function getResumeDocument(documentId: string, signal?: AbortSignal) {
+  return apiRequest<ResumeDocument>(`/v1/resume-documents/${encodeURIComponent(documentId)}`, {
+    signal,
+  });
+}
+
+export function getLegacyResumeContentConversion(
+  legacySourceRevisionId: string,
+  signal?: AbortSignal,
+) {
+  return apiRequest<LegacyResumeContentConversion>(
+    `/v1/resume-documents/legacy-source/${encodeURIComponent(legacySourceRevisionId)}`,
+    { signal },
+  );
+}
+
 export function listResumeDocumentContent(documentId: string, signal?: AbortSignal) {
   return apiRequest<ListResumeDocumentContentRevisionsResponse>(
     `/v1/resume-documents/${encodeURIComponent(documentId)}/revisions`,
@@ -180,5 +204,27 @@ export function listResumeDocumentLayout(documentId: string, signal?: AbortSigna
   return apiRequest<ListResumeDocumentLayoutRevisionsResponse>(
     `/v1/resume-documents/${encodeURIComponent(documentId)}/layout-revisions`,
     { signal },
+  );
+}
+
+export function putResumeDocumentContent(
+  documentId: string,
+  request: PutResumeDocumentContentRevisionRequest,
+  idempotencyKey: string,
+) {
+  return apiRequest<PutResumeDocumentContentRevisionResponse>(
+    `/v1/resume-documents/${encodeURIComponent(documentId)}/revisions`,
+    { method: "POST", body: request, idempotencyKey },
+  );
+}
+
+export function putResumeDocumentLayout(
+  documentId: string,
+  request: PutResumeDocumentLayoutRevisionRequest,
+  idempotencyKey: string,
+) {
+  return apiRequest<PutResumeDocumentLayoutRevisionResponse>(
+    `/v1/resume-documents/${encodeURIComponent(documentId)}/layout-revisions`,
+    { method: "POST", body: request, idempotencyKey },
   );
 }

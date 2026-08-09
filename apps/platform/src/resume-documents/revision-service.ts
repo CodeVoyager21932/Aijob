@@ -429,7 +429,10 @@ async function loadLatestLegacyResumeRevision(
   );
 }
 
-function convertLegacyContent(row: LegacyResumeRevisionRow): LegacyResumeContentConversion {
+function convertLegacyContent(
+  row: LegacyResumeRevisionRow,
+  migratedDocumentId: string | null,
+): LegacyResumeContentConversion {
   const legacy = ResumeDocumentInputSchema.safeParse({
     schemaVersion: "resume-document-v1",
     sections: parseJsonValue(row.sections),
@@ -445,6 +448,7 @@ function convertLegacyContent(row: LegacyResumeRevisionRow): LegacyResumeContent
       ownerEpoch: Number(row.owner_epoch),
       confirmedAt: toIso(row.confirmed_at),
       readOnly: true,
+      migratedDocumentId,
     },
     content: {
       schemaVersion: "resume-content-v1",
@@ -463,7 +467,15 @@ export async function getLegacyResumeContentConversion(input: {
 }): Promise<LegacyResumeContentConversion | null> {
   const row = await loadLatestLegacyResumeRevision(input.db, input.owner);
   if (!row || row.id !== input.legacySourceRevisionId) return null;
-  return convertLegacyContent(row);
+  const migration = await input.db
+    .selectFrom("profile.resume_document_revisions")
+    .select("document_id")
+    .where("owner_id", "=", input.owner.ownerId)
+    .where("owner_epoch", "=", input.owner.ownerEpoch)
+    .where("legacy_source_revision_id", "=", row.id)
+    .where("document_id", "is not", null)
+    .executeTakeFirst();
+  return convertLegacyContent(row, migration?.document_id ?? null);
 }
 
 async function loadContentChain(
@@ -888,7 +900,10 @@ export async function putResumeDocumentContentRevision(input: {
           .where("legacy_source_revision_id", "=", legacy.id)
           .executeTakeFirst();
         if (existingMigration) throw legacySourceAlreadyMigrated();
-        assertSameContentStructure(convertLegacyContent(legacy).content, input.request.content);
+        assertSameContentStructure(
+          convertLegacyContent(legacy, null).content,
+          input.request.content,
+        );
         legacySourceRevisionId = legacy.id;
       } else {
         if (Number(document.revision) !== input.request.expectedRevision) {

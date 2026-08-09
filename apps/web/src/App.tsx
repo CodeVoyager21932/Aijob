@@ -44,6 +44,11 @@ const CareerOsHomePage = lazy(() =>
     default: module.CareerOsHomePage,
   })),
 );
+const ResumeAssetsPage = lazy(() =>
+  import("./career-os/pages/ResumeAssetsPage").then((module) => ({
+    default: module.ResumeAssetsPage,
+  })),
+);
 const CareerOsPlaceholderPage = lazy(() =>
   import("./career-os/pages/CareerOsPlaceholderPage").then((module) => ({
     default: module.CareerOsPlaceholderPage,
@@ -92,7 +97,8 @@ export function App() {
             <Route path="/applications" element={<ApplicationsPage />} />
             <Route path="/applications/:caseId" element={<Navigate to="overview" replace />} />
             <Route path="/applications/:caseId/:tab" element={<CaseWorkspacePage />} />
-            <Route path="/resumes" element={<CareerOsPlaceholderPage surface="resumes" />} />
+            <Route path="/resumes" element={<ResumeAssetsPage />} />
+            <Route path="/resumes/:documentId" element={<ResumeAssetsPage />} />
             <Route path="/interviews" element={<CareerOsPlaceholderPage surface="interviews" />} />
             <Route path="/knowledge" element={<CareerOsPlaceholderPage surface="knowledge" />} />
             <Route path="/settings/data" element={<DataControlPage />} />
