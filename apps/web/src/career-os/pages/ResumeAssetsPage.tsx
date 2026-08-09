@@ -7,20 +7,18 @@ import {
   createResumeDocument,
   getLegacyResumeContentConversion,
   getResumeDocument,
-  listResumeDocumentContent,
-  listResumeDocumentLayout,
   listResumeDocuments,
   putResumeDocumentContent,
 } from "../../api/career-os";
 import { createIdempotencyKey, ProductApiError } from "../../api/client";
 import { Icon } from "../components/Icon";
+import { ResumeDocumentEditor } from "../components/ResumeDocumentEditor";
 import {
   findRecoverableEmptyBaseDocument,
   resolveBaseResumeDocument,
   resumeAssetStatus,
   sortBaseResumeDocuments,
 } from "../resume-assets-state";
-import { orderResumeSections } from "../resume-view";
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat("zh-CN", {
@@ -80,24 +78,6 @@ export function ResumeAssetsPage() {
     enabled: Boolean(legacySource),
     retry: false,
   });
-  const contentQuery = useQuery({
-    queryKey: careerOsQueryKeys.resumeContent(selectedDocument?.id ?? ""),
-    queryFn: ({ signal }) => listResumeDocumentContent(selectedDocument?.id ?? "", signal),
-    enabled: Boolean(selectedDocument?.currentContentRevisionId),
-  });
-  const layoutQuery = useQuery({
-    queryKey: careerOsQueryKeys.resumeLayout(selectedDocument?.id ?? ""),
-    queryFn: ({ signal }) => listResumeDocumentLayout(selectedDocument?.id ?? "", signal),
-    enabled: Boolean(selectedDocument?.currentLayoutRevisionId),
-  });
-  const currentSections = useMemo(
-    () =>
-      contentQuery.data?.current
-        ? orderResumeSections(contentQuery.data.current, layoutQuery.data?.current ?? null)
-        : [],
-    [contentQuery.data?.current, layoutQuery.data?.current],
-  );
-
   const importMutation = useMutation({
     mutationFn: async () => {
       const conversion = conversionQuery.data;
@@ -321,59 +301,18 @@ export function ResumeAssetsPage() {
               </Link>
             </div>
           ) : selectedDocument ? (
-            <section
-              className="career-resume-asset-preview"
-              aria-labelledby="selected-resume-title"
-            >
-              <header>
-                <div>
-                  <p>Base Resume V2</p>
-                  <h2 id="selected-resume-title">{selectedDocument.title}</h2>
-                  <span>
-                    聚合修订 {selectedDocument.revision} · 更新于{" "}
-                    {formatDate(selectedDocument.updatedAt)}
-                  </span>
-                </div>
-                <span className="career-resume-asset-preview__status">
-                  {selectedDocument.currentContentRevisionId ? "可编辑资产" : "初始化未完成"}
-                </span>
-              </header>
-
-              {selectedDocument.currentContentRevisionId &&
-              (contentQuery.isPending || layoutQuery.isPending) ? (
-                <output className="career-request-state">正在读取当前内容修订…</output>
-              ) : contentQuery.isError || layoutQuery.isError ? (
-                <div className="career-inline-error" role="alert">
-                  <strong>当前内容或布局暂时无法读取</strong>
-                  <span>
-                    {(contentQuery.error ?? layoutQuery.error) instanceof Error
-                      ? (contentQuery.error ?? (layoutQuery.error as Error)).message
-                      : "请稍后重试。"}
-                  </span>
-                </div>
-              ) : currentSections.length > 0 ? (
-                <div className="career-resume-asset-preview__document">
+            selectedDocument.currentContentRevisionId &&
+            selectedDocument.currentLayoutRevisionId ? (
+              <ResumeDocumentEditor resumeDocument={selectedDocument} />
+            ) : (
+              <section className="career-resume-asset-preview">
+                <header>
                   <div>
-                    <span>{currentSections.length} 个章节</span>
-                    <span>
-                      {currentSections.reduce((total, section) => total + section.blocks.length, 0)}{" "}
-                      个区块
-                    </span>
-                    <span>当前只读核对</span>
+                    <p>Base Resume V2</p>
+                    <h2>{selectedDocument.title}</h2>
+                    <span>初始化尚未完成</span>
                   </div>
-                  {currentSections.map((section) => (
-                    <section key={section.id}>
-                      <h3>{section.title}</h3>
-                      <ul>
-                        {section.blocks.map((block) => (
-                          <li key={block.id}>{block.text}</li>
-                        ))}
-                      </ul>
-                    </section>
-                  ))}
-                  <p>M2-1 已接通真实资产；结构调整、正文编辑和不可变保存将在下一切片启用。</p>
-                </div>
-              ) : (
+                </header>
                 <div className="career-empty-state">
                   <strong>这份基础简历尚未完成初始化</strong>
                   <p>可从左侧已确认的 V1 来源继续，不会创建第二套解析数据。</p>
@@ -388,8 +327,8 @@ export function ResumeAssetsPage() {
                     </button>
                   ) : null}
                 </div>
-              )}
-            </section>
+              </section>
+            )
           ) : legacySource ? (
             <section
               className="career-resume-source-preview"
