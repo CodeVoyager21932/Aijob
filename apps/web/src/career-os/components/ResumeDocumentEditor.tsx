@@ -33,6 +33,7 @@ import {
   validateResumeDraft,
 } from "../resume-editor-state";
 import { Icon } from "./Icon";
+import { ResumeReviewPanel } from "./ResumeReviewPanel";
 
 const DEFAULT_LAYOUT_SETTINGS: ResumeLayoutSettings = {
   schemaVersion: "resume-layout-settings-v1",
@@ -99,6 +100,7 @@ export function ResumeDocumentEditor({
   const [contentConflict, setContentConflict] = useState(false);
   const [layoutConflict, setLayoutConflict] = useState(false);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [reviewBusy, setReviewBusy] = useState(false);
   const contentCommandRef = useRef<{ signature: string; key: string } | null>(null);
   const layoutCommandRef = useRef<{ signature: string; key: string } | null>(null);
 
@@ -363,7 +365,7 @@ export function ResumeDocumentEditor({
   const confirmedEvidence =
     evidenceQuery.data && "evidence" in evidenceQuery.data ? evidenceQuery.data.evidence : [];
   const selectedEvidenceIds = selectedEntry?.block.evidenceIds ?? [];
-  const busy = contentMutation.isPending || layoutMutation.isPending;
+  const busy = contentMutation.isPending || layoutMutation.isPending || reviewBusy;
 
   return (
     <section className="career-resume-editor" aria-label={`${contextLabel}结构化编辑器`}>
@@ -743,6 +745,18 @@ export function ResumeDocumentEditor({
           </footer>
         </aside>
       </div>
+      {resumeDocument.kind === "case_derived" ? (
+        <ResumeReviewPanel
+          documentId={resumeDocument.id}
+          documentRevision={contentQuery.data.documentRevision}
+          currentContentRevisionId={serverContentRevision.id}
+          contentRevisions={contentQuery.data.items}
+          selectedBlockId={selectedEntry?.block.id ?? null}
+          disabled={hasUnsavedChanges || contentConflict || layoutConflict || busy}
+          onBusyChange={setReviewBusy}
+          onSelectBlock={selectBlock}
+        />
+      ) : null}
     </section>
   );
 }

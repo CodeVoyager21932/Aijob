@@ -7,6 +7,11 @@ import type {
   CreateCaseQuestionRequest,
   CreateResumeDocumentRequest,
   CreateResumeDocumentResponse,
+  CreateResumeReviewRequest,
+  CreateResumeReviewResponse,
+  CurrentResumeReviewResponse,
+  DecideResumeReviewSuggestionRequest,
+  DecideResumeReviewSuggestionResponse,
   LegacyResumeContentConversion,
   ListApplicationCasesResponse,
   ListResumeDocumentContentRevisionsResponse,
@@ -34,6 +39,7 @@ export const careerOsQueryKeys = {
   evidence: ["career-os", "profile", "evidence"] as const,
   evidenceRevision: (evidenceRevisionId: string) =>
     ["career-os", "profile", "evidence", evidenceRevisionId] as const,
+  resumeDocumentLists: ["career-os", "resume-documents", "list"] as const,
   resumeDocuments: (filters: { kind?: "base" | "case_derived"; caseId?: string } = {}) =>
     [
       "career-os",
@@ -50,6 +56,8 @@ export const careerOsQueryKeys = {
     ["career-os", "resume-documents", documentId, "content"] as const,
   resumeLayout: (documentId: string) =>
     ["career-os", "resume-documents", documentId, "layout"] as const,
+  resumeReview: (documentId: string) =>
+    ["career-os", "resume-documents", documentId, "review"] as const,
 };
 
 export interface ListApplicationCasesInput {
@@ -235,5 +243,35 @@ export function putResumeDocumentLayout(
   return apiRequest<PutResumeDocumentLayoutRevisionResponse>(
     `/v1/resume-documents/${encodeURIComponent(documentId)}/layout-revisions`,
     { method: "POST", body: request, idempotencyKey },
+  );
+}
+
+export function getCurrentResumeReview(documentId: string, signal?: AbortSignal) {
+  return apiRequest<CurrentResumeReviewResponse>(
+    `/v1/resume-documents/${encodeURIComponent(documentId)}/review`,
+    { signal },
+  );
+}
+
+export function createResumeReview(
+  documentId: string,
+  request: CreateResumeReviewRequest,
+  idempotencyKey: string,
+) {
+  return apiRequest<CreateResumeReviewResponse>(
+    `/v1/resume-documents/${encodeURIComponent(documentId)}/reviews`,
+    { method: "POST", body: request, idempotencyKey },
+  );
+}
+
+export function decideResumeReviewSuggestion(
+  documentId: string,
+  reviewRunId: string,
+  suggestionId: string,
+  request: DecideResumeReviewSuggestionRequest,
+) {
+  return apiRequest<DecideResumeReviewSuggestionResponse>(
+    `/v1/resume-documents/${encodeURIComponent(documentId)}/reviews/${encodeURIComponent(reviewRunId)}/suggestions/${encodeURIComponent(suggestionId)}/decisions`,
+    { method: "POST", body: request },
   );
 }
