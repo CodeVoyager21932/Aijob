@@ -6,17 +6,17 @@
 
 - [ADR-0030](decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md) 已接受：Aijob 升级为可信官方岗位驱动的完整求职 OS，首个交付为“一岗全闭环”。
 - [ADR-0031](decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md) 已接受：OS 2.0 初版进入长期 Career OS 架构修正。用户创建/确认的职业资产默认长期保留并由用户主动删除；原始文件和临时解析仍最长 24 小时。Case 支持公共岗位引用与 owner-only 私有 JD；Resume Review 从正文中分离。
-- Phase 1A、Phase 1B、Phase 2 领域设计、migration 023/024 的历史 Gate 记录保留；migrations 025–029 已正式完成长期领域与 Case mutation event v2 的前向修复，`Phase 2B-1 ApplicationCase Service/API`、`Phase 2B-2 Case Transition/Job Version` 与 `Phase 2B-3 Requirement Service/API` 已通过。其决定为“继续”；当前唯一工程切片为 `Phase 2B-4A Resume Document Aggregate API`。
+- Phase 1A、Phase 1B、Phase 2 领域设计、migration 023/024 的历史 Gate 记录保留；migrations 025–029、`Phase 2B-1/2/3` 与 `Phase 2B-4A Resume Document Aggregate API` 已通过。其决定为“继续”；当前唯一工程切片为 `Phase 2B-4B Resume Content/Layout Revision API`。
 - 采用一套全局侧栏、顶部工具栏、主画布和右侧检查器；单岗位标签固定为概览、JD能力、定制简历、投递、面试、复盘。
 - 开源项目只做审计后的选择性移植，不整仓拼接；引用式经验库不抓全文，不做社区；语音、OCR、自动投递和浏览器代填继续排除。
 - 100/1000 与 110/1100 目标没有取消；一岗闭环通过后恢复 ADR-0028 的容量型官方 ATS 扩容。完整计划见 [Career OS 2.0 升级计划](plans/career-os-v2-upgrade-plan-2026-08-04.md)。
 
 ## 最新执行增量（2026-08-09）
 
-- `Phase 2B-3 Requirement Service/API` 已完成五个 owner-protected endpoint，统一读取 public/private 固定要求上下文，并以 Case `expectedRevision` 原子更新三态、用户备注、同 owner 已确认证据链接和未知问题。无变化命令不伪造 revision 或事件；有效写入返回不可变事件回执。证据见 [Phase 2B-3 验收](evidence/product/career-os-v2/phase-2b3-requirement-service-api-acceptance-2026-08-09.md)。
-- 已确认并解决原交接中“2B-3 不创建 migration”的错误假设：既有 `case-event-v1` 无法无损表示混合证据增删、仅备注变化和仅答案变化，因此新增 forward-only migration 029，保留 legacy/v1 可读并严格注册 `case-event-v2`，不新增业务表或列。
-- 最新隔离 PostgreSQL 串行全仓测试通过 config 17、contracts 57、database 51、platform 439、web 91，共 655/655；lint 384 files、typecheck、build 与 `audit:ci` 通过。依赖审计仍保留 1 个仅开发链的 high ignored；该例外不是漏洞已修复，移除条件已记录在验收证据中。
-- 四选一决定为“继续”到 `Phase 2B-4A Resume Document Aggregate API`：只实现 owner-protected Resume Document V2 的稳定列表、幂等 base/case-derived 创建和同 owner 详情，并固定 Case、基础简历修订、证据 revision 与 JobContext；不做正文/布局编辑、Review/Tailoring、DOCX、Interview、Knowledge、前端或真实 AI。
+- `Phase 2B-4A Resume Document Aggregate API` 已完成稳定列表、同 owner 详情和幂等 base/case-derived 创建；派生文档固定 Case、public/private JobContext、基础简历修订与当前已确认证据 revision。旧 V1 以顶层只读来源摘要明确发现，不伪装成 V2 聚合，GET 不写库。证据见 [Phase 2B-4A 验收](evidence/product/career-os-v2/phase-2b4a-resume-document-aggregate-api-acceptance-2026-08-09.md)。
+- 首轮 Platform 全包复现了应用毫秒时间覆盖 PostgreSQL 微秒时间的既有竞态；已用数据库单调时间修复 Case 聚合及子实体更新时间，不放宽约束。focused 5/5、第二轮 Platform 441/441 与最终全仓均通过。
+- 最新隔离 PostgreSQL 串行全仓测试通过 config 17、contracts 59、database 51、platform 441、web 91，共 659/659；lint 387 files、typecheck、build 与 `audit:ci` 通过。依赖审计仍保留 1 个仅开发链的 high ignored；该例外不是漏洞已修复，移除条件已记录在验收证据中。
+- 四选一决定为“继续”到 `Phase 2B-4B Resume Content/Layout Revision API`：只实现 V1 只读转换、首次编辑生成 V2、同文档不可变正文/布局修订、`expectedRevision` 并发与稳定 ID；不做 Review/Tailoring、DOCX、Interview、Knowledge、前端或真实 AI。
 - 产品证据仍为 `E0`；可信供给仍为 22 岗 / 3 家企业 / 3 个官方 ATS，公共与 Alpha 岗位均为 0；Phase 4 前不恢复真实来源。
 
 ## 上一执行增量（2026-08-07）
@@ -53,18 +53,18 @@
 | 项目 | 当前值 |
 |---|---|
 | 更新日期 | 2026-08-09 |
-| 当前阶段 | Career OS 2.0 → Phase 2B owner-protected service/API；Phase 1A/1B、Phase 2A 长期领域迁移与 Phase 2B-1/2/3 已通过，100 家企业 / 1000 条可信岗位与服务器就绪 Gate 通过前，G0/G1 暂停 |
-| 当前切片 | `Phase 2B-4A Resume Document Aggregate API`：只实现 owner-protected Resume Document V2 的稳定列表、幂等 base/case-derived 创建和同 owner 详情；不做正文/布局编辑、Review/Tailoring、DOCX、Interview、Knowledge、前端或真实外部调用 |
+| 当前阶段 | Career OS 2.0 → Phase 2B owner-protected service/API；Phase 1A/1B、Phase 2A 长期领域迁移与 Phase 2B-1/2/3/4A 已通过，100 家企业 / 1000 条可信岗位与服务器就绪 Gate 通过前，G0/G1 暂停 |
+| 当前切片 | `Phase 2B-4B Resume Content/Layout Revision API`：在真实 Resume Document 聚合上实现 V1 只读转换、第一次编辑生成 V2，以及同文档不可变正文/布局修订；不提前实现 Review/Tailoring、DOCX、Interview、Knowledge、前端或真实外部调用 |
 | 当前实现契约 | [PRD v0.2：本地完整 MVP](01-prd-v0.2.md)；长期 owner、公共/私有 Case、requirement context、Resume/Review、Interview/Debrief/Knowledge 与 Case mutation event v2 已注册为 migrations 025–029 |
 | 当前产品证据 | `E0`：没有可复核目标用户行为证据；H-PROBLEM-001、H-VALUE-001 均未判定 |
 | 本地岗位目录 | 干净 `aijob_alpha` 为 22 条岗位 / 3 家企业 / 3 个官方 ATS 来源；开发库 14/2 与纠偏前 231/149/29、152/30 仅保留为历史运行事实 |
 | 来源政策 | 34 个 Git 配置中 12 个 `canonical`：7 个活动确定性、2 个浏览器提醒、3 个硬冲突暂停；22 个高校等来源全部为 `discovery_only` 且零调度；公共 `/v1/jobs` 为 0 |
 | 金标 | 50 条跨职能分类金标覆盖 12 个职能且 A/B 盲标 50/50 一致；40 条三轴工程金标继续通过；均不计为用户研究样本 |
-| 工程质量 | 隔离 PostgreSQL 串行全仓 655/655 通过；ApplicationCase HTTP/PostgreSQL 3/3、migration 026B–029 focused 13/13、database 51/51、platform 439/439。lint 384 files、typecheck、build、audit 通过；audit 保留 1 个有明确移除条件的 dev-only high ignored，UI 继续沿用 Phase 1B 的 1920/1280/768/320 Gate |
+| 工程质量 | 隔离 PostgreSQL 串行全仓 659/659 通过；Resume Document HTTP/PostgreSQL 2/2、ApplicationCase + Resume focused 5/5、database 51/51、platform 441/441。lint 387 files、typecheck、build、audit 通过；audit 保留 1 个有明确移除条件的 dev-only high ignored，UI 继续沿用 Phase 1B 的 1920/1280/768/320 Gate |
 | AI | 单块真实 `suggestedText`、要求/证据引用、未选区块保留、编辑和真实章节 DOCX 已通过；公开环境关闭 |
 | 参与者验证 | 尚未开始；G0 为 0/2，只有 coco 明确启动后才执行，G1 仍未开始 |
-| 下一决定 | Phase 2B-4A 完成 Resume Document 聚合的稳定列表、幂等 base/case-derived 创建、同 owner 详情、固定引用和删除回归后，四选一：继续 Phase 2B-4B、修改、回退或停止 |
-| 下一决定日期 | Phase 2B-4A 证据包完成后 |
+| 下一决定 | Phase 2B-4B 完成 V1 只读转换、首次编辑生成 V2、不可变正文/布局修订和 owner/并发/删除回归后，四选一：继续后续 Resume Review/Tailoring 切片、修改、回退或停止 |
+| 下一决定日期 | Phase 2B-4B 证据包完成后 |
 
 工程证据见 [Private Alpha 官方来源资格硬门](evidence/ingestion/private-alpha-official-source-gate-2026-08-03.md)、[Private Alpha 容量审计](evidence/ingestion/private-alpha-capacity-audit-2026-08-03.md)、[本机自动来源刷新验收](evidence/ingestion/source-refresh-automation-2026-08-01.md)、[首轮扩展运行观察](evidence/ingestion/source-refresh-first-rollout-observation-2026-08-02.md)、[G2 正确性重新验收记录](evidence/g2/correctness-reacceptance-2026-07-20.md)、[验收反馈修正记录](evidence/g2/acceptance-followup-2026-07-20.md)、[全部职能扩容离线基础验收](evidence/g2/all-function-expansion-foundation-2026-07-20.md)和[新公司官方来源首批评估与低频探测](evidence/ingestion/new-source-batch-2026-07-20.md)；旧工程基线见 [2026-07-18 工程验收记录](evidence/g2/local-complete-mvp-engineering-2026-07-18.md)。
 
@@ -284,7 +284,8 @@ Phase 1A/1B（已通过）
 18. [x] `Phase 2B-1 ApplicationCase Service/API` 已完成 Case 列表、public/private 幂等创建和同 owner 详情，复用既有 owner session、CSRF、`no-store` 与 Problem Details；串行全仓 648/648 通过，决定“继续”。
 19. [x] `Phase 2B-2 Case Transition/Job Version` 已完成追加式阶段/结果事件、`expectedRevision`、确定性岗位版本差异、显式升级和可无损旧决定兼容；状态矩阵 25 组合、隔离 PostgreSQL 和串行全仓 651/651 通过，决定“继续”。
 20. [x] `Phase 2B-3 Requirement Service/API` 已完成公共/私有固定要求读取、三态与备注、同 owner 已确认证据链接、未知问题、Case revision/事件一致性和 owner/CSRF 回归；migration 029 以前向兼容方式注册 strict `case-event-v2`，隔离 PostgreSQL 串行全仓 655/655 通过，决定“继续”。
-21. [ ] 当前实现 `Phase 2B-4A Resume Document Aggregate API`：只做稳定列表、幂等 base/case-derived 创建和同 owner 详情，固定 Case、基础简历修订、证据 revision 与 JobContext；不做正文/布局编辑、Review/Tailoring、DOCX、Interview、Knowledge、前端或真实外部调用。
+21. [x] `Phase 2B-4A Resume Document Aggregate API` 已完成稳定列表、幂等 base/case-derived 创建、同 owner 详情、V1 只读来源发现、public/private 固定引用及 owner/CSRF/墓碑回归；隔离 PostgreSQL 串行全仓 659/659 通过，决定“继续”。
+22. [ ] 当前实现 `Phase 2B-4B Resume Content/Layout Revision API`：只做 V1 只读转换、首次编辑生成 V2、不可变正文/布局修订、文档 `expectedRevision`、幂等和稳定 section/block/evidence ID；不做 Review/Tailoring、DOCX、Interview、Knowledge、前端或真实外部调用。
 
 ### 一岗闭环后恢复的规模化行动
 

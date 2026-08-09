@@ -22,19 +22,19 @@ import {
   type CaseRequirementStateReadModel,
   CaseRequirementStateReadModelSchema,
   type CaseStage,
-  type CreateCaseQuestionRequest,
   type CreateApplicationCaseResponse,
   CreateApplicationCaseResponseSchema,
   type CreateApplicationCaseWithJobContextRequest,
+  type CreateCaseQuestionRequest,
   type JobRequirement,
   JobRequirementSchema,
   type JobVersionDiffField,
   type ListApplicationCasesQuery,
   type ListApplicationCasesResponse,
   ListApplicationCasesResponseSchema,
+  PublicJobReferenceSchema,
   type PutCaseRequirementEvidenceLinksRequest,
   type PutCaseRequirementStateRequest,
-  PublicJobReferenceSchema,
   type RequirementContext,
   ResumeEvidenceRevisionSchema,
   type TransitionApplicationCaseRequest,
@@ -161,6 +161,18 @@ type ResolvedJobContext =
 
 function toIso(value: Date): string {
   return value.toISOString();
+}
+
+function monotonicUpdatedAt() {
+  return sql<Date>`GREATEST(updated_at, clock_timestamp())`;
+}
+
+function caseEndedAt() {
+  return sql<Date>`GREATEST(created_at, clock_timestamp())`;
+}
+
+function evidenceRemovedAt() {
+  return sql<Date>`GREATEST(linked_at, clock_timestamp())`;
 }
 
 function parseJsonValue(value: JsonValue): unknown {
@@ -860,7 +872,7 @@ async function incrementCaseRevision(
   const nextRevision = expectedRevision + 1;
   const result = await transaction
     .updateTable("application.application_cases")
-    .set({ revision: nextRevision, updated_at: new Date() })
+    .set({ revision: nextRevision, updated_at: monotonicUpdatedAt() })
     .where("id", "=", applicationCase.id)
     .where("owner_id", "=", owner.ownerId)
     .where("owner_epoch", "=", owner.ownerEpoch)
@@ -1182,7 +1194,7 @@ export async function putApplicationCaseRequirementState(input: {
           state: input.request.state,
           user_note: input.request.userNote,
           revision: nextRevision,
-          updated_at: new Date(),
+          updated_at: monotonicUpdatedAt(),
         })
         .where("id", "=", existing.id)
         .where("owner_id", "=", input.owner.ownerId)
@@ -1322,7 +1334,6 @@ export async function putApplicationCaseRequirementEvidenceLinks(input: {
         revision: nextRevision,
       });
     }
-    const now = new Date();
     for (const evidenceId of linkedEvidenceIds) {
       const existing = existingLinks.find((link) => link.evidence_id === evidenceId);
       if (existing) {
@@ -1350,7 +1361,6 @@ export async function putApplicationCaseRequirementEvidenceLinks(input: {
             evidence_revision_id: input.request.evidenceRevisionId,
             evidence_id: evidenceId,
             revision: nextRevision,
-            linked_at: now,
             removed_at: null,
           })
           .execute();
@@ -1359,7 +1369,7 @@ export async function putApplicationCaseRequirementEvidenceLinks(input: {
     if (removedEvidenceIds.length > 0) {
       await transaction
         .updateTable("application.case_requirement_evidence_links")
-        .set({ removed_at: now, revision: nextRevision })
+        .set({ removed_at: evidenceRemovedAt(), revision: nextRevision })
         .where("owner_id", "=", input.owner.ownerId)
         .where("owner_epoch", "=", input.owner.ownerEpoch)
         .where("case_id", "=", applicationCase.id)
@@ -1564,7 +1574,7 @@ export async function updateApplicationCaseQuestion(input: {
         status: input.request.status,
         answer,
         revision: nextRevision,
-        updated_at: new Date(),
+        updated_at: monotonicUpdatedAt(),
       })
       .where("id", "=", question.id)
       .where("owner_id", "=", input.owner.ownerId)
@@ -1864,7 +1874,6 @@ export async function transitionApplicationCase(input: {
     const toStage = input.request.toStage;
     const toOutcome = input.request.outcome ?? null;
     const nextRevision = Number(applicationCase.revision) + 1;
-    const now = new Date();
 
     if (fromStage === toStage) {
       if (
@@ -1882,7 +1891,11 @@ export async function transitionApplicationCase(input: {
       }
       await transaction
         .updateTable("application.application_cases")
-        .set({ outcome: toOutcome, revision: nextRevision, updated_at: now })
+        .set({
+          outcome: toOutcome,
+          revision: nextRevision,
+          updated_at: monotonicUpdatedAt(),
+        })
         .where("id", "=", applicationCase.id)
         .where("owner_id", "=", input.owner.ownerId)
         .where("owner_epoch", "=", input.owner.ownerEpoch)
@@ -1917,9 +1930,9 @@ export async function transitionApplicationCase(input: {
       .set({
         stage: toStage,
         outcome: toOutcome,
-        ended_at: toStage === "resolved" ? now : null,
+        ended_at: toStage === "resolved" ? caseEndedAt() : null,
         revision: nextRevision,
-        updated_at: now,
+        updated_at: monotonicUpdatedAt(),
       })
       .where("id", "=", applicationCase.id)
       .where("owner_id", "=", input.owner.ownerId)
@@ -2074,7 +2087,7 @@ export async function upgradeApplicationCaseJobVersion(input: {
         published_job_version_id: target.id,
         requirement_set_id: target.diff_requirement_set_id,
         revision: nextRevision,
-        updated_at: new Date(),
+        updated_at: monotonicUpdatedAt(),
       })
       .where("id", "=", applicationCase.id)
       .where("owner_id", "=", input.owner.ownerId)
@@ -2184,7 +2197,6 @@ export async function syncApplicationCaseFromLegacyDecision(
   }
 
   const nextRevision = Number(applicationCase.revision) + 1;
-  const now = new Date();
   const requestHash = hashCanonicalJson({
     source: "legacy-job-decision",
     publishedJobId: input.publishedJobId,
@@ -2197,9 +2209,9 @@ export async function syncApplicationCaseFromLegacyDecision(
     .set({
       stage: target.stage,
       outcome: target.outcome,
-      ended_at: target.stage === "resolved" ? now : null,
+      ended_at: target.stage === "resolved" ? caseEndedAt() : null,
       revision: nextRevision,
-      updated_at: now,
+      updated_at: monotonicUpdatedAt(),
     })
     .where("id", "=", applicationCase.id)
     .where("owner_id", "=", input.owner.ownerId)

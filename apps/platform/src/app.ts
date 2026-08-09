@@ -16,6 +16,7 @@ import { sha256 } from "./lib/canonical-json.js";
 import { registerMatchingRoutes } from "./matching/routes.js";
 import { registerProfileRoutes } from "./profile/routes.js";
 import { registerResumeRoutes } from "./resume/routes.js";
+import { registerResumeDocumentRoutes } from "./resume-documents/routes.js";
 import { registerTailoringRoutes } from "./tailoring/routes.js";
 
 const listQuerySchema = z.object({
@@ -58,6 +59,7 @@ export function buildApp(input: { config: AppConfig; db: Kysely<Database> }): Fa
     const ownerScopedPrefixes = [
       "/v1/profile",
       "/v1/resume-analyses",
+      "/v1/resume-documents",
       "/v1/match-runs",
       "/v1/recommendation-runs",
       "/v1/resume-tailorings",
@@ -100,6 +102,7 @@ export function buildApp(input: { config: AppConfig; db: Kysely<Database> }): Fa
     appEnv: input.config.appEnv,
     deletionReceiptSecret: sha256(`${input.config.resumeEncryptionKey}:deletion-receipt-v1`),
   });
+  registerResumeDocumentRoutes(app, { db: input.db });
   registerMatchingRoutes(app, {
     db: input.db,
     enableLocalMvp: input.config.enableLocalMvp,

@@ -3,9 +3,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   CreateResumeDocumentRequestSchema,
+  CreateResumeDocumentResponseSchema,
   DecideResumeReviewSuggestionRequestSchema,
+  ListResumeDocumentsQuerySchema,
+  ListResumeDocumentsResponseSchema,
   PutResumeDocumentContentRevisionRequestSchema,
   PutResumeDocumentLayoutRevisionV2RequestSchema,
+  ResumeDocumentCursorSchema,
   ResumeDocumentReadModelSchema,
   ResumeDocumentSchema,
   ResumeLayoutSettingsSchema,
@@ -155,6 +159,97 @@ describe("Resume Document V2 contracts", () => {
         title: "基础简历",
       }).success,
     ).toBe(false);
+  });
+
+  it("freezes stable document pagination and keeps legacy V1 explicit but outside V2 items", () => {
+    const resumeDocument = ResumeDocumentSchema.parse({
+      id: ids.document,
+      ownerId: ids.owner,
+      ownerEpoch: 1,
+      kind: "base",
+      title: "基础简历",
+      caseId: null,
+      detachedFromCaseId: null,
+      jobContext: null,
+      baseDocumentId: null,
+      baseDocumentRevisionId: null,
+      evidenceRevisionId: null,
+      revision: 1,
+      currentContentRevisionId: null,
+      currentLayoutRevisionId: null,
+      expiresAt: null,
+      deletedAt: null,
+      createdAt: "2026-08-09T00:00:00.000Z",
+      updatedAt: "2026-08-09T00:00:00.000Z",
+    });
+    expect(ListResumeDocumentsQuerySchema.parse({})).toEqual({ limit: 20 });
+    expect(ListResumeDocumentsQuerySchema.safeParse({ limit: 101 }).success).toBe(false);
+    expect(
+      ResumeDocumentCursorSchema.safeParse({
+        updatedAt: resumeDocument.updatedAt,
+        id: ids.document,
+      }).success,
+    ).toBe(true);
+    expect(
+      ListResumeDocumentsResponseSchema.safeParse({
+        items: [resumeDocument],
+        nextCursor: null,
+        legacySource: {
+          legacySourceRevisionId: ids.revision,
+          legacySchemaVersion: "resume-document-v1",
+          legacyRevision: 2,
+          ownerId: ids.owner,
+          ownerEpoch: 1,
+          confirmedAt: "2026-08-08T00:00:00.000Z",
+          readOnly: true,
+        },
+      }).success,
+    ).toBe(true);
+    expect(
+      ListResumeDocumentsResponseSchema.safeParse({
+        items: [
+          {
+            schemaVersion: "resume-document-v1",
+            id: ids.revision,
+            ownerId: ids.owner,
+            ownerEpoch: 1,
+            revision: 2,
+            sections: [],
+            readOnly: true,
+          },
+        ],
+        nextCursor: null,
+        legacySource: null,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("returns the original aggregate outcome for idempotent document creation", () => {
+    expect(
+      CreateResumeDocumentResponseSchema.safeParse({
+        resumeDocument: {
+          id: ids.document,
+          ownerId: ids.owner,
+          ownerEpoch: 1,
+          kind: "base",
+          title: "基础简历",
+          caseId: null,
+          detachedFromCaseId: null,
+          jobContext: null,
+          baseDocumentId: null,
+          baseDocumentRevisionId: null,
+          evidenceRevisionId: null,
+          revision: 1,
+          currentContentRevisionId: null,
+          currentLayoutRevisionId: null,
+          expiresAt: null,
+          deletedAt: null,
+          createdAt: "2026-08-09T00:00:00.000Z",
+          updatedAt: "2026-08-09T00:00:00.000Z",
+        },
+        created: true,
+      }).success,
+    ).toBe(true);
   });
 
   it("requires a legacy source for the first V2 edit and rejects server fields", () => {

@@ -197,8 +197,8 @@ const ResumeDocumentFieldsSchema = z.object({
 
 export const ResumeDocumentSchema = z
   .discriminatedUnion("kind", [
-  ResumeDocumentFieldsSchema.merge(BaseDocumentReferenceSchema).strict(),
-  ResumeDocumentFieldsSchema.merge(DerivedDocumentReferenceSchema).strict(),
+    ResumeDocumentFieldsSchema.merge(BaseDocumentReferenceSchema).strict(),
+    ResumeDocumentFieldsSchema.merge(DerivedDocumentReferenceSchema).strict(),
   ])
   .superRefine((value, context) => {
     if (value.kind === "base") return;
@@ -703,6 +703,49 @@ export const ResumeDocumentLegacySourceSchema = z
   })
   .strict();
 export type ResumeDocumentLegacySource = z.infer<typeof ResumeDocumentLegacySourceSchema>;
+
+export const LegacyResumeDocumentSourceSummarySchema = ResumeDocumentLegacySourceSchema.extend({
+  ownerId: UuidSchema,
+  ownerEpoch: z.number().int().positive(),
+  confirmedAt: TimestampSchema,
+  readOnly: z.literal(true),
+}).strict();
+export type LegacyResumeDocumentSourceSummary = z.infer<
+  typeof LegacyResumeDocumentSourceSummarySchema
+>;
+
+export const ResumeDocumentCursorSchema = z
+  .object({
+    updatedAt: TimestampSchema,
+    id: UuidSchema,
+  })
+  .strict();
+export type ResumeDocumentCursor = z.infer<typeof ResumeDocumentCursorSchema>;
+
+export const ListResumeDocumentsQuerySchema = z
+  .object({
+    cursor: z.string().trim().min(1).max(1_024).optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .strict();
+export type ListResumeDocumentsQuery = z.infer<typeof ListResumeDocumentsQuerySchema>;
+
+export const ListResumeDocumentsResponseSchema = z
+  .object({
+    items: z.array(ResumeDocumentSchema),
+    nextCursor: z.string().trim().min(1).nullable(),
+    legacySource: LegacyResumeDocumentSourceSummarySchema.nullable(),
+  })
+  .strict();
+export type ListResumeDocumentsResponse = z.infer<typeof ListResumeDocumentsResponseSchema>;
+
+export const CreateResumeDocumentResponseSchema = z
+  .object({
+    resumeDocument: ResumeDocumentSchema,
+    created: z.boolean(),
+  })
+  .strict();
+export type CreateResumeDocumentResponse = z.infer<typeof CreateResumeDocumentResponseSchema>;
 
 export const ResumeDocumentContentSchema = ResumeSemanticContentSchema;
 export type ResumeDocumentContent = ResumeSemanticContent;

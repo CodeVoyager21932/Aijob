@@ -1452,6 +1452,7 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       headers,
       payload: { ...stateRequest, expectedRevision: 2, userNote: "补充核对说明" },
     });
+    expect(noteOnly.statusCode, JSON.stringify(noteOnly.json())).toBe(200);
     expect(ApplicationCaseMutationResponseSchema.parse(noteOnly.json())).toMatchObject({
       caseRevision: 3,
       event: {
