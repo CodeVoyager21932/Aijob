@@ -14,6 +14,7 @@
 
 ## 已完成的设计记录
 
+- [M2 专业简历闭环复用与集成边界](career-os-m2-resume-integration-boundary-2026-08-09.md)
 - [Phase 2 领域契约与迁移设计](career-os-phase-2-domain-contract-and-migration-design-2026-08-05.md)
 - [Phase 2R 契约与迁移影响矩阵](career-os-phase-2r-contract-and-migration-impact-matrix-2026-08-06.md)
 - [Phase 2A 前向修复与隔离测试设计](career-os-phase-2a-forward-contract-and-isolated-db-test-design-2026-08-06.md)
