@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { careerCases } from "../domain";
 import { getWorkspaceBreadcrumbs, workspaceNavigation } from "../navigation";
 import { Icon } from "./Icon";
 
@@ -53,15 +52,6 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
   }, [searchOpen]);
 
   const normalizedQuery = query.trim().toLowerCase();
-  const caseResults = useMemo(
-    () =>
-      careerCases.filter((careerCase) =>
-        `${careerCase.companyName}${careerCase.roleTitle}${careerCase.location}`
-          .toLowerCase()
-          .includes(normalizedQuery),
-      ),
-    [normalizedQuery],
-  );
   const navigationResults = useMemo(
     () => workspaceNavigation.filter((item) => item.label.toLowerCase().includes(normalizedQuery)),
     [normalizedQuery],
@@ -97,11 +87,11 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
             ref={searchTriggerRef}
             className="career-command-trigger"
             type="button"
-            aria-label="搜索岗位、求职项目或简历"
+            aria-label="搜索工作区页面"
             onClick={openSearch}
           >
             <Icon name="search" size={18} />
-            <span>搜索岗位、求职项目或简历</span>
+            <span>搜索工作区页面</span>
             <kbd>Ctrl K</kbd>
           </button>
           <div className="career-utility-popover-anchor">
@@ -173,7 +163,7 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
                 ref={inputRef}
                 type="search"
                 value={query}
-                placeholder="搜索岗位、公司或页面"
+                placeholder="搜索工作区页面"
                 onChange={(event) => setQuery(event.target.value)}
               />
               <kbd>Esc</kbd>
@@ -190,26 +180,8 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
                   ))}
                 </div>
               ) : null}
-              {caseResults.length > 0 ? (
-                <div>
-                  <p>求职项目</p>
-                  {caseResults.map((careerCase) => (
-                    <Link
-                      key={careerCase.id}
-                      to={`/applications/${careerCase.id}/overview`}
-                      onClick={() => setSearchOpen(false)}
-                    >
-                      <Icon name="briefcase" />
-                      <span>
-                        <strong>{careerCase.companyName}</strong>
-                        <small>{careerCase.roleTitle}</small>
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              ) : null}
-              {navigationResults.length === 0 && caseResults.length === 0 ? (
-                <p className="career-command-menu__empty">没有找到对应页面或静态求职项目。</p>
+              {navigationResults.length === 0 ? (
+                <p className="career-command-menu__empty">没有找到对应页面。</p>
               ) : null}
             </div>
           </section>

@@ -1,3 +1,4 @@
+// Offline Phase 1 prototype fixture. Production Career OS runtime imports workspace-model.ts.
 export type CaseStage = "interested" | "preparing" | "applied" | "interviewing" | "resolved";
 
 export type EvidenceStateValue = "confirmed" | "needs_work" | "unconfirmed";

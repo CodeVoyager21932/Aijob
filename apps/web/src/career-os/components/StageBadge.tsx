@@ -1,4 +1,4 @@
-import { type CaseStage, getCaseStageLabel } from "../domain";
+import { type CaseStage, getCaseStageLabel } from "../workspace-model";
 
 export function StageBadge({ stage }: { stage: CaseStage }) {
   return (

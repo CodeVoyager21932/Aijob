@@ -1,17 +1,26 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { careerOsQueryKeys, listApplicationCases } from "../../api/career-os";
+import { toApplicationCaseView } from "../application-case-view";
 import { Icon } from "../components/Icon";
 import { StageBadge } from "../components/StageBadge";
-import { careerCases } from "../domain";
-
-const todaysCases = careerCases.filter((careerCase) => careerCase.stage !== "resolved").slice(0, 4);
 
 export function CareerOsHomePage() {
+  const casesQuery = useQuery({
+    queryKey: [...careerOsQueryKeys.caseList(), "today-preview"],
+    queryFn: ({ signal }) => listApplicationCases({ limit: 100 }, signal),
+  });
+  const activeCases = (casesQuery.data?.items ?? [])
+    .filter((applicationCase) => applicationCase.stage !== "resolved")
+    .slice(0, 4)
+    .map(toApplicationCaseView);
+
   return (
     <section className="career-home-page" aria-labelledby="today-title">
       <header className="career-page-heading career-page-heading--today">
         <div>
           <h1 id="today-title">今日</h1>
-          <p>2026 年 8 月 4 日</p>
+          <p>M1 仅展示真实求职项目，不生成站外提醒。</p>
         </div>
         <Link className="career-button career-button--primary" to="/applications">
           查看我的求职
@@ -22,34 +31,50 @@ export function CareerOsHomePage() {
       <div className="career-today-layout">
         <section className="career-today-tasks" aria-labelledby="today-tasks-heading">
           <header>
-            <h2 id="today-tasks-heading">接下来要做</h2>
-            <span>{todaysCases.length} 项</span>
+            <h2 id="today-tasks-heading">进行中的求职项目</h2>
+            <span>{activeCases.length} 项</span>
           </header>
-          <ol>
-            {todaysCases.map((careerCase) => (
-              <li key={careerCase.id}>
-                <Link to={`/applications/${careerCase.id}/overview`}>
-                  <span className="career-today-task__icon">
-                    <Icon name="briefcase" />
-                  </span>
-                  <span>
-                    <strong>{careerCase.nextTask}</strong>
-                    <small>
-                      {careerCase.companyName} · {careerCase.roleTitle}
-                    </small>
-                  </span>
-                  <StageBadge stage={careerCase.stage} />
-                  <Icon name="chevron" size={17} />
-                </Link>
-              </li>
-            ))}
-          </ol>
+          {casesQuery.isPending ? (
+            <output className="career-request-state">正在读取真实 Case…</output>
+          ) : casesQuery.isError ? (
+            <div className="career-inline-error" role="alert">
+              <strong>暂时无法读取求职项目</strong>
+              <span>
+                {casesQuery.error instanceof Error ? casesQuery.error.message : "请稍后重试。"}
+              </span>
+            </div>
+          ) : activeCases.length === 0 ? (
+            <div className="career-empty-state career-empty-state--compact">
+              <strong>还没有进行中的求职项目</strong>
+              <Link to="/applications">创建第一个求职项目</Link>
+            </div>
+          ) : (
+            <ol>
+              {activeCases.map((applicationCase) => (
+                <li key={applicationCase.id}>
+                  <Link to={`/applications/${applicationCase.id}/overview`}>
+                    <span className="career-today-task__icon">
+                      <Icon name="briefcase" />
+                    </span>
+                    <span>
+                      <strong>{applicationCase.roleTitle}</strong>
+                      <small>
+                        {applicationCase.companyName} · {applicationCase.locationLabel}
+                      </small>
+                    </span>
+                    <StageBadge stage={applicationCase.stage} />
+                    <Icon name="chevron" size={17} />
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          )}
         </section>
 
         <aside className="career-today-note">
           <Icon name="check" />
           <h2>每一步都由你确认</h2>
-          <p>打开官方页面不会自动标记为已投递；未说明的信息继续保持未知。</p>
+          <p>打开外部页面不会自动标记为已投递；未说明的信息继续保持未知。</p>
           <Link to="/settings/data">查看数据保留与删除</Link>
         </aside>
       </div>

@@ -1,12 +1,11 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import type { CareerCase } from "../domain";
-import { EvidenceState } from "./EvidenceState";
+import type { ApplicationCaseView } from "../application-case-view";
 import { Icon } from "./Icon";
 import { StageBadge } from "./StageBadge";
 
 interface ContextInspectorProps {
-  careerCase: CareerCase;
+  applicationCase: ApplicationCaseView;
   onClose: () => void;
 }
 
@@ -56,81 +55,76 @@ export function ContextInspectorFrame({
   );
 }
 
-export function ContextInspector({ careerCase, onClose }: ContextInspectorProps) {
+export function ContextInspector({ applicationCase, onClose }: ContextInspectorProps) {
   return (
     <ContextInspectorFrame
-      ariaLabel={`${careerCase.companyName}岗位侧览`}
-      eyebrow={careerCase.companyName}
-      title={careerCase.roleTitle}
-      meta={`${careerCase.location} · ${careerCase.workMode}`}
+      ariaLabel={`${applicationCase.companyName}岗位侧览`}
+      eyebrow={applicationCase.companyName}
+      title={applicationCase.roleTitle}
+      meta={`${applicationCase.locationLabel} · ${applicationCase.workModeLabel}`}
       closeLabel="关闭岗位侧览"
       onClose={onClose}
       footer={
         <Link
           className="career-button career-button--primary"
-          to={`/applications/${careerCase.id}/overview`}
+          to={`/applications/${applicationCase.id}/overview`}
         >
           打开求职工作区
-          <Icon name="external" size={17} />
+          <Icon name="chevron" size={17} />
         </Link>
       }
     >
       <section className="career-inspector__section">
         <h3>当前阶段</h3>
-        <StageBadge stage={careerCase.stage} />
+        <StageBadge stage={applicationCase.stage} />
       </section>
 
       <section className="career-inspector__section">
-        <h3>下一步任务</h3>
-        <div className="career-next-task">
-          <Icon name="check" size={19} />
-          <div>
-            <strong>{careerCase.nextTask}</strong>
-            <p>{careerCase.nextTaskDetail}</p>
-          </div>
-        </div>
-      </section>
-
-      <section className="career-inspector__section">
-        <h3>官方来源说明</h3>
-        <div className="career-source-proof">
-          <Icon name="check" size={18} />
-          <div>
-            <strong>{careerCase.sourceLabel}</strong>
-            <span>最近核验 {careerCase.sourceVerifiedAt}</span>
-          </div>
-        </div>
-      </section>
-
-      <section className="career-inspector__section">
-        <h3>三轴分别判断</h3>
+        <h3>固定岗位信息</h3>
         <dl className="career-axis-summary">
           <div>
-            <dt>资格</dt>
-            <dd>{careerCase.qualification}</dd>
+            <dt>地点</dt>
+            <dd>{applicationCase.locationLabel}</dd>
           </div>
           <div>
-            <dt>经历证据</dt>
-            <dd>{careerCase.evidence.length} 项逐项核对</dd>
+            <dt>截止时间</dt>
+            <dd>{applicationCase.deadlineLabel}</dd>
           </div>
           <div>
-            <dt>偏好</dt>
-            <dd>{careerCase.preference}</dd>
+            <dt>版本</dt>
+            <dd>{applicationCase.fixedVersionLabel}</dd>
           </div>
         </dl>
       </section>
 
       <section className="career-inspector__section">
-        <h3>经历证据</h3>
-        <ul className="career-inspector__evidence">
-          {careerCase.evidence.map((item) => (
-            <li key={item.id}>
-              <span>{item.label}</span>
-              <EvidenceState state={item.state} />
-            </li>
-          ))}
-        </ul>
+        <h3>来源说明</h3>
+        <div className="career-source-proof">
+          <Icon name={applicationCase.sourceKind === "catalog" ? "check" : "document"} size={18} />
+          <div>
+            <strong>{applicationCase.sourceLabel}</strong>
+            <span>{applicationCase.sourceMeta}</span>
+          </div>
+        </div>
       </section>
+
+      {applicationCase.externalUrl ? (
+        <section className="career-inspector__section">
+          <h3>{applicationCase.externalUrlVerified ? "岗位链接" : "用户提供链接"}</h3>
+          <p className="career-inspector__copy">
+            打开外部链接不会改变求职阶段，也不会自动标记为已投递。
+          </p>
+          <a
+            className="career-button career-button--quiet"
+            href={applicationCase.externalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            打开外部页面
+            <Icon name="external" size={16} />
+          </a>
+        </section>
+      ) : null}
     </ContextInspectorFrame>
   );
 }

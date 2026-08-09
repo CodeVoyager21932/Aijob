@@ -38,6 +38,25 @@ function currentCsrfToken(): string | null {
   return cookieValue(document.cookie, "aijob_csrf");
 }
 
+let sessionBootstrapPromise: Promise<void> | null = null;
+
+async function ensureSessionBootstrap(): Promise<void> {
+  if (currentCsrfToken()) return;
+  if (!sessionBootstrapPromise) {
+    sessionBootstrapPromise = (async () => {
+      const response = await fetch(`${baseUrl}/v1/session`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "same-origin",
+      });
+      if (!response.ok) throw await readProblem(response);
+    })().finally(() => {
+      sessionBootstrapPromise = null;
+    });
+  }
+  await sessionBootstrapPromise;
+}
+
 async function readProblem(response: Response): Promise<ProductApiError> {
   let payload: ProblemPayload = {};
   try {
@@ -53,17 +72,11 @@ async function readProblem(response: Response): Promise<ProductApiError> {
   );
 }
 
-async function ensureCsrfToken(signal?: AbortSignal): Promise<string> {
+async function ensureCsrfToken(): Promise<string> {
   const existing = currentCsrfToken();
   if (existing) return existing;
 
-  const response = await fetch(`${baseUrl}/v1/profile/facts`, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-    credentials: "same-origin",
-    ...(signal ? { signal } : {}),
-  });
-  if (!response.ok) throw await readProblem(response);
+  await ensureSessionBootstrap();
 
   const token = currentCsrfToken();
   if (!token) {
@@ -102,11 +115,14 @@ function isMutation(method: string): boolean {
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const method = options.method ?? "GET";
+  if (typeof document !== "undefined" && path !== "/v1/session" && !currentCsrfToken()) {
+    await ensureSessionBootstrap();
+  }
   const headers = new Headers(options.headers);
   headers.set("Accept", "application/json");
 
   if (isMutation(method)) {
-    headers.set("x-csrf-token", await ensureCsrfToken(options.signal));
+    headers.set("x-csrf-token", await ensureCsrfToken());
   }
   if (options.idempotencyKey) {
     headers.set("Idempotency-Key", options.idempotencyKey);

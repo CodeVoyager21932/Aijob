@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { caseTabs } from "../domain";
+import { caseTabs } from "../workspace-model";
 
 export function CaseTabs({ caseId }: { caseId: string }) {
   return (

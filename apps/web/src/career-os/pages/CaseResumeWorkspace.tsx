@@ -1,51 +1,194 @@
-import { useCallback, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import type { CareerResumeBlock } from "../case-workspace-domain";
-import { getCareerCaseWorkspace } from "../case-workspace-domain";
-import { EvidenceState } from "../components/EvidenceState";
-import { Icon } from "../components/Icon";
-import { ResumeSuggestionInspector } from "../components/ResumeSuggestionInspector";
-import type { CareerCase } from "../domain";
+import type { ApplicationCaseWithJobContext, ResumeDocument } from "@aijob/contracts";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import {
-  createResumeSuggestionSession,
-  getResumeBlockBullets,
-  reduceResumeSuggestion,
-  type ResumeSuggestionAction,
-  type ResumeSuggestionSession,
-} from "../resume-suggestion-state";
-
-type ResumeTemplate = "classic" | "compact";
+  careerOsQueryKeys,
+  createResumeDocument,
+  getCareerOsEvidence,
+  listResumeDocumentContent,
+  listResumeDocumentLayout,
+  listResumeDocuments,
+} from "../../api/career-os";
+import { createIdempotencyKey, ProductApiError } from "../../api/client";
+import { toApplicationCaseView } from "../application-case-view";
+import { Icon } from "../components/Icon";
+import { ResumeBlockInspector } from "../components/ResumeBlockInspector";
+import { findResumeBlock, orderResumeSections } from "../resume-view";
 
 function shouldOpenInspectorByDefault(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches;
 }
 
-function findSelectedBlock(
-  blocks: CareerResumeBlock[],
-  requestedBlockId: string | null,
-): CareerResumeBlock {
-  const selected =
-    blocks.find((block) => block.id === requestedBlockId) ??
-    blocks.find((block) => block.suggestion) ??
-    blocks[0];
-  if (!selected) {
-    throw new Error("Static Career OS resume has no blocks");
-  }
-  return selected;
+function templateLabel(templateKey: string): string {
+  return templateKey === "cn_compact_technical" ? "中文紧凑技术" : "中文经典单栏";
 }
 
-export function CaseResumeWorkspace({ careerCase }: { careerCase: CareerCase }) {
-  const workspace = getCareerCaseWorkspace(careerCase.id);
-  const allBlocks = workspace.resume.sections.flatMap((section) => section.blocks);
+export function CaseResumeWorkspace({
+  applicationCase,
+}: {
+  applicationCase: ApplicationCaseWithJobContext;
+}) {
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [template, setTemplate] = useState<ResumeTemplate>("classic");
-  const [sessions, setSessions] = useState<Record<string, ResumeSuggestionSession>>({});
-  const [isEditing, setIsEditing] = useState(false);
+  const [selectedBaseId, setSelectedBaseId] = useState<string | null>(null);
   const [isInspectorOpen, setInspectorOpen] = useState(shouldOpenInspectorByDefault);
-  const selectedBlock = findSelectedBlock(allBlocks, searchParams.get("block"));
-  const suggestedText = selectedBlock.suggestion?.suggestedText ?? "";
-  const selectedSession =
-    sessions[selectedBlock.id] ?? createResumeSuggestionSession(suggestedText);
+  const createCommandRef = useRef<{ signature: string; key: string } | null>(null);
+
+  const derivedQuery = useQuery({
+    queryKey: careerOsQueryKeys.resumeDocuments({
+      kind: "case_derived",
+      caseId: applicationCase.id,
+    }),
+    queryFn: ({ signal }) =>
+      listResumeDocuments({ kind: "case_derived", caseId: applicationCase.id, limit: 100 }, signal),
+  });
+  const derivedDocument = derivedQuery.data?.items.find(
+    (document): document is Extract<ResumeDocument, { kind: "case_derived" }> =>
+      document.kind === "case_derived",
+  );
+  const baseQuery = useQuery({
+    queryKey: careerOsQueryKeys.resumeDocuments({ kind: "base" }),
+    queryFn: ({ signal }) => listResumeDocuments({ kind: "base", limit: 100 }, signal),
+    enabled: derivedQuery.isSuccess && !derivedDocument,
+  });
+  const evidenceQuery = useQuery({
+    queryKey: careerOsQueryKeys.evidence,
+    queryFn: ({ signal }) => getCareerOsEvidence(signal),
+    enabled: derivedQuery.isSuccess && !derivedDocument,
+  });
+  const contentQuery = useQuery({
+    queryKey: careerOsQueryKeys.resumeContent(derivedDocument?.id ?? ""),
+    queryFn: ({ signal }) => listResumeDocumentContent(derivedDocument?.id ?? "", signal),
+    enabled: Boolean(derivedDocument),
+  });
+  const layoutQuery = useQuery({
+    queryKey: careerOsQueryKeys.resumeLayout(derivedDocument?.id ?? ""),
+    queryFn: ({ signal }) => listResumeDocumentLayout(derivedDocument?.id ?? "", signal),
+    enabled: Boolean(derivedDocument),
+  });
+
+  const baseDocuments = useMemo(
+    () =>
+      (baseQuery.data?.items ?? [])
+        .filter(
+          (document): document is Extract<ResumeDocument, { kind: "base" }> =>
+            document.kind === "base" && document.currentContentRevisionId !== null,
+        )
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+    [baseQuery.data?.items],
+  );
+  const selectedBase =
+    baseDocuments.find((document) => document.id === selectedBaseId) ?? baseDocuments[0];
+  const hasEvidence = Boolean(
+    evidenceQuery.data && "id" in evidenceQuery.data && evidenceQuery.data.evidence.length > 0,
+  );
+
+  const createMutation = useMutation({
+    mutationFn: ({
+      baseDocumentRevisionId,
+      idempotencyKey,
+    }: {
+      baseDocumentRevisionId: string;
+      idempotencyKey: string;
+    }) =>
+      createResumeDocument(
+        {
+          kind: "case_derived",
+          caseId: applicationCase.id,
+          baseDocumentRevisionId,
+          expectedCaseRevision: applicationCase.revision,
+          title:
+            `${toApplicationCaseView(applicationCase).companyName} · ${toApplicationCaseView(applicationCase).roleTitle} 岗位简历`.slice(
+              0,
+              200,
+            ),
+        },
+        idempotencyKey,
+      ),
+    retry: false,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: careerOsQueryKeys.resumeDocuments({
+            kind: "case_derived",
+            caseId: applicationCase.id,
+          }),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: careerOsQueryKeys.caseDetail(applicationCase.id),
+        }),
+        queryClient.invalidateQueries({ queryKey: careerOsQueryKeys.caseList() }),
+      ]);
+    },
+    onError: (error) => {
+      if (!(error instanceof ProductApiError)) return;
+      if (error.code === "RESUME_DOCUMENT_FOR_CASE_EXISTS") {
+        void queryClient.invalidateQueries({
+          queryKey: careerOsQueryKeys.resumeDocuments({
+            kind: "case_derived",
+            caseId: applicationCase.id,
+          }),
+        });
+      }
+      if (error.code === "APPLICATION_CASE_REVISION_CONFLICT") {
+        void queryClient.invalidateQueries({
+          queryKey: careerOsQueryKeys.caseDetail(applicationCase.id),
+        });
+      }
+    },
+  });
+
+  const createDerivedResume = () => {
+    const baseDocumentRevisionId = selectedBase?.currentContentRevisionId;
+    if (!baseDocumentRevisionId || !hasEvidence) return;
+    const signature = `${applicationCase.id}:${applicationCase.revision}:${baseDocumentRevisionId}`;
+    if (!createCommandRef.current || createCommandRef.current.signature !== signature) {
+      createCommandRef.current = {
+        signature,
+        key: createIdempotencyKey("case-resume"),
+      };
+    }
+    createMutation.mutate({
+      baseDocumentRevisionId,
+      idempotencyKey: createCommandRef.current.key,
+    });
+  };
+
+  const contentRevision = contentQuery.data?.current ?? null;
+  const layoutRevision = layoutQuery.data?.current ?? null;
+  const sections = useMemo(
+    () => (contentRevision ? orderResumeSections(contentRevision, layoutRevision) : []),
+    [contentRevision, layoutRevision],
+  );
+  const requestedBlockId = searchParams.get("block");
+  const blockSelection = findResumeBlock(sections, requestedBlockId);
+  const selectedBlock = blockSelection.selected;
+
+  useEffect(() => {
+    if (!requestedBlockId || sections.length === 0) return;
+    if (blockSelection.requestedBlockExists) {
+      setInspectorOpen(true);
+      return;
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete("block");
+    setSearchParams(next, { replace: true });
+    const fallback = sections[0]?.blocks[0];
+    window.requestAnimationFrame(() => {
+      if (fallback) {
+        document
+          .querySelector<HTMLButtonElement>(`[data-resume-block-trigger="${fallback.id}"]`)
+          ?.focus();
+      }
+    });
+  }, [
+    blockSelection.requestedBlockExists,
+    requestedBlockId,
+    searchParams,
+    sections,
+    setSearchParams,
+  ]);
 
   const selectBlock = useCallback(
     (blockId: string) => {
@@ -53,89 +196,174 @@ export function CaseResumeWorkspace({ careerCase }: { careerCase: CareerCase }) 
       next.set("block", blockId);
       next.delete("requirement");
       setSearchParams(next);
-      setIsEditing(false);
       setInspectorOpen(true);
     },
     [searchParams, setSearchParams],
   );
-
-  const updateSelectedSession = useCallback(
-    (action: ResumeSuggestionAction) => {
-      setSessions((current) => {
-        const previous = current[selectedBlock.id] ?? createResumeSuggestionSession(suggestedText);
-        return {
-          ...current,
-          [selectedBlock.id]: reduceResumeSuggestion(previous, action),
-        };
-      });
-    },
-    [selectedBlock.id, suggestedText],
-  );
-
   const closeInspector = useCallback(() => {
     setInspectorOpen(false);
-    setIsEditing(false);
+    if (!selectedBlock) return;
     window.requestAnimationFrame(() => {
       document
         .querySelector<HTMLButtonElement>(`[data-resume-block-trigger="${selectedBlock.id}"]`)
         ?.focus();
     });
-  }, [selectedBlock.id]);
+  }, [selectedBlock]);
 
-  const cancelEdit = useCallback(() => {
-    updateSelectedSession({ type: "undo", suggestedText });
-    setIsEditing(false);
-  }, [suggestedText, updateSelectedSession]);
+  if (derivedQuery.isPending) {
+    return <output className="career-request-state">正在查找岗位简历…</output>;
+  }
+  if (derivedQuery.isError) {
+    return (
+      <div className="career-request-state career-inline-error" role="alert">
+        <strong>岗位简历暂时无法读取</strong>
+        <span>
+          {derivedQuery.error instanceof Error ? derivedQuery.error.message : "请稍后重试。"}
+        </span>
+        <button type="button" onClick={() => void derivedQuery.refetch()}>
+          重新读取
+        </button>
+      </div>
+    );
+  }
 
+  if (!derivedDocument) {
+    const prerequisiteLoading = baseQuery.isPending || evidenceQuery.isPending;
+    const prerequisiteError = baseQuery.error ?? evidenceQuery.error;
+    const ready = Boolean(selectedBase?.currentContentRevisionId && hasEvidence);
+    return (
+      <section className="career-resume-prerequisite" aria-labelledby="resume-prerequisite-title">
+        <span className="career-resume-prerequisite__icon">
+          <Icon name="document" />
+        </span>
+        <div>
+          <p>M1 · 显式创建</p>
+          <h2 id="resume-prerequisite-title">
+            {ready ? "创建这份岗位派生简历" : "请先准备并确认基础简历"}
+          </h2>
+          <p>
+            {ready
+              ? "系统会固定当前基础内容修订、岗位版本与证据修订；打开页面本身不会写入数据。"
+              : "M1 不创建空白正文，也不在这里执行 V1→V2 编辑迁移。"}
+          </p>
+
+          {prerequisiteLoading ? <output>正在核对基础简历与证据…</output> : null}
+          {prerequisiteError ? (
+            <div className="career-inline-error" role="alert">
+              <strong>前置条件暂时无法核对</strong>
+              <span>
+                {prerequisiteError instanceof Error ? prerequisiteError.message : "请稍后重试。"}
+              </span>
+            </div>
+          ) : null}
+
+          {ready ? (
+            <label className="career-resume-base-select">
+              <span>基础简历</span>
+              <select
+                value={selectedBase?.id ?? ""}
+                disabled={createMutation.isPending}
+                onChange={(event) => setSelectedBaseId(event.target.value)}
+              >
+                {baseDocuments.map((document) => (
+                  <option key={document.id} value={document.id}>
+                    {document.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          {createMutation.isError ? (
+            <div className="career-inline-error" role="alert">
+              <strong>岗位简历没有创建</strong>
+              <span>
+                {createMutation.error instanceof Error
+                  ? createMutation.error.message
+                  : "请核对后重试。"}
+              </span>
+            </div>
+          ) : null}
+
+          <div className="career-resume-prerequisite__actions">
+            {!ready ? (
+              <Link className="career-button career-button--quiet" to="/resume">
+                前往基础简历
+              </Link>
+            ) : null}
+            {ready ? (
+              <button
+                className="career-button career-button--primary"
+                type="button"
+                disabled={createMutation.isPending}
+                onClick={createDerivedResume}
+              >
+                {createMutation.isPending ? "正在创建…" : "创建岗位简历"}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (contentQuery.isPending || layoutQuery.isPending) {
+    return <output className="career-request-state">正在读取简历内容与布局…</output>;
+  }
+  if (contentQuery.isError || layoutQuery.isError) {
+    const error = contentQuery.error ?? layoutQuery.error;
+    return (
+      <div className="career-request-state career-inline-error" role="alert">
+        <strong>简历内容或布局暂时无法读取</strong>
+        <span>{error instanceof Error ? error.message : "请稍后重试。"}</span>
+      </div>
+    );
+  }
+  if (!contentRevision || !layoutRevision || sections.length === 0 || !selectedBlock) {
+    return (
+      <div className="career-empty-state">
+        <strong>这份岗位简历还没有可显示的正文或布局</strong>
+        <p>系统不会载入静态简历填补空白。</p>
+      </div>
+    );
+  }
+
+  const applicationCaseView = toApplicationCaseView(applicationCase);
   return (
     <div className="career-case-detail-layout career-resume-layout">
       <div className="career-case-detail-layout__main">
         <header className="career-resume-toolbar">
           <div>
-            <p>基础简历 v1 → 岗位定制草稿</p>
-            <strong>当前会话自动保存关闭</strong>
+            <p>{derivedDocument.title}</p>
+            <strong>只读 · 内容修订 {contentRevision.documentRevision}</strong>
           </div>
-          <label>
-            模板
-            <select
-              value={template}
-              onChange={(event) => setTemplate(event.currentTarget.value as ResumeTemplate)}
-            >
-              <option value="classic">中文经典单栏</option>
-              <option value="compact">中文紧凑技术</option>
-            </select>
-          </label>
-          <div className="career-resume-toolbar__actions">
-            <button type="button" disabled title="Resume V2 阶段接入打印">
-              打印
-            </button>
-            <button type="button" disabled title="Resume V2 阶段接入 DOCX">
-              导出 DOCX
-            </button>
+          <div className="career-resume-template-readonly">
+            <span>模板</span>
+            <strong>{templateLabel(layoutRevision.templateKey)}</strong>
           </div>
         </header>
 
         <div className="career-resume-studio">
-          <aside className="career-resume-rail" aria-label="简历结构与证据">
+          <aside className="career-resume-rail" aria-label="简历结构">
             <section>
               <header>
                 <h2>简历结构</h2>
-                <span>{workspace.resume.sections.length} 节</span>
+                <span>{sections.length} 节</span>
               </header>
               <nav aria-label="简历章节">
-                {workspace.resume.sections.map((section) => {
-                  const sectionBlock = section.blocks[0];
-                  if (!sectionBlock) return null;
+                {sections.map((section) => {
+                  const firstBlock = section.blocks[0];
+                  if (!firstBlock) return null;
                   const isActive = section.blocks.some((block) => block.id === selectedBlock.id);
                   return (
                     <button
                       key={section.id}
                       type="button"
                       className={isActive ? "is-active" : undefined}
-                      onClick={() => selectBlock(sectionBlock.id)}
+                      onClick={() => selectBlock(firstBlock.id)}
                     >
                       <Icon name="document" size={17} />
-                      <span>{section.label}</span>
+                      <span>{section.title}</span>
                       <small>{section.blocks.length}</small>
                       <Icon name="chevron" size={15} />
                     </button>
@@ -143,101 +371,63 @@ export function CaseResumeWorkspace({ careerCase }: { careerCase: CareerCase }) 
                 })}
               </nav>
             </section>
-
-            <section className="career-resume-evidence-library">
-              <header>
-                <h2>证据状态</h2>
-                <span>{careerCase.evidence.length} 项</span>
-              </header>
-              <ul>
-                {careerCase.evidence.map((item) => (
-                  <li key={item.id}>
-                    <strong>{item.label}</strong>
-                    <EvidenceState state={item.state} />
-                  </li>
-                ))}
-              </ul>
-            </section>
           </aside>
 
           <main className="career-resume-preview" aria-label="A4 简历预览">
             <div className="career-resume-preview__bar">
-              <span>A4 预览</span>
-              <span>100%</span>
+              <span>A4 只读预览</span>
+              <span>{templateLabel(layoutRevision.templateKey)}</span>
             </div>
-            <article className={`career-resume-sheet career-resume-sheet--${template}`}>
+            <article
+              className={`career-resume-sheet career-resume-sheet--${layoutRevision.templateKey === "cn_compact_technical" ? "compact" : "classic"}`}
+            >
               <header>
                 <div>
-                  <h2>{workspace.resume.candidateName}</h2>
-                  <p>静态原型不显示真实联系方式</p>
+                  <h2>{derivedDocument.title}</h2>
+                  <p>固定基础内容与已确认证据</p>
                 </div>
-                <strong>{workspace.resume.targetLabel}</strong>
+                <strong>{applicationCaseView.roleTitle}</strong>
               </header>
-
-              {workspace.resume.sections.slice(1).map((section) => (
+              {sections.map((section) => (
                 <section key={section.id} aria-labelledby={`resume-section-${section.id}`}>
-                  <h3 id={`resume-section-${section.id}`}>{section.label}</h3>
-                  {section.blocks.map((block) => {
-                    const blockSession = sessions[block.id];
-                    const bullets = getResumeBlockBullets(block, blockSession);
-                    return (
-                      <button
-                        key={block.id}
-                        type="button"
-                        className={`career-resume-block${
-                          selectedBlock.id === block.id ? " is-selected" : ""
-                        }`}
-                        aria-pressed={selectedBlock.id === block.id}
-                        aria-label={`编辑简历区块 ${block.title}`}
-                        data-resume-block-trigger={block.id}
-                        onClick={() => selectBlock(block.id)}
-                      >
-                        <span className="career-resume-block__heading">
-                          <strong>{block.title}</strong>
-                          <small>{block.meta}</small>
-                        </span>
-                        {bullets.map((bullet) => (
-                          <span className="career-resume-block__bullet" key={bullet}>
-                            {bullet}
-                          </span>
-                        ))}
-                      </button>
-                    );
-                  })}
+                  <h3 id={`resume-section-${section.id}`}>{section.title}</h3>
+                  {section.blocks.map((block) => (
+                    <button
+                      key={block.id}
+                      type="button"
+                      className={`career-resume-block${selectedBlock.id === block.id ? " is-selected" : ""}`}
+                      aria-pressed={selectedBlock.id === block.id}
+                      aria-label={`查看简历区块 ${section.title}`}
+                      data-resume-block-trigger={block.id}
+                      onClick={() => selectBlock(block.id)}
+                    >
+                      <span className="career-resume-block__bullet">{block.text}</span>
+                    </button>
+                  ))}
                 </section>
               ))}
             </article>
             <p className="career-resume-preview__note">
-              建议不会自动写入；刷新页面后恢复静态初始状态。
+              M1 只读取固定内容与布局，不提供编辑、AI 或导出。
             </p>
           </main>
         </div>
       </div>
 
       <div className={`career-context-panel${isInspectorOpen ? " is-open" : ""}`}>
-        <ResumeSuggestionInspector
-          careerCase={careerCase}
+        <ResumeBlockInspector
+          applicationCase={applicationCaseView}
           block={selectedBlock}
-          session={selectedSession}
-          isEditing={isEditing}
+          baseDocumentRevisionId={derivedDocument.baseDocumentRevisionId}
+          evidenceRevisionId={derivedDocument.evidenceRevisionId}
           onClose={closeInspector}
-          onAccept={() => updateSelectedSession({ type: "accept", suggestedText })}
-          onBeginEdit={() => setIsEditing(true)}
-          onDraftChange={(value) => updateSelectedSession({ type: "update_draft", value })}
-          onConfirmEdit={() => {
-            updateSelectedSession({ type: "accept_edit" });
-            setIsEditing(false);
-          }}
-          onCancelEdit={cancelEdit}
-          onReject={() => updateSelectedSession({ type: "reject" })}
-          onUndo={() => updateSelectedSession({ type: "undo", suggestedText })}
         />
       </div>
       {isInspectorOpen ? (
         <button
           className="career-context-panel-backdrop"
           type="button"
-          aria-label="关闭简历建议检查器"
+          aria-label="关闭简历区块检查器"
           onClick={closeInspector}
         />
       ) : null}

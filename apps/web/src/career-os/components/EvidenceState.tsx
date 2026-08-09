@@ -1,4 +1,4 @@
-import type { EvidenceStateValue } from "../domain";
+import type { EvidenceStateValue } from "../workspace-model";
 import { Icon } from "./Icon";
 
 const evidenceStateConfig = {

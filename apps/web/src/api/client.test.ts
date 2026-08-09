@@ -38,6 +38,33 @@ describe("product API client", () => {
     expect(headers.get("Content-Type")).toBe("application/json");
   });
 
+  it("serializes the first browser session bootstrap before parallel API reads", async () => {
+    const documentState = { cookie: "" };
+    let sessionRequests = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/v1/session")) {
+        sessionRequests += 1;
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        documentState.cookie = "aijob_csrf=bootstrapped-token";
+        return new Response(JSON.stringify({ authenticated: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    vi.stubGlobal("document", documentState);
+    vi.stubGlobal("fetch", fetchMock);
+
+    await Promise.all([apiRequest("/v1/first"), apiRequest("/v1/second")]);
+
+    expect(sessionRequests).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it("surfaces stable problem details", async () => {
     vi.stubGlobal(
       "fetch",

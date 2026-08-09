@@ -2,6 +2,8 @@ import type { JobDecisionStatus, JobDetail, MatchRun } from "@aijob/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { careerOsQueryKeys, createApplicationCase } from "../api/career-os";
+import { createIdempotencyKey } from "../api/client";
 import {
   createMatchRun,
   createResumeTailoring,
@@ -22,6 +24,7 @@ import {
   ProductError,
   ProductLoading,
 } from "../components/ProductStates";
+import { shouldEnableCareerOsV2 } from "../environment";
 import {
   axisLabels,
   axisTone,
@@ -70,6 +73,10 @@ export function JobDetailPage() {
   const [privacyConsent, setPrivacyConsent] = useState(false);
   const [staleMatchNoticeJobId, setStaleMatchNoticeJobId] = useState<string | null>(null);
   const loadedDecisionRevision = useRef<number | null>(null);
+  const caseCommandRef = useRef<{ signature: string; idempotencyKey: string } | null>(null);
+  const careerOsV2Enabled = shouldEnableCareerOsV2({
+    flag: import.meta.env.VITE_CAREER_OS_V2,
+  });
 
   const jobQuery = useQuery({
     queryKey: ["product", "job", jobId],
@@ -197,6 +204,39 @@ export function JobDetailPage() {
     },
   });
 
+  const applicationCaseMutation = useMutation({
+    mutationFn: ({
+      publishedJobId,
+      publishedJobVersionId,
+    }: {
+      publishedJobId: string;
+      publishedJobVersionId: string;
+    }) => {
+      const signature = `${publishedJobId}:${publishedJobVersionId}`;
+      if (!caseCommandRef.current || caseCommandRef.current.signature !== signature) {
+        caseCommandRef.current = {
+          signature,
+          idempotencyKey: createIdempotencyKey("catalog-case"),
+        };
+      }
+      return createApplicationCase(
+        {
+          jobContext: {
+            kind: "public",
+            publishedJobId,
+            publishedJobVersionId,
+          },
+        },
+        caseCommandRef.current.idempotencyKey,
+      );
+    },
+    retry: false,
+    onSuccess: async ({ applicationCase }) => {
+      await queryClient.invalidateQueries({ queryKey: careerOsQueryKeys.cases });
+      navigate(`/applications/${applicationCase.id}/requirements`);
+    },
+  });
+
   if (jobQuery.isPending) return <ProductLoading label="正在读取岗位详情" />;
   if (jobQuery.isError) {
     return (
@@ -244,6 +284,39 @@ export function JobDetailPage() {
             {job.displayStatus === "recruiting" ? "招聘中" : "状态待核对"}
           </span>
         </header>
+
+        {careerOsV2Enabled ? (
+          <section className="product-panel" aria-labelledby="career-os-case-heading">
+            <div className="panel-heading">
+              <div>
+                <p className="eyebrow">加入你的私有求职工作区</p>
+                <h2 id="career-os-case-heading">围绕这个岗位持续准备</h2>
+              </div>
+              <button
+                className="button button--primary"
+                type="button"
+                disabled={!job.publishedJobVersionId || applicationCaseMutation.isPending}
+                onClick={() => {
+                  if (!job.publishedJobVersionId) return;
+                  applicationCaseMutation.mutate({
+                    publishedJobId: job.id,
+                    publishedJobVersionId: job.publishedJobVersionId,
+                  });
+                }}
+              >
+                {applicationCaseMutation.isPending ? "正在加入…" : "加入我的求职"}
+              </button>
+            </div>
+            <p className="muted-copy">
+              {job.publishedJobVersionId
+                ? "再次加入会打开同一活动 Case；岗位信息固定在当前准入版本。"
+                : "当前岗位缺少可固定的准入版本，暂时不能加入求职工作区。"}
+            </p>
+            {applicationCaseMutation.isError ? (
+              <ProductError title="暂时无法加入求职工作区" error={applicationCaseMutation.error} />
+            ) : null}
+          </section>
+        ) : null}
 
         <section className="product-panel" aria-labelledby="conditions-heading">
           <div className="panel-heading">

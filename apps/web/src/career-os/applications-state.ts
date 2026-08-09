@@ -1,4 +1,4 @@
-import type { CaseStage } from "./domain";
+import type { CaseStage } from "./workspace-model";
 
 export type ApplicationsView = "board" | "list";
 export type ApplicationsSort = "updated" | "deadline";

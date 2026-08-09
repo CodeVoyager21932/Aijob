@@ -18,6 +18,6 @@ describe("Career OS workspace navigation", () => {
       getWorkspaceBreadcrumbs("/applications/case-starbridge-product/requirements").map(
         (item) => item.label,
       ),
-    ).toEqual(["我的求职", "示例·星桥科技", "JD能力"]);
+    ).toEqual(["我的求职", "求职项目", "JD能力"]);
   });
 });

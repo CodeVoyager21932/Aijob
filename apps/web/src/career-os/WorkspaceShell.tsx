@@ -1,10 +1,14 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useSearchParams } from "react-router-dom";
+import { careerOsQueryKeys, getApplicationCase } from "../api/career-os";
+import { ProductApiError } from "../api/client";
+import { toApplicationCaseView } from "./application-case-view";
 import { ContextInspector } from "./components/ContextInspector";
+import { ContextInspectorFrame } from "./components/ContextInspector";
 import { GlobalSidebar } from "./components/GlobalSidebar";
 import { ResizablePane } from "./components/ResizablePane";
 import { UtilityBar } from "./components/UtilityBar";
-import { getCareerCase } from "./domain";
 import { readWorkspacePreferences, writeWorkspacePreferences } from "./ui-preferences";
 import "./career-os.css";
 
@@ -16,7 +20,14 @@ export function WorkspaceShell() {
   const mainRef = useRef<HTMLElement>(null);
   const previousPeekRef = useRef<string | null>(null);
   const peekCaseId = location.pathname === "/applications" ? searchParams.get("peek") : null;
-  const peekCase = getCareerCase(peekCaseId ?? undefined);
+  const peekQuery = useQuery({
+    queryKey: careerOsQueryKeys.caseDetail(peekCaseId ?? ""),
+    queryFn: ({ signal }) => getApplicationCase(peekCaseId ?? "", signal),
+    enabled: Boolean(peekCaseId),
+    retry: (failureCount, error) =>
+      error instanceof ProductApiError && error.status === 404 ? false : failureCount < 1,
+  });
+  const peekCase = peekQuery.data ? toApplicationCaseView(peekQuery.data) : null;
 
   useEffect(() => {
     writeWorkspacePreferences(preferences);
@@ -41,6 +52,14 @@ export function WorkspaceShell() {
     previousPeekRef.current = peekCaseId;
   }, [location.pathname, peekCaseId]);
 
+  useEffect(() => {
+    if (!peekCaseId || !(peekQuery.error instanceof ProductApiError)) return;
+    if (peekQuery.error.status !== 404) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("peek");
+    setSearchParams(next, { replace: true });
+  }, [peekCaseId, peekQuery.error, searchParams, setSearchParams]);
+
   const closeInspector = () => {
     const next = new URLSearchParams(searchParams);
     next.delete("peek");
@@ -50,7 +69,7 @@ export function WorkspaceShell() {
   return (
     <div
       className={`product-app career-os${preferences.sidebarCollapsed ? " is-sidebar-collapsed" : ""}`}
-      data-inspector-open={peekCase ? "true" : "false"}
+      data-inspector-open={peekCaseId ? "true" : "false"}
     >
       <a className="skip-link" href="#career-main">
         跳到主要内容
@@ -72,7 +91,7 @@ export function WorkspaceShell() {
           <main ref={mainRef} className="career-main product-main" id="career-main" tabIndex={-1}>
             <Outlet />
           </main>
-          {peekCase ? (
+          {peekCaseId ? (
             <>
               <button
                 className="career-inspector-backdrop"
@@ -86,7 +105,30 @@ export function WorkspaceShell() {
                   setPreferences((current) => ({ ...current, inspectorWidth }))
                 }
               >
-                <ContextInspector careerCase={peekCase} onClose={closeInspector} />
+                {peekCase ? (
+                  <ContextInspector applicationCase={peekCase} onClose={closeInspector} />
+                ) : (
+                  <ContextInspectorFrame
+                    ariaLabel="岗位侧览"
+                    eyebrow="求职项目"
+                    title={peekQuery.isError ? "侧览暂时不可用" : "正在读取…"}
+                    meta="真实 Case 数据"
+                    closeLabel="关闭岗位侧览"
+                    onClose={closeInspector}
+                  >
+                    {peekQuery.isError ? (
+                      <div className="career-inline-error" role="alert">
+                        <span>
+                          {peekQuery.error instanceof Error
+                            ? peekQuery.error.message
+                            : "请关闭后重试。"}
+                        </span>
+                      </div>
+                    ) : (
+                      <output className="career-inspector__copy">正在加载固定岗位信息…</output>
+                    )}
+                  </ContextInspectorFrame>
+                )}
               </ResizablePane>
             </>
           ) : null}

@@ -1,32 +1,42 @@
-import type { CareerCase } from "../domain";
+import type { ApplicationCaseView } from "../application-case-view";
 import { Icon } from "./Icon";
 import { StageBadge } from "./StageBadge";
 
-export function CaseHeader({ careerCase }: { careerCase: CareerCase }) {
+export function CaseHeader({ applicationCase }: { applicationCase: ApplicationCaseView }) {
   return (
     <header className="career-case-header">
       <div className="career-case-header__identity">
         <div className="career-case-header__title-row">
           <h1>
-            {careerCase.companyName} · {careerCase.roleTitle}
+            {applicationCase.companyName} · {applicationCase.roleTitle}
           </h1>
-          <StageBadge stage={careerCase.stage} />
+          <StageBadge stage={applicationCase.stage} />
         </div>
         <div className="career-case-header__meta">
-          <span className="career-case-header__source">
-            <Icon name="check" size={17} />
-            {careerCase.sourceLabel} · 最近核验 {careerCase.sourceVerifiedAt}
+          <span className="career-case-header__source" title={applicationCase.sourceMeta}>
+            <Icon
+              name={applicationCase.sourceKind === "catalog" ? "check" : "document"}
+              size={17}
+            />
+            {applicationCase.sourceLabel}
           </span>
           <span>
             <Icon name="location" size={17} />
-            {careerCase.location} · {careerCase.workMode}
+            {applicationCase.locationLabel} · {applicationCase.workModeLabel}
           </span>
         </div>
       </div>
-      <button className="career-button career-button--quiet" type="button" disabled>
-        静态原型暂不打开外部页面
-        <Icon name="external" size={16} />
-      </button>
+      {applicationCase.externalUrl ? (
+        <a
+          className="career-button career-button--quiet"
+          href={applicationCase.externalUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {applicationCase.externalUrlVerified ? "打开岗位页面" : "打开用户提供链接"}
+          <Icon name="external" size={16} />
+        </a>
+      ) : null}
     </header>
   );
 }

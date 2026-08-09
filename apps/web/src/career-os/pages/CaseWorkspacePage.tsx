@@ -1,106 +1,132 @@
-import type { ReactNode } from "react";
+import type { ApplicationCaseWithJobContext } from "@aijob/contracts";
+import { useQuery } from "@tanstack/react-query";
+import { lazy, Suspense, type ReactNode } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
+import {
+  careerOsQueryKeys,
+  getApplicationCase,
+  getApplicationCaseRequirements,
+} from "../../api/career-os";
+import { ProductApiError } from "../../api/client";
+import { toApplicationCaseView } from "../application-case-view";
 import { CaseHeader } from "../components/CaseHeader";
 import { CaseTabs } from "../components/CaseTabs";
-import { EvidenceState } from "../components/EvidenceState";
 import { Icon } from "../components/Icon";
-import { type CareerCase, type CaseTab, caseStages, getCareerCase, isCaseTab } from "../domain";
-import { CaseRequirementsWorkspace } from "./CaseRequirementsWorkspace";
-import { CaseResumeWorkspace } from "./CaseResumeWorkspace";
+import { summarizeRequirementProgress } from "../requirements-view";
+import { type CaseTab, caseStages, isCaseTab } from "../workspace-model";
+
+const CaseRequirementsWorkspace = lazy(() =>
+  import("./CaseRequirementsWorkspace").then((module) => ({
+    default: module.CaseRequirementsWorkspace,
+  })),
+);
+const CaseResumeWorkspace = lazy(() =>
+  import("./CaseResumeWorkspace").then((module) => ({
+    default: module.CaseResumeWorkspace,
+  })),
+);
 
 type PlaceholderCaseTab = Exclude<CaseTab, "overview" | "requirements" | "resume">;
 
 const phaseContent: Record<PlaceholderCaseTab, { title: string; copy: string }> = {
   application: {
-    title: "投递记录将在领域阶段接入",
-    copy: "打开官方页面与手动确认已投递是两个独立事件，系统不会根据外链点击自动改变阶段。",
+    title: "投递记录不在 M1 范围内",
+    copy: "打开外部页面与手动确认已投递仍是两个独立事件；当前版本不会根据链接点击改变阶段。",
   },
   interview: {
-    title: "文字面试将在 PoC 阶段接入",
-    copy: "首轮只保存文字问题、回答、追问、证据引用和反馈，不处理语音、视频或录音。",
+    title: "文字面试不在 M1 范围内",
+    copy: "M1 只完成 Case、要求核对与派生简历只读闭环，不提前扩建面试领域。",
   },
   debrief: {
-    title: "复盘将在一岗闭环中接入",
-    copy: "只有用户确认后，复盘结果才可以形成新的经历表达修订；不会自动回写简历事实。",
+    title: "复盘不在 M1 范围内",
+    copy: "复盘将在后续闭环中建设，当前不会自动形成或回写任何经历表达。",
   },
 };
 
-function CaseProgress({ careerCase }: { careerCase: CareerCase }) {
-  const activeIndex = caseStages.findIndex((stage) => stage.value === careerCase.stage);
+function CaseProgress({ stage }: { stage: ApplicationCaseWithJobContext["stage"] }) {
+  const activeIndex = caseStages.findIndex((item) => item.value === stage);
   return (
     <ol className="career-case-progress" aria-label="求职项目阶段">
-      {caseStages.map((stage, index) => (
+      {caseStages.map((item, index) => (
         <li
-          key={stage.value}
+          key={item.value}
           className={
             index === activeIndex ? "is-current" : index < activeIndex ? "is-complete" : undefined
           }
           aria-current={index === activeIndex ? "step" : undefined}
         >
           <span>{index <= activeIndex ? <Icon name="check" size={16} /> : index + 1}</span>
-          {stage.label}
+          {item.label}
         </li>
       ))}
     </ol>
   );
 }
 
-function CaseOverview({ careerCase }: { careerCase: CareerCase }) {
+function CaseOverview({ applicationCase }: { applicationCase: ApplicationCaseWithJobContext }) {
+  const requirementsQuery = useQuery({
+    queryKey: careerOsQueryKeys.requirements(applicationCase.id),
+    queryFn: ({ signal }) => getApplicationCaseRequirements(applicationCase.id, signal),
+  });
+  const summary = requirementsQuery.data
+    ? summarizeRequirementProgress(requirementsQuery.data)
+    : null;
+
   return (
     <div className="career-case-overview">
       <section className="career-case-overview__next">
         <div>
-          <h2>下一步建议</h2>
-          <strong>{careerCase.nextTask}</strong>
-          <p>{careerCase.nextTaskDetail}</p>
+          <h2>当前可执行步骤</h2>
+          <strong>逐项核对固定 JD 要求</strong>
+          <p>
+            {summary
+              ? `${summary.total} 项要求中，${summary.unconfirmed} 项仍未确认。`
+              : "正在读取固定岗位要求…"}
+          </p>
         </div>
         <Link
           className="career-button career-button--primary"
-          to={`/applications/${careerCase.id}/requirements`}
+          to={`/applications/${applicationCase.id}/requirements`}
         >
           查看 JD 能力
           <Icon name="chevron" size={17} />
         </Link>
       </section>
 
-      <section className="career-case-overview__axes" aria-labelledby="case-axes-heading">
-        <header>
-          <h2 id="case-axes-heading">三轴分别判断</h2>
-          <p>不合并为匹配等级，也不自动劝退。</p>
-        </header>
-        <div>
-          <article>
-            <span>资格</span>
-            <strong>{careerCase.qualification}</strong>
-            <small>只依据岗位明确条件与已确认事实</small>
-          </article>
-          <article>
-            <span>经历证据</span>
-            <strong>{careerCase.evidence.length} 项逐项核对</strong>
-            <small>每项证据状态独立保留</small>
-          </article>
-          <article>
-            <span>偏好</span>
-            <strong>{careerCase.preference}</strong>
-            <small>只使用你主动设置的偏好</small>
-          </article>
+      {requirementsQuery.isError ? (
+        <div className="career-inline-error" role="alert">
+          <strong>要求进度暂时无法读取</strong>
+          <span>
+            {requirementsQuery.error instanceof Error
+              ? requirementsQuery.error.message
+              : "请稍后重试。"}
+          </span>
         </div>
-      </section>
-
-      <section className="career-case-overview__evidence" aria-labelledby="case-evidence-heading">
-        <header>
-          <h2 id="case-evidence-heading">当前经历证据</h2>
-          <Link to={`/applications/${careerCase.id}/requirements`}>进入 JD 能力页</Link>
-        </header>
-        <ul>
-          {careerCase.evidence.map((item) => (
-            <li key={item.id}>
-              <span>{item.label}</span>
-              <EvidenceState state={item.state} />
-            </li>
-          ))}
-        </ul>
-      </section>
+      ) : (
+        <section className="career-case-overview__axes" aria-labelledby="case-axes-heading">
+          <header>
+            <h2 id="case-axes-heading">分别核对，不合并成匹配等级</h2>
+            <p>只展示已经保存的状态，不自动劝退。</p>
+          </header>
+          <div>
+            <article>
+              <span>要求状态</span>
+              <strong>{summary ? `${summary.confirmed} 项已有证据` : "读取中"}</strong>
+              <small>{summary ? `${summary.needsWork} 项证据待补充` : "等待要求数据"}</small>
+            </article>
+            <article>
+              <span>经历证据</span>
+              <strong>{summary ? `${summary.linkedEvidenceCount} 个关联` : "读取中"}</strong>
+              <small>只关联用户已确认的证据</small>
+            </article>
+            <article>
+              <span>偏好</span>
+              <strong>尚未在当前工作区核对</strong>
+              <small>M1 不使用静态偏好结论</small>
+            </article>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
@@ -113,7 +139,7 @@ function PhasePlaceholder({ tab }: { tab: PlaceholderCaseTab }) {
         <Icon name={tab === "interview" ? "interview" : "briefcase"} />
       </span>
       <div>
-        <p>Phase 1A 路由骨架</p>
+        <p>M1 未开放</p>
         <h2>{content.title}</h2>
         <p>{content.copy}</p>
       </div>
@@ -121,44 +147,72 @@ function PhasePlaceholder({ tab }: { tab: PlaceholderCaseTab }) {
   );
 }
 
-function renderCaseTab(tab: CaseTab, careerCase: CareerCase): ReactNode {
-  if (tab === "overview") return <CaseOverview careerCase={careerCase} />;
+function renderCaseTab(tab: CaseTab, applicationCase: ApplicationCaseWithJobContext): ReactNode {
+  if (tab === "overview") return <CaseOverview applicationCase={applicationCase} />;
   if (tab === "requirements") {
-    return <CaseRequirementsWorkspace key={careerCase.id} careerCase={careerCase} />;
+    return (
+      <Suspense fallback={<output className="career-request-state">正在打开要求工作区…</output>}>
+        <CaseRequirementsWorkspace key={applicationCase.id} applicationCase={applicationCase} />
+      </Suspense>
+    );
   }
   if (tab === "resume") {
-    return <CaseResumeWorkspace key={careerCase.id} careerCase={careerCase} />;
+    return (
+      <Suspense fallback={<output className="career-request-state">正在打开简历工作区…</output>}>
+        <CaseResumeWorkspace key={applicationCase.id} applicationCase={applicationCase} />
+      </Suspense>
+    );
   }
   return <PhasePlaceholder tab={tab} />;
 }
 
 export function CaseWorkspacePage() {
-  const { caseId, tab } = useParams();
-  const careerCase = getCareerCase(caseId);
+  const { caseId = "", tab } = useParams();
+  const applicationCaseQuery = useQuery({
+    queryKey: careerOsQueryKeys.caseDetail(caseId),
+    queryFn: ({ signal }) => getApplicationCase(caseId, signal),
+    enabled: Boolean(caseId),
+    retry: (failureCount, error) =>
+      error instanceof ProductApiError && error.status === 404 ? false : failureCount < 1,
+  });
 
-  if (!careerCase) {
+  if (!isCaseTab(tab)) {
+    return <Navigate to={`/applications/${encodeURIComponent(caseId)}/overview`} replace />;
+  }
+  if (applicationCaseQuery.isPending) {
+    return <output className="career-request-state">正在读取真实求职项目…</output>;
+  }
+  if (applicationCaseQuery.isError) {
+    const notFound =
+      applicationCaseQuery.error instanceof ProductApiError &&
+      applicationCaseQuery.error.status === 404;
     return (
       <section className="career-not-found">
-        <h1>没有找到这个静态求职项目</h1>
+        <h1>{notFound ? "没有找到这个求职项目" : "求职项目暂时不可用"}</h1>
+        <p>
+          {notFound
+            ? "它可能不存在、已删除，或不属于当前用户。"
+            : applicationCaseQuery.error instanceof Error
+              ? applicationCaseQuery.error.message
+              : "请稍后重试。"}
+        </p>
         <Link to="/applications">返回我的求职</Link>
       </section>
     );
   }
 
-  if (!isCaseTab(tab)) {
-    return <Navigate to={`/applications/${careerCase.id}/overview`} replace />;
-  }
-
+  const applicationCase = applicationCaseQuery.data;
+  const view = toApplicationCaseView(applicationCase);
   return (
     <section className="career-case-workspace">
-      <CaseHeader careerCase={careerCase} />
-      <CaseTabs caseId={careerCase.id} />
-      <CaseProgress careerCase={careerCase} />
+      <CaseHeader applicationCase={view} />
+      <CaseTabs caseId={applicationCase.id} />
+      <CaseProgress stage={applicationCase.stage} />
       <div className="career-case-version-note" role="note">
         <Icon name="check" size={17} />
-        当前静态工作区固定岗位版本 2026/08/04；后续新版本只展示差异，不会静默替换。
+        {view.fixedVersionLabel}。外部页面更新不会静默替换当前 Case 的固定内容。
       </div>
-      {renderCaseTab(tab, careerCase)}
+      {renderCaseTab(tab, applicationCase)}
     </section>
   );
 }

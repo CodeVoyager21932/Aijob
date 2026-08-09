@@ -1,5 +1,5 @@
 import type { IconName } from "./components/Icon";
-import { caseTabs, getCareerCase } from "./domain";
+import { caseTabs } from "./workspace-model";
 
 export interface WorkspaceNavigationItem {
   to: string;
@@ -37,11 +37,10 @@ export function getWorkspaceBreadcrumbs(pathname: string): BreadcrumbItem[] {
 
   const caseMatch = pathname.match(/^\/applications\/([^/]+)\/([^/]+)$/);
   if (caseMatch) {
-    const careerCase = getCareerCase(caseMatch[1]);
     const activeTab = caseTabs.find((tab) => tab.value === caseMatch[2]);
     return [
       { label: "我的求职", to: "/applications" },
-      { label: careerCase?.companyName ?? "求职项目" },
+      { label: "求职项目" },
       ...(activeTab ? [{ label: activeTab.label }] : []),
     ];
   }
