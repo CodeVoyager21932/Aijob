@@ -68,7 +68,7 @@ flowchart LR
 
 ### 明确排除
 
-- 不实现 Interview、Debrief、Knowledge、投递状态界面或新的后台任务类型。
+- 不实现 Interview、Debrief、Knowledge 或投递状态界面；除 M2-4 为满足既有运行角色权限而接入原 PostgreSQL 队列的 `resume_review` 外，不增加其他后台任务类型或队列。
 - 不接真实招聘来源、真实 AI、真实简历、邮件、服务器或参与者数据；只使用合成简历夹具和模拟 provider。
 - 不在 M2 迁移 `/recommendations`、`/insights` 等旧页面；重复入口收口属于 M4。
 - 不因未来需求新增数据库、Redis、向量库、队列或第二套认证。

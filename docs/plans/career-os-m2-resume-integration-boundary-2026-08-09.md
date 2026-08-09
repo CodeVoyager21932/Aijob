@@ -1,6 +1,6 @@
 # M2 专业简历闭环：复用与集成边界
 
-> 状态：M2-0 已完成的支持性设计记录
+> 状态：M2-0 已完成的支持性设计记录；M2-4 已按可复现权限冲突完成前向修正
 >
 > 上位事实源：[MVP 路线与当前决策面板](../06-mvp-roadmap.md)、[Career OS 当前交付计划](career-os-current-delivery-plan.md)
 >
@@ -8,7 +8,7 @@
 
 ## 1. 结论
 
-M2 不需要新数据库、新 migration、第二套解析器、第二套事实库或通用富文本编辑器。现有 Resume V2 已经具备基础/Case 派生聚合、不可变内容与布局修订、稳定 section/block ID、两套中文模板、owner 隔离、乐观并发和删除覆盖；M2 的主要工作是把这些能力接入同一个真实文档工作台，并补两个当前界面必需的薄边界：
+M2 不需要新数据库、第二套解析器、第二套事实库或通用富文本编辑器。现有 Resume V2 已经具备基础/Case 派生聚合、不可变内容与布局修订、稳定 section/block ID、两套中文模板、owner 隔离、乐观并发和删除覆盖；M2 的主要工作是把这些能力接入同一个真实文档工作台，并补两个当前界面必需的薄边界。M2-4 实现时证明既有任务类型约束与运行角色权限无法支持 Review 生成，因此只增加 migration 031，将 `resume_review` 接入既有 PostgreSQL 任务队列；没有增加表、数据库、队列或运行角色。
 
 1. 为既有 Resume Review 表与契约提供 Case 派生简历的确定性生成、读取和逐条决策服务。
 2. 让既有 DOCX renderer 接受 Resume V2 当前修订，并提供不落盘的 owner 保护导出。
@@ -41,7 +41,7 @@ M2 不需要新数据库、新 migration、第二套解析器、第二套事实�
 | Base/Derived 文档 | `profile.resume_documents` 与不可变 content/layout revisions | 作为 `/resumes` 和 Case `resume` 的唯一写入模型 | 不继续扩展旧 `profile/document` 为第二套编辑模型 |
 | 结构编辑 | `ResumeSemanticContent`、内容修订 API | 新建共享的结构化工作台；文本框、增删、上移/下移、证据引用 | 不引入 Tiptap、拖拽作为唯一排序方式或 HTML 正文 |
 | Case 派生 | 既有 `case_derived` 创建事务与 Case event | 继续固定 Case、岗位版本、基础修订和证据修订 | 不在页面 GET 时自动创建，不因基础简历后续变化静默重建 |
-| 专业建议 | `profile.resume_review_*` 表与 contracts | 新增薄 service/routes；首轮同步生成确定性 template Review，受控 AI 仍关闭 | 不把旧 tailoring run 当 V2 真源，不调用真实模型 |
+| 专业建议 | `profile.resume_review_*` 表、contracts 与既有 PostgreSQL owner task queue | web-api 幂等创建 pending Review；match-worker 生成确定性 template findings/suggestions；受控 AI 仍关闭 | 不让 web-api 越权写 worker 投影，不新建队列，不把旧 tailoring run 当 V2 真源，不调用真实模型 |
 | 建议决定 | 不可变 review decision + 新 content revision | 接受/编辑后采用时原子生成新正文修订；拒绝只写决定；保留原修订 | 不直接覆盖正文，不把已保存决定改回 `pending` |
 | 模板 | 两个 Resume V2 layout keys | 通过布局修订切换，正文与 evidence IDs 不变 | 不复制第三套 renderer，不在 M2 增加模板市场 |
 | A4 与打印 | Case M1 A4 预览、浏览器打印 | 抽成 Base/Derived 共用工作台并提供 print CSS | 不建服务器 PDF 服务 |
@@ -64,11 +64,19 @@ M2 不需要新数据库、新 migration、第二套解析器、第二套事实�
 
 1. Web Career OS API 缺少文档详情、legacy conversion、content/layout 写入函数与对应 query keys。
 2. `/resumes` 仍是占位页；Case Resume 仍为 M1 只读组件，两者需要复用同一个工作台内核。
-3. `resume_review_*` 已有 Schema、强约束与删除链，但没有 Platform service/routes。
+3. `resume_review_*` 已有 Schema、强约束与删除链，但 M2-0 时没有 Platform service/routes；M2-4 已补齐创建、读取、后台生成和逐条决策。
 4. DOCX renderer 只有旧 tailoring 调用方，需要从 Resume V2 当前内容修订生成 DTO 的适配路由。
 5. 旧解析/确认页仍写“结构化事实最长保留 30 天”，与当前默认长期保留政策冲突。
 
-以上缺口都可在 migrations 001–030 上完成，不新增 migration。只有实现时出现可复现的数据库约束缺口，才允许最小 additive forward repair，并必须先更新本记录及隔离 PostgreSQL 证据。
+除 Review 后台生成外，其余缺口可在 migrations 001–030 上完成。M2-4 已复现并确认：`web-api` 只有 Review run/decision 写权限，findings/suggestions 必须由 `match-worker` 写入，而既有 `task_type` 约束不接受 `resume_review`。因此 migration 031 仅扩展该约束，复用原队列、租约、owner epoch、迟到任务拒绝和失败隔离；这是允许的最小 additive forward repair，不是新基础设施。
+
+### M2-4 权限冲突的固定处理
+
+- 禁止用本地超级用户可执行来证明生产角色可执行；同步在 web-api 内生成 findings/suggestions 的原假设已撤销。
+- `POST /v1/resume-documents/:documentId/reviews` 只创建固定内容/岗位/证据版本的 pending run，并幂等排入既有 `resume_review` owner task。
+- `match-worker` 在 owner lease 内生成确定性模板结果；失败只把 run 标记为 failed，不改正文。
+- 接受或编辑决定由 web-api 在同一事务创建新正文修订并记录不可变 decision；拒绝只记录 decision。
+- migrations 031 之后不得从该修正推导 Interview、AI provider 或其他后台任务；M2-5 仍只做模板与导出。
 
 ## 5. Review 决策语义
 
@@ -77,7 +85,7 @@ M2 不需要新数据库、新 migration、第二套解析器、第二套事实�
 - 接受与“编辑后采用”必须在同一事务中创建新的 Resume content revision，再插入不可变 decision；数据库投影把 suggestion 从 `pending` 推进到最终状态。
 - 拒绝只插入不可变 decision，不创建伪正文修订。
 - 用户在提交前可以取消界面草稿。决定一旦保存，不得改回 `pending`；若用户希望恢复文字，使用普通结构化编辑生成新的内容修订，历史 Review 决定仍可审计。
-- 新正文修订会使旧 Review 只读；后续建议必须从当前修订显式创建新的 Review，不能把旧建议自动重放到已变化的文档。
+- 同一 Review 可连续处理多个建议，但每次只核对目标区块是否仍与审阅时版本一致；已变化目标 fail closed，未变化目标可继续形成新修订。系统从不自动重放旧建议；用户也可显式对当前修订重新审阅。
 
 ## 6. 前端交互方向
 
