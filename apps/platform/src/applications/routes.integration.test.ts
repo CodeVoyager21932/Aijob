@@ -225,7 +225,14 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
               value: "product",
               evidenceRefs: [`${fixture.revisionId}#family`],
             }),
-            locations: unknown,
+            locations:
+              fixture.index === 1
+                ? JSON.stringify({
+                    state: "known",
+                    value: ["Shanghai"],
+                    evidenceRefs: [`${fixture.revisionId}#location`],
+                  })
+                : unknown,
             responsibilities: "Synthetic product research responsibilities.",
             requirements: "Current student with synthetic research evidence.",
             structured_fields: JSON.stringify({}),
@@ -901,6 +908,11 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
     });
     expect(secondPublicCreated.statusCode).toBe(201);
     const secondPublicBody = CreateApplicationCaseResponseSchema.parse(secondPublicCreated.json());
+    expect(secondPublicBody.applicationCase.jobDisplay.locations).toEqual({
+      state: "known",
+      value: ["Shanghai"],
+      evidenceRefs: [`${secondPublic.revisionId}#location`],
+    });
 
     const concurrentRequest = {
       jobContext: {
@@ -1840,9 +1852,9 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       }),
       app.inject({
         method: "PUT",
-        url: `/v1/application-cases/${publicCase.applicationCase.id}/requirements/requirement-new-project`,
+        url: `/v1/application-cases/${publicCase.applicationCase.id}/requirements/requirement-new-sql`,
         headers,
-        payload: { expectedRevision: 3, state: "confirmed", userNote: null },
+        payload: { expectedRevision: 3, state: "confirmed", userNote: "并发页面的另一份草稿" },
       }),
     ]);
     expect(concurrentStates.map(({ statusCode }) => statusCode).sort()).toEqual([200, 409]);

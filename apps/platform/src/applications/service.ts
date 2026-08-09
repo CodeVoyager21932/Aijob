@@ -430,9 +430,9 @@ function mapCaseRow(row: ApplicationCaseReadRow): ApplicationCaseWithJobContext 
     const jobDisplay = ApplicationCaseJobDisplaySchema.parse({
       title: row.public_title,
       companyName: row.public_company_name,
-      locations: semanticRevisionValue(row.public_locations),
-      workMode: semanticRevisionValue(row.public_work_mode),
-      deadlineAt: semanticRevisionValue(row.public_deadline_at),
+      locations: row.public_locations,
+      workMode: row.public_work_mode,
+      deadlineAt: row.public_deadline_at,
       source: {
         kind: "catalog",
         displayName:
@@ -958,6 +958,7 @@ function revisionScopedIdempotencyKey(input: {
   caseId: string;
   resourceId: string;
   expectedRevision: number;
+  requestHash: string;
 }): string {
   return hashCanonicalJson(input);
 }
@@ -1208,15 +1209,16 @@ export async function putApplicationCaseRequirementState(input: {
   request: PutCaseRequirementStateRequest;
 }): Promise<ApplicationCaseMutationResponse> {
   const idempotencyScope = "application-case:requirement-state";
-  const idempotencyKey = revisionScopedIdempotencyKey({
-    caseId: input.caseId,
-    resourceId: input.requirementId,
-    expectedRevision: input.request.expectedRevision,
-  });
   const requestHash = hashCanonicalJson({
     caseId: input.caseId,
     requirementId: input.requirementId,
     request: input.request,
+  });
+  const idempotencyKey = revisionScopedIdempotencyKey({
+    caseId: input.caseId,
+    resourceId: input.requirementId,
+    expectedRevision: input.request.expectedRevision,
+    requestHash,
   });
 
   return input.db.transaction().execute(async (transaction) => {
@@ -1314,15 +1316,16 @@ export async function putApplicationCaseRequirementEvidenceLinks(input: {
   request: PutCaseRequirementEvidenceLinksRequest;
 }): Promise<ApplicationCaseMutationResponse> {
   const idempotencyScope = "application-case:requirement-evidence";
-  const idempotencyKey = revisionScopedIdempotencyKey({
-    caseId: input.caseId,
-    resourceId: input.requirementId,
-    expectedRevision: input.request.expectedRevision,
-  });
   const requestHash = hashCanonicalJson({
     caseId: input.caseId,
     requirementId: input.requirementId,
     request: input.request,
+  });
+  const idempotencyKey = revisionScopedIdempotencyKey({
+    caseId: input.caseId,
+    resourceId: input.requirementId,
+    expectedRevision: input.request.expectedRevision,
+    requestHash,
   });
 
   return input.db.transaction().execute(async (transaction) => {
@@ -1576,15 +1579,16 @@ export async function updateApplicationCaseQuestion(input: {
   request: UpdateCaseQuestionRequest;
 }): Promise<ApplicationCaseMutationResponse> {
   const idempotencyScope = "application-case:question-update";
-  const idempotencyKey = revisionScopedIdempotencyKey({
-    caseId: input.caseId,
-    resourceId: input.questionId,
-    expectedRevision: input.request.expectedRevision,
-  });
   const requestHash = hashCanonicalJson({
     caseId: input.caseId,
     questionId: input.questionId,
     request: input.request,
+  });
+  const idempotencyKey = revisionScopedIdempotencyKey({
+    caseId: input.caseId,
+    resourceId: input.questionId,
+    expectedRevision: input.request.expectedRevision,
+    requestHash,
   });
 
   return input.db.transaction().execute(async (transaction) => {
