@@ -713,6 +713,30 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
     });
     expect(pageOne.items.map((item) => item.id)).not.toContain(mainResume.legacyRevisionId);
 
+    const basePageResponse = await app.inject({
+      method: "GET",
+      url: "/v1/resume-documents?kind=base&limit=1",
+      headers,
+    });
+    expect(basePageResponse.statusCode).toBe(200);
+    const basePage = ListResumeDocumentsResponseSchema.parse(basePageResponse.json());
+    expect(basePage.items).toHaveLength(1);
+    expect(basePage.items[0]?.kind).toBe("base");
+    expect(basePage.nextCursor).not.toBeNull();
+    const crossFilterCursor = await app.inject({
+      method: "GET",
+      url: `/v1/resume-documents?kind=case_derived&cursor=${encodeURIComponent(basePage.nextCursor ?? "")}`,
+      headers,
+    });
+    expect(crossFilterCursor.statusCode).toBe(400);
+    expect(crossFilterCursor.json()).toMatchObject({ code: "INVALID_RESUME_DOCUMENT_CURSOR" });
+    const invalidBaseCaseFilter = await app.inject({
+      method: "GET",
+      url: `/v1/resume-documents?kind=base&caseId=${publicCaseId}`,
+      headers,
+    });
+    expect(invalidBaseCaseFilter.statusCode).toBe(400);
+
     const pageTwoResponse = await app.inject({
       method: "GET",
       url: `/v1/resume-documents?limit=2&cursor=${encodeURIComponent(pageOne.nextCursor ?? "")}`,
@@ -774,6 +798,30 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
 
   it("creates public and private Case-derived documents from same-owner pinned inputs", async () => {
     const mainHeaders = sessionHeaders(mainSession);
+    const staleCaseRevision = await app.inject({
+      method: "POST",
+      url: "/v1/resume-documents",
+      headers: { ...mainHeaders, "idempotency-key": `stale-case-${randomUUID()}` },
+      payload: {
+        kind: "case_derived",
+        caseId: privateCaseId,
+        baseDocumentRevisionId: mainResume.baseContentRevisionId,
+        expectedCaseRevision: 99,
+        title: "过期 Case revision 不得产生空壳",
+      },
+    });
+    expect(staleCaseRevision.statusCode).toBe(409);
+    expect(staleCaseRevision.json()).toMatchObject({
+      code: "APPLICATION_CASE_REVISION_CONFLICT",
+    });
+    const documentsAfterStaleWrite = await db
+      .selectFrom("profile.resume_documents")
+      .select(({ fn }) => fn.countAll<number>().as("count"))
+      .where("owner_id", "=", mainSession.context.ownerId)
+      .where("case_id", "=", privateCaseId)
+      .executeTakeFirstOrThrow();
+    expect(Number(documentsAfterStaleWrite.count)).toBe(0);
+
     const crossOwnerBase = await app.inject({
       method: "POST",
       url: "/v1/resume-documents",
@@ -782,6 +830,7 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
         kind: "case_derived",
         caseId: privateCaseId,
         baseDocumentRevisionId: otherResume.baseContentRevisionId,
+        expectedCaseRevision: 1,
         title: "不得使用其他 owner 的基础简历",
       },
     });
@@ -799,6 +848,7 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
         kind: "case_derived",
         caseId: noEvidenceCaseId,
         baseDocumentRevisionId: noEvidenceResume.baseContentRevisionId,
+        expectedCaseRevision: 1,
         title: "没有已确认证据时不得创建",
       },
     });
@@ -814,12 +864,16 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
           kind: "case_derived",
           caseId: publicCaseId,
           baseDocumentRevisionId: mainResume.baseContentRevisionId,
+          expectedCaseRevision: 1,
           title: "岗位定制简历",
         },
       }),
     );
     const publicResponses = await Promise.all(publicRequests);
     expect(publicResponses.map((response) => response.statusCode).sort()).toEqual([201, 409]);
+    expect(publicResponses.find((response) => response.statusCode === 409)?.json()).toMatchObject({
+      code: "APPLICATION_CASE_REVISION_CONFLICT",
+    });
     const publicCreatedResponse = publicResponses.find((response) => response.statusCode === 201);
     if (!publicCreatedResponse) throw new Error("PUBLIC_DERIVED_RESUME_NOT_CREATED");
     const publicCreated = CreateResumeDocumentResponseSchema.parse(publicCreatedResponse.json());
@@ -829,12 +883,86 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       baseDocumentId: mainResume.baseDocumentId,
       baseDocumentRevisionId: mainResume.baseContentRevisionId,
       evidenceRevisionId: mainResume.evidenceRevisionId,
+      revision: 1,
+      currentContentRevisionId: expect.any(String),
+      currentLayoutRevisionId: expect.any(String),
       jobContext: {
         kind: "public",
         publishedJobId: publicJobId,
         publishedJobVersionId: publicVersionV1Id,
         requirementSetId: publicRequirementV1Id,
         officialUrl: expect.stringContaining("/apply"),
+      },
+    });
+    const initialContentResponse = await app.inject({
+      method: "GET",
+      url: `/v1/resume-documents/${publicCreated.resumeDocument.id}/revisions`,
+      headers: mainHeaders,
+    });
+    expect(initialContentResponse.statusCode).toBe(200);
+    const initialContent = ListResumeDocumentContentRevisionsResponseSchema.parse(
+      initialContentResponse.json(),
+    );
+    expect(initialContent.current).toMatchObject({
+      id: publicCreated.resumeDocument.currentContentRevisionId,
+      documentRevision: 1,
+      baseDocumentRevisionId: null,
+      content: {
+        sections: [
+          {
+            id: mainResume.sectionId,
+            blocks: [
+              {
+                id: mainResume.blockId,
+                text: "Synthetic confirmed resume statement.",
+                evidenceIds: [mainResume.evidenceId],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    if (!initialContent.current) throw new Error("DERIVED_INITIAL_CONTENT_MISSING");
+    const initialLayoutResponse = await app.inject({
+      method: "GET",
+      url: `/v1/resume-documents/${publicCreated.resumeDocument.id}/layout-revisions`,
+      headers: mainHeaders,
+    });
+    expect(initialLayoutResponse.statusCode).toBe(200);
+    expect(
+      ListResumeDocumentLayoutRevisionsResponseSchema.parse(initialLayoutResponse.json()).current,
+    ).toMatchObject({
+      id: publicCreated.resumeDocument.currentLayoutRevisionId,
+      layoutRevision: 1,
+      templateKey: "cn_classic_single_column",
+      sectionOrder: [mainResume.sectionId],
+      settings: {
+        fontSizeToken: "standard",
+        lineSpacingToken: "standard",
+        sectionSpacingToken: "standard",
+        colorToken: "charcoal",
+        pageBreakPolicy: "keep_sections",
+      },
+    });
+    const publicCaseAfterDerivation = await db
+      .selectFrom("application.application_cases")
+      .select("revision")
+      .where("id", "=", publicCaseId)
+      .executeTakeFirstOrThrow();
+    expect(Number(publicCaseAfterDerivation.revision)).toBe(2);
+    const publicDerivedEvent = await db
+      .selectFrom("application.case_events")
+      .select(["sequence", "event_type", "event_data"])
+      .where("case_id", "=", publicCaseId)
+      .where("event_type", "=", "resume_document_derived")
+      .executeTakeFirstOrThrow();
+    expect(publicDerivedEvent).toMatchObject({
+      sequence: 2,
+      event_type: "resume_document_derived",
+      event_data: {
+        schemaVersion: "case-event-v1",
+        documentId: publicCreated.resumeDocument.id,
+        contentRevisionId: initialContent.current.id,
       },
     });
     const catalogPointer = await db
@@ -871,7 +999,7 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       },
       payload: {
         expectedRevision: 1,
-        baseDocumentRevisionId: mainResume.baseContentRevisionId,
+        baseDocumentRevisionId: initialContent.current.id,
         content: derivedContent,
       },
     });
@@ -882,8 +1010,8 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
     expect(initializedDerivedBody).toMatchObject({
       documentRevision: 2,
       contentRevision: {
-        documentRevision: 1,
-        baseDocumentRevisionId: null,
+        documentRevision: 2,
+        baseDocumentRevisionId: initialContent.current.id,
         content: derivedContent,
       },
     });
@@ -941,6 +1069,7 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
         kind: "case_derived",
         caseId: privateCaseId,
         baseDocumentRevisionId: mainResume.baseContentRevisionId,
+        expectedCaseRevision: 1,
         title: "私有岗位定制简历",
       },
     });
@@ -975,6 +1104,7 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
         kind: "case_derived",
         caseId: privateCaseId,
         baseDocumentRevisionId: mainResume.baseContentRevisionId,
+        expectedCaseRevision: 1,
         title: "私有岗位定制简历",
       },
     });
@@ -991,6 +1121,7 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
         kind: "case_derived",
         caseId: privateCaseId,
         baseDocumentRevisionId: mainResume.baseContentRevisionId,
+        expectedCaseRevision: 2,
         title: "第二份私有岗位简历",
       },
     });
@@ -998,6 +1129,29 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
     expect(duplicateCaseResume.json()).toMatchObject({
       code: "RESUME_DOCUMENT_FOR_CASE_EXISTS",
     });
+
+    const publicCaseDocuments = await app.inject({
+      method: "GET",
+      url: `/v1/resume-documents?kind=case_derived&caseId=${publicCaseId}`,
+      headers: mainHeaders,
+    });
+    expect(publicCaseDocuments.statusCode).toBe(200);
+    expect(ListResumeDocumentsResponseSchema.parse(publicCaseDocuments.json())).toMatchObject({
+      items: [{ id: publicCreated.resumeDocument.id, caseId: publicCaseId }],
+      nextCursor: null,
+      legacySource: null,
+    });
+    const baseDocuments = await app.inject({
+      method: "GET",
+      url: "/v1/resume-documents?kind=base",
+      headers: mainHeaders,
+    });
+    expect(baseDocuments.statusCode).toBe(200);
+    expect(
+      ListResumeDocumentsResponseSchema.parse(baseDocuments.json()).items.every(
+        (item) => item.kind === "base",
+      ),
+    ).toBe(true);
 
     const storedReferences = await db
       .selectFrom("profile.resume_documents")

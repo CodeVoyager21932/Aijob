@@ -7,6 +7,7 @@ import {
   ApplicationCaseEventSchema,
   type ApplicationCaseJobVersionDiffResponse,
   ApplicationCaseJobVersionDiffResponseSchema,
+  ApplicationCaseJobDisplaySchema,
   type ApplicationCaseMutationResponse,
   ApplicationCaseMutationResponseSchema,
   type ApplicationCaseRequirements,
@@ -44,6 +45,7 @@ import {
 import type { Database, JsonValue } from "@aijob/database";
 import { type Kysely, type Selectable, sql, type Transaction } from "kysely";
 import { z } from "zod";
+import { decomposeTextualJobRequirements } from "../catalog/requirements.js";
 import { assertActiveOwnerEpoch, type OwnerScope } from "../identity/session-repository.js";
 import { canonicalJson, hashCanonicalJson } from "../lib/canonical-json.js";
 import { lockOwnerIdempotencyKey } from "../lib/idempotency.js";
@@ -128,6 +130,15 @@ interface ApplicationCaseReadRow {
   created_at: Date;
   updated_at: Date;
   public_official_url: string | null;
+  public_title: string | null;
+  public_company_name: string | null;
+  public_locations: JsonValue | null;
+  public_work_mode: JsonValue | null;
+  public_deadline_at: JsonValue | null;
+  public_source_name: string | null;
+  public_policy_status: string | null;
+  public_provenance_level: string | null;
+  public_last_verified_at: Date | null;
   private_title: string | null;
   private_company_name: string | null;
   private_source_label: string | null;
@@ -335,6 +346,26 @@ function caseReadQuery(db: DbExecutor) {
       "public_version.id",
       "application_case.published_job_version_id",
     )
+    .leftJoin(
+      "ingestion.source_job_revisions as public_source_revision",
+      "public_source_revision.id",
+      "public_version.source_job_revision_id",
+    )
+    .leftJoin(
+      "ingestion.source_job_records as public_source_record",
+      "public_source_record.id",
+      "public_source_revision.source_job_record_id",
+    )
+    .leftJoin(
+      "source_control.sources as public_source",
+      "public_source.id",
+      "public_source_record.source_id",
+    )
+    .leftJoin("source_control.source_policy_versions as public_policy", (join) =>
+      join
+        .onRef("public_policy.source_id", "=", "public_source.id")
+        .onRef("public_policy.version", "=", "public_source.current_policy_version"),
+    )
     .leftJoin("application.private_job_snapshot_revisions as private_revision", (join) =>
       join
         .onRef("private_revision.owner_id", "=", "application_case.owner_id")
@@ -361,6 +392,17 @@ function caseReadQuery(db: DbExecutor) {
       sql<string | null>`COALESCE(public_version.apply_url, public_version.source_url)`.as(
         "public_official_url",
       ),
+      "public_version.title as public_title",
+      "public_version.company_name as public_company_name",
+      "public_version.locations as public_locations",
+      "public_version.work_mode as public_work_mode",
+      "public_version.deadline_at as public_deadline_at",
+      "public_source.name as public_source_name",
+      "public_policy.policy_status as public_policy_status",
+      "public_policy.provenance_level as public_provenance_level",
+      sql<Date | null>`COALESCE(public_policy.reviewed_at, public_source_revision.created_at)`.as(
+        "public_last_verified_at",
+      ),
       "private_revision.title as private_title",
       "private_revision.company_name as private_company_name",
       "private_revision.source_label as private_source_label",
@@ -385,6 +427,21 @@ function mapCaseRow(row: ApplicationCaseReadRow): ApplicationCaseWithJobContext 
   };
 
   if (row.job_context_kind === "public") {
+    const jobDisplay = ApplicationCaseJobDisplaySchema.parse({
+      title: row.public_title,
+      companyName: row.public_company_name,
+      locations: semanticRevisionValue(row.public_locations),
+      workMode: semanticRevisionValue(row.public_work_mode),
+      deadlineAt: semanticRevisionValue(row.public_deadline_at),
+      source: {
+        kind: "catalog",
+        displayName:
+          row.public_policy_status === "pending_review" ? "本地待复核来源" : row.public_source_name,
+        policyStatus: row.public_policy_status,
+        provenanceLevel: row.public_provenance_level,
+        lastVerifiedAt: row.public_last_verified_at ? toIso(row.public_last_verified_at) : null,
+      },
+    });
     return ApplicationCaseWithJobContextSchema.parse({
       ...common,
       jobContext: {
@@ -394,9 +451,23 @@ function mapCaseRow(row: ApplicationCaseReadRow): ApplicationCaseWithJobContext 
         requirementSetId: row.requirement_set_id,
         officialUrl: row.public_official_url,
       },
+      jobDisplay,
     });
   }
 
+  const jobDisplay = ApplicationCaseJobDisplaySchema.parse({
+    title: row.private_title,
+    companyName: row.private_company_name,
+    locations: { state: "unknown", reason: "source_not_stated" },
+    workMode: { state: "unknown", reason: "source_not_stated" },
+    deadlineAt: { state: "unknown", reason: "source_not_stated" },
+    source: {
+      kind: "owner_private",
+      displayName: row.private_source_label,
+      sourceProvided: row.private_source_provided,
+      verified: false,
+    },
+  });
   return ApplicationCaseWithJobContextSchema.parse({
     ...common,
     jobContext: {
@@ -411,6 +482,7 @@ function mapCaseRow(row: ApplicationCaseReadRow): ApplicationCaseWithJobContext 
       requirementSetRevision: Number(row.private_requirement_set_revision),
       sourceProvided: row.private_source_provided,
     },
+    jobDisplay,
   });
 }
 
@@ -1704,6 +1776,147 @@ async function resolvePrivateJobContext(
   };
 }
 
+function normalizePrivateJobContent(contentText: string): string {
+  return contentText.replace(/\r\n?/g, "\n").trim();
+}
+
+function privateJobSourceMetadata(
+  source: Extract<
+    CreateApplicationCaseWithJobContextRequest["jobContext"],
+    { kind: "private_input" }
+  >["source"],
+) {
+  if (source.kind === "provided_url") {
+    return {
+      sourceLabel: "用户提供链接，平台未核验",
+      officialUrl: source.url,
+      sourceProvided: true,
+    };
+  }
+  if (source.kind === "referral") {
+    return {
+      sourceLabel: "用户转发/内推，平台未核验",
+      officialUrl: null,
+      sourceProvided: true,
+    };
+  }
+  return {
+    sourceLabel: "来源未提供，请自行核验",
+    officialUrl: null,
+    sourceProvided: false,
+  };
+}
+
+const PurePrivateJobHeading =
+  /^(?:岗位职责|职位描述|工作内容|任职要求|岗位要求|资格条件|职位要求)[:：]?$/;
+
+async function resolvePrivateInputJobContext(
+  db: Transaction<Database>,
+  owner: OwnerScope,
+  request: Extract<
+    CreateApplicationCaseWithJobContextRequest["jobContext"],
+    { kind: "private_input" }
+  >,
+  idempotencyKey: string,
+  requestHash: string,
+): Promise<ResolvedJobContext> {
+  const contentText = normalizePrivateJobContent(request.contentText);
+  const contentHash = hashCanonicalJson(contentText);
+
+  if (request.duplicateHandling === "reuse") {
+    await lockOwnerIdempotencyKey(db, {
+      ownerId: owner.ownerId,
+      scope: "private-job-content",
+      idempotencyKey: contentHash,
+    });
+    const existing = await db
+      .selectFrom("application.private_job_snapshots as snapshot")
+      .innerJoin("application.private_job_snapshot_revisions as revision", (join) =>
+        join
+          .onRef("revision.owner_id", "=", "snapshot.owner_id")
+          .onRef("revision.snapshot_id", "=", "snapshot.id")
+          .onRef("revision.content_revision", "=", "snapshot.current_content_revision"),
+      )
+      .select(["snapshot.id as snapshotId", "revision.content_revision as contentRevision"])
+      .where("snapshot.owner_id", "=", owner.ownerId)
+      .where("snapshot.owner_epoch", "=", owner.ownerEpoch)
+      .where("snapshot.deleted_at", "is", null)
+      .where("revision.owner_epoch", "=", owner.ownerEpoch)
+      .where("revision.content_hash", "=", contentHash)
+      .orderBy("snapshot.updated_at", "desc")
+      .orderBy("snapshot.id", "desc")
+      .forUpdate("snapshot")
+      .executeTakeFirst();
+    if (existing) {
+      return {
+        kind: "private",
+        snapshotId: existing.snapshotId,
+        contentRevision: Number(existing.contentRevision),
+        jobContextRevision: Number(existing.contentRevision),
+      };
+    }
+  }
+
+  const snapshotId = randomUUID();
+  const source = privateJobSourceMetadata(request.source);
+  const requirements = decomposeTextualJobRequirements({
+    publishedJobVersionId: snapshotId,
+    sourceText: contentText,
+    evidenceRefPrefix: `private-job-snapshot:${snapshotId}:revision:1`,
+  }).filter((requirement) => !PurePrivateJobHeading.test(requirement.sourceText));
+
+  await db
+    .insertInto("application.private_job_snapshots")
+    .values({
+      id: snapshotId,
+      owner_id: owner.ownerId,
+      owner_epoch: owner.ownerEpoch,
+      current_content_revision: null,
+      current_requirement_set_revision: null,
+      creation_idempotency_key: idempotencyKey,
+      creation_request_hash: requestHash,
+      deleted_at: null,
+    })
+    .execute();
+  await db
+    .insertInto("application.private_job_snapshot_revisions")
+    .values({
+      id: randomUUID(),
+      owner_id: owner.ownerId,
+      owner_epoch: owner.ownerEpoch,
+      snapshot_id: snapshotId,
+      content_revision: 1,
+      requirement_set_revision: 1,
+      title: request.title,
+      company_name: request.companyName,
+      source_label: source.sourceLabel,
+      official_url: source.officialUrl,
+      source_provided: source.sourceProvided,
+      content_text: contentText,
+      requirements: JSON.stringify(requirements) as unknown as JsonValue,
+      content_hash: contentHash,
+    })
+    .execute();
+  await db
+    .updateTable("application.private_job_snapshots")
+    .set({
+      current_content_revision: 1,
+      current_requirement_set_revision: 1,
+      updated_at: monotonicUpdatedAt(),
+    })
+    .where("id", "=", snapshotId)
+    .where("owner_id", "=", owner.ownerId)
+    .where("owner_epoch", "=", owner.ownerEpoch)
+    .executeTakeFirstOrThrow();
+
+  return {
+    kind: "private",
+    snapshotId,
+    contentRevision: 1,
+    jobContextRevision: 1,
+  };
+}
+
 async function findActiveCaseId(
   db: Transaction<Database>,
   owner: OwnerScope,
@@ -1772,10 +1985,24 @@ export async function createApplicationCase(input: {
       return CreateApplicationCaseResponseSchema.parse({ applicationCase, created: true });
     }
 
-    const context =
-      input.request.jobContext.kind === "public"
-        ? await resolvePublicJobContext(transaction, input.request.jobContext, input.enableLocalMvp)
-        : await resolvePrivateJobContext(transaction, input.owner, input.request.jobContext);
+    let context: ResolvedJobContext;
+    if (input.request.jobContext.kind === "public") {
+      context = await resolvePublicJobContext(
+        transaction,
+        input.request.jobContext,
+        input.enableLocalMvp,
+      );
+    } else if (input.request.jobContext.kind === "private") {
+      context = await resolvePrivateJobContext(transaction, input.owner, input.request.jobContext);
+    } else {
+      context = await resolvePrivateInputJobContext(
+        transaction,
+        input.owner,
+        input.request.jobContext,
+        input.idempotencyKey,
+        requestHash,
+      );
+    }
     await lockOwnerIdempotencyKey(transaction, {
       ownerId: input.owner.ownerId,
       scope: "application-case-context",

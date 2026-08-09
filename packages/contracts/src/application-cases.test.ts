@@ -6,6 +6,7 @@ import {
   ApplicationCaseCursorSchema,
   ApplicationCaseEventSchema,
   ApplicationCaseJobVersionDiffResponseSchema,
+  ApplicationCaseJobDisplaySchema,
   ApplicationCaseMutationResponseSchema,
   ApplicationCaseRequirementsSchema,
   ApplicationCaseSchema,
@@ -61,6 +62,39 @@ const activeCase = {
   deletedAt: null,
   createdAt: "2026-08-05T00:00:00.000Z",
   updatedAt: "2026-08-05T00:00:00.000Z",
+};
+
+const publicJobDisplay = {
+  title: "产品实习生",
+  companyName: "示例公司",
+  locations: {
+    state: "known" as const,
+    value: ["上海"],
+    evidenceRefs: ["source-job-revision:example:field:locations"],
+  },
+  workMode: { state: "unknown" as const, reason: "source_not_stated" as const },
+  deadlineAt: { state: "unknown" as const, reason: "source_not_stated" as const },
+  source: {
+    kind: "catalog" as const,
+    displayName: "示例公司招聘官网",
+    policyStatus: "approved" as const,
+    provenanceLevel: "organization_owned" as const,
+    lastVerifiedAt: "2026-08-06T00:00:00.000Z",
+  },
+};
+
+const privateJobDisplay = {
+  title: "算法工程实习生",
+  companyName: "示例公司",
+  locations: { state: "unknown" as const, reason: "source_not_stated" as const },
+  workMode: { state: "unknown" as const, reason: "source_not_stated" as const },
+  deadlineAt: { state: "unknown" as const, reason: "source_not_stated" as const },
+  source: {
+    kind: "owner_private" as const,
+    displayName: "来源未提供，请自行核验",
+    sourceProvided: false,
+    verified: false as const,
+  },
 };
 
 describe("ApplicationCase contracts", () => {
@@ -217,6 +251,7 @@ describe("ApplicationCase contracts", () => {
           requirementSetRevision: 1,
           sourceProvided: false,
         },
+        jobDisplay: privateJobDisplay,
         stage: "interested",
         outcome: null,
         revision: 1,
@@ -249,6 +284,75 @@ describe("ApplicationCase contracts", () => {
     ).toBe(false);
   });
 
+  it("accepts only explicit catalog or owner-private job display provenance", () => {
+    expect(ApplicationCaseJobDisplaySchema.safeParse(publicJobDisplay).success).toBe(true);
+    expect(ApplicationCaseJobDisplaySchema.safeParse(privateJobDisplay).success).toBe(true);
+    expect(
+      ApplicationCaseJobDisplaySchema.safeParse({
+        ...privateJobDisplay,
+        source: { ...privateJobDisplay.source, verified: true },
+      }).success,
+    ).toBe(false);
+    expect(
+      ApplicationCaseJobDisplaySchema.safeParse({
+        ...publicJobDisplay,
+        source: { ...publicJobDisplay.source, official: true },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("validates private JD input without accepting owner or visibility fields", () => {
+    expect(
+      CreateApplicationCaseWithJobContextRequestSchema.parse({
+        jobContext: {
+          kind: "private_input",
+          title: "产品实习生",
+          companyName: null,
+          contentText: "岗位职责\r\n负责用户研究",
+          source: { kind: "unspecified" },
+        },
+      }).jobContext,
+    ).toMatchObject({ kind: "private_input", duplicateHandling: "reuse" });
+    expect(
+      CreateApplicationCaseWithJobContextRequestSchema.safeParse({
+        jobContext: {
+          kind: "private_input",
+          title: "产品实习生",
+          companyName: null,
+          contentText: "负责用户研究",
+          source: { kind: "provided_url", url: "http://example.com/job" },
+          duplicateHandling: "reuse",
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      CreateApplicationCaseWithJobContextRequestSchema.safeParse({
+        jobContext: {
+          kind: "private_input",
+          title: "产品实习生",
+          companyName: null,
+          contentText: "负责用户研究",
+          source: { kind: "referral" },
+          duplicateHandling: "create_separate",
+          ownerId: ids.owner,
+          publicVisibility: true,
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      CreateApplicationCaseWithJobContextRequestSchema.safeParse({
+        jobContext: {
+          kind: "private_input",
+          title: "产品实习生",
+          companyName: null,
+          contentText: "x".repeat(200_001),
+          source: { kind: "unspecified" },
+          duplicateHandling: "reuse",
+        },
+      }).success,
+    ).toBe(false);
+  });
+
   it("keeps list and create responses explicit and strict", () => {
     const applicationCase = {
       id: ids.case,
@@ -261,6 +365,7 @@ describe("ApplicationCase contracts", () => {
         requirementSetId: ids.requirementSet,
         officialUrl: "https://careers.example.com/jobs/1/apply",
       },
+      jobDisplay: publicJobDisplay,
       stage: "interested" as const,
       outcome: null,
       revision: 1,

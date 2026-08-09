@@ -12,7 +12,9 @@ import {
   ResumeDocumentCursorSchema,
   ResumeDocumentSchema,
   ResumeEvidenceRevisionSchema,
+  ResumeLayoutSettingsSchema,
   ResumeSemanticContentRevisionSchema,
+  ResumeTemplateKeySchema,
 } from "@aijob/contracts";
 import type { Database, JsonValue } from "@aijob/database";
 import { type Kysely, sql, type Transaction } from "kysely";
@@ -65,6 +67,7 @@ interface CaseReferenceRow {
   requirement_set_id: string | null;
   private_job_snapshot_id: string | null;
   job_context_revision: number;
+  revision: number;
 }
 
 const CursorEnvelopeSchema = z
@@ -75,10 +78,14 @@ const CursorEnvelopeSchema = z
   })
   .strict();
 
-const CursorQueryHash = hashCanonicalJson({ schemaVersion: "resume-document-list-v1" }).slice(
-  0,
-  16,
-);
+const DefaultLayoutSettings = ResumeLayoutSettingsSchema.parse({
+  schemaVersion: "resume-layout-settings-v1",
+  fontSizeToken: "standard",
+  lineSpacingToken: "standard",
+  sectionSpacingToken: "standard",
+  colorToken: "charcoal",
+  pageBreakPolicy: "keep_sections",
+});
 
 function toIso(value: Date): string {
   return value.toISOString();
@@ -254,23 +261,31 @@ async function loadLegacySource(
     : null;
 }
 
-function encodeCursor(resumeDocument: ResumeDocument): string {
+function cursorQueryHash(query: ListResumeDocumentsQuery): string {
+  return hashCanonicalJson({
+    schemaVersion: "resume-document-list-v2",
+    kind: query.kind ?? null,
+    caseId: query.caseId ?? null,
+  }).slice(0, 16);
+}
+
+function encodeCursor(resumeDocument: ResumeDocument, query: ListResumeDocumentsQuery): string {
   return Buffer.from(
     JSON.stringify({
       version: 1,
-      query: CursorQueryHash,
+      query: cursorQueryHash(query),
       position: { updatedAt: resumeDocument.updatedAt, id: resumeDocument.id },
     }),
     "utf8",
   ).toString("base64url");
 }
 
-function decodeCursor(value: string) {
+function decodeCursor(value: string, query: ListResumeDocumentsQuery) {
   try {
     const cursor = CursorEnvelopeSchema.parse(
       JSON.parse(Buffer.from(value, "base64url").toString("utf8")),
     );
-    if (cursor.query !== CursorQueryHash) throw new Error("CURSOR_QUERY_MISMATCH");
+    if (cursor.query !== cursorQueryHash(query)) throw new Error("CURSOR_QUERY_MISMATCH");
     return cursor.position;
   } catch {
     throw new ServiceError(
@@ -286,11 +301,13 @@ export async function listResumeDocuments(input: {
   owner: OwnerScope;
   query: ListResumeDocumentsQuery;
 }): Promise<ListResumeDocumentsResponse> {
-  const cursor = input.query.cursor ? decodeCursor(input.query.cursor) : null;
+  const cursor = input.query.cursor ? decodeCursor(input.query.cursor, input.query) : null;
   let query = documentReadQuery(input.db)
     .where("document.owner_id", "=", input.owner.ownerId)
     .where("document.owner_epoch", "=", input.owner.ownerEpoch)
     .where("document.deleted_at", "is", null);
+  if (input.query.kind) query = query.where("document.kind", "=", input.query.kind);
+  if (input.query.caseId) query = query.where("document.case_id", "=", input.query.caseId);
   if (cursor) {
     const updatedAt = new Date(cursor.updatedAt);
     query = query.where((expression) =>
@@ -309,7 +326,9 @@ export async function listResumeDocuments(input: {
       .orderBy("document.id", "desc")
       .limit(input.query.limit + 1)
       .execute(),
-    loadLegacySource(input.db, input.owner),
+    input.query.kind === "case_derived" || input.query.caseId
+      ? Promise.resolve(null)
+      : loadLegacySource(input.db, input.owner),
   ]);
   const hasMore = rows.length > input.query.limit;
   const items = rows
@@ -318,7 +337,7 @@ export async function listResumeDocuments(input: {
   const lastItem = items.at(-1);
   return ListResumeDocumentsResponseSchema.parse({
     items,
-    nextCursor: hasMore && lastItem ? encodeCursor(lastItem) : null,
+    nextCursor: hasMore && lastItem ? encodeCursor(lastItem, input.query) : null,
     legacySource,
   });
 }
@@ -371,6 +390,22 @@ function resumeForCaseExists(): ServiceError {
   );
 }
 
+function applicationCaseRevisionConflict(): ServiceError {
+  return new ServiceError(
+    409,
+    "APPLICATION_CASE_REVISION_CONFLICT",
+    "求职项目已在其他页面更新，请重新核对后再创建岗位简历。",
+  );
+}
+
+function resumeBaseEvidenceInvalid(): ServiceError {
+  return new ServiceError(
+    422,
+    "RESUME_BASE_EVIDENCE_INVALID",
+    "基础简历引用了当前未确认的经历证据，请先重新确认基础简历。",
+  );
+}
+
 async function loadCaseReferenceForUpdate(
   transaction: Transaction<Database>,
   owner: OwnerScope,
@@ -387,6 +422,7 @@ async function loadCaseReferenceForUpdate(
         "requirement_set_id",
         "private_job_snapshot_id",
         "job_context_revision",
+        "revision",
       ])
       .where("id", "=", caseId)
       .where("owner_id", "=", owner.ownerId)
@@ -478,8 +514,108 @@ async function loadCurrentEvidenceRevision(transaction: Transaction<Database>, o
         evidence: parseJsonValue(row.evidence),
       })
     : null;
-  if (!parsed?.success || parsed.data.evidence.length === 0) throw resumeEvidenceRequired();
+  if (!parsed?.success || !parsed.data.evidence.some((item) => item.confirmed)) {
+    throw resumeEvidenceRequired();
+  }
   return parsed.data;
+}
+
+function assertBaseContentEvidence(
+  baseRevision: z.infer<typeof ResumeSemanticContentRevisionSchema>,
+  evidenceRevision: z.infer<typeof ResumeEvidenceRevisionSchema>,
+): void {
+  const confirmedIds = new Set(
+    evidenceRevision.evidence.filter((item) => item.confirmed).map((item) => item.id),
+  );
+  const referencedIds = baseRevision.content.sections.flatMap((section) =>
+    section.blocks.flatMap((block) => block.evidenceIds),
+  );
+  if (referencedIds.some((id) => !confirmedIds.has(id))) throw resumeBaseEvidenceInvalid();
+}
+
+async function nextGlobalResumeRevision(
+  transaction: Transaction<Database>,
+  owner: OwnerScope,
+): Promise<number> {
+  await sql`select pg_advisory_xact_lock(hashtextextended(${`resume-evidence:${owner.ownerId}`}, 0))`.execute(
+    transaction,
+  );
+  const row = await transaction
+    .selectFrom("profile.resume_document_revisions")
+    .select("revision")
+    .where("owner_id", "=", owner.ownerId)
+    .orderBy("revision", "desc")
+    .executeTakeFirst();
+  return Number(row?.revision ?? 0) + 1;
+}
+
+function orderedSectionIds(
+  baseRevision: z.infer<typeof ResumeSemanticContentRevisionSchema>,
+): string[] {
+  return [...baseRevision.content.sections]
+    .sort((left, right) => left.ordinal - right.ordinal || left.id.localeCompare(right.id))
+    .map((section) => section.id);
+}
+
+async function loadDerivedLayoutSeed(input: {
+  transaction: Transaction<Database>;
+  owner: OwnerScope;
+  baseDocumentId: string;
+  baseRevision: z.infer<typeof ResumeSemanticContentRevisionSchema>;
+}) {
+  const fallback = {
+    templateKey: "cn_classic_single_column" as const,
+    sectionOrder: orderedSectionIds(input.baseRevision),
+    settings: DefaultLayoutSettings,
+  };
+  const row = await input.transaction
+    .selectFrom("profile.resume_documents as document")
+    .innerJoin(
+      "profile.resume_layout_revisions as layout",
+      "layout.id",
+      "document.current_layout_revision_id",
+    )
+    .select(["layout.template_key", "layout.section_order", "layout.settings"])
+    .where("document.id", "=", input.baseDocumentId)
+    .where("document.owner_id", "=", input.owner.ownerId)
+    .where("document.owner_epoch", "=", input.owner.ownerEpoch)
+    .where("document.kind", "=", "base")
+    .where("document.deleted_at", "is", null)
+    .executeTakeFirst();
+  if (!row) return fallback;
+
+  const templateKey = ResumeTemplateKeySchema.safeParse(row.template_key);
+  const settings = ResumeLayoutSettingsSchema.safeParse(parseJsonValue(row.settings));
+  const sectionOrder = z.array(z.string().uuid()).safeParse(parseJsonValue(row.section_order));
+  const expectedIds = fallback.sectionOrder;
+  if (
+    !templateKey.success ||
+    !settings.success ||
+    !sectionOrder.success ||
+    sectionOrder.data.length !== expectedIds.length ||
+    new Set(sectionOrder.data).size !== expectedIds.length ||
+    expectedIds.some((id) => !sectionOrder.data.includes(id))
+  ) {
+    return fallback;
+  }
+  return {
+    templateKey: templateKey.data,
+    sectionOrder: sectionOrder.data,
+    settings: settings.data,
+  };
+}
+
+function derivedLayoutHash(input: {
+  templateKey: z.infer<typeof ResumeTemplateKeySchema>;
+  sectionOrder: string[];
+  settings: z.infer<typeof ResumeLayoutSettingsSchema>;
+}): string {
+  return hashCanonicalJson({
+    schemaVersion: "resume-layout-v2",
+    templateKey: input.templateKey,
+    sectionOrder: input.sectionOrder,
+    settings: input.settings,
+  });
 }
 
 function postgresConstraint(error: unknown): string | null {
@@ -568,6 +704,9 @@ export async function createResumeDocument(input: {
           input.request.caseId,
         );
         if (!applicationCase) throw resumeCaseNotFound();
+        if (Number(applicationCase.revision) !== input.request.expectedCaseRevision) {
+          throw applicationCaseRevisionConflict();
+        }
         const existing = await transaction
           .selectFrom("profile.resume_documents")
           .select("id")
@@ -583,6 +722,15 @@ export async function createResumeDocument(input: {
           input.request.baseDocumentRevisionId,
         );
         const evidenceRevision = await loadCurrentEvidenceRevision(transaction, input.owner);
+        assertBaseContentEvidence(baseRevision, evidenceRevision);
+        const layout = await loadDerivedLayoutSeed({
+          transaction,
+          owner: input.owner,
+          baseDocumentId: baseRevision.documentId,
+          baseRevision,
+        });
+        const contentRevisionId = randomUUID();
+        const layoutRevisionId = randomUUID();
         await transaction
           .insertInto("profile.resume_documents")
           .values({
@@ -609,6 +757,97 @@ export async function createResumeDocument(input: {
             creation_request_hash: requestHash,
             expires_at: null,
             deleted_at: null,
+          })
+          .execute();
+        await transaction
+          .insertInto("profile.resume_document_revisions")
+          .values({
+            id: contentRevisionId,
+            owner_id: input.owner.ownerId,
+            owner_epoch: input.owner.ownerEpoch,
+            resume_analysis_id: null,
+            revision: await nextGlobalResumeRevision(transaction, input.owner),
+            base_revision: null,
+            schema_version: "resume-content-v1",
+            sections: JSON.stringify(baseRevision.content.sections) as unknown as JsonValue,
+            content_hash: hashCanonicalJson(baseRevision.content),
+            confirmed_at: sql<Date>`clock_timestamp()`,
+            document_id: documentId,
+            document_revision: 1,
+            base_document_revision_id: null,
+            legacy_source_revision_id: null,
+            mutation_idempotency_key: null,
+            mutation_request_hash: null,
+            result_document_revision: null,
+          })
+          .execute();
+        await transaction
+          .insertInto("profile.resume_layout_revisions")
+          .values({
+            id: layoutRevisionId,
+            owner_id: input.owner.ownerId,
+            owner_epoch: input.owner.ownerEpoch,
+            document_id: documentId,
+            layout_revision: 1,
+            base_layout_revision: null,
+            schema_version: "resume-layout-v2",
+            template_key: layout.templateKey,
+            section_order: JSON.stringify(layout.sectionOrder) as unknown as JsonValue,
+            settings: JSON.stringify(layout.settings) as unknown as JsonValue,
+            content_hash: derivedLayoutHash(layout),
+            mutation_idempotency_key: null,
+            mutation_request_hash: null,
+            result_document_revision: null,
+          })
+          .execute();
+        await transaction
+          .updateTable("profile.resume_documents")
+          .set({
+            current_content_revision_id: contentRevisionId,
+            current_layout_revision_id: layoutRevisionId,
+            updated_at: sql<Date>`GREATEST(updated_at, clock_timestamp())`,
+          })
+          .where("id", "=", documentId)
+          .where("owner_id", "=", input.owner.ownerId)
+          .where("owner_epoch", "=", input.owner.ownerEpoch)
+          .where("revision", "=", 1)
+          .executeTakeFirstOrThrow();
+
+        const nextCaseRevision = Number(applicationCase.revision) + 1;
+        const updatedCase = await transaction
+          .updateTable("application.application_cases")
+          .set({
+            revision: nextCaseRevision,
+            updated_at: sql<Date>`GREATEST(updated_at, clock_timestamp())`,
+          })
+          .where("id", "=", applicationCase.id)
+          .where("owner_id", "=", input.owner.ownerId)
+          .where("owner_epoch", "=", input.owner.ownerEpoch)
+          .where("revision", "=", input.request.expectedCaseRevision)
+          .where("deleted_at", "is", null)
+          .executeTakeFirst();
+        if (Number(updatedCase.numUpdatedRows) !== 1) {
+          throw applicationCaseRevisionConflict();
+        }
+        await transaction
+          .insertInto("application.case_events")
+          .values({
+            id: randomUUID(),
+            owner_id: input.owner.ownerId,
+            owner_epoch: input.owner.ownerEpoch,
+            case_id: applicationCase.id,
+            sequence: nextCaseRevision,
+            event_type: "resume_document_derived",
+            actor_type: "owner",
+            event_data: JSON.stringify({
+              schemaVersion: "case-event-v1",
+              documentId,
+              contentRevisionId,
+            }) as unknown as JsonValue,
+            schema_version: "case-event-v1",
+            idempotency_scope: "resume-document:derive",
+            idempotency_key: input.idempotencyKey,
+            request_hash: requestHash,
           })
           .execute();
       }

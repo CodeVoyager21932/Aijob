@@ -11,8 +11,11 @@ import {
   CaseOutcomeSchema,
   CaseStageSchema,
   InterviewModeSchema,
+  PolicyStatusSchema,
+  ProvenanceLevelSchema,
   RequirementEvidenceStateSchema,
 } from "./enums.js";
+import { fieldValueSchema } from "./field-value.js";
 import {
   JobRequirementSchema,
   RequirementKindSchema,
@@ -102,6 +105,44 @@ export type PrivateJobSnapshot = z.infer<typeof PrivateJobSnapshotSchema>;
 export const JobContextSchema = z.union([PublicJobReferenceSchema, PrivateJobSnapshotSchema]);
 export type JobContext = z.infer<typeof JobContextSchema>;
 
+export const ApplicationCaseCatalogSourceSchema = z
+  .object({
+    kind: z.literal("catalog"),
+    displayName: z.string().trim().min(1).max(240),
+    policyStatus: PolicyStatusSchema,
+    provenanceLevel: ProvenanceLevelSchema,
+    lastVerifiedAt: TimestampSchema,
+  })
+  .strict();
+export type ApplicationCaseCatalogSource = z.infer<typeof ApplicationCaseCatalogSourceSchema>;
+
+export const ApplicationCaseOwnerPrivateSourceSchema = z
+  .object({
+    kind: z.literal("owner_private"),
+    displayName: z.string().trim().min(1).max(120),
+    sourceProvided: z.boolean(),
+    verified: z.literal(false),
+  })
+  .strict();
+export type ApplicationCaseOwnerPrivateSource = z.infer<
+  typeof ApplicationCaseOwnerPrivateSourceSchema
+>;
+
+export const ApplicationCaseJobDisplaySchema = z
+  .object({
+    title: z.string().trim().min(1).max(240),
+    companyName: z.string().trim().min(1).max(240).nullable(),
+    locations: fieldValueSchema(z.array(z.string().trim().min(1)).min(1)),
+    workMode: fieldValueSchema(z.string().trim().min(1)),
+    deadlineAt: fieldValueSchema(TimestampSchema),
+    source: z.discriminatedUnion("kind", [
+      ApplicationCaseCatalogSourceSchema,
+      ApplicationCaseOwnerPrivateSourceSchema,
+    ]),
+  })
+  .strict();
+export type ApplicationCaseJobDisplay = z.infer<typeof ApplicationCaseJobDisplaySchema>;
+
 export const PublicRequirementContextSchema = z
   .object({
     kind: z.literal("public"),
@@ -190,6 +231,7 @@ const ApplicationCaseWithJobContextFieldsSchema = z.object({
   ownerId: UuidSchema,
   ownerEpoch: z.number().int().positive(),
   jobContext: JobContextSchema,
+  jobDisplay: ApplicationCaseJobDisplaySchema,
   stage: CaseStageSchema,
   outcome: CaseOutcomeSchema.nullable(),
   revision: RevisionSchema,
@@ -235,9 +277,40 @@ const CreatePrivateApplicationCaseContextSchema = z
   })
   .strict();
 
+export const PrivateApplicationCaseSourceInputSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("provided_url"),
+      url: HttpsUrlSchema,
+    })
+    .strict(),
+  z.object({ kind: z.literal("referral") }).strict(),
+  z.object({ kind: z.literal("unspecified") }).strict(),
+]);
+export type PrivateApplicationCaseSourceInput = z.infer<
+  typeof PrivateApplicationCaseSourceInputSchema
+>;
+
+export const PrivateApplicationCaseDuplicateHandlingSchema = z.enum(["reuse", "create_separate"]);
+export type PrivateApplicationCaseDuplicateHandling = z.infer<
+  typeof PrivateApplicationCaseDuplicateHandlingSchema
+>;
+
+const CreatePrivateInputApplicationCaseContextSchema = z
+  .object({
+    kind: z.literal("private_input"),
+    title: z.string().trim().min(1).max(240),
+    companyName: z.string().trim().min(1).max(240).nullable(),
+    contentText: z.string().trim().min(1).max(200_000),
+    source: PrivateApplicationCaseSourceInputSchema,
+    duplicateHandling: PrivateApplicationCaseDuplicateHandlingSchema.default("reuse"),
+  })
+  .strict();
+
 export const CreateApplicationCaseJobContextSchema = z.discriminatedUnion("kind", [
   CreatePublicApplicationCaseContextSchema,
   CreatePrivateApplicationCaseContextSchema,
+  CreatePrivateInputApplicationCaseContextSchema,
 ]);
 export type CreateApplicationCaseJobContext = z.infer<typeof CreateApplicationCaseJobContextSchema>;
 

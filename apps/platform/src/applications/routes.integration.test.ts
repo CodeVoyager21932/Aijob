@@ -10,7 +10,7 @@ import {
 } from "@aijob/contracts";
 import { createDatabase, type Database, migrateToLatest } from "@aijob/database";
 import type { FastifyInstance } from "fastify";
-import type { Kysely } from "kysely";
+import { type Kysely, sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../app.js";
 import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME, SESSION_COOKIE_NAME } from "../identity/fastify.js";
@@ -566,11 +566,11 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       await transaction
         .updateTable("application.private_job_snapshots")
         .set({ current_content_revision: null, current_requirement_set_revision: null })
-        .where("id", "in", [privateSnapshotId, requirementsPrivateSnapshotId])
+        .where("owner_id", "in", ownerIds)
         .execute();
       await transaction
         .deleteFrom("application.private_job_snapshots")
-        .where("id", "in", [privateSnapshotId, requirementsPrivateSnapshotId])
+        .where("owner_id", "in", ownerIds)
         .execute();
       await transaction
         .deleteFrom("profile.resume_evidence_revisions")
@@ -697,6 +697,17 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       requirementSetId: firstPublic.requirementSetId,
       officialUrl: `https://application-case.example.test/jobs/${firstPublic.recordId}/apply`,
     });
+    expect(createdBody.applicationCase.jobDisplay).toMatchObject({
+      title: "Synthetic product internship 1",
+      companyName: "Application Case Fixture Company",
+      locations: { state: "unknown", reason: "source_not_stated" },
+      source: {
+        kind: "catalog",
+        displayName: "Application Case Fixture Source",
+        policyStatus: "approved",
+        provenanceLevel: "organization_owned",
+      },
+    });
 
     const replay = await app.inject({
       method: "POST",
@@ -761,6 +772,34 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
     expect(ownRead.statusCode).toBe(200);
     expect(ownRead.headers["cache-control"]).toBe("no-store");
     expect(ownRead.json()).toEqual(createdBody.applicationCase);
+
+    await db
+      .updateTable("source_control.source_policy_versions")
+      .set({ policy_status: "pending_review" })
+      .where("source_id", "=", sourceId)
+      .where("version", "=", 1)
+      .executeTakeFirstOrThrow();
+    const pendingSourceRead = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${createdBody.applicationCase.id}`,
+      headers,
+    });
+    expect(pendingSourceRead.statusCode).toBe(200);
+    expect(pendingSourceRead.json()).toMatchObject({
+      jobDisplay: {
+        source: {
+          kind: "catalog",
+          displayName: "本地待复核来源",
+          policyStatus: "pending_review",
+        },
+      },
+    });
+    await db
+      .updateTable("source_control.source_policy_versions")
+      .set({ policy_status: "approved" })
+      .where("source_id", "=", sourceId)
+      .where("version", "=", 1)
+      .executeTakeFirstOrThrow();
 
     const otherOwnerList = await app.inject({
       method: "GET",
@@ -995,6 +1034,16 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       })
       .where("id", "=", firstPublic.jobId)
       .execute();
+    const pinnedDisplayRead = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${createdBody.applicationCase.id}`,
+      headers,
+    });
+    expect(pinnedDisplayRead.statusCode).toBe(200);
+    expect(pinnedDisplayRead.json()).toMatchObject({
+      jobContext: { publishedJobVersionId: firstPublic.versionId },
+      jobDisplay: { title: "Synthetic product internship 1" },
+    });
     const availableDiffResponse = await app.inject({
       method: "GET",
       url: `/v1/application-cases/${createdBody.applicationCase.id}/job-version-diff`,
@@ -1291,6 +1340,312 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       { sequence: 5, event_type: "stage_transitioned" },
     ]);
   }, 40_000);
+
+  it("creates owner-private JD Cases atomically without publishing or sharing them", async () => {
+    const headers = sessionHeaders(secondSession);
+    const contentText =
+      "  岗位职责\r\n负责用户研究与需求分析。\r\n任职要求\r\n每周至少实习 4 天；掌握 SQL。\r\n具备良好的自驱力。  ";
+    const normalizedContent =
+      "岗位职责\n负责用户研究与需求分析。\n任职要求\n每周至少实习 4 天；掌握 SQL。\n具备良好的自驱力。";
+    const publicCountBefore = await db
+      .selectFrom("catalog.published_jobs")
+      .select(({ fn }) => fn.countAll<number>().as("count"))
+      .executeTakeFirstOrThrow();
+    const createKey = `private-input-${randomUUID()}`;
+    const createRequest = {
+      jobContext: {
+        kind: "private_input" as const,
+        title: "私有用户研究实习生",
+        companyName: null,
+        contentText,
+        source: { kind: "unspecified" as const },
+        duplicateHandling: "reuse" as const,
+      },
+    };
+
+    const created = await app.inject({
+      method: "POST",
+      url: "/v1/application-cases",
+      headers: { ...headers, "idempotency-key": createKey },
+      payload: createRequest,
+    });
+    expect(created.statusCode, JSON.stringify(created.json())).toBe(201);
+    expect(created.headers["cache-control"]).toBe("no-store");
+    const createdBody = CreateApplicationCaseResponseSchema.parse(created.json());
+    expect(createdBody).toMatchObject({
+      created: true,
+      applicationCase: {
+        jobContext: {
+          kind: "private",
+          ownerId: secondSession.context.ownerId,
+          contentRevision: 1,
+          requirementSetRevision: 1,
+          sourceProvided: false,
+        },
+        jobDisplay: {
+          title: "私有用户研究实习生",
+          locations: { state: "unknown", reason: "source_not_stated" },
+          workMode: { state: "unknown", reason: "source_not_stated" },
+          deadlineAt: { state: "unknown", reason: "source_not_stated" },
+          source: {
+            kind: "owner_private",
+            displayName: "来源未提供，请自行核验",
+            sourceProvided: false,
+            verified: false,
+          },
+        },
+      },
+    });
+    if (createdBody.applicationCase.jobContext.kind !== "private") {
+      throw new Error("PRIVATE_INPUT_CASE_CONTEXT_MISSING");
+    }
+    const snapshotId = createdBody.applicationCase.jobContext.snapshotId;
+    const storedSnapshot = await db
+      .selectFrom("application.private_job_snapshot_revisions")
+      .select(["content_text", "requirements"])
+      .where("owner_id", "=", secondSession.context.ownerId)
+      .where("snapshot_id", "=", snapshotId)
+      .where("content_revision", "=", 1)
+      .executeTakeFirstOrThrow();
+    expect(storedSnapshot.content_text).toBe(normalizedContent);
+
+    const requirementsResponse = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${createdBody.applicationCase.id}/requirements`,
+      headers,
+    });
+    expect(requirementsResponse.statusCode).toBe(200);
+    const requirements = ApplicationCaseRequirementsSchema.parse(requirementsResponse.json());
+    expect(requirements.requirements.length).toBeGreaterThan(0);
+    expect(requirements.requirements.map(({ sourceText }) => sourceText)).not.toContain("岗位职责");
+    expect(requirements.requirements.map(({ sourceText }) => sourceText)).not.toContain("任职要求");
+    expect(requirements.requirements).toContainEqual(
+      expect.objectContaining({
+        kind: "other",
+        operator: "unknown",
+        sourceText: "具备良好的自驱力",
+      }),
+    );
+    for (const requirement of requirements.requirements) {
+      expect(requirement.sourceSpan).not.toBeNull();
+      if (requirement.sourceSpan) {
+        expect(
+          normalizedContent.slice(requirement.sourceSpan.start, requirement.sourceSpan.end),
+        ).toBe(requirement.sourceText);
+      }
+    }
+
+    const replay = await app.inject({
+      method: "POST",
+      url: "/v1/application-cases",
+      headers: { ...headers, "idempotency-key": createKey },
+      payload: createRequest,
+    });
+    expect(replay.statusCode).toBe(201);
+    expect(replay.json()).toEqual(createdBody);
+    const conflictingReplay = await app.inject({
+      method: "POST",
+      url: "/v1/application-cases",
+      headers: { ...headers, "idempotency-key": createKey },
+      payload: {
+        ...createRequest,
+        jobContext: { ...createRequest.jobContext, title: "不同请求" },
+      },
+    });
+    expect(conflictingReplay.statusCode).toBe(409);
+    expect(conflictingReplay.json()).toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+
+    const reused = await app.inject({
+      method: "POST",
+      url: "/v1/application-cases",
+      headers: { ...headers, "idempotency-key": `private-reuse-${randomUUID()}` },
+      payload: {
+        jobContext: {
+          ...createRequest.jobContext,
+          title: "同一正文的新标题不会覆盖原快照",
+          contentText: normalizedContent,
+          source: { kind: "referral" },
+        },
+      },
+    });
+    expect(reused.statusCode).toBe(200);
+    expect(reused.json()).toMatchObject({
+      created: false,
+      applicationCase: { id: createdBody.applicationCase.id },
+    });
+
+    const separate = await app.inject({
+      method: "POST",
+      url: "/v1/application-cases",
+      headers: { ...headers, "idempotency-key": `private-separate-${randomUUID()}` },
+      payload: {
+        jobContext: {
+          ...createRequest.jobContext,
+          contentText: normalizedContent,
+          duplicateHandling: "create_separate",
+        },
+      },
+    });
+    expect(separate.statusCode).toBe(201);
+    const separateBody = CreateApplicationCaseResponseSchema.parse(separate.json());
+    expect(separateBody.applicationCase.id).not.toBe(createdBody.applicationCase.id);
+    expect(separateBody.applicationCase.jobContext).toMatchObject({ kind: "private" });
+    if (separateBody.applicationCase.jobContext.kind !== "private") {
+      throw new Error("SEPARATE_PRIVATE_CONTEXT_MISSING");
+    }
+    expect(separateBody.applicationCase.jobContext.snapshotId).not.toBe(snapshotId);
+
+    const crossOwner = await app.inject({
+      method: "POST",
+      url: "/v1/application-cases",
+      headers: {
+        ...sessionHeaders(firstSession),
+        "idempotency-key": `private-cross-owner-${randomUUID()}`,
+      },
+      payload: {
+        jobContext: { ...createRequest.jobContext, contentText: normalizedContent },
+      },
+    });
+    expect(crossOwner.statusCode).toBe(201);
+    const crossOwnerBody = CreateApplicationCaseResponseSchema.parse(crossOwner.json());
+    expect(crossOwnerBody.applicationCase.jobContext).toMatchObject({
+      kind: "private",
+      ownerId: firstSession.context.ownerId,
+    });
+    if (crossOwnerBody.applicationCase.jobContext.kind !== "private") {
+      throw new Error("CROSS_OWNER_PRIVATE_CONTEXT_MISSING");
+    }
+    expect(crossOwnerBody.applicationCase.jobContext.snapshotId).not.toBe(snapshotId);
+
+    const concurrentPrivateRequest = {
+      jobContext: {
+        kind: "private_input" as const,
+        title: "并发私有岗位",
+        companyName: null,
+        contentText: `并发复用正文 ${randomUUID()}`,
+        source: { kind: "referral" as const },
+        duplicateHandling: "reuse" as const,
+      },
+    };
+    const concurrentPrivateResponses = await Promise.all(
+      [randomUUID(), randomUUID()].map((idempotencyKey) =>
+        app.inject({
+          method: "POST",
+          url: "/v1/application-cases",
+          headers: { ...headers, "idempotency-key": idempotencyKey },
+          payload: concurrentPrivateRequest,
+        }),
+      ),
+    );
+    expect(concurrentPrivateResponses.map(({ statusCode }) => statusCode).sort()).toEqual([
+      200, 201,
+    ]);
+    const concurrentPrivateBodies = concurrentPrivateResponses.map((response) =>
+      CreateApplicationCaseResponseSchema.parse(response.json()),
+    );
+    expect(
+      new Set(concurrentPrivateBodies.map(({ applicationCase }) => applicationCase.id)).size,
+    ).toBe(1);
+    expect(
+      new Set(
+        concurrentPrivateBodies.map(({ applicationCase }) => {
+          if (applicationCase.jobContext.kind !== "private") {
+            throw new Error("CONCURRENT_PRIVATE_CONTEXT_MISSING");
+          }
+          return applicationCase.jobContext.snapshotId;
+        }),
+      ).size,
+    ).toBe(1);
+
+    const providedUrl = await app.inject({
+      method: "POST",
+      url: "/v1/application-cases",
+      headers: { ...headers, "idempotency-key": `private-url-${randomUUID()}` },
+      payload: {
+        jobContext: {
+          kind: "private_input",
+          title: "用户链接岗位",
+          companyName: "私有示例公司",
+          contentText: "负责产品分析与项目管理。",
+          source: { kind: "provided_url", url: "https://private.example.test/job/1" },
+          duplicateHandling: "reuse",
+        },
+      },
+    });
+    expect(providedUrl.statusCode).toBe(201);
+    expect(providedUrl.json()).toMatchObject({
+      applicationCase: {
+        jobContext: {
+          kind: "private",
+          officialUrl: "https://private.example.test/job/1",
+          sourceProvided: true,
+        },
+        jobDisplay: {
+          source: {
+            kind: "owner_private",
+            displayName: "用户提供链接，平台未核验",
+            verified: false,
+          },
+        },
+      },
+    });
+
+    const rollbackKey = `m1-rollback-${randomUUID()}`;
+    await sql`
+      CREATE FUNCTION application.fail_m1_private_case_insert()
+      RETURNS trigger
+      LANGUAGE plpgsql
+      AS $$
+      BEGIN
+        IF NEW.creation_idempotency_key LIKE 'm1-rollback-%' THEN
+          RAISE EXCEPTION 'M1_FORCED_CASE_INSERT_FAILURE';
+        END IF;
+        RETURN NEW;
+      END;
+      $$
+    `.execute(db);
+    await sql`
+      CREATE TRIGGER fail_m1_private_case_insert
+      BEFORE INSERT ON application.application_cases
+      FOR EACH ROW EXECUTE FUNCTION application.fail_m1_private_case_insert()
+    `.execute(db);
+    try {
+      const rolledBack = await app.inject({
+        method: "POST",
+        url: "/v1/application-cases",
+        headers: { ...headers, "idempotency-key": rollbackKey },
+        payload: {
+          jobContext: {
+            kind: "private_input",
+            title: "强制回滚岗位",
+            companyName: null,
+            contentText: `只用于回滚验证 ${randomUUID()}`,
+            source: { kind: "unspecified" },
+            duplicateHandling: "create_separate",
+          },
+        },
+      });
+      expect(rolledBack.statusCode).toBe(500);
+    } finally {
+      await sql`DROP TRIGGER IF EXISTS fail_m1_private_case_insert ON application.application_cases`.execute(
+        db,
+      );
+      await sql`DROP FUNCTION IF EXISTS application.fail_m1_private_case_insert()`.execute(db);
+    }
+    const rolledBackSnapshots = await db
+      .selectFrom("application.private_job_snapshots")
+      .select(({ fn }) => fn.countAll<number>().as("count"))
+      .where("owner_id", "=", secondSession.context.ownerId)
+      .where("creation_idempotency_key", "=", rollbackKey)
+      .executeTakeFirstOrThrow();
+    expect(Number(rolledBackSnapshots.count)).toBe(0);
+
+    const publicCountAfter = await db
+      .selectFrom("catalog.published_jobs")
+      .select(({ fn }) => fn.countAll<number>().as("count"))
+      .executeTakeFirstOrThrow();
+    expect(Number(publicCountAfter.count)).toBe(Number(publicCountBefore.count));
+  }, 30_000);
 
   it("keeps fixed requirements, evidence and questions in one revisioned Case aggregate", async () => {
     const firstPublic = publicFixtures[0];

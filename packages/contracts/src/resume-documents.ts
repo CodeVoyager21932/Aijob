@@ -648,6 +648,7 @@ const DerivedDocumentCreateRequestSchema = z
     kind: z.literal("case_derived"),
     caseId: UuidSchema,
     baseDocumentRevisionId: UuidSchema,
+    expectedCaseRevision: RevisionSchema,
     title: z.string().trim().min(1).max(200),
   })
   .strict();
@@ -814,8 +815,19 @@ export const ListResumeDocumentsQuerySchema = z
   .object({
     cursor: z.string().trim().min(1).max(1_024).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(20),
+    kind: ResumeDocumentKindSchema.optional(),
+    caseId: UuidSchema.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    if (value.kind === "base" && value.caseId !== undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["caseId"],
+        message: "Base resume queries cannot be scoped to an application case",
+      });
+    }
+  });
 export type ListResumeDocumentsQuery = z.infer<typeof ListResumeDocumentsQuerySchema>;
 
 export const ListResumeDocumentsResponseSchema = z

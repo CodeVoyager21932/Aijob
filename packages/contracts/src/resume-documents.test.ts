@@ -155,9 +155,18 @@ describe("Resume Document V2 contracts", () => {
         kind: "case_derived",
         caseId: ids.case,
         baseDocumentRevisionId: ids.revision,
+        expectedCaseRevision: 1,
         title: "产品实习简历",
       }).success,
     ).toBe(true);
+    expect(
+      CreateResumeDocumentRequestSchema.safeParse({
+        kind: "case_derived",
+        caseId: ids.case,
+        baseDocumentRevisionId: ids.revision,
+        title: "缺少 Case revision",
+      }).success,
+    ).toBe(false);
     expect(
       CreateResumeDocumentRequestSchema.safeParse({
         kind: "base",
@@ -189,6 +198,16 @@ describe("Resume Document V2 contracts", () => {
       updatedAt: "2026-08-09T00:00:00.000Z",
     });
     expect(ListResumeDocumentsQuerySchema.parse({})).toEqual({ limit: 20 });
+    expect(ListResumeDocumentsQuerySchema.parse({ kind: "base" })).toEqual({
+      limit: 20,
+      kind: "base",
+    });
+    expect(
+      ListResumeDocumentsQuerySchema.parse({ kind: "case_derived", caseId: ids.case }),
+    ).toEqual({ limit: 20, kind: "case_derived", caseId: ids.case });
+    expect(
+      ListResumeDocumentsQuerySchema.safeParse({ kind: "base", caseId: ids.case }).success,
+    ).toBe(false);
     expect(ListResumeDocumentsQuerySchema.safeParse({ limit: 101 }).success).toBe(false);
     expect(
       ResumeDocumentCursorSchema.safeParse({
