@@ -4,7 +4,7 @@
 >
 > 日期：2026-08-05
 >
-> 上位事实源：[ADR-0030](../../../decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md)、[升级计划](../../../plans/career-os-v2-upgrade-plan-2026-08-04.md)
+> 上位事实源：[ADR-0030](../../../decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md)、[当前交付计划](../../../plans/career-os-current-delivery-plan.md)
 
 长期架构修正以 [ADR-0031](../../../decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md) 和 [Phase 2R 对齐报告](phase-2r-architecture-realignment-2026-08-06.md) 为准；本目录的概念图仍只约束布局、信息层级和交互关系，不覆盖长期生命周期、私有 JD 或 Resume Review 数据契约。
 

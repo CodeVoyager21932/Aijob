@@ -4,12 +4,12 @@
 
 ## 每个新任务开始时
 
-1. 先读 `README.md`、`docs/06-mvp-roadmap.md` 和 `docs/handoffs/current.md`。
+1. 先读 `README.md`、`docs/06-mvp-roadmap.md`、`docs/handoffs/current.md` 和 `docs/plans/README.md`。
 2. 再检查当前分支、`git status` 和最近提交；已有改动属于 coco，不得覆盖。
-3. 只执行交接文档中的当前目标。不要因为上下文变少而重新定义产品、从头搭架构或提前扩展范围。
+3. 只执行路线图与交接共同指向的当前目标。不要因为上下文变少而重新定义产品、从头搭架构或提前扩展范围。
 4. 如果文档、代码和运行结果冲突，先记录冲突并用可复现检查确认；不要静默选择其中一个。
 
-分支名、提交信息或工程纵向切片名称不代表任何产品 Gate 已通过。ADR-0030 接受后的当前固定顺序是先完成 Career OS Phase 1 统一工作台壳层，再建设 ApplicationCase、简历 V2、文字面试 PoC 和一岗全闭环；随后恢复 ADR-0027 的 Private Alpha 供给硬门槛及服务器就绪 Gate，最后才进行 G0 的 2 人校准和 G1 的 6 人验证。产品阶段只能由路线面板及其原始证据更新。
+分支名、提交信息或工程纵向切片名称不代表任何产品 Gate 已通过。2026-08-09 起当前交付使用 `M0–M4` 纵向里程碑；旧 Phase 2B 嵌套顺序和 G4-first 严格总计划只作历史记录。归档计划、废止路标、旧验收中的“下一步”和对话摘要均不得覆盖路线图与当前交接。Private Alpha 的供给、安全、服务器和 G0/G1/G4 条件继续由 `docs/plans/private-alpha-readiness-gates.md` 守门，但该清单不提供当前任务。
 
 ## 产品使命
 

@@ -1,13 +1,14 @@
 # Phase 2A 前向修复契约与隔离 PostgreSQL 测试设计
 
 - 日期：2026-08-06
-- 状态：migrations 025/026/026B registered; migration 026B decision = continue
-- 当前后续切片：`Phase 2A-027 Resume/Review Forward Repair`
+- 状态：**Historical / 已由 migrations 025–030 落地，不是当前任务队列**
+- 历史结果：长期 owner、公共/私有 Case、Requirement、Resume/Review、Interview/Debrief/Knowledge 及后续严格事件/幂等修复均已注册
+- 当前执行计划：[Career OS 当前交付计划](career-os-current-delivery-plan.md)
 - 上位决策：[ADR-0031](../decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md)
 - 前置矩阵：[Phase 2R 契约与迁移影响矩阵](career-os-phase-2r-contract-and-migration-impact-matrix-2026-08-06.md)
 - 实现基线：[migration 023](../../packages/database/src/migrations/023_application_case_core_expand.ts)、[migration 024](../../packages/database/src/migrations/024_resume_document_v2_expand.ts)
 
-本文最初只冻结前向修复和测试设计。`023F` 的长期 Case 与 requirement context 已由 migrations 026/026B 正式注册，`024F` Resume/Review 仍是未注册隔离原型。当前进入 migration 027；所有切片都不注册业务 API，也不访问真实招聘来源、真实 AI 或真实简历。
+本文最初只冻结前向修复和测试设计；其正式实现已由 migrations 025–030 和对应验收收口。正文保留当时的实现前语境，不得据此选择当前切片。
 
 ## 1. 目标与禁止事项
 

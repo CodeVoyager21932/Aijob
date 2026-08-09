@@ -6,6 +6,8 @@
 - 产品证据：仍为 `E0`
 - 四选一决定：**继续**到 `Phase 2B-4C Interview/Debrief/Knowledge Service Boundary`
 
+> 后续状态（2026-08-09）：上述决定准确记录本验收完成时的旧计划语境，但已被 coco 随后的 [当前交付计划](../../../plans/career-os-current-delivery-plan.md) 取代。当前唯一目标是 M1 真实 Case 工作台；不得从本历史验收继续启动 Phase 2B-4C。
+
 ## 1. 目标与范围
 
 本切片只在 2B-4A 的真实 Resume Document 聚合上开放 V1 只读转换、第一次编辑，以及不可变正文/布局历史：
