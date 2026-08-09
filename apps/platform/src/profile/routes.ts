@@ -5,6 +5,7 @@ import {
   PutProfileFactsRequestSchema,
   PutResumeEvidenceRequestSchema,
   PutSavedResumeEvidenceSelectionRequestSchema,
+  ResumeEvidenceRevisionIdSchema,
 } from "@aijob/contracts";
 import type { Database } from "@aijob/database";
 import type { FastifyInstance } from "fastify";
@@ -23,6 +24,7 @@ import {
   getCurrentProfileFacts,
   getCurrentResumeDocument,
   getCurrentResumeEvidence,
+  getResumeEvidenceRevision,
   putJobPreferences,
   putProfileFacts,
   putResumeEvidence,
@@ -137,6 +139,33 @@ export function registerProfileRoutes(app: FastifyInstance, options: ProfileRout
           evidence: [],
         },
       );
+    } catch (error) {
+      return handleMutationError(error, request, reply);
+    }
+  });
+
+  app.get("/v1/profile/evidence/:evidenceRevisionId", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { evidenceRevisionId } = ResumeEvidenceRevisionIdSchema.parse(request.params);
+      const revision = await getResumeEvidenceRevision({
+        db: options.db,
+        owner,
+        evidenceRevisionId,
+      });
+      if (!revision) {
+        return sendApiProblem(
+          request,
+          reply,
+          new ApiProblem(
+            404,
+            "RESUME_EVIDENCE_REVISION_NOT_FOUND",
+            "没有找到该简历证据修订",
+            "记录不存在、已删除或不属于当前账户。",
+          ),
+        );
+      }
+      return reply.send(revision);
     } catch (error) {
       return handleMutationError(error, request, reply);
     }

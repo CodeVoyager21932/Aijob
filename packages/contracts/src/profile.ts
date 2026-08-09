@@ -207,6 +207,13 @@ export const ResumeEvidenceRevisionSchema = RevisionMetadataSchema.extend({
 });
 export type ResumeEvidenceRevision = z.infer<typeof ResumeEvidenceRevisionSchema>;
 
+export const ResumeEvidenceRevisionIdSchema = z
+  .object({
+    evidenceRevisionId: UuidSchema,
+  })
+  .strict();
+export type ResumeEvidenceRevisionId = z.infer<typeof ResumeEvidenceRevisionIdSchema>;
+
 export const PutProfileFactsRequestSchema = z.object({
   expectedRevision: z.number().int().nonnegative(),
   facts: z.array(ProfileFactSchema).max(100),

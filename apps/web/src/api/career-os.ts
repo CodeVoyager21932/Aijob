@@ -32,6 +32,8 @@ export const careerOsQueryKeys = {
   requirements: (caseId: string) =>
     ["career-os", "application-cases", caseId, "requirements"] as const,
   evidence: ["career-os", "profile", "evidence"] as const,
+  evidenceRevision: (evidenceRevisionId: string) =>
+    ["career-os", "profile", "evidence", evidenceRevisionId] as const,
   resumeDocuments: (filters: { kind?: "base" | "case_derived"; caseId?: string } = {}) =>
     [
       "career-os",
@@ -147,6 +149,13 @@ export type CareerOsEvidenceResponse =
 
 export function getCareerOsEvidence(signal?: AbortSignal) {
   return apiRequest<CareerOsEvidenceResponse>("/v1/profile/evidence", { signal });
+}
+
+export function getCareerOsEvidenceRevision(evidenceRevisionId: string, signal?: AbortSignal) {
+  return apiRequest<ResumeEvidenceRevision>(
+    `/v1/profile/evidence/${encodeURIComponent(evidenceRevisionId)}`,
+    { signal },
+  );
 }
 
 export interface ListResumeDocumentsInput {

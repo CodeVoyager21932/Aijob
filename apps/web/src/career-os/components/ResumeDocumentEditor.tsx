@@ -10,6 +10,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import {
   careerOsQueryKeys,
   getCareerOsEvidence,
+  getCareerOsEvidenceRevision,
   listResumeDocumentContent,
   listResumeDocumentLayout,
   putResumeDocumentContent,
@@ -82,9 +83,11 @@ function sectionOrderEquals(left: string[], right: string[]): boolean {
 export function ResumeDocumentEditor({
   resumeDocument,
   contextLabel = "基础简历",
+  evidenceRevisionId,
 }: {
   resumeDocument: ResumeDocument;
   contextLabel?: string;
+  evidenceRevisionId?: string;
 }) {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -108,8 +111,13 @@ export function ResumeDocumentEditor({
     queryFn: ({ signal }) => listResumeDocumentLayout(resumeDocument.id, signal),
   });
   const evidenceQuery = useQuery({
-    queryKey: careerOsQueryKeys.evidence,
-    queryFn: ({ signal }) => getCareerOsEvidence(signal),
+    queryKey: evidenceRevisionId
+      ? careerOsQueryKeys.evidenceRevision(evidenceRevisionId)
+      : careerOsQueryKeys.evidence,
+    queryFn: ({ signal }) =>
+      evidenceRevisionId
+        ? getCareerOsEvidenceRevision(evidenceRevisionId, signal)
+        : getCareerOsEvidence(signal),
   });
 
   const serverContentRevision = contentQuery.data?.current ?? null;

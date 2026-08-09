@@ -10,6 +10,7 @@ import {
   PutResumeDocumentContentRevisionResponseSchema,
   PutResumeDocumentLayoutRevisionResponseSchema,
   ResumeDocumentSchema,
+  ResumeEvidenceRevisionSchema,
 } from "@aijob/contracts";
 import { createDatabase, type Database, migrateToLatest } from "@aijob/database";
 import type { FastifyInstance } from "fastify";
@@ -799,6 +800,28 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
 
   it("creates public and private Case-derived documents from same-owner pinned inputs", async () => {
     const mainHeaders = sessionHeaders(mainSession);
+    const pinnedEvidenceResponse = await app.inject({
+      method: "GET",
+      url: `/v1/profile/evidence/${mainResume.evidenceRevisionId}`,
+      headers: mainHeaders,
+    });
+    expect(pinnedEvidenceResponse.statusCode).toBe(200);
+    expect(pinnedEvidenceResponse.headers["cache-control"]).toBe("no-store");
+    expect(ResumeEvidenceRevisionSchema.parse(pinnedEvidenceResponse.json())).toMatchObject({
+      id: mainResume.evidenceRevisionId,
+      ownerId: mainSession.context.ownerId,
+    });
+
+    const crossOwnerPinnedEvidence = await app.inject({
+      method: "GET",
+      url: `/v1/profile/evidence/${mainResume.evidenceRevisionId}`,
+      headers: sessionHeaders(otherSession),
+    });
+    expect(crossOwnerPinnedEvidence.statusCode).toBe(404);
+    expect(crossOwnerPinnedEvidence.json()).toMatchObject({
+      code: "RESUME_EVIDENCE_REVISION_NOT_FOUND",
+    });
+
     const staleCaseRevision = await app.inject({
       method: "POST",
       url: "/v1/resume-documents",

@@ -10,6 +10,7 @@ import {
   normalizeCityPreferences,
   ProfileDeletionSchema,
   ResumeAnalysisSubmissionSchema,
+  ResumeEvidenceRevisionIdSchema,
   ResumeTailoringRunSchema,
   ResumeTailoringSegmentSchema,
 } from "./index.js";
@@ -17,6 +18,17 @@ import {
 const unknown = { state: "unknown" as const, reason: "source_not_stated" as const };
 
 describe("local complete MVP contracts", () => {
+  it("requires a UUID when selecting a pinned resume evidence revision", () => {
+    expect(
+      ResumeEvidenceRevisionIdSchema.safeParse({
+        evidenceRevisionId: "13b34c77-30c0-49c4-b9ed-006559e79872",
+      }).success,
+    ).toBe(true);
+    expect(
+      ResumeEvidenceRevisionIdSchema.safeParse({ evidenceRevisionId: "current" }).success,
+    ).toBe(false);
+  });
+
   it("accepts the full Private Alpha recommendation buffer and rejects overflow", () => {
     const request = {
       profileFactRevisionId: "facts-1",

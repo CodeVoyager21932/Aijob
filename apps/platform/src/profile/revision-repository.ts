@@ -202,7 +202,22 @@ export async function getCurrentResumeEvidence(input: {
     .where("owner_id", "=", input.ownerId)
     .orderBy("revision", "desc")
     .executeTakeFirst();
-  if (!row) return null;
+  return row ? resumeEvidenceRevisionFromRow(row) : null;
+}
+
+function resumeEvidenceRevisionFromRow(row: {
+  id: string;
+  owner_id: string;
+  revision: number;
+  base_revision: number | null;
+  content_hash: string;
+  confirmed_at: Date | string;
+  created_at: Date | string;
+  resume_analysis_id: string | null;
+  schema_version: string;
+  document_revision_id: string | null;
+  evidence: JsonValue;
+}): ResumeEvidenceRevision {
   return {
     id: row.id,
     ownerId: row.owner_id,
@@ -216,6 +231,21 @@ export async function getCurrentResumeEvidence(input: {
     documentRevisionId: row.document_revision_id,
     evidence: json<ResumeEvidence[]>(row.evidence),
   };
+}
+
+export async function getResumeEvidenceRevision(input: {
+  db: Kysely<Database>;
+  owner: OwnerContext;
+  evidenceRevisionId: string;
+}): Promise<ResumeEvidenceRevision | null> {
+  const row = await input.db
+    .selectFrom("profile.resume_evidence_revisions")
+    .selectAll()
+    .where("id", "=", input.evidenceRevisionId)
+    .where("owner_id", "=", input.owner.ownerId)
+    .where("owner_epoch", "=", input.owner.ownerEpoch)
+    .executeTakeFirst();
+  return row ? resumeEvidenceRevisionFromRow(row) : null;
 }
 
 function resumeDocumentRevisionFromRow(row: {
