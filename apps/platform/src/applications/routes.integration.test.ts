@@ -3,6 +3,8 @@ import type { AppConfig } from "@aijob/config";
 import {
   ApplicationCaseCommandResponseSchema,
   ApplicationCaseJobVersionDiffResponseSchema,
+  ApplicationCaseMutationResponseSchema,
+  ApplicationCaseRequirementsSchema,
   CreateApplicationCaseResponseSchema,
   ListApplicationCasesResponseSchema,
 } from "@aijob/contracts";
@@ -58,6 +60,7 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
   let db: Kysely<Database>;
   let firstSession: Awaited<ReturnType<typeof createAnonymousSession>>;
   let secondSession: Awaited<ReturnType<typeof createAnonymousSession>>;
+  let requirementsSession: Awaited<ReturnType<typeof createAnonymousSession>>;
   let expiredSession: Awaited<ReturnType<typeof createAnonymousSession>>;
   const ownerContexts: OwnerContext[] = [];
   const organizationId = randomUUID();
@@ -76,14 +79,25 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
     revisionId: randomUUID(),
   };
   const privateSnapshotId = randomUUID();
+  const requirementsPrivateSnapshotId = randomUUID();
+  const requirementsEvidenceRevisionId = randomUUID();
+  const unconfirmedEvidenceRevisionId = randomUUID();
+  const otherEvidenceRevisionId = randomUUID();
+  const evidenceIds = ["evidence-alpha", "evidence-beta"] as const;
 
   beforeAll(async () => {
     db = createDatabase(databaseUrl as string);
     await migrateToLatest(db);
     firstSession = await createAnonymousSession({ db });
     secondSession = await createAnonymousSession({ db });
+    requirementsSession = await createAnonymousSession({ db });
     expiredSession = await createAnonymousSession({ db });
-    ownerContexts.push(firstSession.context, secondSession.context, expiredSession.context);
+    ownerContexts.push(
+      firstSession.context,
+      secondSession.context,
+      requirementsSession.context,
+      expiredSession.context,
+    );
 
     await db.transaction().execute(async (transaction) => {
       await transaction
@@ -409,6 +423,132 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
         .set({ current_content_revision: 1, current_requirement_set_revision: 1 })
         .where("id", "=", privateSnapshotId)
         .execute();
+
+      await transaction
+        .insertInto("application.private_job_snapshots")
+        .values({
+          id: requirementsPrivateSnapshotId,
+          owner_id: requirementsSession.context.ownerId,
+          owner_epoch: requirementsSession.context.ownerEpoch,
+          current_content_revision: null,
+          current_requirement_set_revision: null,
+          creation_idempotency_key: `private-snapshot-${requirementsPrivateSnapshotId}`,
+          creation_request_hash: "c".repeat(64),
+          deleted_at: null,
+        })
+        .execute();
+      await transaction
+        .insertInto("application.private_job_snapshot_revisions")
+        .values({
+          owner_id: requirementsSession.context.ownerId,
+          owner_epoch: requirementsSession.context.ownerEpoch,
+          snapshot_id: requirementsPrivateSnapshotId,
+          content_revision: 1,
+          requirement_set_revision: 1,
+          title: "Synthetic private requirements internship",
+          company_name: "Private Fixture Company",
+          source_label: "user_pasted",
+          official_url: null,
+          source_provided: false,
+          content_text: "Synthetic private JD for requirement service tests.",
+          requirements: JSON.stringify([
+            {
+              id: "private-requirement-1",
+              kind: "experience",
+              operator: "contains",
+              expectedValue: ["user research"],
+              sourceText: "具备用户研究项目经历",
+              evidenceRefs: ["private-jd#experience"],
+              sourceSpan: null,
+              necessity: "required",
+            },
+          ]),
+          content_hash: "b".repeat(64),
+        })
+        .execute();
+      await transaction
+        .updateTable("application.private_job_snapshots")
+        .set({ current_content_revision: 1, current_requirement_set_revision: 1 })
+        .where("id", "=", requirementsPrivateSnapshotId)
+        .execute();
+
+      await transaction
+        .insertInto("profile.resume_evidence_revisions")
+        .values([
+          {
+            id: requirementsEvidenceRevisionId,
+            owner_id: requirementsSession.context.ownerId,
+            owner_epoch: requirementsSession.context.ownerEpoch,
+            resume_analysis_id: null,
+            revision: 1,
+            base_revision: null,
+            evidence: JSON.stringify(
+              evidenceIds.map((id, index) => ({
+                id,
+                resumeAnalysisId: null,
+                section: "项目经历",
+                originalText: `Synthetic confirmed evidence ${index + 1}`,
+                claim: `Synthetic confirmed claim ${index + 1}`,
+                skills: ["research"],
+                outcomes: [],
+                confirmed: true,
+              })),
+            ),
+            content_hash: "a".repeat(64),
+            confirmed_at: new Date(),
+            schema_version: "resume-evidence-v1",
+            document_revision_id: null,
+          },
+          {
+            id: unconfirmedEvidenceRevisionId,
+            owner_id: requirementsSession.context.ownerId,
+            owner_epoch: requirementsSession.context.ownerEpoch,
+            resume_analysis_id: null,
+            revision: 2,
+            base_revision: 1,
+            evidence: JSON.stringify([
+              {
+                id: "unconfirmed-evidence",
+                resumeAnalysisId: null,
+                section: "项目经历",
+                originalText: "Unconfirmed evidence must be rejected",
+                claim: "Unconfirmed claim",
+                skills: [],
+                outcomes: [],
+                confirmed: false,
+              },
+            ]),
+            content_hash: "6".repeat(64),
+            confirmed_at: new Date(),
+            schema_version: "resume-evidence-v1",
+            document_revision_id: null,
+          },
+          {
+            id: otherEvidenceRevisionId,
+            owner_id: secondSession.context.ownerId,
+            owner_epoch: secondSession.context.ownerEpoch,
+            resume_analysis_id: null,
+            revision: 1,
+            base_revision: null,
+            evidence: JSON.stringify([
+              {
+                id: "other-owner-evidence",
+                resumeAnalysisId: null,
+                section: "项目经历",
+                originalText: "Other owner evidence",
+                claim: "Other owner claim",
+                skills: [],
+                outcomes: [],
+                confirmed: true,
+              },
+            ]),
+            content_hash: "7".repeat(64),
+            confirmed_at: new Date(),
+            schema_version: "resume-evidence-v1",
+            document_revision_id: null,
+          },
+        ])
+        .execute();
     });
 
     app = buildApp({ config: config(), db });
@@ -426,11 +566,15 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       await transaction
         .updateTable("application.private_job_snapshots")
         .set({ current_content_revision: null, current_requirement_set_revision: null })
-        .where("id", "=", privateSnapshotId)
+        .where("id", "in", [privateSnapshotId, requirementsPrivateSnapshotId])
         .execute();
       await transaction
         .deleteFrom("application.private_job_snapshots")
-        .where("id", "=", privateSnapshotId)
+        .where("id", "in", [privateSnapshotId, requirementsPrivateSnapshotId])
+        .execute();
+      await transaction
+        .deleteFrom("profile.resume_evidence_revisions")
+        .where("owner_id", "in", ownerIds)
         .execute();
       await transaction
         .deleteFrom("decision.job_decisions")
@@ -1145,6 +1289,569 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       { sequence: 3, event_type: "stage_transitioned" },
       { sequence: 4, event_type: "stage_transitioned" },
       { sequence: 5, event_type: "stage_transitioned" },
+    ]);
+  }, 40_000);
+
+  it("keeps fixed requirements, evidence and questions in one revisioned Case aggregate", async () => {
+    const firstPublic = publicFixtures[0];
+    if (!firstPublic) throw new Error("PUBLIC_FIXTURE_MISSING");
+    const headers = sessionHeaders(requirementsSession);
+    const { [CSRF_HEADER_NAME]: _csrf, ...headersWithoutCsrf } = headers;
+
+    const publicCreated = await app.inject({
+      method: "POST",
+      url: "/v1/application-cases",
+      headers: { ...headers, "idempotency-key": `requirements-public-${randomUUID()}` },
+      payload: {
+        jobContext: {
+          kind: "public",
+          publishedJobId: firstPublic.jobId,
+          publishedJobVersionId: upgradeFixture.versionId,
+        },
+      },
+    });
+    expect(publicCreated.statusCode).toBe(201);
+    const publicCase = CreateApplicationCaseResponseSchema.parse(publicCreated.json());
+
+    const privateCreated = await app.inject({
+      method: "POST",
+      url: "/v1/application-cases",
+      headers: { ...headers, "idempotency-key": `requirements-private-${randomUUID()}` },
+      payload: {
+        jobContext: {
+          kind: "private",
+          snapshotId: requirementsPrivateSnapshotId,
+          contentRevision: 1,
+        },
+      },
+    });
+    expect(privateCreated.statusCode).toBe(201);
+    const privateCase = CreateApplicationCaseResponseSchema.parse(privateCreated.json());
+
+    const publicRequirementsResponse = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/requirements`,
+      headers,
+    });
+    expect(publicRequirementsResponse.statusCode).toBe(200);
+    expect(publicRequirementsResponse.headers["cache-control"]).toBe("no-store");
+    const publicRequirements = ApplicationCaseRequirementsSchema.parse(
+      publicRequirementsResponse.json(),
+    );
+    expect(publicRequirements.requirementContext).toEqual({
+      kind: "public",
+      requirementSetId: upgradeFixture.requirementSetId,
+    });
+    expect(publicRequirements.requirements.map(({ id }) => id)).toEqual([
+      "requirement-new-sql",
+      "requirement-new-project",
+    ]);
+    expect(publicRequirements.states).toEqual(
+      publicRequirements.requirements.map(({ id }) =>
+        expect.objectContaining({
+          id: null,
+          requirementId: id,
+          state: "unconfirmed",
+          persisted: false,
+          revision: null,
+        }),
+      ),
+    );
+
+    const privateRequirementsResponse = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${privateCase.applicationCase.id}/requirements`,
+      headers,
+    });
+    expect(privateRequirementsResponse.statusCode).toBe(200);
+    const privateRequirements = ApplicationCaseRequirementsSchema.parse(
+      privateRequirementsResponse.json(),
+    );
+    expect(privateRequirements.requirementContext).toEqual({
+      kind: "private",
+      requirementSetRevision: 1,
+    });
+    expect(privateRequirements.requirements.map(({ id }) => id)).toEqual(["private-requirement-1"]);
+
+    const crossOwnerRequirements = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/requirements`,
+      headers: sessionHeaders(secondSession),
+    });
+    const missingRequirements = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${randomUUID()}/requirements`,
+      headers,
+    });
+    expect(crossOwnerRequirements.statusCode).toBe(404);
+    expect(crossOwnerRequirements.headers["cache-control"]).toBe("no-store");
+    expect(crossOwnerRequirements.json().code).toBe(missingRequirements.json().code);
+
+    const missingStateCsrf = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/requirements/requirement-new-sql`,
+      headers: headersWithoutCsrf,
+      payload: { expectedRevision: 1, state: "confirmed", userNote: null },
+    });
+    expect(missingStateCsrf.statusCode).toBe(403);
+    const invalidRequirement = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/requirements/not-in-fixed-jd`,
+      headers,
+      payload: { expectedRevision: 1, state: "confirmed", userNote: null },
+    });
+    expect(invalidRequirement.statusCode).toBe(422);
+    expect(invalidRequirement.json()).toMatchObject({ code: "REQUIREMENT_REFERENCE_INVALID" });
+
+    const stateRequest = {
+      expectedRevision: 1,
+      state: "confirmed" as const,
+      userNote: "已核对项目证据",
+    };
+    const stateUpdated = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/requirements/requirement-new-sql`,
+      headers,
+      payload: stateRequest,
+    });
+    expect(stateUpdated.statusCode).toBe(200);
+    const stateMutation = ApplicationCaseMutationResponseSchema.parse(stateUpdated.json());
+    expect(stateMutation).toMatchObject({
+      caseRevision: 2,
+      event: {
+        sequence: 2,
+        eventType: "requirement_state_changed",
+        eventData: {
+          schemaVersion: "case-event-v2",
+          fromState: null,
+          toState: "confirmed",
+          noteChanged: true,
+        },
+      },
+    });
+    const stateReplay = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/requirements/requirement-new-sql`,
+      headers,
+      payload: stateRequest,
+    });
+    expect(stateReplay.json()).toEqual(stateMutation);
+    const stateNoop = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/requirements/requirement-new-sql`,
+      headers,
+      payload: { ...stateRequest, expectedRevision: 2 },
+    });
+    expect(ApplicationCaseMutationResponseSchema.parse(stateNoop.json())).toEqual({
+      caseRevision: 2,
+      event: null,
+    });
+    const noteOnly = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/requirements/requirement-new-sql`,
+      headers,
+      payload: { ...stateRequest, expectedRevision: 2, userNote: "补充核对说明" },
+    });
+    expect(ApplicationCaseMutationResponseSchema.parse(noteOnly.json())).toMatchObject({
+      caseRevision: 3,
+      event: {
+        sequence: 3,
+        eventType: "requirement_state_changed",
+        eventData: {
+          fromState: "confirmed",
+          toState: "confirmed",
+          noteChanged: true,
+        },
+      },
+    });
+    const staleOtherRequirement = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/requirements/requirement-new-project`,
+      headers,
+      payload: { expectedRevision: 2, state: "needs_work", userNote: null },
+    });
+    expect(staleOtherRequirement.statusCode).toBe(409);
+    expect(staleOtherRequirement.json()).toMatchObject({
+      code: "APPLICATION_CASE_REVISION_CONFLICT",
+    });
+
+    const concurrentStates = await Promise.all([
+      app.inject({
+        method: "PUT",
+        url: `/v1/application-cases/${publicCase.applicationCase.id}/requirements/requirement-new-sql`,
+        headers,
+        payload: { expectedRevision: 3, state: "needs_work", userNote: null },
+      }),
+      app.inject({
+        method: "PUT",
+        url: `/v1/application-cases/${publicCase.applicationCase.id}/requirements/requirement-new-project`,
+        headers,
+        payload: { expectedRevision: 3, state: "confirmed", userNote: null },
+      }),
+    ]);
+    expect(concurrentStates.map(({ statusCode }) => statusCode).sort()).toEqual([200, 409]);
+    expect(concurrentStates.find(({ statusCode }) => statusCode === 409)?.json()).toMatchObject({
+      code: "APPLICATION_CASE_REVISION_CONFLICT",
+    });
+
+    const crossOwnerEvidence = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${privateCase.applicationCase.id}/requirements/private-requirement-1/evidence-links`,
+      headers,
+      payload: {
+        expectedRevision: 1,
+        evidenceRevisionId: otherEvidenceRevisionId,
+        evidenceIds: ["other-owner-evidence"],
+      },
+    });
+    expect(crossOwnerEvidence.statusCode).toBe(422);
+    expect(crossOwnerEvidence.json()).toMatchObject({ code: "EVIDENCE_REFERENCE_INVALID" });
+    const unknownEvidence = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${privateCase.applicationCase.id}/requirements/private-requirement-1/evidence-links`,
+      headers,
+      payload: {
+        expectedRevision: 1,
+        evidenceRevisionId: requirementsEvidenceRevisionId,
+        evidenceIds: ["unknown-evidence"],
+      },
+    });
+    expect(unknownEvidence.statusCode).toBe(422);
+    const unconfirmedEvidence = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${privateCase.applicationCase.id}/requirements/private-requirement-1/evidence-links`,
+      headers,
+      payload: {
+        expectedRevision: 1,
+        evidenceRevisionId: unconfirmedEvidenceRevisionId,
+        evidenceIds: ["unconfirmed-evidence"],
+      },
+    });
+    expect(unconfirmedEvidence.statusCode).toBe(422);
+    expect(unconfirmedEvidence.json()).toMatchObject({ code: "EVIDENCE_REFERENCE_INVALID" });
+    const duplicateEvidence = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${privateCase.applicationCase.id}/requirements/private-requirement-1/evidence-links`,
+      headers,
+      payload: {
+        expectedRevision: 1,
+        evidenceRevisionId: requirementsEvidenceRevisionId,
+        evidenceIds: [evidenceIds[0], evidenceIds[0]],
+      },
+    });
+    expect(duplicateEvidence.statusCode).toBe(400);
+
+    const firstLinkRequest = {
+      expectedRevision: 1,
+      evidenceRevisionId: requirementsEvidenceRevisionId,
+      evidenceIds: [evidenceIds[0]],
+    };
+    const firstLink = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${privateCase.applicationCase.id}/requirements/private-requirement-1/evidence-links`,
+      headers,
+      payload: firstLinkRequest,
+    });
+    const firstLinkMutation = ApplicationCaseMutationResponseSchema.parse(firstLink.json());
+    expect(firstLinkMutation).toMatchObject({
+      caseRevision: 2,
+      event: {
+        sequence: 2,
+        eventType: "requirement_evidence_changed",
+        eventData: {
+          schemaVersion: "case-event-v2",
+          requirementContextKind: "private",
+          linkedEvidenceIds: [evidenceIds[0]],
+          removedEvidenceIds: [],
+        },
+      },
+    });
+    const firstLinkReplay = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${privateCase.applicationCase.id}/requirements/private-requirement-1/evidence-links`,
+      headers,
+      payload: firstLinkRequest,
+    });
+    expect(firstLinkReplay.json()).toEqual(firstLinkMutation);
+    const linkNoop = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${privateCase.applicationCase.id}/requirements/private-requirement-1/evidence-links`,
+      headers,
+      payload: { ...firstLinkRequest, expectedRevision: 2 },
+    });
+    expect(ApplicationCaseMutationResponseSchema.parse(linkNoop.json())).toEqual({
+      caseRevision: 2,
+      event: null,
+    });
+    const mixedLink = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${privateCase.applicationCase.id}/requirements/private-requirement-1/evidence-links`,
+      headers,
+      payload: {
+        expectedRevision: 2,
+        evidenceRevisionId: requirementsEvidenceRevisionId,
+        evidenceIds: [evidenceIds[1]],
+      },
+    });
+    expect(ApplicationCaseMutationResponseSchema.parse(mixedLink.json())).toMatchObject({
+      caseRevision: 3,
+      event: {
+        sequence: 3,
+        eventData: {
+          linkedEvidenceIds: [evidenceIds[1]],
+          removedEvidenceIds: [evidenceIds[0]],
+        },
+      },
+    });
+    const clearLinks = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${privateCase.applicationCase.id}/requirements/private-requirement-1/evidence-links`,
+      headers,
+      payload: {
+        expectedRevision: 3,
+        evidenceRevisionId: requirementsEvidenceRevisionId,
+        evidenceIds: [],
+      },
+    });
+    expect(ApplicationCaseMutationResponseSchema.parse(clearLinks.json())).toMatchObject({
+      caseRevision: 4,
+      event: { eventData: { linkedEvidenceIds: [], removedEvidenceIds: [evidenceIds[1]] } },
+    });
+    const relink = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${privateCase.applicationCase.id}/requirements/private-requirement-1/evidence-links`,
+      headers,
+      payload: {
+        expectedRevision: 4,
+        evidenceRevisionId: requirementsEvidenceRevisionId,
+        evidenceIds: [evidenceIds[0]],
+      },
+    });
+    expect(ApplicationCaseMutationResponseSchema.parse(relink.json())).toMatchObject({
+      caseRevision: 5,
+      event: { eventData: { linkedEvidenceIds: [evidenceIds[0]], removedEvidenceIds: [] } },
+    });
+    const privateAfterLinks = ApplicationCaseRequirementsSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/application-cases/${privateCase.applicationCase.id}/requirements`,
+          headers,
+        })
+      ).json(),
+    );
+    expect(privateAfterLinks).toMatchObject({
+      revision: 5,
+      states: [
+        {
+          requirementId: "private-requirement-1",
+          state: "unconfirmed",
+          persisted: true,
+          revision: 2,
+        },
+      ],
+    });
+    expect(
+      privateAfterLinks.evidenceLinks.map(({ evidenceId, revision, removedAt }) => ({
+        evidenceId,
+        revision,
+        removed: removedAt !== null,
+      })),
+    ).toEqual([
+      { evidenceId: evidenceIds[0], revision: 5, removed: false },
+      { evidenceId: evidenceIds[1], revision: 4, removed: true },
+    ]);
+
+    const publicAfterStates = ApplicationCaseRequirementsSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/application-cases/${publicCase.applicationCase.id}/requirements`,
+          headers,
+        })
+      ).json(),
+    );
+    let publicRevision = publicAfterStates.revision;
+    const missingQuestionKey = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/questions`,
+      headers,
+      payload: { expectedRevision: publicRevision, question: "岗位是否有明确截止日期？" },
+    });
+    expect(missingQuestionKey.statusCode).toBe(400);
+    const questionKey = `case-question-${randomUUID()}`;
+    const questionRequest = {
+      expectedRevision: publicRevision,
+      question: "岗位是否有明确截止日期？",
+    };
+    const caseQuestionCreated = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/questions`,
+      headers: { ...headers, "idempotency-key": questionKey },
+      payload: questionRequest,
+    });
+    const caseQuestionMutation = ApplicationCaseMutationResponseSchema.parse(
+      caseQuestionCreated.json(),
+    );
+    expect(caseQuestionMutation.event?.eventType).toBe("question_added");
+    expect(caseQuestionMutation.caseRevision).toBe(publicRevision + 1);
+    const caseQuestionReplay = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/questions`,
+      headers: { ...headers, "idempotency-key": questionKey },
+      payload: questionRequest,
+    });
+    expect(caseQuestionReplay.json()).toEqual(caseQuestionMutation);
+    const questionKeyConflict = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/questions`,
+      headers: { ...headers, "idempotency-key": questionKey },
+      payload: { ...questionRequest, question: "同一键不能创建另一个问题" },
+    });
+    expect(questionKeyConflict.statusCode).toBe(409);
+    expect(questionKeyConflict.json()).toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+    publicRevision = caseQuestionMutation.caseRevision;
+
+    const invalidRequirementQuestion = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/questions`,
+      headers: { ...headers, "idempotency-key": `invalid-question-${randomUUID()}` },
+      payload: {
+        expectedRevision: publicRevision,
+        requirementId: "not-in-fixed-jd",
+        question: "无效要求问题",
+      },
+    });
+    expect(invalidRequirementQuestion.statusCode).toBe(422);
+    const requirementQuestionCreated = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/questions`,
+      headers: { ...headers, "idempotency-key": `requirement-question-${randomUUID()}` },
+      payload: {
+        expectedRevision: publicRevision,
+        requirementId: "requirement-new-project",
+        question: "哪段经历最能证明用户研究能力？",
+      },
+    });
+    const requirementQuestionMutation = ApplicationCaseMutationResponseSchema.parse(
+      requirementQuestionCreated.json(),
+    );
+    if (
+      !requirementQuestionMutation.event ||
+      requirementQuestionMutation.event.eventType !== "question_added"
+    ) {
+      throw new Error("REQUIREMENT_QUESTION_EVENT_MISSING");
+    }
+    const requirementQuestionId = requirementQuestionMutation.event.eventData.questionId;
+    publicRevision = requirementQuestionMutation.caseRevision;
+
+    const answered = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/questions/${requirementQuestionId}`,
+      headers,
+      payload: { expectedRevision: publicRevision, status: "answered", answer: "项目经历 A" },
+    });
+    const answeredMutation = ApplicationCaseMutationResponseSchema.parse(answered.json());
+    expect(answeredMutation).toMatchObject({
+      caseRevision: publicRevision + 1,
+      event: {
+        eventType: "question_updated",
+        eventData: { schemaVersion: "case-event-v2", answerChanged: true },
+      },
+    });
+    publicRevision = answeredMutation.caseRevision;
+    const answerNoop = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/questions/${requirementQuestionId}`,
+      headers,
+      payload: { expectedRevision: publicRevision, status: "answered", answer: "项目经历 A" },
+    });
+    expect(ApplicationCaseMutationResponseSchema.parse(answerNoop.json())).toEqual({
+      caseRevision: publicRevision,
+      event: null,
+    });
+    const answerEdited = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/questions/${requirementQuestionId}`,
+      headers,
+      payload: {
+        expectedRevision: publicRevision,
+        status: "answered",
+        answer: "项目经历 B",
+      },
+    });
+    const answerEditedMutation = ApplicationCaseMutationResponseSchema.parse(answerEdited.json());
+    expect(answerEditedMutation.event).toMatchObject({
+      eventData: { fromStatus: "answered", toStatus: "answered", answerChanged: true },
+    });
+    publicRevision = answerEditedMutation.caseRevision;
+    const reopenedQuestion = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/questions/${requirementQuestionId}`,
+      headers,
+      payload: { expectedRevision: publicRevision, status: "open", answer: null },
+    });
+    publicRevision = ApplicationCaseMutationResponseSchema.parse(
+      reopenedQuestion.json(),
+    ).caseRevision;
+    const dismissedQuestion = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/questions/${requirementQuestionId}`,
+      headers,
+      payload: { expectedRevision: publicRevision, status: "dismissed", answer: null },
+    });
+    publicRevision = ApplicationCaseMutationResponseSchema.parse(
+      dismissedQuestion.json(),
+    ).caseRevision;
+    const invalidAnswer = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/questions/${requirementQuestionId}`,
+      headers,
+      payload: { expectedRevision: publicRevision, status: "answered" },
+    });
+    expect(invalidAnswer.statusCode).toBe(400);
+    const crossOwnerQuestion = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${publicCase.applicationCase.id}/questions/${requirementQuestionId}`,
+      headers: sessionHeaders(secondSession),
+      payload: { expectedRevision: publicRevision, status: "open", answer: null },
+    });
+    expect(crossOwnerQuestion.statusCode).toBe(404);
+
+    const publicFinal = ApplicationCaseRequirementsSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/application-cases/${publicCase.applicationCase.id}/requirements`,
+          headers,
+        })
+      ).json(),
+    );
+    expect(publicFinal.revision).toBe(publicRevision);
+    expect(publicFinal.questions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ requirementId: null, status: "open", answer: null }),
+        expect.objectContaining({
+          id: requirementQuestionId,
+          requirementId: "requirement-new-project",
+          status: "dismissed",
+          answer: null,
+        }),
+      ]),
+    );
+
+    const privateRows = await db
+      .selectFrom("application.case_events")
+      .select(["sequence", "schema_version"])
+      .where("case_id", "=", privateCase.applicationCase.id)
+      .orderBy("sequence")
+      .execute();
+    expect(privateRows).toEqual([
+      { sequence: 1, schema_version: "case-event-v1" },
+      { sequence: 2, schema_version: "case-event-v2" },
+      { sequence: 3, schema_version: "case-event-v2" },
+      { sequence: 4, schema_version: "case-event-v2" },
+      { sequence: 5, schema_version: "case-event-v2" },
     ]);
   }, 40_000);
 

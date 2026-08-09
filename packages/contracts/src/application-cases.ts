@@ -13,7 +13,11 @@ import {
   InterviewModeSchema,
   RequirementEvidenceStateSchema,
 } from "./enums.js";
-import { RequirementKindSchema, RequirementNecessitySchema } from "./matching.js";
+import {
+  JobRequirementSchema,
+  RequirementKindSchema,
+  RequirementNecessitySchema,
+} from "./matching.js";
 
 export const CaseEventTypeSchema = z.enum([
   "case_created",
@@ -48,6 +52,13 @@ const OptionalReasonSchema = ReasonCodeSchema.nullable().optional();
 const RequirementIdSchema = z.string().trim().min(1).max(200);
 const EvidenceIdSchema = z.string().trim().min(1).max(200);
 const CaseEventSchemaVersionSchema = z.literal("case-event-v1");
+const CaseMutationEventSchemaVersionSchema = z.literal("case-event-v2");
+const EvidenceIdsSchema = z
+  .array(EvidenceIdSchema)
+  .max(500)
+  .refine((ids) => new Set(ids).size === ids.length, {
+    message: "Evidence IDs must be unique",
+  });
 
 export const JobContextKindSchema = z.enum(["public", "private"]);
 export type JobContextKind = z.infer<typeof JobContextKindSchema>;
@@ -388,6 +399,43 @@ const PrivateRequirementStateChangedEventDataSchema = z
 const RequirementStateChangedEventDataSchema = z.union([
   PublicRequirementStateChangedEventDataSchema,
   PrivateRequirementStateChangedEventDataSchema,
+  z
+    .object({
+      schemaVersion: CaseMutationEventSchemaVersionSchema,
+      requirementSetId: UuidSchema,
+      requirementId: RequirementIdSchema,
+      fromState: RequirementEvidenceStateSchema.nullable(),
+      toState: RequirementEvidenceStateSchema,
+      noteChanged: z.boolean(),
+      reasonCode: ReasonCodeSchema.nullable(),
+    })
+    .strict()
+    .refine(
+      (value) => value.fromState === null || value.fromState !== value.toState || value.noteChanged,
+      {
+        path: ["toState"],
+        message: "A requirement state event must change the state or note",
+      },
+    ),
+  z
+    .object({
+      schemaVersion: CaseMutationEventSchemaVersionSchema,
+      requirementContextKind: z.literal("private"),
+      requirementSetRevision: RevisionSchema,
+      requirementId: RequirementIdSchema,
+      fromState: RequirementEvidenceStateSchema.nullable(),
+      toState: RequirementEvidenceStateSchema,
+      noteChanged: z.boolean(),
+      reasonCode: ReasonCodeSchema.nullable(),
+    })
+    .strict()
+    .refine(
+      (value) => value.fromState === null || value.fromState !== value.toState || value.noteChanged,
+      {
+        path: ["toState"],
+        message: "A requirement state event must change the state or note",
+      },
+    ),
 ]);
 
 const PublicRequirementEvidenceChangedEventDataSchema = z
@@ -428,6 +476,61 @@ const PrivateRequirementEvidenceChangedEventDataSchema = z
 const RequirementEvidenceChangedEventDataSchema = z.union([
   PublicRequirementEvidenceChangedEventDataSchema,
   PrivateRequirementEvidenceChangedEventDataSchema,
+  z
+    .object({
+      schemaVersion: CaseMutationEventSchemaVersionSchema,
+      requirementSetId: UuidSchema,
+      requirementId: RequirementIdSchema,
+      evidenceRevisionId: UuidSchema,
+      linkedEvidenceIds: EvidenceIdsSchema,
+      removedEvidenceIds: EvidenceIdsSchema,
+    })
+    .strict()
+    .superRefine((value, context) => {
+      if (value.linkedEvidenceIds.length + value.removedEvidenceIds.length === 0) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["linkedEvidenceIds"],
+          message: "An evidence event must link or remove at least one ID",
+        });
+      }
+      const removed = new Set(value.removedEvidenceIds);
+      if (value.linkedEvidenceIds.some((id) => removed.has(id))) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["removedEvidenceIds"],
+          message: "Linked and removed evidence IDs must be disjoint",
+        });
+      }
+    }),
+  z
+    .object({
+      schemaVersion: CaseMutationEventSchemaVersionSchema,
+      requirementContextKind: z.literal("private"),
+      requirementSetRevision: RevisionSchema,
+      requirementId: RequirementIdSchema,
+      evidenceRevisionId: UuidSchema,
+      linkedEvidenceIds: EvidenceIdsSchema,
+      removedEvidenceIds: EvidenceIdsSchema,
+    })
+    .strict()
+    .superRefine((value, context) => {
+      if (value.linkedEvidenceIds.length + value.removedEvidenceIds.length === 0) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["linkedEvidenceIds"],
+          message: "An evidence event must link or remove at least one ID",
+        });
+      }
+      const removed = new Set(value.removedEvidenceIds);
+      if (value.linkedEvidenceIds.some((id) => removed.has(id))) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["removedEvidenceIds"],
+          message: "Linked and removed evidence IDs must be disjoint",
+        });
+      }
+    }),
 ]);
 
 const QuestionAddedEventDataSchema = z
@@ -438,18 +541,33 @@ const QuestionAddedEventDataSchema = z
   })
   .strict();
 
-const QuestionUpdatedEventDataSchema = z
-  .object({
-    schemaVersion: CaseEventSchemaVersionSchema,
-    questionId: UuidSchema,
-    fromStatus: CaseQuestionStatusSchema,
-    toStatus: CaseQuestionStatusSchema,
-  })
-  .strict()
-  .refine((value) => value.fromStatus !== value.toStatus, {
-    path: ["toStatus"],
-    message: "A question update must change the status",
-  });
+const QuestionUpdatedEventDataSchema = z.union([
+  z
+    .object({
+      schemaVersion: CaseEventSchemaVersionSchema,
+      questionId: UuidSchema,
+      fromStatus: CaseQuestionStatusSchema,
+      toStatus: CaseQuestionStatusSchema,
+    })
+    .strict()
+    .refine((value) => value.fromStatus !== value.toStatus, {
+      path: ["toStatus"],
+      message: "A question update must change the status",
+    }),
+  z
+    .object({
+      schemaVersion: CaseMutationEventSchemaVersionSchema,
+      questionId: UuidSchema,
+      fromStatus: CaseQuestionStatusSchema,
+      toStatus: CaseQuestionStatusSchema,
+      answerChanged: z.boolean(),
+    })
+    .strict()
+    .refine((value) => value.fromStatus !== value.toStatus || value.answerChanged, {
+      path: ["toStatus"],
+      message: "A question update must change the status or answer",
+    }),
+]);
 
 const OfficialLinkOpenedEventDataSchema = z
   .object({
@@ -751,6 +869,32 @@ export const CaseRequirementStateSchema = z
   .strict();
 export type CaseRequirementState = z.infer<typeof CaseRequirementStateSchema>;
 
+export const CaseRequirementStateReadModelSchema = z
+  .object({
+    id: UuidSchema.nullable(),
+    caseId: UuidSchema,
+    requirementContext: RequirementContextSchema,
+    requirementId: RequirementIdSchema,
+    state: RequirementEvidenceStateSchema,
+    userNote: z.string().trim().max(2_000).nullable(),
+    revision: RevisionSchema.nullable(),
+    persisted: z.boolean(),
+    createdAt: TimestampSchema.nullable(),
+    updatedAt: TimestampSchema.nullable(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const persistenceFields = [value.id, value.revision, value.createdAt, value.updatedAt];
+    if (persistenceFields.some((field) => (field !== null) !== value.persisted)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["persisted"],
+        message: "Persisted requirement state metadata must be present together",
+      });
+    }
+  });
+export type CaseRequirementStateReadModel = z.infer<typeof CaseRequirementStateReadModelSchema>;
+
 export const PutCaseRequirementStateRequestSchema = z
   .object({
     expectedRevision: RevisionSchema,
@@ -859,11 +1003,20 @@ export type UpdateCaseQuestionRequest = z.infer<typeof UpdateCaseQuestionRequest
 export const ApplicationCaseRequirementsSchema = z
   .object({
     caseId: UuidSchema,
-    requirementSetId: UuidSchema,
+    requirementContext: RequirementContextSchema,
     revision: RevisionSchema,
-    states: z.array(CaseRequirementStateSchema),
+    requirements: z.array(JobRequirementSchema),
+    states: z.array(CaseRequirementStateReadModelSchema),
     evidenceLinks: z.array(CaseRequirementEvidenceLinkSchema),
     questions: z.array(CaseQuestionSchema),
   })
   .strict();
 export type ApplicationCaseRequirements = z.infer<typeof ApplicationCaseRequirementsSchema>;
+
+export const ApplicationCaseMutationResponseSchema = z
+  .object({
+    caseRevision: RevisionSchema,
+    event: ApplicationCaseEventSchema.nullable(),
+  })
+  .strict();
+export type ApplicationCaseMutationResponse = z.infer<typeof ApplicationCaseMutationResponseSchema>;

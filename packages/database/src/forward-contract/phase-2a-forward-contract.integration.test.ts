@@ -8,6 +8,7 @@ import { applicationCaseLongLivedForwardRepairMigration } from "../migrations/02
 import { privateRequirementContextForwardRepairMigration } from "../migrations/026b_private_requirement_context_forward_repair.js";
 import { resumeDocumentReviewForwardRepairMigration } from "../migrations/027_resume_document_review_forward_repair.js";
 import { interviewDebriefKnowledgeExpandMigration } from "../migrations/028_interview_debrief_knowledge_expand.js";
+import { caseMutationEventV2ForwardRepairMigration } from "../migrations/029_case_mutation_event_v2_forward_repair.js";
 
 const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
@@ -15,7 +16,7 @@ const unknown = JSON.stringify({ state: "unknown", reason: "source_not_stated" }
 const known = (value: unknown, evidenceRef: string) =>
   JSON.stringify({ state: "known", value, evidenceRefs: [evidenceRef] });
 
-describeWithDatabase("migrations 026B through 028 Phase 2A forward repairs", () => {
+describeWithDatabase("migrations 026B through 029 Phase 2A/2B forward repairs", () => {
   const ids = {
     organization: randomUUID(),
     source: randomUUID(),
@@ -550,9 +551,7 @@ describeWithDatabase("migrations 026B through 028 Phase 2A forward repairs", () 
     if (emptyDb) await emptyDb.destroy();
     if (adminDb) {
       await sql.raw(`DROP DATABASE IF EXISTS "${databaseName}" WITH (FORCE)`).execute(adminDb);
-      await sql
-        .raw(`DROP DATABASE IF EXISTS "${emptyDatabaseName}" WITH (FORCE)`)
-        .execute(adminDb);
+      await sql.raw(`DROP DATABASE IF EXISTS "${emptyDatabaseName}" WITH (FORCE)`).execute(adminDb);
       await adminDb.destroy();
     }
   }, 120_000);
@@ -566,8 +565,8 @@ describeWithDatabase("migrations 026B through 028 Phase 2A forward repairs", () 
         SELECT name FROM kysely_migration ORDER BY timestamp DESC LIMIT 1
       `.execute(emptyDb),
     ]);
-    expect(migration.rows[0]?.name).toBe("028_interview_debrief_knowledge_expand");
-    expect(emptyMigration.rows[0]?.name).toBe("028_interview_debrief_knowledge_expand");
+    expect(migration.rows[0]?.name).toBe("029_case_mutation_event_v2_forward_repair");
+    expect(emptyMigration.rows[0]?.name).toBe("029_case_mutation_event_v2_forward_repair");
 
     const accountOwner = await db
       .selectFrom("identity.owners")
@@ -688,15 +687,82 @@ describeWithDatabase("migrations 026B through 028 Phase 2A forward repairs", () 
     expect(legacyDerived.rows[0]?.expiresAt).not.toBeNull();
   });
 
-  it("keeps migrations 026 through 028 rollback forward-only", async () => {
+  it("keeps migrations 026 through 029 rollback forward-only", async () => {
     await applicationCaseLongLivedForwardRepairMigration.down?.(db);
     await privateRequirementContextForwardRepairMigration.down?.(db);
     await resumeDocumentReviewForwardRepairMigration.down?.(db);
     await interviewDebriefKnowledgeExpandMigration.down?.(db);
+    await caseMutationEventV2ForwardRepairMigration.down?.(db);
     const privateTable = await sql<{ name: string }>`
       SELECT to_regclass('application.private_job_snapshots')::text AS name
     `.execute(db);
     expect(privateTable.rows[0]?.name).toBe("application.private_job_snapshots");
+  });
+
+  it("accepts strict atomic Case mutation v2 events while rejecting empty changes", async () => {
+    const result = await sql<{
+      stateValid: boolean;
+      evidenceValid: boolean;
+      emptyEvidenceInvalid: boolean;
+      questionInvalid: boolean;
+    }>`
+      SELECT
+        application.is_valid_case_event_data(
+          'requirement_state_changed',
+          'case-event-v2',
+          ${JSON.stringify({
+            schemaVersion: "case-event-v2",
+            requirementSetId: ids.requirementSet,
+            requirementId: "requirement-sql",
+            fromState: "confirmed",
+            toState: "confirmed",
+            noteChanged: true,
+            reasonCode: "USER_UPDATED",
+          })}::jsonb
+        ) AS "stateValid",
+        application.is_valid_case_event_data(
+          'requirement_evidence_changed',
+          'case-event-v2',
+          ${JSON.stringify({
+            schemaVersion: "case-event-v2",
+            requirementContextKind: "private",
+            requirementSetRevision: 1,
+            requirementId: "requirement-sql",
+            evidenceRevisionId: ids.evidenceRevision,
+            linkedEvidenceIds: ["evidence-new"],
+            removedEvidenceIds: ["evidence-old"],
+          })}::jsonb
+        ) AS "evidenceValid",
+        NOT application.is_valid_case_event_data(
+          'requirement_evidence_changed',
+          'case-event-v2',
+          ${JSON.stringify({
+            schemaVersion: "case-event-v2",
+            requirementSetId: ids.requirementSet,
+            requirementId: "requirement-sql",
+            evidenceRevisionId: ids.evidenceRevision,
+            linkedEvidenceIds: [],
+            removedEvidenceIds: [],
+          })}::jsonb
+        ) AS "emptyEvidenceInvalid",
+        NOT application.is_valid_case_event_data(
+          'question_updated',
+          'case-event-v2',
+          ${JSON.stringify({
+            schemaVersion: "case-event-v2",
+            questionId: ids.privateQuestion,
+            fromStatus: "open",
+            toStatus: "open",
+            answerChanged: false,
+          })}::jsonb
+        ) AS "questionInvalid"
+    `.execute(db);
+    expect(result.rows[0]).toEqual({
+      stateValid: true,
+      evidenceValid: true,
+      emptyEvidenceInvalid: true,
+      questionInvalid: true,
+    });
   });
 
   it("supports owner-only private JD cases without a TTL or official URL", async () => {
@@ -2404,9 +2470,7 @@ describeWithDatabase("migrations 026B through 028 Phase 2A forward repairs", () 
     await expect(
       db.transaction().execute(async (transaction) => {
         await sql`SET LOCAL ROLE aijob_collector_worker`.execute(transaction);
-        await sql`SELECT id FROM application.case_requirement_states LIMIT 1`.execute(
-          transaction,
-        );
+        await sql`SELECT id FROM application.case_requirement_states LIMIT 1`.execute(transaction);
       }),
     ).rejects.toMatchObject({ code: "42501" });
 
@@ -2469,10 +2533,7 @@ describeWithDatabase("migrations 026B through 028 Phase 2A forward repairs", () 
 
   it("keeps a Resume until its Review and Interview references are explicitly handled", async () => {
     await expect(
-      db
-        .deleteFrom("profile.resume_documents")
-        .where("id", "=", ids.derivedDocument)
-        .execute(),
+      db.deleteFrom("profile.resume_documents").where("id", "=", ids.derivedDocument).execute(),
     ).rejects.toMatchObject({ code: "23503" });
 
     await db

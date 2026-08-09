@@ -6,12 +6,15 @@ import {
   ApplicationCaseCursorSchema,
   ApplicationCaseEventSchema,
   ApplicationCaseJobVersionDiffResponseSchema,
+  ApplicationCaseMutationResponseSchema,
+  ApplicationCaseRequirementsSchema,
   ApplicationCaseSchema,
   ApplicationCaseWithJobContextSchema,
   CaseOutcomeSchema,
   CaseQuestionSchema,
   CaseRequirementEvidenceLinkSchema,
   CaseRequirementStateSchema,
+  CaseRequirementStateReadModelSchema,
   CaseStageSchema,
   CreateApplicationCaseRequestSchema,
   CreateApplicationCaseResponseSchema,
@@ -368,6 +371,132 @@ describe("ApplicationCase contracts", () => {
         eventData: { ...publicEvent.eventData, requirementContextKind: "public" },
       }).success,
     ).toBe(false);
+  });
+
+  it("supports atomic v2 requirement and question mutations without leaking text", () => {
+    const eventBase = {
+      id: randomUUID(),
+      caseId: ids.case,
+      sequence: 3,
+      actorType: "owner" as const,
+      createdAt: "2026-08-09T00:00:00.000Z",
+    };
+    const stateEvent = {
+      ...eventBase,
+      eventType: "requirement_state_changed" as const,
+      eventData: {
+        schemaVersion: "case-event-v2" as const,
+        requirementSetId: ids.requirementSet,
+        requirementId: "requirement-1",
+        fromState: "unconfirmed" as const,
+        toState: "unconfirmed" as const,
+        noteChanged: true,
+        reasonCode: "USER_UPDATED",
+      },
+    };
+    const evidenceEvent = {
+      ...eventBase,
+      eventType: "requirement_evidence_changed" as const,
+      eventData: {
+        schemaVersion: "case-event-v2" as const,
+        requirementContextKind: "private" as const,
+        requirementSetRevision: 2,
+        requirementId: "requirement-1",
+        evidenceRevisionId: randomUUID(),
+        linkedEvidenceIds: ["evidence-2"],
+        removedEvidenceIds: ["evidence-1"],
+      },
+    };
+    const questionEvent = {
+      ...eventBase,
+      eventType: "question_updated" as const,
+      eventData: {
+        schemaVersion: "case-event-v2" as const,
+        questionId: randomUUID(),
+        fromStatus: "answered" as const,
+        toStatus: "answered" as const,
+        answerChanged: true,
+      },
+    };
+
+    expect(ApplicationCaseEventSchema.safeParse(stateEvent).success).toBe(true);
+    expect(ApplicationCaseEventSchema.safeParse(evidenceEvent).success).toBe(true);
+    expect(ApplicationCaseEventSchema.safeParse(questionEvent).success).toBe(true);
+    expect(
+      ApplicationCaseEventSchema.safeParse({
+        ...stateEvent,
+        eventData: { ...stateEvent.eventData, noteChanged: false },
+      }).success,
+    ).toBe(false);
+    expect(
+      ApplicationCaseEventSchema.safeParse({
+        ...evidenceEvent,
+        eventData: {
+          ...evidenceEvent.eventData,
+          linkedEvidenceIds: ["evidence-1"],
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      ApplicationCaseEventSchema.safeParse({
+        ...questionEvent,
+        eventData: { ...questionEvent.eventData, answerChanged: false },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("represents fixed private requirements and virtual unconfirmed states honestly", () => {
+    const requirementContext = { kind: "private" as const, requirementSetRevision: 2 };
+    const virtualState = {
+      id: null,
+      caseId: ids.case,
+      requirementContext,
+      requirementId: "requirement-1",
+      state: "unconfirmed" as const,
+      userNote: null,
+      revision: null,
+      persisted: false,
+      createdAt: null,
+      updatedAt: null,
+    };
+    const requirements = {
+      caseId: ids.case,
+      requirementContext,
+      revision: 2,
+      requirements: [
+        {
+          id: "requirement-1",
+          kind: "skill" as const,
+          operator: "contains" as const,
+          expectedValue: "SQL",
+          sourceText: "熟悉 SQL",
+          evidenceRefs: ["private-jd"],
+          necessity: "required" as const,
+          sourceSpan: null,
+        },
+      ],
+      states: [virtualState],
+      evidenceLinks: [],
+      questions: [],
+    };
+
+    expect(CaseRequirementStateReadModelSchema.safeParse(virtualState).success).toBe(true);
+    expect(ApplicationCaseRequirementsSchema.safeParse(requirements).success).toBe(true);
+    expect(
+      ApplicationCaseRequirementsSchema.safeParse({
+        ...requirements,
+        requirementSetId: ids.requirementSet,
+      }).success,
+    ).toBe(false);
+    expect(
+      CaseRequirementStateReadModelSchema.safeParse({
+        ...virtualState,
+        id: randomUUID(),
+      }).success,
+    ).toBe(false);
+    expect(
+      ApplicationCaseMutationResponseSchema.safeParse({ caseRevision: 2, event: null }).success,
+    ).toBe(true);
   });
 
   it("uses one requirement context shape across states, evidence links and questions", () => {

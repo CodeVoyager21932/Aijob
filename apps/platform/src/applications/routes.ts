@@ -1,7 +1,11 @@
 import {
+  CreateCaseQuestionRequestSchema,
   CreateApplicationCaseWithJobContextRequestSchema,
   ListApplicationCasesQuerySchema,
+  PutCaseRequirementEvidenceLinksRequestSchema,
+  PutCaseRequirementStateRequestSchema,
   TransitionApplicationCaseRequestSchema,
+  UpdateCaseQuestionRequestSchema,
   UpgradeApplicationCaseJobVersionRequestSchema,
 } from "@aijob/contracts";
 import type { Database } from "@aijob/database";
@@ -12,15 +16,26 @@ import { requireOwnerContext } from "../identity/fastify.js";
 import { ApiProblem, sendApiProblem } from "../identity/http.js";
 import { ServiceError } from "../lib/service-error.js";
 import {
+  createApplicationCaseQuestion,
   createApplicationCase,
   getApplicationCase,
   getApplicationCaseJobVersionDiff,
+  getApplicationCaseRequirements,
   listApplicationCases,
+  putApplicationCaseRequirementEvidenceLinks,
+  putApplicationCaseRequirementState,
   transitionApplicationCase,
+  updateApplicationCaseQuestion,
   upgradeApplicationCaseJobVersion,
 } from "./service.js";
 
 const ParamsSchema = z.object({ caseId: z.string().uuid() }).strict();
+const RequirementParamsSchema = z
+  .object({ caseId: z.string().uuid(), requirementId: z.string().min(1).max(200) })
+  .strict();
+const QuestionParamsSchema = z
+  .object({ caseId: z.string().uuid(), questionId: z.string().uuid() })
+  .strict();
 const IdempotencyKeySchema = z.string().trim().min(1).max(200);
 
 function requireIdempotencyKey(headers: Record<string, unknown>): string {
@@ -164,6 +179,96 @@ export function registerApplicationCaseRoutes(
           request: body,
           idempotencyKey,
           enableLocalMvp: options.enableLocalMvp,
+        }),
+      );
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.get("/v1/application-cases/:caseId/requirements", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { caseId } = ParamsSchema.parse(request.params);
+      return reply.send(await getApplicationCaseRequirements({ db: options.db, owner, caseId }));
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.put("/v1/application-cases/:caseId/requirements/:requirementId", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { caseId, requirementId } = RequirementParamsSchema.parse(request.params);
+      const body = PutCaseRequirementStateRequestSchema.parse(request.body);
+      return reply.send(
+        await putApplicationCaseRequirementState({
+          db: options.db,
+          owner,
+          caseId,
+          requirementId,
+          request: body,
+        }),
+      );
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.put(
+    "/v1/application-cases/:caseId/requirements/:requirementId/evidence-links",
+    async (request, reply) => {
+      try {
+        const owner = requireOwnerContext(request);
+        const { caseId, requirementId } = RequirementParamsSchema.parse(request.params);
+        const body = PutCaseRequirementEvidenceLinksRequestSchema.parse(request.body);
+        return reply.send(
+          await putApplicationCaseRequirementEvidenceLinks({
+            db: options.db,
+            owner,
+            caseId,
+            requirementId,
+            request: body,
+          }),
+        );
+      } catch (error) {
+        return handleError(error, request, reply);
+      }
+    },
+  );
+
+  app.post("/v1/application-cases/:caseId/questions", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { caseId } = ParamsSchema.parse(request.params);
+      const body = CreateCaseQuestionRequestSchema.parse(request.body);
+      const idempotencyKey = requireIdempotencyKey(request.headers);
+      return reply.send(
+        await createApplicationCaseQuestion({
+          db: options.db,
+          owner,
+          caseId,
+          request: body,
+          idempotencyKey,
+        }),
+      );
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.put("/v1/application-cases/:caseId/questions/:questionId", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { caseId, questionId } = QuestionParamsSchema.parse(request.params);
+      const body = UpdateCaseQuestionRequestSchema.parse(request.body);
+      return reply.send(
+        await updateApplicationCaseQuestion({
+          db: options.db,
+          owner,
+          caseId,
+          questionId,
+          request: body,
         }),
       );
     } catch (error) {

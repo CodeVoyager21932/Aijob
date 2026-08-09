@@ -29,6 +29,7 @@ import { applicationCaseLongLivedForwardRepairMigration } from "./migrations/026
 import { privateRequirementContextForwardRepairMigration } from "./migrations/026b_private_requirement_context_forward_repair.js";
 import { resumeDocumentReviewForwardRepairMigration } from "./migrations/027_resume_document_review_forward_repair.js";
 import { interviewDebriefKnowledgeExpandMigration } from "./migrations/028_interview_debrief_knowledge_expand.js";
+import { caseMutationEventV2ForwardRepairMigration } from "./migrations/029_case_mutation_event_v2_forward_repair.js";
 import type { Database } from "./types.js";
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -58,8 +59,7 @@ class StaticMigrationProvider implements MigrationProvider {
       "019_official_source_catalog_eligibility": officialSourceCatalogEligibilityMigration,
       "020_registered_source_and_job_freshness": registeredSourceAndJobFreshnessMigration,
       "021_runtime_database_roles": runtimeDatabaseRolesMigration,
-      "022_match_worker_owner_deletion_privileges":
-        matchWorkerOwnerDeletionPrivilegesMigration,
+      "022_match_worker_owner_deletion_privileges": matchWorkerOwnerDeletionPrivilegesMigration,
       "023_application_case_core_expand": applicationCaseCoreExpandMigration,
       "024_resume_document_v2_expand": resumeDocumentV2ExpandMigration,
       "025_identity_account_email_expand": identityAccountEmailExpandMigration,
@@ -69,6 +69,7 @@ class StaticMigrationProvider implements MigrationProvider {
         privateRequirementContextForwardRepairMigration,
       "027_resume_document_review_forward_repair": resumeDocumentReviewForwardRepairMigration,
       "028_interview_debrief_knowledge_expand": interviewDebriefKnowledgeExpandMigration,
+      "029_case_mutation_event_v2_forward_repair": caseMutationEventV2ForwardRepairMigration,
     };
   }
 }

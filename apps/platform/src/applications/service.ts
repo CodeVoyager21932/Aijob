@@ -7,10 +7,22 @@ import {
   ApplicationCaseEventSchema,
   type ApplicationCaseJobVersionDiffResponse,
   ApplicationCaseJobVersionDiffResponseSchema,
+  type ApplicationCaseMutationResponse,
+  ApplicationCaseMutationResponseSchema,
+  type ApplicationCaseRequirements,
+  ApplicationCaseRequirementsSchema,
   type ApplicationCaseWithJobContext,
   ApplicationCaseWithJobContextSchema,
+  type CaseEventType,
   type CaseOutcome,
+  type CaseQuestion,
+  CaseQuestionSchema,
+  type CaseRequirementEvidenceLink,
+  CaseRequirementEvidenceLinkSchema,
+  type CaseRequirementStateReadModel,
+  CaseRequirementStateReadModelSchema,
   type CaseStage,
+  type CreateCaseQuestionRequest,
   type CreateApplicationCaseResponse,
   CreateApplicationCaseResponseSchema,
   type CreateApplicationCaseWithJobContextRequest,
@@ -20,8 +32,13 @@ import {
   type ListApplicationCasesQuery,
   type ListApplicationCasesResponse,
   ListApplicationCasesResponseSchema,
+  type PutCaseRequirementEvidenceLinksRequest,
+  type PutCaseRequirementStateRequest,
   PublicJobReferenceSchema,
+  type RequirementContext,
+  ResumeEvidenceRevisionSchema,
   type TransitionApplicationCaseRequest,
+  type UpdateCaseQuestionRequest,
   type UpgradeApplicationCaseJobVersionRequest,
 } from "@aijob/contracts";
 import type { Database, JsonValue } from "@aijob/database";
@@ -43,6 +60,8 @@ interface ApplicationCaseMutationRow {
   published_job_id: string | null;
   published_job_version_id: string | null;
   requirement_set_id: string | null;
+  private_job_snapshot_id: string | null;
+  job_context_revision: number;
   stage: string;
   outcome: string | null;
   revision: number;
@@ -66,6 +85,16 @@ type PublicVersionRow = Selectable<Database["catalog.published_job_versions"]> &
   diff_requirement_set_id: string;
   diff_requirements: JsonValue;
 };
+type CaseRequirementStateRow = Selectable<Database["application.case_requirement_states"]>;
+type CaseRequirementEvidenceLinkRow = Selectable<
+  Database["application.case_requirement_evidence_links"]
+>;
+type CaseQuestionRow = Selectable<Database["application.case_questions"]>;
+
+interface FixedRequirementContext {
+  requirementContext: RequirementContext;
+  requirements: JobRequirement[];
+}
 
 const JobRequirementArraySchema = z.array(JobRequirementSchema);
 
@@ -403,6 +432,8 @@ async function loadCaseForUpdate(
         "published_job_id",
         "published_job_version_id",
         "requirement_set_id",
+        "private_job_snapshot_id",
+        "job_context_revision",
         "stage",
         "outcome",
         "revision",
@@ -475,8 +506,9 @@ async function appendCaseEvent(
     owner: OwnerScope;
     caseId: string;
     sequence: number;
-    eventType: "stage_transitioned" | "outcome_corrected" | "job_version_upgraded";
+    eventType: CaseEventType;
     eventData: Record<string, unknown>;
+    schemaVersion?: "case-event-v1" | "case-event-v2";
     idempotencyScope: string;
     idempotencyKey: string;
     requestHash: string;
@@ -493,6 +525,7 @@ async function appendCaseEvent(
       event_type: input.eventType,
       actor_type: "owner",
       event_data: JSON.stringify(input.eventData) as unknown as JsonValue,
+      schema_version: input.schemaVersion ?? "case-event-v1",
       idempotency_scope: input.idempotencyScope,
       idempotency_key: input.idempotencyKey,
       request_hash: input.requestHash,
@@ -510,6 +543,398 @@ async function appendCaseEvent(
     ])
     .executeTakeFirstOrThrow();
   return ApplicationCaseCommandResponseSchema.parse({ event: mapCaseEvent(row as CaseEventRow) });
+}
+
+function mutationResponse(
+  caseRevision: number,
+  event: ApplicationCaseEvent | null,
+): ApplicationCaseMutationResponse {
+  return ApplicationCaseMutationResponseSchema.parse({ caseRevision, event });
+}
+
+function requirementReferenceInvalid(): ServiceError {
+  return new ServiceError(
+    422,
+    "REQUIREMENT_REFERENCE_INVALID",
+    "该要求不属于求职项目当前固定的岗位版本，请刷新后重试。",
+  );
+}
+
+function evidenceReferenceInvalid(): ServiceError {
+  return new ServiceError(
+    422,
+    "EVIDENCE_REFERENCE_INVALID",
+    "所选经历证据不存在、尚未确认或不属于当前账户。",
+  );
+}
+
+function questionNotFound(): ServiceError {
+  return new ServiceError(404, "CASE_QUESTION_NOT_FOUND", "问题不存在、已删除或不属于当前账户。");
+}
+
+async function loadCaseForRequirements(
+  db: DbExecutor,
+  owner: OwnerScope,
+  caseId: string,
+): Promise<ApplicationCaseMutationRow | null> {
+  return (
+    ((await db
+      .selectFrom("application.application_cases")
+      .select([
+        "id",
+        "owner_id",
+        "owner_epoch",
+        "job_context_kind",
+        "published_job_id",
+        "published_job_version_id",
+        "requirement_set_id",
+        "private_job_snapshot_id",
+        "job_context_revision",
+        "stage",
+        "outcome",
+        "revision",
+        "ended_at",
+        "deleted_at",
+      ])
+      .where("id", "=", caseId)
+      .where("owner_id", "=", owner.ownerId)
+      .where("owner_epoch", "=", owner.ownerEpoch)
+      .where("deleted_at", "is", null)
+      .executeTakeFirst()) as ApplicationCaseMutationRow | undefined) ?? null
+  );
+}
+
+function parseFixedRequirements(value: JsonValue): JobRequirement[] {
+  const requirements = JobRequirementArraySchema.parse(parseJsonValue(value));
+  if (new Set(requirements.map((requirement) => requirement.id)).size !== requirements.length) {
+    throw new Error("APPLICATION_CASE_REQUIREMENT_IDS_NOT_UNIQUE");
+  }
+  return requirements;
+}
+
+async function loadFixedRequirementContext(
+  db: DbExecutor,
+  owner: OwnerScope,
+  applicationCase: ApplicationCaseMutationRow,
+): Promise<FixedRequirementContext> {
+  if (
+    applicationCase.job_context_kind === "public" &&
+    applicationCase.published_job_version_id &&
+    applicationCase.requirement_set_id
+  ) {
+    const row = await db
+      .selectFrom("catalog.job_requirement_sets")
+      .select("requirements")
+      .where("id", "=", applicationCase.requirement_set_id)
+      .where("published_job_version_id", "=", applicationCase.published_job_version_id)
+      .executeTakeFirst();
+    if (!row) throw new Error("APPLICATION_CASE_PUBLIC_REQUIREMENT_CONTEXT_MISSING");
+    return {
+      requirementContext: {
+        kind: "public",
+        requirementSetId: applicationCase.requirement_set_id,
+      },
+      requirements: parseFixedRequirements(row.requirements),
+    };
+  }
+
+  if (applicationCase.job_context_kind === "private" && applicationCase.private_job_snapshot_id) {
+    const row = await db
+      .selectFrom("application.private_job_snapshot_revisions")
+      .select(["requirement_set_revision", "requirements"])
+      .where("owner_id", "=", owner.ownerId)
+      .where("owner_epoch", "=", owner.ownerEpoch)
+      .where("snapshot_id", "=", applicationCase.private_job_snapshot_id)
+      .where("content_revision", "=", applicationCase.job_context_revision)
+      .executeTakeFirst();
+    if (!row) throw new Error("APPLICATION_CASE_PRIVATE_REQUIREMENT_CONTEXT_MISSING");
+    return {
+      requirementContext: {
+        kind: "private",
+        requirementSetRevision: Number(row.requirement_set_revision),
+      },
+      requirements: parseFixedRequirements(row.requirements),
+    };
+  }
+
+  throw new Error("APPLICATION_CASE_REQUIREMENT_CONTEXT_INVALID");
+}
+
+function stateMatchesContext(
+  row: CaseRequirementStateRow,
+  requirementContext: RequirementContext,
+): boolean {
+  return requirementContext.kind === "public"
+    ? row.requirement_context_kind === "public" &&
+        row.requirement_set_id === requirementContext.requirementSetId
+    : row.requirement_context_kind === "private" &&
+        Number(row.requirement_set_revision) === requirementContext.requirementSetRevision;
+}
+
+function mapRequirementState(
+  applicationCase: ApplicationCaseMutationRow,
+  requirementContext: RequirementContext,
+  requirementId: string,
+  row?: CaseRequirementStateRow,
+): CaseRequirementStateReadModel {
+  return CaseRequirementStateReadModelSchema.parse({
+    id: row?.id ?? null,
+    caseId: applicationCase.id,
+    requirementContext,
+    requirementId,
+    state: row?.state ?? "unconfirmed",
+    userNote: row?.user_note ?? null,
+    revision: row ? Number(row.revision) : null,
+    persisted: row !== undefined,
+    createdAt: row ? toIso(row.created_at) : null,
+    updatedAt: row ? toIso(row.updated_at) : null,
+  });
+}
+
+function mapRequirementEvidenceLink(
+  row: CaseRequirementEvidenceLinkRow,
+  requirementContext: RequirementContext,
+): CaseRequirementEvidenceLink {
+  return CaseRequirementEvidenceLinkSchema.parse({
+    id: row.id,
+    caseId: row.case_id,
+    requirementStateId: row.requirement_state_id,
+    requirementContext,
+    requirementId: row.requirement_id,
+    evidenceRevisionId: row.evidence_revision_id,
+    evidenceId: row.evidence_id,
+    revision: Number(row.revision),
+    linkedAt: toIso(row.linked_at),
+    removedAt: row.removed_at ? toIso(row.removed_at) : null,
+  });
+}
+
+function mapCaseQuestion(
+  row: CaseQuestionRow,
+  requirementContext: RequirementContext,
+): CaseQuestion {
+  const requirementScoped = row.requirement_state_id !== null;
+  return CaseQuestionSchema.parse({
+    id: row.id,
+    caseId: row.case_id,
+    requirementStateId: row.requirement_state_id,
+    requirementContext: requirementScoped ? requirementContext : null,
+    requirementId: row.requirement_id,
+    question: row.question,
+    answer: row.answer,
+    status: row.status,
+    revision: Number(row.revision),
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  });
+}
+
+async function loadRequirementsReadModel(
+  db: DbExecutor,
+  owner: OwnerScope,
+  applicationCase: ApplicationCaseMutationRow,
+): Promise<ApplicationCaseRequirements> {
+  const fixed = await loadFixedRequirementContext(db, owner, applicationCase);
+  const [allStates, allLinks, allQuestions] = await Promise.all([
+    db
+      .selectFrom("application.case_requirement_states")
+      .selectAll()
+      .where("owner_id", "=", owner.ownerId)
+      .where("owner_epoch", "=", owner.ownerEpoch)
+      .where("case_id", "=", applicationCase.id)
+      .execute(),
+    db
+      .selectFrom("application.case_requirement_evidence_links")
+      .selectAll()
+      .where("owner_id", "=", owner.ownerId)
+      .where("owner_epoch", "=", owner.ownerEpoch)
+      .where("case_id", "=", applicationCase.id)
+      .orderBy("linked_at", "asc")
+      .orderBy("id", "asc")
+      .execute(),
+    db
+      .selectFrom("application.case_questions")
+      .selectAll()
+      .where("owner_id", "=", owner.ownerId)
+      .where("owner_epoch", "=", owner.ownerEpoch)
+      .where("case_id", "=", applicationCase.id)
+      .orderBy("created_at", "asc")
+      .orderBy("id", "asc")
+      .execute(),
+  ]);
+  const currentStates = (allStates as CaseRequirementStateRow[]).filter((row) =>
+    stateMatchesContext(row, fixed.requirementContext),
+  );
+  const currentStateByRequirement = new Map(
+    currentStates.map((row) => [row.requirement_id, row] as const),
+  );
+  const currentStateIds = new Set(currentStates.map((row) => row.id));
+
+  return ApplicationCaseRequirementsSchema.parse({
+    caseId: applicationCase.id,
+    requirementContext: fixed.requirementContext,
+    revision: Number(applicationCase.revision),
+    requirements: fixed.requirements,
+    states: fixed.requirements.map((requirement) =>
+      mapRequirementState(
+        applicationCase,
+        fixed.requirementContext,
+        requirement.id,
+        currentStateByRequirement.get(requirement.id),
+      ),
+    ),
+    evidenceLinks: (allLinks as CaseRequirementEvidenceLinkRow[])
+      .filter((row) => currentStateIds.has(row.requirement_state_id))
+      .map((row) => mapRequirementEvidenceLink(row, fixed.requirementContext)),
+    questions: (allQuestions as CaseQuestionRow[])
+      .filter(
+        (row) => row.requirement_state_id === null || currentStateIds.has(row.requirement_state_id),
+      )
+      .map((row) => mapCaseQuestion(row, fixed.requirementContext)),
+  });
+}
+
+async function loadRequirementStateForUpdate(
+  transaction: Transaction<Database>,
+  owner: OwnerScope,
+  applicationCase: ApplicationCaseMutationRow,
+  requirementContext: RequirementContext,
+  requirementId: string,
+): Promise<CaseRequirementStateRow | null> {
+  let query = transaction
+    .selectFrom("application.case_requirement_states")
+    .selectAll()
+    .where("owner_id", "=", owner.ownerId)
+    .where("owner_epoch", "=", owner.ownerEpoch)
+    .where("case_id", "=", applicationCase.id)
+    .where("requirement_id", "=", requirementId)
+    .where("requirement_context_kind", "=", requirementContext.kind);
+  query =
+    requirementContext.kind === "public"
+      ? query
+          .where("requirement_set_id", "=", requirementContext.requirementSetId)
+          .where("requirement_set_revision", "is", null)
+      : query
+          .where("requirement_set_id", "is", null)
+          .where("requirement_set_revision", "=", requirementContext.requirementSetRevision);
+  return (
+    ((await query.forUpdate().executeTakeFirst()) as CaseRequirementStateRow | undefined) ?? null
+  );
+}
+
+function requirementStateContextValues(requirementContext: RequirementContext) {
+  return requirementContext.kind === "public"
+    ? {
+        requirement_context_kind: "public",
+        requirement_set_id: requirementContext.requirementSetId,
+        requirement_set_revision: null,
+      }
+    : {
+        requirement_context_kind: "private",
+        requirement_set_id: null,
+        requirement_set_revision: requirementContext.requirementSetRevision,
+      };
+}
+
+function requirementEventContextValues(requirementContext: RequirementContext) {
+  return requirementContext.kind === "public"
+    ? { requirementSetId: requirementContext.requirementSetId }
+    : {
+        requirementContextKind: "private" as const,
+        requirementSetRevision: requirementContext.requirementSetRevision,
+      };
+}
+
+function requireRequirement(fixed: FixedRequirementContext, requirementId: string): JobRequirement {
+  const requirement = fixed.requirements.find((candidate) => candidate.id === requirementId);
+  if (!requirement) throw requirementReferenceInvalid();
+  return requirement;
+}
+
+async function incrementCaseRevision(
+  transaction: Transaction<Database>,
+  owner: OwnerScope,
+  applicationCase: ApplicationCaseMutationRow,
+  expectedRevision: number,
+): Promise<number> {
+  const nextRevision = expectedRevision + 1;
+  const result = await transaction
+    .updateTable("application.application_cases")
+    .set({ revision: nextRevision, updated_at: new Date() })
+    .where("id", "=", applicationCase.id)
+    .where("owner_id", "=", owner.ownerId)
+    .where("owner_epoch", "=", owner.ownerEpoch)
+    .where("revision", "=", expectedRevision)
+    .executeTakeFirst();
+  if (Number(result.numUpdatedRows) !== 1) throw revisionConflict();
+  return nextRevision;
+}
+
+function revisionScopedIdempotencyKey(input: {
+  caseId: string;
+  resourceId: string;
+  expectedRevision: number;
+}): string {
+  return hashCanonicalJson(input);
+}
+
+async function insertRequirementState(
+  transaction: Transaction<Database>,
+  input: {
+    owner: OwnerScope;
+    applicationCase: ApplicationCaseMutationRow;
+    requirementContext: RequirementContext;
+    requirementId: string;
+    state: "confirmed" | "needs_work" | "unconfirmed";
+    userNote: string | null;
+    revision: number;
+  },
+): Promise<CaseRequirementStateRow> {
+  return (await transaction
+    .insertInto("application.case_requirement_states")
+    .values({
+      id: randomUUID(),
+      owner_id: input.owner.ownerId,
+      owner_epoch: input.owner.ownerEpoch,
+      case_id: input.applicationCase.id,
+      ...requirementStateContextValues(input.requirementContext),
+      requirement_id: input.requirementId,
+      state: input.state,
+      user_note: input.userNote,
+      revision: input.revision,
+    })
+    .returningAll()
+    .executeTakeFirstOrThrow()) as CaseRequirementStateRow;
+}
+
+async function loadEvidenceRevision(
+  transaction: Transaction<Database>,
+  owner: OwnerScope,
+  evidenceRevisionId: string,
+) {
+  const row = await transaction
+    .selectFrom("profile.resume_evidence_revisions")
+    .selectAll()
+    .where("id", "=", evidenceRevisionId)
+    .where("owner_id", "=", owner.ownerId)
+    .where("owner_epoch", "=", owner.ownerEpoch)
+    .executeTakeFirst();
+  if (!row) throw evidenceReferenceInvalid();
+  const parsed = ResumeEvidenceRevisionSchema.safeParse({
+    id: row.id,
+    ownerId: row.owner_id,
+    revision: Number(row.revision),
+    baseRevision: row.base_revision === null ? null : Number(row.base_revision),
+    contentHash: row.content_hash,
+    confirmedAt: toIso(row.confirmed_at),
+    createdAt: toIso(row.created_at),
+    resumeAnalysisId: row.resume_analysis_id,
+    schemaVersion: row.schema_version,
+    documentRevisionId: row.document_revision_id,
+    evidence: parseJsonValue(row.evidence),
+  });
+  if (!parsed.success) throw evidenceReferenceInvalid();
+  return parsed.data;
 }
 
 function publicVersionQuery(db: DbExecutor) {
@@ -673,6 +1098,497 @@ export async function getApplicationCase(input: {
   caseId: string;
 }): Promise<ApplicationCaseWithJobContext | null> {
   return loadCaseById(input.db, input.owner, input.caseId);
+}
+
+export async function getApplicationCaseRequirements(input: {
+  db: Kysely<Database>;
+  owner: OwnerScope;
+  caseId: string;
+}): Promise<ApplicationCaseRequirements> {
+  return input.db
+    .transaction()
+    .setIsolationLevel("repeatable read")
+    .execute(async (transaction) => {
+      await assertActiveOwnerEpoch(transaction, input.owner.ownerId, input.owner.ownerEpoch);
+      const applicationCase = await loadCaseForRequirements(transaction, input.owner, input.caseId);
+      if (!applicationCase) throw caseNotFound();
+      return loadRequirementsReadModel(transaction, input.owner, applicationCase);
+    });
+}
+
+export async function putApplicationCaseRequirementState(input: {
+  db: Kysely<Database>;
+  owner: OwnerScope;
+  caseId: string;
+  requirementId: string;
+  request: PutCaseRequirementStateRequest;
+}): Promise<ApplicationCaseMutationResponse> {
+  const idempotencyScope = "application-case:requirement-state";
+  const idempotencyKey = revisionScopedIdempotencyKey({
+    caseId: input.caseId,
+    resourceId: input.requirementId,
+    expectedRevision: input.request.expectedRevision,
+  });
+  const requestHash = hashCanonicalJson({
+    caseId: input.caseId,
+    requirementId: input.requirementId,
+    request: input.request,
+  });
+
+  return input.db.transaction().execute(async (transaction) => {
+    await lockOwnerIdempotencyKey(transaction, {
+      ownerId: input.owner.ownerId,
+      scope: idempotencyScope,
+      idempotencyKey,
+    });
+    await assertActiveOwnerEpoch(transaction, input.owner.ownerId, input.owner.ownerEpoch);
+    const replay = await replayCaseCommand(transaction, input.owner, {
+      scope: idempotencyScope,
+      idempotencyKey,
+      requestHash,
+    });
+    if (replay) return mutationResponse(replay.event.sequence, replay.event);
+
+    const applicationCase = await loadCaseForUpdate(transaction, input.owner, input.caseId);
+    if (!applicationCase) throw caseNotFound();
+    if (Number(applicationCase.revision) !== input.request.expectedRevision) {
+      throw revisionConflict();
+    }
+    const fixed = await loadFixedRequirementContext(transaction, input.owner, applicationCase);
+    requireRequirement(fixed, input.requirementId);
+    const existing = await loadRequirementStateForUpdate(
+      transaction,
+      input.owner,
+      applicationCase,
+      fixed.requirementContext,
+      input.requirementId,
+    );
+    const currentState = existing?.state ?? "unconfirmed";
+    const currentNote = existing?.user_note ?? null;
+    if (currentState === input.request.state && currentNote === input.request.userNote) {
+      return mutationResponse(Number(applicationCase.revision), null);
+    }
+
+    const nextRevision = await incrementCaseRevision(
+      transaction,
+      input.owner,
+      applicationCase,
+      input.request.expectedRevision,
+    );
+    if (existing) {
+      await transaction
+        .updateTable("application.case_requirement_states")
+        .set({
+          state: input.request.state,
+          user_note: input.request.userNote,
+          revision: nextRevision,
+          updated_at: new Date(),
+        })
+        .where("id", "=", existing.id)
+        .where("owner_id", "=", input.owner.ownerId)
+        .where("owner_epoch", "=", input.owner.ownerEpoch)
+        .executeTakeFirstOrThrow();
+    } else {
+      await insertRequirementState(transaction, {
+        owner: input.owner,
+        applicationCase,
+        requirementContext: fixed.requirementContext,
+        requirementId: input.requirementId,
+        state: input.request.state,
+        userNote: input.request.userNote,
+        revision: nextRevision,
+      });
+    }
+    const command = await appendCaseEvent(transaction, {
+      owner: input.owner,
+      caseId: applicationCase.id,
+      sequence: nextRevision,
+      eventType: "requirement_state_changed",
+      eventData: {
+        schemaVersion: "case-event-v2",
+        ...requirementEventContextValues(fixed.requirementContext),
+        requirementId: input.requirementId,
+        fromState: existing ? currentState : null,
+        toState: input.request.state,
+        noteChanged: currentNote !== input.request.userNote,
+        reasonCode: "USER_UPDATED",
+      },
+      schemaVersion: "case-event-v2",
+      idempotencyScope,
+      idempotencyKey,
+      requestHash,
+    });
+    return mutationResponse(nextRevision, command.event);
+  });
+}
+
+export async function putApplicationCaseRequirementEvidenceLinks(input: {
+  db: Kysely<Database>;
+  owner: OwnerScope;
+  caseId: string;
+  requirementId: string;
+  request: PutCaseRequirementEvidenceLinksRequest;
+}): Promise<ApplicationCaseMutationResponse> {
+  const idempotencyScope = "application-case:requirement-evidence";
+  const idempotencyKey = revisionScopedIdempotencyKey({
+    caseId: input.caseId,
+    resourceId: input.requirementId,
+    expectedRevision: input.request.expectedRevision,
+  });
+  const requestHash = hashCanonicalJson({
+    caseId: input.caseId,
+    requirementId: input.requirementId,
+    request: input.request,
+  });
+
+  return input.db.transaction().execute(async (transaction) => {
+    await lockOwnerIdempotencyKey(transaction, {
+      ownerId: input.owner.ownerId,
+      scope: idempotencyScope,
+      idempotencyKey,
+    });
+    await assertActiveOwnerEpoch(transaction, input.owner.ownerId, input.owner.ownerEpoch);
+    const replay = await replayCaseCommand(transaction, input.owner, {
+      scope: idempotencyScope,
+      idempotencyKey,
+      requestHash,
+    });
+    if (replay) return mutationResponse(replay.event.sequence, replay.event);
+
+    const applicationCase = await loadCaseForUpdate(transaction, input.owner, input.caseId);
+    if (!applicationCase) throw caseNotFound();
+    if (Number(applicationCase.revision) !== input.request.expectedRevision) {
+      throw revisionConflict();
+    }
+    const fixed = await loadFixedRequirementContext(transaction, input.owner, applicationCase);
+    requireRequirement(fixed, input.requirementId);
+    const evidenceRevision = await loadEvidenceRevision(
+      transaction,
+      input.owner,
+      input.request.evidenceRevisionId,
+    );
+    const validEvidenceIds = new Set(evidenceRevision.evidence.map((evidence) => evidence.id));
+    if (input.request.evidenceIds.some((evidenceId) => !validEvidenceIds.has(evidenceId))) {
+      throw evidenceReferenceInvalid();
+    }
+
+    let requirementState = await loadRequirementStateForUpdate(
+      transaction,
+      input.owner,
+      applicationCase,
+      fixed.requirementContext,
+      input.requirementId,
+    );
+    const existingLinks = requirementState
+      ? ((await transaction
+          .selectFrom("application.case_requirement_evidence_links")
+          .selectAll()
+          .where("owner_id", "=", input.owner.ownerId)
+          .where("owner_epoch", "=", input.owner.ownerEpoch)
+          .where("case_id", "=", applicationCase.id)
+          .where("requirement_state_id", "=", requirementState.id)
+          .where("evidence_revision_id", "=", input.request.evidenceRevisionId)
+          .forUpdate()
+          .execute()) as CaseRequirementEvidenceLinkRow[])
+      : [];
+    const activeIds = new Set(
+      existingLinks.filter((link) => link.removed_at === null).map((link) => link.evidence_id),
+    );
+    const desiredIds = new Set(input.request.evidenceIds);
+    const linkedEvidenceIds = input.request.evidenceIds.filter(
+      (evidenceId) => !activeIds.has(evidenceId),
+    );
+    const removedEvidenceIds = [...activeIds]
+      .filter((evidenceId) => !desiredIds.has(evidenceId))
+      .sort((left, right) => left.localeCompare(right));
+    if (linkedEvidenceIds.length === 0 && removedEvidenceIds.length === 0) {
+      return mutationResponse(Number(applicationCase.revision), null);
+    }
+
+    const nextRevision = await incrementCaseRevision(
+      transaction,
+      input.owner,
+      applicationCase,
+      input.request.expectedRevision,
+    );
+    if (!requirementState) {
+      requirementState = await insertRequirementState(transaction, {
+        owner: input.owner,
+        applicationCase,
+        requirementContext: fixed.requirementContext,
+        requirementId: input.requirementId,
+        state: "unconfirmed",
+        userNote: null,
+        revision: nextRevision,
+      });
+    }
+    const now = new Date();
+    for (const evidenceId of linkedEvidenceIds) {
+      const existing = existingLinks.find((link) => link.evidence_id === evidenceId);
+      if (existing) {
+        await transaction
+          .updateTable("application.case_requirement_evidence_links")
+          .set({ removed_at: null, revision: nextRevision })
+          .where("id", "=", existing.id)
+          .where("owner_id", "=", input.owner.ownerId)
+          .where("owner_epoch", "=", input.owner.ownerEpoch)
+          .executeTakeFirstOrThrow();
+      } else {
+        await transaction
+          .insertInto("application.case_requirement_evidence_links")
+          .values({
+            id: randomUUID(),
+            owner_id: input.owner.ownerId,
+            owner_epoch: input.owner.ownerEpoch,
+            case_id: applicationCase.id,
+            requirement_state_id: requirementState.id,
+            requirement_set_id:
+              fixed.requirementContext.kind === "public"
+                ? fixed.requirementContext.requirementSetId
+                : null,
+            requirement_id: input.requirementId,
+            evidence_revision_id: input.request.evidenceRevisionId,
+            evidence_id: evidenceId,
+            revision: nextRevision,
+            linked_at: now,
+            removed_at: null,
+          })
+          .execute();
+      }
+    }
+    if (removedEvidenceIds.length > 0) {
+      await transaction
+        .updateTable("application.case_requirement_evidence_links")
+        .set({ removed_at: now, revision: nextRevision })
+        .where("owner_id", "=", input.owner.ownerId)
+        .where("owner_epoch", "=", input.owner.ownerEpoch)
+        .where("case_id", "=", applicationCase.id)
+        .where("requirement_state_id", "=", requirementState.id)
+        .where("evidence_revision_id", "=", input.request.evidenceRevisionId)
+        .where("evidence_id", "in", removedEvidenceIds)
+        .where("removed_at", "is", null)
+        .execute();
+    }
+
+    const command = await appendCaseEvent(transaction, {
+      owner: input.owner,
+      caseId: applicationCase.id,
+      sequence: nextRevision,
+      eventType: "requirement_evidence_changed",
+      eventData: {
+        schemaVersion: "case-event-v2",
+        ...requirementEventContextValues(fixed.requirementContext),
+        requirementId: input.requirementId,
+        evidenceRevisionId: input.request.evidenceRevisionId,
+        linkedEvidenceIds,
+        removedEvidenceIds,
+      },
+      schemaVersion: "case-event-v2",
+      idempotencyScope,
+      idempotencyKey,
+      requestHash,
+    });
+    return mutationResponse(nextRevision, command.event);
+  });
+}
+
+export async function createApplicationCaseQuestion(input: {
+  db: Kysely<Database>;
+  owner: OwnerScope;
+  caseId: string;
+  request: CreateCaseQuestionRequest;
+  idempotencyKey: string;
+}): Promise<ApplicationCaseMutationResponse> {
+  const idempotencyScope = "application-case:question-create";
+  const requestHash = hashCanonicalJson({ caseId: input.caseId, request: input.request });
+  return input.db.transaction().execute(async (transaction) => {
+    await lockOwnerIdempotencyKey(transaction, {
+      ownerId: input.owner.ownerId,
+      scope: idempotencyScope,
+      idempotencyKey: input.idempotencyKey,
+    });
+    await assertActiveOwnerEpoch(transaction, input.owner.ownerId, input.owner.ownerEpoch);
+    const replay = await replayCaseCommand(transaction, input.owner, {
+      scope: idempotencyScope,
+      idempotencyKey: input.idempotencyKey,
+      requestHash,
+    });
+    if (replay) return mutationResponse(replay.event.sequence, replay.event);
+
+    const applicationCase = await loadCaseForUpdate(transaction, input.owner, input.caseId);
+    if (!applicationCase) throw caseNotFound();
+    if (Number(applicationCase.revision) !== input.request.expectedRevision) {
+      throw revisionConflict();
+    }
+    const fixed = await loadFixedRequirementContext(transaction, input.owner, applicationCase);
+    if (input.request.requirementId) requireRequirement(fixed, input.request.requirementId);
+    let requirementState = input.request.requirementId
+      ? await loadRequirementStateForUpdate(
+          transaction,
+          input.owner,
+          applicationCase,
+          fixed.requirementContext,
+          input.request.requirementId,
+        )
+      : null;
+    const nextRevision = await incrementCaseRevision(
+      transaction,
+      input.owner,
+      applicationCase,
+      input.request.expectedRevision,
+    );
+    if (input.request.requirementId && !requirementState) {
+      requirementState = await insertRequirementState(transaction, {
+        owner: input.owner,
+        applicationCase,
+        requirementContext: fixed.requirementContext,
+        requirementId: input.request.requirementId,
+        state: "unconfirmed",
+        userNote: null,
+        revision: nextRevision,
+      });
+    }
+    const questionId = randomUUID();
+    await transaction
+      .insertInto("application.case_questions")
+      .values({
+        id: questionId,
+        owner_id: input.owner.ownerId,
+        owner_epoch: input.owner.ownerEpoch,
+        case_id: applicationCase.id,
+        requirement_state_id: requirementState?.id ?? null,
+        requirement_set_id:
+          input.request.requirementId && fixed.requirementContext.kind === "public"
+            ? fixed.requirementContext.requirementSetId
+            : null,
+        requirement_id: input.request.requirementId ?? null,
+        question: input.request.question,
+        answer: null,
+        status: "open",
+        revision: nextRevision,
+      })
+      .execute();
+    const command = await appendCaseEvent(transaction, {
+      owner: input.owner,
+      caseId: applicationCase.id,
+      sequence: nextRevision,
+      eventType: "question_added",
+      eventData: {
+        schemaVersion: "case-event-v1",
+        questionId,
+        requirementId: input.request.requirementId ?? null,
+      },
+      idempotencyScope,
+      idempotencyKey: input.idempotencyKey,
+      requestHash,
+    });
+    return mutationResponse(nextRevision, command.event);
+  });
+}
+
+export async function updateApplicationCaseQuestion(input: {
+  db: Kysely<Database>;
+  owner: OwnerScope;
+  caseId: string;
+  questionId: string;
+  request: UpdateCaseQuestionRequest;
+}): Promise<ApplicationCaseMutationResponse> {
+  const idempotencyScope = "application-case:question-update";
+  const idempotencyKey = revisionScopedIdempotencyKey({
+    caseId: input.caseId,
+    resourceId: input.questionId,
+    expectedRevision: input.request.expectedRevision,
+  });
+  const requestHash = hashCanonicalJson({
+    caseId: input.caseId,
+    questionId: input.questionId,
+    request: input.request,
+  });
+
+  return input.db.transaction().execute(async (transaction) => {
+    await lockOwnerIdempotencyKey(transaction, {
+      ownerId: input.owner.ownerId,
+      scope: idempotencyScope,
+      idempotencyKey,
+    });
+    await assertActiveOwnerEpoch(transaction, input.owner.ownerId, input.owner.ownerEpoch);
+    const replay = await replayCaseCommand(transaction, input.owner, {
+      scope: idempotencyScope,
+      idempotencyKey,
+      requestHash,
+    });
+    if (replay) return mutationResponse(replay.event.sequence, replay.event);
+
+    const applicationCase = await loadCaseForUpdate(transaction, input.owner, input.caseId);
+    if (!applicationCase) throw caseNotFound();
+    if (Number(applicationCase.revision) !== input.request.expectedRevision) {
+      throw revisionConflict();
+    }
+    const question = (await transaction
+      .selectFrom("application.case_questions")
+      .selectAll()
+      .where("id", "=", input.questionId)
+      .where("owner_id", "=", input.owner.ownerId)
+      .where("owner_epoch", "=", input.owner.ownerEpoch)
+      .where("case_id", "=", applicationCase.id)
+      .forUpdate()
+      .executeTakeFirst()) as CaseQuestionRow | undefined;
+    if (!question) throw questionNotFound();
+    if (question.requirement_state_id) {
+      const fixed = await loadFixedRequirementContext(transaction, input.owner, applicationCase);
+      const requirementState = (await transaction
+        .selectFrom("application.case_requirement_states")
+        .selectAll()
+        .where("id", "=", question.requirement_state_id)
+        .where("owner_id", "=", input.owner.ownerId)
+        .where("owner_epoch", "=", input.owner.ownerEpoch)
+        .where("case_id", "=", applicationCase.id)
+        .executeTakeFirst()) as CaseRequirementStateRow | undefined;
+      if (!requirementState || !stateMatchesContext(requirementState, fixed.requirementContext)) {
+        throw questionNotFound();
+      }
+    }
+    const answer = input.request.answer ?? null;
+    if (question.status === input.request.status && question.answer === answer) {
+      return mutationResponse(Number(applicationCase.revision), null);
+    }
+    const nextRevision = await incrementCaseRevision(
+      transaction,
+      input.owner,
+      applicationCase,
+      input.request.expectedRevision,
+    );
+    await transaction
+      .updateTable("application.case_questions")
+      .set({
+        status: input.request.status,
+        answer,
+        revision: nextRevision,
+        updated_at: new Date(),
+      })
+      .where("id", "=", question.id)
+      .where("owner_id", "=", input.owner.ownerId)
+      .where("owner_epoch", "=", input.owner.ownerEpoch)
+      .executeTakeFirstOrThrow();
+    const command = await appendCaseEvent(transaction, {
+      owner: input.owner,
+      caseId: applicationCase.id,
+      sequence: nextRevision,
+      eventType: "question_updated",
+      eventData: {
+        schemaVersion: "case-event-v2",
+        questionId: question.id,
+        fromStatus: question.status,
+        toStatus: input.request.status,
+        answerChanged: question.answer !== answer,
+      },
+      schemaVersion: "case-event-v2",
+      idempotencyScope,
+      idempotencyKey,
+      requestHash,
+    });
+    return mutationResponse(nextRevision, command.event);
+  });
 }
 
 async function resolvePublicJobContext(
