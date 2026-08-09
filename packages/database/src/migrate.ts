@@ -31,6 +31,7 @@ import { resumeDocumentReviewForwardRepairMigration } from "./migrations/027_res
 import { interviewDebriefKnowledgeExpandMigration } from "./migrations/028_interview_debrief_knowledge_expand.js";
 import { caseMutationEventV2ForwardRepairMigration } from "./migrations/029_case_mutation_event_v2_forward_repair.js";
 import { resumeRevisionMutationReceiptsMigration } from "./migrations/030_resume_revision_mutation_receipts.js";
+import { resumeReviewTaskTypeMigration } from "./migrations/031_resume_review_task_type.js";
 import type { Database } from "./types.js";
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -72,6 +73,7 @@ class StaticMigrationProvider implements MigrationProvider {
       "028_interview_debrief_knowledge_expand": interviewDebriefKnowledgeExpandMigration,
       "029_case_mutation_event_v2_forward_repair": caseMutationEventV2ForwardRepairMigration,
       "030_resume_revision_mutation_receipts": resumeRevisionMutationReceiptsMigration,
+      "031_resume_review_task_type": resumeReviewTaskTypeMigration,
     };
   }
 }

@@ -1,11 +1,14 @@
 import {
   CreateResumeDocumentRequestSchema,
+  CreateResumeReviewRequestSchema,
+  DecideResumeReviewSuggestionRequestSchema,
   LegacyResumeDocumentSourceIdSchema,
   ListResumeDocumentsQuerySchema,
   PutResumeDocumentContentRevisionRequestSchema,
   PutResumeDocumentLayoutRevisionRequestSchema,
   ResumeDocumentIdSchema,
   ResumeDocumentRevisionPageQuerySchema,
+  ResumeReviewSuggestionDecisionIdSchema,
 } from "@aijob/contracts";
 import type { Database } from "@aijob/database";
 import type { FastifyInstance } from "fastify";
@@ -21,6 +24,11 @@ import {
   putResumeDocumentContentRevision,
   putResumeDocumentLayoutRevision,
 } from "./revision-service.js";
+import {
+  createResumeReview,
+  decideResumeReviewSuggestion,
+  getCurrentResumeReview,
+} from "./review-service.js";
 import { createResumeDocument, getResumeDocument, listResumeDocuments } from "./service.js";
 
 const IdempotencyKeySchema = z.string().trim().min(1).max(200);
@@ -191,6 +199,59 @@ export function registerResumeDocumentRoutes(
       return handleError(error, request, reply);
     }
   });
+
+  app.get("/v1/resume-documents/:documentId/review", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { documentId } = ResumeDocumentIdSchema.parse(request.params);
+      return reply.send(await getCurrentResumeReview({ db: options.db, owner, documentId }));
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.post("/v1/resume-documents/:documentId/reviews", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { documentId } = ResumeDocumentIdSchema.parse(request.params);
+      const body = CreateResumeReviewRequestSchema.parse(request.body);
+      const idempotencyKey = requireIdempotencyKey(request.headers);
+      const result = await createResumeReview({
+        db: options.db,
+        owner,
+        documentId,
+        request: body,
+        idempotencyKey,
+      });
+      return reply.code(result.created ? 202 : 200).send(result);
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.post(
+    "/v1/resume-documents/:documentId/reviews/:reviewRunId/suggestions/:suggestionId/decisions",
+    async (request, reply) => {
+      try {
+        const owner = requireOwnerContext(request);
+        const { documentId, reviewRunId, suggestionId } =
+          ResumeReviewSuggestionDecisionIdSchema.parse(request.params);
+        const body = DecideResumeReviewSuggestionRequestSchema.parse(request.body);
+        return reply.send(
+          await decideResumeReviewSuggestion({
+            db: options.db,
+            owner,
+            documentId,
+            reviewRunId,
+            suggestionId,
+            request: body,
+          }),
+        );
+      } catch (error) {
+        return handleError(error, request, reply);
+      }
+    },
+  );
 
   app.get("/v1/resume-documents/:documentId", async (request, reply) => {
     try {

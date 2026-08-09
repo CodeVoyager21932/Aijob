@@ -10,6 +10,7 @@ import {
   runOwnerRetentionMaintenance,
 } from "../profile/retention-service.js";
 import { processResumeAnalysis, purgeExpiredResumeContent } from "../resume/analysis-service.js";
+import { processResumeReview } from "../resume-documents/review-service.js";
 import { purgeExpiredResumeExports } from "../tailoring/export-retention.js";
 import { processResumeExport, processTailoringRun } from "../tailoring/service.js";
 import { isActiveOwnerEpochState } from "../identity/session-repository.js";
@@ -23,6 +24,7 @@ const OWNER_TASK_TYPES = [
   "recommendation_run",
   "resume_tailoring",
   "resume_export",
+  "resume_review",
   "owner_deletion",
 ] as const;
 
@@ -226,6 +228,11 @@ async function dispatchTask(
     case "resume_export": {
       const { exportId } = ExportPayloadSchema.parse(task.payload);
       await processResumeExport(db, config, owner, exportId, lease);
+      return;
+    }
+    case "resume_review": {
+      const { runId } = RunPayloadSchema.parse(task.payload);
+      await processResumeReview(db, owner, runId, lease);
       return;
     }
     case "owner_deletion": {
@@ -432,6 +439,7 @@ export const workerTaskPayloadSchemas = {
   recommendation_run: RunPayloadSchema,
   resume_tailoring: RunPayloadSchema,
   resume_export: ExportPayloadSchema,
+  resume_review: RunPayloadSchema,
   owner_deletion: DeletionPayloadSchema,
 } as const;
 

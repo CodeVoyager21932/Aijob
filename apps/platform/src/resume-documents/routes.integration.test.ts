@@ -2,7 +2,10 @@ import { randomUUID } from "node:crypto";
 import type { AppConfig } from "@aijob/config";
 import {
   CreateResumeDocumentResponseSchema,
+  CreateResumeReviewResponseSchema,
   CurrentResumeDocumentSchema,
+  CurrentResumeReviewResponseSchema,
+  DecideResumeReviewSuggestionResponseSchema,
   LegacyResumeContentConversionSchema,
   ListResumeDocumentContentRevisionsResponseSchema,
   ListResumeDocumentLayoutRevisionsResponseSchema,
@@ -19,6 +22,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../app.js";
 import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME, SESSION_COOKIE_NAME } from "../identity/fastify.js";
 import { createAnonymousSession, type OwnerContext } from "../identity/session-repository.js";
+import { runOneOwnerTask } from "../workers/owner-task-worker.js";
 
 const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
@@ -559,6 +563,23 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       noEvidenceSession?.context.ownerId,
     ].filter((ownerId): ownerId is string => Boolean(ownerId));
     if (ownerIds.length > 0) {
+      await db.deleteFrom("task_queue.tasks").where("owner_id", "in", ownerIds).execute();
+      await db
+        .deleteFrom("profile.resume_review_decisions")
+        .where("owner_id", "in", ownerIds)
+        .execute();
+      await db
+        .deleteFrom("profile.resume_review_suggestions")
+        .where("owner_id", "in", ownerIds)
+        .execute();
+      await db
+        .deleteFrom("profile.resume_review_findings")
+        .where("owner_id", "in", ownerIds)
+        .execute();
+      await db
+        .deleteFrom("profile.resume_review_runs")
+        .where("owner_id", "in", ownerIds)
+        .execute();
       await db
         .deleteFrom("profile.resume_documents")
         .where("owner_id", "in", ownerIds)
@@ -1211,6 +1232,270 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
         }),
       ]),
     );
+
+    const emptyReviewResponse = await app.inject({
+      method: "GET",
+      url: `/v1/resume-documents/${publicCreated.resumeDocument.id}/review`,
+      headers: mainHeaders,
+    });
+    expect(emptyReviewResponse.statusCode).toBe(200);
+    expect(CurrentResumeReviewResponseSchema.parse(emptyReviewResponse.json())).toEqual({
+      review: null,
+    });
+
+    const publicReviewKey = `public-review-${randomUUID()}`;
+    const publicReviewRequest = {
+      method: "POST" as const,
+      url: `/v1/resume-documents/${publicCreated.resumeDocument.id}/reviews`,
+      headers: { ...mainHeaders, "idempotency-key": publicReviewKey },
+      payload: { expectedRevision: 2, mode: "template" },
+    };
+    const publicReviewCreatedResponse = await app.inject(publicReviewRequest);
+    expect(
+      publicReviewCreatedResponse.statusCode,
+      JSON.stringify(publicReviewCreatedResponse.json()),
+    ).toBe(202);
+    expect(publicReviewCreatedResponse.headers["cache-control"]).toBe("no-store");
+    const publicReviewCreated = CreateResumeReviewResponseSchema.parse(
+      publicReviewCreatedResponse.json(),
+    );
+    expect(publicReviewCreated).toMatchObject({
+      created: true,
+      review: {
+        reviewRun: {
+          documentId: publicCreated.resumeDocument.id,
+          contentRevisionId: initializedDerivedBody.contentRevision.id,
+          evidenceRevisionId: mainResume.evidenceRevisionId,
+          status: "pending",
+          mode: "template",
+          jobContext: { kind: "public", publishedJobVersionId: publicVersionV1Id },
+        },
+        findings: [],
+        suggestions: [],
+        decisions: [],
+      },
+    });
+    const publicReviewReplayResponse = await app.inject(publicReviewRequest);
+    expect(publicReviewReplayResponse.statusCode).toBe(200);
+    expect(CreateResumeReviewResponseSchema.parse(publicReviewReplayResponse.json())).toMatchObject(
+      {
+        created: false,
+        review: { reviewRun: { id: publicReviewCreated.review.reviewRun.id } },
+      },
+    );
+    const queuedReviewTask = await db
+      .selectFrom("task_queue.tasks")
+      .select(["task_type", "status", "payload"])
+      .where("owner_id", "=", mainSession.context.ownerId)
+      .where("task_type", "=", "resume_review")
+      .where("payload", "@>", JSON.stringify({ runId: publicReviewCreated.review.reviewRun.id }))
+      .executeTakeFirstOrThrow();
+    expect(queuedReviewTask).toMatchObject({ task_type: "resume_review", status: "queued" });
+    expect(await runOneOwnerTask({ db, config: config(), workerId: "review-worker-public" })).toBe(
+      true,
+    );
+
+    const publicReviewCompleted = CurrentResumeReviewResponseSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/resume-documents/${publicCreated.resumeDocument.id}/review`,
+          headers: mainHeaders,
+        })
+      ).json(),
+    );
+    expect(publicReviewCompleted.review?.reviewRun.status).toBe("completed");
+    expect(publicReviewCompleted.review?.findings).toHaveLength(1);
+    expect(publicReviewCompleted.review?.suggestions).toHaveLength(1);
+    const publicSuggestion = publicReviewCompleted.review?.suggestions[0];
+    if (!publicSuggestion) throw new Error("PUBLIC_REVIEW_SUGGESTION_MISSING");
+    expect(publicSuggestion).toMatchObject({
+      targetIds: [mainResume.blockId],
+      changeType: "rewrite_block",
+      evidenceIds: [mainResume.evidenceId],
+      decision: "pending",
+      revision: 1,
+    });
+
+    const acceptDecisionId = randomUUID();
+    const acceptDecisionRequest = {
+      method: "POST" as const,
+      url: `/v1/resume-documents/${publicCreated.resumeDocument.id}/reviews/${publicReviewCreated.review.reviewRun.id}/suggestions/${publicSuggestion.id}/decisions`,
+      headers: mainHeaders,
+      payload: {
+        expectedRevision: publicSuggestion.revision,
+        idempotencyKey: acceptDecisionId,
+        decision: "accepted",
+      },
+    };
+    const acceptedResponse = await app.inject(acceptDecisionRequest);
+    expect(acceptedResponse.statusCode, JSON.stringify(acceptedResponse.json())).toBe(200);
+    const accepted = DecideResumeReviewSuggestionResponseSchema.parse(acceptedResponse.json());
+    expect(accepted).toMatchObject({
+      decision: {
+        decision: "accepted",
+        resultContentRevisionId: expect.any(String),
+      },
+      suggestion: { decision: "accepted", revision: 2 },
+      documentRevision: 3,
+      contentRevision: {
+        documentRevision: 3,
+        content: {
+          sections: [
+            {
+              blocks: [
+                {
+                  id: mainResume.blockId,
+                  text: publicSuggestion.suggestedText,
+                  evidenceIds: [mainResume.evidenceId],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+    const acceptedReplay = await app.inject(acceptDecisionRequest);
+    expect(acceptedReplay.statusCode).toBe(200);
+    expect(DecideResumeReviewSuggestionResponseSchema.parse(acceptedReplay.json())).toEqual(
+      accepted,
+    );
+    const changedDecisionReplay = await app.inject({
+      ...acceptDecisionRequest,
+      payload: {
+        expectedRevision: publicSuggestion.revision,
+        idempotencyKey: acceptDecisionId,
+        decision: "rejected",
+        reasonCode: "USER_KEPT_ORIGINAL",
+      },
+    });
+    expect(changedDecisionReplay.statusCode).toBe(409);
+    expect(changedDecisionReplay.json()).toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+
+    const privateReviewCreatedResponse = await app.inject({
+      method: "POST",
+      url: `/v1/resume-documents/${privateCreated.resumeDocument.id}/reviews`,
+      headers: { ...mainHeaders, "idempotency-key": `private-review-${randomUUID()}` },
+      payload: { expectedRevision: 1, mode: "template" },
+    });
+    expect(privateReviewCreatedResponse.statusCode).toBe(202);
+    const privateReviewCreated = CreateResumeReviewResponseSchema.parse(
+      privateReviewCreatedResponse.json(),
+    );
+    expect(await runOneOwnerTask({ db, config: config(), workerId: "review-worker-private" })).toBe(
+      true,
+    );
+    const privateReviewCompleted = CurrentResumeReviewResponseSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/resume-documents/${privateCreated.resumeDocument.id}/review`,
+          headers: mainHeaders,
+        })
+      ).json(),
+    );
+    const privateSuggestion = privateReviewCompleted.review?.suggestions[0];
+    if (!privateSuggestion) throw new Error("PRIVATE_REVIEW_SUGGESTION_MISSING");
+    const editedResponse = await app.inject({
+      method: "POST",
+      url: `/v1/resume-documents/${privateCreated.resumeDocument.id}/reviews/${privateReviewCreated.review.reviewRun.id}/suggestions/${privateSuggestion.id}/decisions`,
+      headers: mainHeaders,
+      payload: {
+        expectedRevision: privateSuggestion.revision,
+        idempotencyKey: randomUUID(),
+        decision: "edited",
+        editedText: "用户确认后的岗位表达",
+        evidenceIds: [mainResume.evidenceId],
+      },
+    });
+    expect(editedResponse.statusCode, JSON.stringify(editedResponse.json())).toBe(200);
+    expect(DecideResumeReviewSuggestionResponseSchema.parse(editedResponse.json())).toMatchObject({
+      decision: { decision: "edited", editedText: "用户确认后的岗位表达" },
+      suggestion: { decision: "edited", revision: 2 },
+      contentRevision: {
+        content: {
+          sections: [{ blocks: [{ text: "用户确认后的岗位表达" }] }],
+        },
+      },
+    });
+
+    if (!accepted.contentRevision) throw new Error("ACCEPTED_CONTENT_REVISION_MISSING");
+    const manuallyEditedPublic = await app.inject({
+      method: "POST",
+      url: `/v1/resume-documents/${publicCreated.resumeDocument.id}/revisions`,
+      headers: { ...mainHeaders, "idempotency-key": `manual-public-${randomUUID()}` },
+      payload: {
+        expectedRevision: accepted.documentRevision,
+        baseDocumentRevisionId: accepted.contentRevision.id,
+        content: {
+          ...accepted.contentRevision.content,
+          sections: accepted.contentRevision.content.sections.map((section) => ({
+            ...section,
+            blocks: section.blocks.map((block) => ({
+              ...block,
+              text: "用户保留的原始表达",
+            })),
+          })),
+        },
+      },
+    });
+    expect(manuallyEditedPublic.statusCode).toBe(201);
+    const manuallyEditedPublicBody = PutResumeDocumentContentRevisionResponseSchema.parse(
+      manuallyEditedPublic.json(),
+    );
+    const rejectedReviewResponse = await app.inject({
+      method: "POST",
+      url: `/v1/resume-documents/${publicCreated.resumeDocument.id}/reviews`,
+      headers: { ...mainHeaders, "idempotency-key": `reject-review-${randomUUID()}` },
+      payload: { expectedRevision: manuallyEditedPublicBody.documentRevision, mode: "template" },
+    });
+    expect(rejectedReviewResponse.statusCode).toBe(202);
+    const rejectedReview = CreateResumeReviewResponseSchema.parse(rejectedReviewResponse.json());
+    expect(await runOneOwnerTask({ db, config: config(), workerId: "review-worker-reject" })).toBe(
+      true,
+    );
+    const rejectableReview = CurrentResumeReviewResponseSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/resume-documents/${publicCreated.resumeDocument.id}/review`,
+          headers: mainHeaders,
+        })
+      ).json(),
+    );
+    const rejectedSuggestion = rejectableReview.review?.suggestions[0];
+    if (!rejectedSuggestion) throw new Error("REJECTABLE_SUGGESTION_MISSING");
+    const rejectedResponse = await app.inject({
+      method: "POST",
+      url: `/v1/resume-documents/${publicCreated.resumeDocument.id}/reviews/${rejectedReview.review.reviewRun.id}/suggestions/${rejectedSuggestion.id}/decisions`,
+      headers: mainHeaders,
+      payload: {
+        expectedRevision: rejectedSuggestion.revision,
+        idempotencyKey: randomUUID(),
+        decision: "rejected",
+        reasonCode: "USER_KEPT_ORIGINAL",
+      },
+    });
+    expect(rejectedResponse.statusCode).toBe(200);
+    expect(DecideResumeReviewSuggestionResponseSchema.parse(rejectedResponse.json())).toMatchObject(
+      {
+        decision: {
+          decision: "rejected",
+          reasonCode: "USER_KEPT_ORIGINAL",
+          resultContentRevisionId: null,
+        },
+        suggestion: { decision: "rejected", revision: 2 },
+        contentRevision: null,
+        documentRevision: manuallyEditedPublicBody.documentRevision,
+      },
+    );
+
+    const crossOwnerReview = await app.inject({
+      method: "GET",
+      url: `/v1/resume-documents/${publicCreated.resumeDocument.id}/review`,
+      headers: sessionHeaders(otherSession),
+    });
+    expect(crossOwnerReview.statusCode).toBe(404);
 
     const crossOwnerRead = await app.inject({
       method: "GET",

@@ -13,6 +13,9 @@ describe("owner task payload contracts", () => {
         ownerTaskPayload("owner_deletion", "deletion-1"),
       ),
     ).toEqual({ deletionId: "deletion-1" });
+    expect(
+      workerTaskPayloadSchemas.resume_review.parse(ownerTaskPayload("resume_review", "review-1")),
+    ).toEqual({ runId: "review-1" });
   });
 
   it("rejects a payload from another task type", () => {

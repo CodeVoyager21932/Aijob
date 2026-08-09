@@ -5,6 +5,8 @@ import {
   CreateResumeDocumentRequestSchema,
   CreateResumeDocumentResponseSchema,
   DecideResumeReviewSuggestionRequestSchema,
+  CreateResumeReviewRequestSchema,
+  CurrentResumeReviewResponseSchema,
   LegacyResumeContentConversionSchema,
   ListResumeDocumentContentRevisionsResponseSchema,
   ListResumeDocumentLayoutRevisionsResponseSchema,
@@ -676,6 +678,19 @@ describe("Resume Document V2 contracts", () => {
         ownerId: ids.owner,
       }).success,
     ).toBe(false);
+  });
+
+  it("keeps template review creation explicit and the empty current response honest", () => {
+    expect(
+      CreateResumeReviewRequestSchema.safeParse({ expectedRevision: 2, mode: "template" }).success,
+    ).toBe(true);
+    expect(
+      CreateResumeReviewRequestSchema.safeParse({
+        expectedRevision: 2,
+        mode: "controlled_ai",
+      }).success,
+    ).toBe(false);
+    expect(CurrentResumeReviewResponseSchema.parse({ review: null })).toEqual({ review: null });
   });
 
   it("keeps private review runs owner-scoped", () => {

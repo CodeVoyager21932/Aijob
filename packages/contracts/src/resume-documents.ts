@@ -616,6 +616,69 @@ export type DecideResumeReviewSuggestionRequest = z.infer<
   typeof DecideResumeReviewSuggestionRequestSchema
 >;
 
+export const CreateResumeReviewRequestSchema = z
+  .object({
+    expectedRevision: RevisionSchema,
+    mode: z.literal("template"),
+  })
+  .strict();
+export type CreateResumeReviewRequest = z.infer<typeof CreateResumeReviewRequestSchema>;
+
+export const ResumeReviewRunIdSchema = z
+  .object({
+    reviewRunId: UuidSchema,
+  })
+  .strict();
+export type ResumeReviewRunId = z.infer<typeof ResumeReviewRunIdSchema>;
+
+export const ResumeReviewSuggestionDecisionIdSchema = z
+  .object({
+    documentId: UuidSchema,
+    reviewRunId: UuidSchema,
+    suggestionId: UuidSchema,
+  })
+  .strict();
+export type ResumeReviewSuggestionDecisionId = z.infer<
+  typeof ResumeReviewSuggestionDecisionIdSchema
+>;
+
+export const ResumeReviewBundleSchema = z
+  .object({
+    reviewRun: ResumeReviewRunSchema,
+    findings: z.array(ResumeReviewFindingSchema).max(500),
+    suggestions: z.array(ResumeReviewSuggestionSchema).max(500),
+    decisions: z.array(ResumeReviewDecisionSchema).max(500),
+  })
+  .strict();
+export type ResumeReviewBundle = z.infer<typeof ResumeReviewBundleSchema>;
+
+export const CurrentResumeReviewResponseSchema = z
+  .object({
+    review: ResumeReviewBundleSchema.nullable(),
+  })
+  .strict();
+export type CurrentResumeReviewResponse = z.infer<typeof CurrentResumeReviewResponseSchema>;
+
+export const CreateResumeReviewResponseSchema = z
+  .object({
+    review: ResumeReviewBundleSchema,
+    created: z.boolean(),
+  })
+  .strict();
+export type CreateResumeReviewResponse = z.infer<typeof CreateResumeReviewResponseSchema>;
+
+export const DecideResumeReviewSuggestionResponseSchema = z
+  .object({
+    decision: ResumeReviewDecisionSchema,
+    suggestion: ResumeReviewSuggestionSchema,
+    contentRevision: ResumeSemanticContentRevisionSchema.nullable(),
+    documentRevision: RevisionSchema,
+  })
+  .strict();
+export type DecideResumeReviewSuggestionResponse = z.infer<
+  typeof DecideResumeReviewSuggestionResponseSchema
+>;
+
 export const LegacyResumeDocumentVirtualSchema = z
   .object({
     schemaVersion: z.literal("resume-document-v1"),

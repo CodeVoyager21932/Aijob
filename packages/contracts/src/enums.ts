@@ -77,6 +77,7 @@ export const TaskTypeSchema = z.enum([
   "recommendation_run",
   "resume_tailoring",
   "resume_export",
+  "resume_review",
   "owner_deletion",
 ]);
 export type TaskType = z.infer<typeof TaskTypeSchema>;
@@ -155,28 +156,13 @@ export const CaseStageSchema = z.enum([
 ]);
 export type CaseStage = z.infer<typeof CaseStageSchema>;
 
-export const CaseOutcomeSchema = z.enum([
-  "offer",
-  "rejected",
-  "withdrawn",
-  "expired",
-  "unknown",
-]);
+export const CaseOutcomeSchema = z.enum(["offer", "rejected", "withdrawn", "expired", "unknown"]);
 export type CaseOutcome = z.infer<typeof CaseOutcomeSchema>;
 
-export const RequirementEvidenceStateSchema = z.enum([
-  "confirmed",
-  "needs_work",
-  "unconfirmed",
-]);
+export const RequirementEvidenceStateSchema = z.enum(["confirmed", "needs_work", "unconfirmed"]);
 export type RequirementEvidenceState = z.infer<typeof RequirementEvidenceStateSchema>;
 
-export const ResumeSuggestionDecisionSchema = z.enum([
-  "pending",
-  "accepted",
-  "edited",
-  "rejected",
-]);
+export const ResumeSuggestionDecisionSchema = z.enum(["pending", "accepted", "edited", "rejected"]);
 export type ResumeSuggestionDecision = z.infer<typeof ResumeSuggestionDecisionSchema>;
 
 export const InterviewModeSchema = z.enum(["template", "controlled_ai"]);

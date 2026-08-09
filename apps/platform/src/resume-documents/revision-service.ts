@@ -833,8 +833,8 @@ export async function listResumeDocumentLayoutRevisions(input: {
   });
 }
 
-export async function putResumeDocumentContentRevision(input: {
-  db: Kysely<Database>;
+export async function appendResumeDocumentContentRevisionInTransaction(input: {
+  transaction: Transaction<Database>;
   owner: OwnerScope;
   documentId: string;
   request: PutResumeDocumentContentRevisionRequest;
@@ -845,6 +845,156 @@ export async function putResumeDocumentContentRevision(input: {
     documentId: input.documentId,
     request: input.request,
   });
+  const transaction = input.transaction;
+  await lockGlobalResumeRevision(transaction, input.owner);
+  await assertActiveOwnerEpoch(transaction, input.owner.ownerId, input.owner.ownerEpoch);
+  const document = await loadDocumentForUpdate(transaction, input.owner, input.documentId);
+  if (!document) throw resumeDocumentNotFound();
+
+  const replay = await contentRevisionSelect(transaction)
+    .where("owner_id", "=", input.owner.ownerId)
+    .where("owner_epoch", "=", input.owner.ownerEpoch)
+    .where("document_id", "=", document.id)
+    .where("mutation_idempotency_key", "=", input.idempotencyKey)
+    .executeTakeFirst();
+  if (replay) {
+    if (replay.mutation_request_hash !== requestHash) throw idempotencyKeyReused();
+    if (!replay.result_document_revision) {
+      throw new Error("RESUME_CONTENT_MUTATION_RECEIPT_INVALID");
+    }
+    return PutResumeDocumentContentRevisionResponseSchema.parse({
+      contentRevision: mapSemanticContentRevision(replay as ResumeContentRevisionRow),
+      documentRevision: Number(replay.result_document_revision),
+      created: true,
+    });
+  }
+
+  const contentChain = await loadContentChain(transaction, input.owner, document);
+  const layoutChain = await loadLayoutChain(transaction, input.owner, document);
+  let legacySourceRevisionId: string | null = null;
+  let baseDocumentRevisionId: string | null = null;
+
+  if ("legacySourceRevisionId" in input.request) {
+    if (
+      document.kind !== "base" ||
+      Number(document.revision) !== 1 ||
+      contentChain.current ||
+      layoutChain.current
+    ) {
+      throw firstBaseEditInvalid();
+    }
+    const legacy = await loadLatestLegacyResumeRevision(transaction, input.owner);
+    if (!legacy || legacy.id !== input.request.legacySourceRevisionId) {
+      throw legacyResumeSourceNotFound();
+    }
+    const existingMigration = await transaction
+      .selectFrom("profile.resume_document_revisions")
+      .select("id")
+      .where("owner_id", "=", input.owner.ownerId)
+      .where("legacy_source_revision_id", "=", legacy.id)
+      .executeTakeFirst();
+    if (existingMigration) throw legacySourceAlreadyMigrated();
+    assertSameContentStructure(convertLegacyContent(legacy, null).content, input.request.content);
+    legacySourceRevisionId = legacy.id;
+  } else {
+    if (Number(document.revision) !== input.request.expectedRevision) {
+      throw documentRevisionConflict(Number(document.revision));
+    }
+    if (contentChain.current) {
+      if (input.request.baseDocumentRevisionId !== contentChain.current.id) {
+        throw contentBaseRevisionInvalid();
+      }
+      baseDocumentRevisionId = contentChain.current.id;
+    } else {
+      if (
+        document.kind !== "case_derived" ||
+        layoutChain.current !== null ||
+        input.request.baseDocumentRevisionId !== document.base_document_revision_id
+      ) {
+        throw contentBaseRevisionInvalid();
+      }
+      const source = await loadFixedBaseContent(transaction, input.owner, document);
+      assertSameContentStructure(source, input.request.content);
+    }
+  }
+
+  await validateEvidenceReferences({
+    transaction,
+    owner: input.owner,
+    document,
+    content: input.request.content,
+  });
+  const contentHash = hashCanonicalJson(input.request.content);
+  if (contentChain.current?.content_hash === contentHash) throw contentUnchanged();
+
+  const documentRevision = Number(document.revision) + 1;
+  const globalRevision = await nextGlobalResumeRevision(transaction, input.owner);
+  const contentRevisionId = randomUUID();
+  await transaction
+    .insertInto("profile.resume_document_revisions")
+    .values({
+      id: contentRevisionId,
+      owner_id: input.owner.ownerId,
+      owner_epoch: input.owner.ownerEpoch,
+      resume_analysis_id: null,
+      revision: globalRevision,
+      base_revision: null,
+      schema_version: "resume-content-v1",
+      sections: JSON.stringify(input.request.content.sections) as unknown as JsonValue,
+      content_hash: contentHash,
+      confirmed_at: sql<Date>`clock_timestamp()`,
+      document_id: document.id,
+      document_revision: Number(contentChain.latest?.document_revision ?? 0) + 1,
+      base_document_revision_id: baseDocumentRevisionId,
+      legacy_source_revision_id: legacySourceRevisionId,
+      mutation_idempotency_key: input.idempotencyKey,
+      mutation_request_hash: requestHash,
+      result_document_revision: documentRevision,
+    })
+    .execute();
+
+  const layoutRevisionId = await ensureLayoutForContent({
+    transaction,
+    owner: input.owner,
+    document,
+    layoutChain,
+    content: input.request.content,
+  });
+  const updated = await transaction
+    .updateTable("profile.resume_documents")
+    .set({
+      current_content_revision_id: contentRevisionId,
+      current_layout_revision_id: layoutRevisionId,
+      revision: documentRevision,
+      updated_at: sql<Date>`GREATEST(updated_at, clock_timestamp())`,
+    })
+    .where("id", "=", document.id)
+    .where("owner_id", "=", input.owner.ownerId)
+    .where("owner_epoch", "=", input.owner.ownerEpoch)
+    .where("revision", "=", document.revision)
+    .where("deleted_at", "is", null)
+    .executeTakeFirst();
+  if (Number(updated.numUpdatedRows) !== 1) {
+    throw documentRevisionConflict(Number(document.revision));
+  }
+  const row = await contentRevisionSelect(transaction)
+    .where("id", "=", contentRevisionId)
+    .where("owner_id", "=", input.owner.ownerId)
+    .executeTakeFirstOrThrow();
+  return PutResumeDocumentContentRevisionResponseSchema.parse({
+    contentRevision: mapSemanticContentRevision(row as ResumeContentRevisionRow),
+    documentRevision,
+    created: true,
+  });
+}
+
+export async function putResumeDocumentContentRevision(input: {
+  db: Kysely<Database>;
+  owner: OwnerScope;
+  documentId: string;
+  request: PutResumeDocumentContentRevisionRequest;
+  idempotencyKey: string;
+}): Promise<PutResumeDocumentContentRevisionResponse> {
   try {
     return await input.db.transaction().execute(async (transaction) => {
       await lockOwnerIdempotencyKey(transaction, {
@@ -852,148 +1002,12 @@ export async function putResumeDocumentContentRevision(input: {
         scope: `resume-content-revision:${input.documentId}`,
         idempotencyKey: input.idempotencyKey,
       });
-      await lockGlobalResumeRevision(transaction, input.owner);
-      await assertActiveOwnerEpoch(transaction, input.owner.ownerId, input.owner.ownerEpoch);
-      const document = await loadDocumentForUpdate(transaction, input.owner, input.documentId);
-      if (!document) throw resumeDocumentNotFound();
-
-      const replay = await contentRevisionSelect(transaction)
-        .where("owner_id", "=", input.owner.ownerId)
-        .where("owner_epoch", "=", input.owner.ownerEpoch)
-        .where("document_id", "=", document.id)
-        .where("mutation_idempotency_key", "=", input.idempotencyKey)
-        .executeTakeFirst();
-      if (replay) {
-        if (replay.mutation_request_hash !== requestHash) throw idempotencyKeyReused();
-        if (!replay.result_document_revision) {
-          throw new Error("RESUME_CONTENT_MUTATION_RECEIPT_INVALID");
-        }
-        return PutResumeDocumentContentRevisionResponseSchema.parse({
-          contentRevision: mapSemanticContentRevision(replay as ResumeContentRevisionRow),
-          documentRevision: Number(replay.result_document_revision),
-          created: true,
-        });
-      }
-
-      const contentChain = await loadContentChain(transaction, input.owner, document);
-      const layoutChain = await loadLayoutChain(transaction, input.owner, document);
-      let legacySourceRevisionId: string | null = null;
-      let baseDocumentRevisionId: string | null = null;
-
-      if ("legacySourceRevisionId" in input.request) {
-        if (
-          document.kind !== "base" ||
-          Number(document.revision) !== 1 ||
-          contentChain.current ||
-          layoutChain.current
-        ) {
-          throw firstBaseEditInvalid();
-        }
-        const legacy = await loadLatestLegacyResumeRevision(transaction, input.owner);
-        if (!legacy || legacy.id !== input.request.legacySourceRevisionId) {
-          throw legacyResumeSourceNotFound();
-        }
-        const existingMigration = await transaction
-          .selectFrom("profile.resume_document_revisions")
-          .select("id")
-          .where("owner_id", "=", input.owner.ownerId)
-          .where("legacy_source_revision_id", "=", legacy.id)
-          .executeTakeFirst();
-        if (existingMigration) throw legacySourceAlreadyMigrated();
-        assertSameContentStructure(
-          convertLegacyContent(legacy, null).content,
-          input.request.content,
-        );
-        legacySourceRevisionId = legacy.id;
-      } else {
-        if (Number(document.revision) !== input.request.expectedRevision) {
-          throw documentRevisionConflict(Number(document.revision));
-        }
-        if (contentChain.current) {
-          if (input.request.baseDocumentRevisionId !== contentChain.current.id) {
-            throw contentBaseRevisionInvalid();
-          }
-          baseDocumentRevisionId = contentChain.current.id;
-        } else {
-          if (
-            document.kind !== "case_derived" ||
-            layoutChain.current !== null ||
-            input.request.baseDocumentRevisionId !== document.base_document_revision_id
-          ) {
-            throw contentBaseRevisionInvalid();
-          }
-          const source = await loadFixedBaseContent(transaction, input.owner, document);
-          assertSameContentStructure(source, input.request.content);
-        }
-      }
-
-      await validateEvidenceReferences({
+      return appendResumeDocumentContentRevisionInTransaction({
         transaction,
         owner: input.owner,
-        document,
-        content: input.request.content,
-      });
-      const contentHash = hashCanonicalJson(input.request.content);
-      if (contentChain.current?.content_hash === contentHash) throw contentUnchanged();
-
-      const documentRevision = Number(document.revision) + 1;
-      const globalRevision = await nextGlobalResumeRevision(transaction, input.owner);
-      const contentRevisionId = randomUUID();
-      await transaction
-        .insertInto("profile.resume_document_revisions")
-        .values({
-          id: contentRevisionId,
-          owner_id: input.owner.ownerId,
-          owner_epoch: input.owner.ownerEpoch,
-          resume_analysis_id: null,
-          revision: globalRevision,
-          base_revision: null,
-          schema_version: "resume-content-v1",
-          sections: JSON.stringify(input.request.content.sections) as unknown as JsonValue,
-          content_hash: contentHash,
-          confirmed_at: sql<Date>`clock_timestamp()`,
-          document_id: document.id,
-          document_revision: Number(contentChain.latest?.document_revision ?? 0) + 1,
-          base_document_revision_id: baseDocumentRevisionId,
-          legacy_source_revision_id: legacySourceRevisionId,
-          mutation_idempotency_key: input.idempotencyKey,
-          mutation_request_hash: requestHash,
-          result_document_revision: documentRevision,
-        })
-        .execute();
-
-      const layoutRevisionId = await ensureLayoutForContent({
-        transaction,
-        owner: input.owner,
-        document,
-        layoutChain,
-        content: input.request.content,
-      });
-      const updated = await transaction
-        .updateTable("profile.resume_documents")
-        .set({
-          current_content_revision_id: contentRevisionId,
-          current_layout_revision_id: layoutRevisionId,
-          revision: documentRevision,
-          updated_at: sql<Date>`GREATEST(updated_at, clock_timestamp())`,
-        })
-        .where("id", "=", document.id)
-        .where("owner_id", "=", input.owner.ownerId)
-        .where("owner_epoch", "=", input.owner.ownerEpoch)
-        .where("revision", "=", document.revision)
-        .where("deleted_at", "is", null)
-        .executeTakeFirst();
-      if (Number(updated.numUpdatedRows) !== 1) {
-        throw documentRevisionConflict(Number(document.revision));
-      }
-      const row = await contentRevisionSelect(transaction)
-        .where("id", "=", contentRevisionId)
-        .where("owner_id", "=", input.owner.ownerId)
-        .executeTakeFirstOrThrow();
-      return PutResumeDocumentContentRevisionResponseSchema.parse({
-        contentRevision: mapSemanticContentRevision(row as ResumeContentRevisionRow),
-        documentRevision,
-        created: true,
+        documentId: input.documentId,
+        request: input.request,
+        idempotencyKey: input.idempotencyKey,
       });
     });
   } catch (error) {
