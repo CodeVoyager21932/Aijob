@@ -4,9 +4,9 @@ import { describe, expect, it } from "vitest";
 import {
   CreateResumeDocumentRequestSchema,
   CreateResumeDocumentResponseSchema,
-  DecideResumeReviewSuggestionRequestSchema,
   CreateResumeReviewRequestSchema,
   CurrentResumeReviewResponseSchema,
+  DecideResumeReviewSuggestionRequestSchema,
   LegacyResumeContentConversionSchema,
   ListResumeDocumentContentRevisionsResponseSchema,
   ListResumeDocumentLayoutRevisionsResponseSchema,
@@ -17,6 +17,7 @@ import {
   PutResumeDocumentLayoutRevisionResponseSchema,
   PutResumeDocumentLayoutRevisionV2RequestSchema,
   ResumeDocumentCursorSchema,
+  ResumeDocumentDocxExportQuerySchema,
   ResumeDocumentReadModelSchema,
   ResumeDocumentRevisionPageQuerySchema,
   ResumeDocumentSchema,
@@ -61,6 +62,18 @@ const section = content.sections[0];
 if (!section) throw new Error("test fixture section is missing");
 
 describe("Resume Document V2 contracts", () => {
+  it("requires exact content and layout revisions for a DOCX export", () => {
+    expect(
+      ResumeDocumentDocxExportQuerySchema.parse({
+        contentRevisionId: randomUUID(),
+        layoutRevisionId: randomUUID(),
+      }),
+    ).toBeTruthy();
+    expect(() =>
+      ResumeDocumentDocxExportQuerySchema.parse({ contentRevisionId: randomUUID() }),
+    ).toThrow();
+  });
+
   it("freezes the two supported templates", () => {
     expect(ResumeTemplateKeySchema.options).toEqual([
       "cn_classic_single_column",

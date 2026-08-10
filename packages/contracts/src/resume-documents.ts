@@ -759,6 +759,14 @@ export const ResumeDocumentIdSchema = z
   .strict();
 export type ResumeDocumentId = z.infer<typeof ResumeDocumentIdSchema>;
 
+export const ResumeDocumentDocxExportQuerySchema = z
+  .object({
+    contentRevisionId: UuidSchema,
+    layoutRevisionId: UuidSchema,
+  })
+  .strict();
+export type ResumeDocumentDocxExportQuery = z.infer<typeof ResumeDocumentDocxExportQuerySchema>;
+
 export const LegacyResumeDocumentSourceIdSchema = z
   .object({
     legacySourceRevisionId: UuidSchema,

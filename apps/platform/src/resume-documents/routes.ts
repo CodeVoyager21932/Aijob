@@ -6,6 +6,7 @@ import {
   ListResumeDocumentsQuerySchema,
   PutResumeDocumentContentRevisionRequestSchema,
   PutResumeDocumentLayoutRevisionRequestSchema,
+  ResumeDocumentDocxExportQuerySchema,
   ResumeDocumentIdSchema,
   ResumeDocumentRevisionPageQuerySchema,
   ResumeReviewSuggestionDecisionIdSchema,
@@ -17,6 +18,12 @@ import { z } from "zod";
 import { requireOwnerContext } from "../identity/fastify.js";
 import { ApiProblem, sendApiProblem } from "../identity/http.js";
 import { ServiceError } from "../lib/service-error.js";
+import { exportResumeDocumentDocx } from "./export-service.js";
+import {
+  createResumeReview,
+  decideResumeReviewSuggestion,
+  getCurrentResumeReview,
+} from "./review-service.js";
 import {
   getLegacyResumeContentConversion,
   listResumeDocumentContentRevisions,
@@ -24,11 +31,6 @@ import {
   putResumeDocumentContentRevision,
   putResumeDocumentLayoutRevision,
 } from "./revision-service.js";
-import {
-  createResumeReview,
-  decideResumeReviewSuggestion,
-  getCurrentResumeReview,
-} from "./review-service.js";
 import { createResumeDocument, getResumeDocument, listResumeDocuments } from "./service.js";
 
 const IdempotencyKeySchema = z.string().trim().min(1).max(200);
@@ -205,6 +207,30 @@ export function registerResumeDocumentRoutes(
       const owner = requireOwnerContext(request);
       const { documentId } = ResumeDocumentIdSchema.parse(request.params);
       return reply.send(await getCurrentResumeReview({ db: options.db, owner, documentId }));
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.get("/v1/resume-documents/:documentId/docx", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { documentId } = ResumeDocumentIdSchema.parse(request.params);
+      const query = ResumeDocumentDocxExportQuerySchema.parse(request.query);
+      const result = await exportResumeDocumentDocx({
+        db: options.db,
+        owner,
+        documentId,
+        query,
+      });
+      return reply
+        .header("Content-Type", result.mediaType)
+        .header(
+          "Content-Disposition",
+          `attachment; filename*=UTF-8''${encodeURIComponent(result.fileName)}`,
+        )
+        .header("Content-Length", result.buffer.byteLength)
+        .send(result.buffer);
     } catch (error) {
       return handleError(error, request, reply);
     }

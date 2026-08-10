@@ -1,3 +1,4 @@
+import type { ResumeTemplateKey } from "@aijob/contracts";
 import { AlignmentType, Document, HeadingLevel, Packer, Paragraph, TextRun } from "docx";
 
 export interface AtsResumeSection {
@@ -8,20 +9,58 @@ export interface AtsResumeSection {
 
 export interface AtsResumeDocumentInput {
   title?: string;
+  templateKey?: ResumeTemplateKey;
   sections: AtsResumeSection[];
 }
 
-function bodyParagraph(text: string): Paragraph {
+interface DocxTemplatePreset {
+  bodySize: number;
+  headingSize: number;
+  titleSize: number;
+  bodyLine: number;
+  bodyAfter: number;
+  headingBefore: number;
+  headingAfter: number;
+  titleAfter: number;
+  margin: number;
+}
+
+const DOCX_TEMPLATE_PRESETS: Record<ResumeTemplateKey, DocxTemplatePreset> = {
+  cn_classic_single_column: {
+    bodySize: 21,
+    headingSize: 24,
+    titleSize: 34,
+    bodyLine: 276,
+    bodyAfter: 100,
+    headingBefore: 180,
+    headingAfter: 100,
+    titleAfter: 260,
+    margin: 1_080,
+  },
+  cn_compact_technical: {
+    bodySize: 19,
+    headingSize: 22,
+    titleSize: 30,
+    bodyLine: 240,
+    bodyAfter: 60,
+    headingBefore: 120,
+    headingAfter: 70,
+    titleAfter: 180,
+    margin: 720,
+  },
+};
+
+function bodyParagraph(text: string, preset: DocxTemplatePreset): Paragraph {
   const isBullet = /^[•·*-]\s+/.test(text);
   const normalized = isBullet ? text.replace(/^[•·*-]\s+/, "") : text;
   return new Paragraph({
     ...(isBullet ? { bullet: { level: 0 } } : {}),
-    spacing: { after: 100, line: 276 },
+    spacing: { after: preset.bodyAfter, line: preset.bodyLine },
     children: [
       new TextRun({
         text: normalized,
         font: "Microsoft YaHei",
-        size: 21,
+        size: preset.bodySize,
       }),
     ],
   });
@@ -32,16 +71,17 @@ export async function createAtsResumeDocx(input: AtsResumeDocumentInput): Promis
     throw new Error("RESUME_EXPORT_REQUIRES_SECTIONS");
   }
 
+  const preset = DOCX_TEMPLATE_PRESETS[input.templateKey ?? "cn_classic_single_column"];
   const children: Paragraph[] = [
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      spacing: { after: 260 },
+      spacing: { after: preset.titleAfter },
       children: [
         new TextRun({
           text: input.title?.trim() || "简历",
           bold: true,
           font: "Microsoft YaHei",
-          size: 34,
+          size: preset.titleSize,
         }),
       ],
     }),
@@ -51,19 +91,19 @@ export async function createAtsResumeDocx(input: AtsResumeDocumentInput): Promis
     children.push(
       new Paragraph({
         heading: HeadingLevel.HEADING_1,
-        spacing: { before: 180, after: 100 },
+        spacing: { before: preset.headingBefore, after: preset.headingAfter },
         children: [
           new TextRun({
             text: section.heading.trim(),
             bold: true,
             font: "Microsoft YaHei",
-            size: 24,
+            size: preset.headingSize,
           }),
         ],
       }),
     );
     for (const paragraph of section.paragraphs.filter((value) => value.trim())) {
-      children.push(bodyParagraph(paragraph.trim()));
+      children.push(bodyParagraph(paragraph.trim(), preset));
     }
   }
 
@@ -75,10 +115,10 @@ export async function createAtsResumeDocx(input: AtsResumeDocumentInput): Promis
         document: {
           run: {
             font: "Microsoft YaHei",
-            size: 21,
+            size: preset.bodySize,
           },
           paragraph: {
-            spacing: { line: 276 },
+            spacing: { line: preset.bodyLine },
           },
         },
       },
@@ -88,10 +128,10 @@ export async function createAtsResumeDocx(input: AtsResumeDocumentInput): Promis
         properties: {
           page: {
             margin: {
-              top: 1_080,
-              right: 1_080,
-              bottom: 1_080,
-              left: 1_080,
+              top: preset.margin,
+              right: preset.margin,
+              bottom: preset.margin,
+              left: preset.margin,
             },
           },
         },

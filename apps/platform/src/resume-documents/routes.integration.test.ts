@@ -576,10 +576,7 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
         .deleteFrom("profile.resume_review_findings")
         .where("owner_id", "in", ownerIds)
         .execute();
-      await db
-        .deleteFrom("profile.resume_review_runs")
-        .where("owner_id", "in", ownerIds)
-        .execute();
+      await db.deleteFrom("profile.resume_review_runs").where("owner_id", "in", ownerIds).execute();
       await db
         .deleteFrom("profile.resume_documents")
         .where("owner_id", "in", ownerIds)
@@ -1076,6 +1073,49 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       baseDocumentRevisionId: mainResume.baseContentRevisionId,
       evidenceRevisionId: mainResume.evidenceRevisionId,
     });
+    if (!initializedDerivedDocument.currentLayoutRevisionId) {
+      throw new Error("DERIVED_CURRENT_LAYOUT_MISSING");
+    }
+    const docxExportUrl =
+      `/v1/resume-documents/${publicCreated.resumeDocument.id}/docx?` +
+      new URLSearchParams({
+        contentRevisionId: initializedDerivedBody.contentRevision.id,
+        layoutRevisionId: initializedDerivedDocument.currentLayoutRevisionId,
+      }).toString();
+    const docxExport = await app.inject({
+      method: "GET",
+      url: docxExportUrl,
+      headers: mainHeaders,
+    });
+    expect(docxExport.statusCode).toBe(200);
+    expect(docxExport.headers["cache-control"]).toBe("no-store");
+    expect(docxExport.headers["content-type"]).toBe(
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    );
+    expect(docxExport.headers["content-disposition"]).toContain("Aijob-");
+    expect(docxExport.rawPayload.subarray(0, 2).toString()).toBe("PK");
+
+    const staleDocxExport = await app.inject({
+      method: "GET",
+      url:
+        `/v1/resume-documents/${publicCreated.resumeDocument.id}/docx?` +
+        new URLSearchParams({
+          contentRevisionId: initialContent.current.id,
+          layoutRevisionId: initializedDerivedDocument.currentLayoutRevisionId,
+        }).toString(),
+      headers: mainHeaders,
+    });
+    expect(staleDocxExport.statusCode).toBe(409);
+    expect(staleDocxExport.json()).toMatchObject({
+      code: "RESUME_DOCUMENT_EXPORT_REVISION_STALE",
+    });
+
+    const crossOwnerDocxExport = await app.inject({
+      method: "GET",
+      url: docxExportUrl,
+      headers: sessionHeaders(otherSession),
+    });
+    expect(crossOwnerDocxExport.statusCode).toBe(404);
 
     const invalidPinnedEvidence = await app.inject({
       method: "POST",
