@@ -1,10 +1,12 @@
 # 当前项目交接：Aijob Career OS M2 专业简历闭环
 
-> 交接日期：2026-08-09
+> 交接日期：2026-08-10
 >
 > 当前分支：codex/career-os-phase-1
 >
-> 功能实现基线：`aa9761b feat(web): add traceable resume suggestion decisions`
+> 功能实现基线：`932ab65 feat(web): add resume templates and export controls`
+>
+> M2 DOCX 平台基线：`ee2376b feat(platform): export resume v2 docx`
 >
 > M2 Review 平台基线：`8ff8720 feat(platform): add deterministic resume review workflow`
 >
@@ -43,26 +45,29 @@ M2 先复用已经存在的解析、Profile 确认、Resume V2、tailoring 和 D
 ## 2. 已通过工程基线
 
 - M1 已完成真实公共/私有 Case 创建和重开、Case 列表/详情、Requirements 三态/备注/证据/问题，以及 Case-derived Resume 显式创建和只读恢复。
-- M2-1 至 M2-4 已建立真实 `/resumes` 基础资产入口、V1 只读转换、Resume V2 结构化修订编辑器，并把同一编辑器与可追溯 Review 决策接入 Case-derived Resume；岗位简历和建议均固定创建时的内容、岗位与证据修订，不会漂移到当前证据。
+- M2-1 至 M2-5 已建立真实 `/resumes` 基础资产入口、V1 只读转换、Resume V2 结构化修订编辑器，并把同一编辑器、可追溯 Review 决策、两种中文模板、A4 预览、隔离打印和精确修订 DOCX 接入 Case-derived Resume；岗位简历和建议均固定创建时的内容、岗位与证据修订，不会漂移到当前证据。
 - 公共 Case 展示固定岗位版本；私有 JD 仅 owner 可见，不进入公共目录、推荐或供给统计。
 - 正常 Career OS 会话不再把静态 Case/Requirement/Resume 当业务真源；`VITE_CAREER_OS_V2` 关闭后旧壳层与旧岗位页面保持不变。
 - M1 全仓基线为 config 17、contracts 62、database 54、platform 443、web 100，共 676/676；lint 402、typecheck、build、audit 与浏览器 Gate 通过。
 - Web main chunk 为 548.24 kB，相对 Phase 1A 510.96 kB 增长约 7.3%；Requirements 和 Resume 仍是独立 lazy chunk。既有 main chunk 大于 500 kB warning 未消除。
 - M2-4 build 的 Web main chunk 为 550.40 kB，相对 Phase 1A 增长约 7.7%；Review 随 `ResumeDocumentEditor` lazy chunk 加载，该 chunk 为 27.01 kB，岗位列表和 Case 列表不加载它。
 - M2-4 focused Gate：contracts 15/15、platform unit 5/5、Resume Document PostgreSQL integration 3/3、web 11/11；contracts/database/platform/web typecheck、Web lint、build 与 `git diff --check` 通过。隔离 PostgreSQL 使用随机库，结束后已删除。
+- M2-5 focused Gate：contracts 16/16、DOCX adapter 2/2、DOCX renderer 2/2、web 25/25；contracts/platform/web typecheck、改动文件 Biome、Web build 与 `git diff --check` 通过。Resume Document PostgreSQL integration 3/3 已在 Docker 关闭前使用随机隔离库验证新增导出路由，结束后已删除测试库；M2-6 仍须用新的随机库重跑全仓 Gate。
+- Web main chunk 为 551.19 kB，相对 Phase 1A 510.96 kB 增长约 7.9%；`ResumeDocumentEditor` 为 29.23 kB 独立 lazy chunk，岗位列表、Case 列表和其他非简历首屏不加载模板或导出逻辑。
+- 前后端服务和 Docker Desktop 当前均已停止；M2-6 浏览器验收时才启动只连接随机隔离 PostgreSQL、只含合成数据的环境，结束后再次停止。
 - 产品证据仍为 E0；可信供给仍为 22 岗 / 3 家企业 / 3 个官方 ATS，公共与 Alpha 岗位均为 0。
 
 ## 3. M2 串行执行清单
 
-时间盒为 2–3 个有效开发日。同一时间只允许一个切片 `in_progress`；M2-0 至 M2-4 已完成，当前只执行 M2-5。
+时间盒为 2–3 个有效开发日。同一时间只允许一个切片 `in_progress`；M2-0 至 M2-5 已完成，当前只执行 M2-6。
 
 1. **M2-0 基线与复用矩阵（已完成）**：复用结论、契约缺口、删除影响与 focused 基线见 [M2 简历集成边界](../plans/career-os-m2-resume-integration-boundary-2026-08-09.md)；M2-0 本身没有修改业务行为。其“无需 migration”初始假设已由同一记录中的 M2-4 权限冲突修正，不得继续沿用。
 2. **M2-1 基础简历资产入口（已完成）**：`/resumes` 已读取真实 base Resume Document、只读 V1 来源和迁移归属；用户显式初始化 V2，中断后可继续，旧确认页已对齐长期保留政策。实现提交为 `6ebea2d`。
 3. **M2-2 结构化编辑器（已完成）**：共享编辑器已支持 section/block 正文、增删、证据关联和可访问的上移/下移；正文与布局分别生成不可变修订，并发冲突保留本地草稿。实现提交为 `5458d6c`。
 4. **M2-3 岗位派生编辑器（已完成）**：Case `resume` 已复用真实 Resume V2 编辑器，固定 Case、岗位版本、基础修订和证据修订；刷新、深链与 revision conflict 不静默覆盖。实现提交为 `8af6665`。
 5. **M2-4 建议决策（已完成）**：web-api 幂等创建固定版本的 pending Review，既有 PostgreSQL owner task queue 交给 match-worker 生成确定性模板 findings/suggestions；逐条接受或编辑形成新内容修订，拒绝只记不可变决定，冲突不覆盖草稿。migration 031 只扩展既有任务类型约束，没有新表、队列或依赖。实现提交为 `8ff8720`、`aa9761b`。
-6. **M2-5 模板与导出（当前）**：统一中文经典单栏、中文紧凑技术、A4 浏览器预览、现有 DOCX DTO 和打印；换模板不得修改正文或 evidence ID。
-7. **M2-6 工程与浏览器 Gate**：覆盖 owner、CSRF、幂等、并发、删除、空/错误、1280/320、200% 等效视口、键盘、包体、旗标回退和全仓检查，形成 M2 独立验收证据。
+6. **M2-5 模板与导出（已完成）**：统一中文经典单栏、中文紧凑技术、A4 浏览器预览、现有 DOCX DTO 和隔离打印；换模板只生成布局修订，不修改正文或 evidence ID。实现提交为 `ee2376b`、`932ab65`。
+7. **M2-6 工程与浏览器 Gate（当前）**：覆盖 owner、CSRF、幂等、并发、删除、空/错误、1280/320、200% 等效视口、键盘、包体、旗标回退和全仓检查，形成 M2 独立验收证据。
 
 任何切片超过其预计边界时，先证明缺口属于当前用户任务，再允许最小 additive repair；不得用扩建未来后端延长 M2。
 
