@@ -148,6 +148,40 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   return (await response.json()) as T;
 }
 
+export interface ApiDownload {
+  blob: Blob;
+  fileName: string | null;
+}
+
+function downloadFileName(contentDisposition: string | null): string | null {
+  const encoded = contentDisposition?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  if (!encoded) return null;
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return null;
+  }
+}
+
+export async function apiDownload(path: string, signal?: AbortSignal): Promise<ApiDownload> {
+  if (typeof document !== "undefined" && !currentCsrfToken()) {
+    await ensureSessionBootstrap();
+  }
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: "GET",
+    headers: {
+      Accept: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    },
+    credentials: "same-origin",
+    ...(signal ? { signal } : {}),
+  });
+  if (!response.ok) throw await readProblem(response);
+  return {
+    blob: await response.blob(),
+    fileName: downloadFileName(response.headers.get("Content-Disposition")),
+  };
+}
+
 export function getSessionStatus(signal?: AbortSignal): Promise<SessionStatus> {
   return apiRequest<SessionStatus>("/v1/session", { signal });
 }

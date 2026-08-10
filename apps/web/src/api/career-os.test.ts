@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { applicationCaseListPath, resumeDocumentListPath } from "./career-os";
+import {
+  applicationCaseListPath,
+  resumeDocumentDocxPath,
+  resumeDocumentListPath,
+} from "./career-os";
 
 describe("Career OS API paths", () => {
   it("loads at most one hundred Cases and preserves an opaque cursor", () => {
@@ -17,6 +21,15 @@ describe("Career OS API paths", () => {
     );
     expect(resumeDocumentListPath({ kind: "base" })).toBe(
       "/v1/resume-documents?limit=100&kind=base",
+    );
+  });
+
+  it("pins DOCX downloads to the content and layout shown in the editor", () => {
+    const documentId = randomUUID();
+    const contentRevisionId = randomUUID();
+    const layoutRevisionId = randomUUID();
+    expect(resumeDocumentDocxPath({ documentId, contentRevisionId, layoutRevisionId })).toBe(
+      `/v1/resume-documents/${documentId}/docx?contentRevisionId=${contentRevisionId}&layoutRevisionId=${layoutRevisionId}`,
     );
   });
 });

@@ -3237,6 +3237,26 @@
   color: var(--career-green);
 }
 
+.career-resume-editor__template-picker {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 6px;
+  color: var(--career-muted);
+  font-size: 0.61rem;
+}
+
+.career-resume-editor__template-picker select {
+  min-height: 34px;
+  padding: 0 26px 0 9px;
+  border: 1px solid #d5dce6;
+  border-radius: 7px;
+  background: white;
+  color: #344054;
+  font: inherit;
+  font-weight: 680;
+}
+
 .career-resume-editor__conflict {
   display: flex;
   align-items: flex-start;
@@ -3434,11 +3454,43 @@
 
 .career-resume-editor__document > article {
   display: grid;
+  width: min(100%, 794px);
+  min-height: auto;
+  aspect-ratio: 210 / 297;
   gap: 26px;
   padding: 34px 34px 48px;
+  margin: 0 auto;
   border: 1px solid #d9dee6;
   background: white;
   box-shadow: 0 10px 28px rgba(23, 32, 51, 0.07);
+}
+
+.career-resume-editor__paper.is-compact-technical {
+  gap: 17px;
+  padding: 26px 28px 36px;
+}
+
+.career-resume-editor__paper.is-compact-technical > section {
+  gap: 7px;
+}
+
+.career-resume-editor__paper.is-compact-technical > section > header {
+  padding-bottom: 4px;
+}
+
+.career-resume-editor__paper.is-compact-technical > section > header input {
+  font-size: 0.78rem;
+}
+
+.career-resume-editor__paper.is-compact-technical .career-resume-editor__block {
+  gap: 4px;
+  padding: 5px;
+}
+
+.career-resume-editor__paper.is-compact-technical .career-resume-editor__block textarea {
+  padding: 7px 8px;
+  font-size: 0.65rem;
+  line-height: 1.55;
 }
 
 .career-resume-editor__document > article > section {
@@ -3681,6 +3733,10 @@
 .career-resume-editor__evidence > footer svg {
   flex: 0 0 auto;
   color: var(--career-green);
+}
+
+.career-resume-print-document {
+  display: none;
 }
 
 .career-resume-review {
@@ -4647,6 +4703,15 @@
     flex: 1 1 180px;
   }
 
+  .career-resume-editor__template-picker {
+    width: 100%;
+  }
+
+  .career-resume-editor__template-picker select {
+    min-width: 0;
+    flex: 1;
+  }
+
   .career-resume-editor__body {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -4746,6 +4811,81 @@
   .career-resume-review__actions .career-button,
   .career-resume-review__decision-draft .career-button {
     width: 100%;
+  }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  body {
+    margin: 0 !important;
+  }
+
+  body > * {
+    display: none !important;
+  }
+
+  body > .career-resume-print-document {
+    display: block !important;
+    box-sizing: border-box;
+    width: 210mm;
+    min-height: 297mm;
+    padding: 18mm;
+    background: white;
+    color: #1d2939;
+    font-family: "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.55;
+  }
+
+  .career-resume-print-document h1 {
+    margin: 0 0 8mm;
+    font-size: 18pt;
+    text-align: center;
+  }
+
+  .career-resume-print-document section {
+    break-inside: avoid;
+    margin-top: 5mm;
+  }
+
+  .career-resume-print-document h2 {
+    padding-bottom: 1.5mm;
+    margin: 0 0 2.5mm;
+    border-bottom: 0.35mm solid #303b4c;
+    font-size: 13pt;
+  }
+
+  .career-resume-print-document p {
+    margin: 0 0 2.5mm;
+    white-space: pre-wrap;
+  }
+
+  .career-resume-print-document.is-compact-technical {
+    padding: 12mm 14mm;
+    font-size: 9.5pt;
+    line-height: 1.42;
+  }
+
+  .career-resume-print-document.is-compact-technical h1 {
+    margin-bottom: 5mm;
+    font-size: 16pt;
+  }
+
+  .career-resume-print-document.is-compact-technical section {
+    margin-top: 3.5mm;
+  }
+
+  .career-resume-print-document.is-compact-technical h2 {
+    margin-bottom: 1.5mm;
+    font-size: 11.5pt;
+  }
+
+  .career-resume-print-document.is-compact-technical p {
+    margin-bottom: 1.5mm;
   }
 }
 

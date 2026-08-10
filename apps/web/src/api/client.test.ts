@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { apiRequest, cookieValue, createAlphaSession, getSessionStatus } from "./client";
+import {
+  apiDownload,
+  apiRequest,
+  cookieValue,
+  createAlphaSession,
+  getSessionStatus,
+} from "./client";
 
 describe("product API client", () => {
   afterEach(() => {
@@ -105,6 +111,33 @@ describe("product API client", () => {
     await expect(getSessionStatus()).resolves.toEqual({ authenticated: false });
     expect(captured?.method).toBe("GET");
     expect(captured?.credentials).toBe("same-origin");
+  });
+
+  it("downloads an owner-protected DOCX without treating it as JSON", async () => {
+    let captured: RequestInit | undefined;
+    vi.stubGlobal("document", { cookie: "aijob_csrf=csrf-token" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        captured = init;
+        return new Response(new Uint8Array([0x50, 0x4b]), {
+          status: 200,
+          headers: {
+            "Content-Type":
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "Content-Disposition":
+              "attachment; filename*=UTF-8''Aijob-%E5%B2%97%E4%BD%8D%E7%AE%80%E5%8E%86.docx",
+          },
+        });
+      }),
+    );
+
+    const download = await apiDownload("/v1/resume-documents/document/docx");
+    expect(download.fileName).toBe("Aijob-岗位简历.docx");
+    expect(Array.from(new Uint8Array(await download.blob.arrayBuffer()))).toEqual([0x50, 0x4b]);
+    expect(captured?.method).toBe("GET");
+    expect(captured?.credentials).toBe("same-origin");
+    expect(new Headers(captured?.headers).get("x-csrf-token")).toBeNull();
   });
 
   it("creates an Alpha session without requiring a pre-existing CSRF cookie", async () => {

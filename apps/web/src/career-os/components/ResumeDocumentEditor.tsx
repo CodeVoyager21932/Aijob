@@ -3,9 +3,11 @@ import type {
   ResumeDocumentContentRevisionReadModel,
   ResumeLayoutSettings,
   ResumeSemanticContent,
+  ResumeTemplateKey,
 } from "@aijob/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   careerOsQueryKeys,
@@ -15,8 +17,9 @@ import {
   listResumeDocumentLayout,
   putResumeDocumentContent,
   putResumeDocumentLayout,
+  resumeDocumentDocxPath,
 } from "../../api/career-os";
-import { createIdempotencyKey, ProductApiError } from "../../api/client";
+import { apiDownload, createIdempotencyKey, ProductApiError } from "../../api/client";
 import {
   addResumeBlock,
   addResumeSection,
@@ -96,6 +99,7 @@ export function ResumeDocumentEditor({
   const [contentBaseRevisionId, setContentBaseRevisionId] = useState<string | null>(null);
   const [contentTouched, setContentTouched] = useState(false);
   const [layoutOrderDraft, setLayoutOrderDraft] = useState<string[]>([]);
+  const [templateDraft, setTemplateDraft] = useState<ResumeTemplateKey>("cn_classic_single_column");
   const [layoutTouched, setLayoutTouched] = useState(false);
   const [contentConflict, setContentConflict] = useState(false);
   const [layoutConflict, setLayoutConflict] = useState(false);
@@ -160,8 +164,16 @@ export function ResumeDocumentEditor({
     if (!serverContent) return;
     if (layoutOrderDraft.length === 0 || (!layoutTouched && !layoutConflict)) {
       setLayoutOrderDraft(serverSectionOrder);
+      setTemplateDraft(serverLayout?.templateKey ?? "cn_classic_single_column");
     }
-  }, [layoutConflict, layoutOrderDraft.length, layoutTouched, serverContent, serverSectionOrder]);
+  }, [
+    layoutConflict,
+    layoutOrderDraft.length,
+    layoutTouched,
+    serverContent,
+    serverLayout?.templateKey,
+    serverSectionOrder,
+  ]);
 
   const contentDirty = Boolean(
     draftContent && serverContent && !resumeContentEquals(draftContent, serverContent),
@@ -172,7 +184,9 @@ export function ResumeDocumentEditor({
     [draftContent, layoutOrderDraft],
   );
   const layoutDirty = Boolean(
-    serverContent && !sectionOrderEquals(reconciledLayoutOrder, serverSectionOrder),
+    serverContent &&
+      (!sectionOrderEquals(reconciledLayoutOrder, serverSectionOrder) ||
+        templateDraft !== serverLayout?.templateKey),
   );
   const hasUnsavedChanges = contentDirty || layoutDirty;
 
@@ -296,7 +310,7 @@ export function ResumeDocumentEditor({
           : DEFAULT_LAYOUT_SETTINGS;
       const request = {
         expectedRevision: layoutQuery.data.documentRevision,
-        templateKey: serverLayout.templateKey,
+        templateKey: templateDraft,
         sectionOrder: reconciledLayoutOrder,
         settings,
       };
@@ -323,15 +337,43 @@ export function ResumeDocumentEditor({
         }),
       ]);
       setLayoutOrderDraft(response.layoutRevision.sectionOrder);
+      setTemplateDraft(response.layoutRevision.templateKey);
       setLayoutTouched(false);
       setLayoutConflict(false);
-      setSavedMessage(`章节顺序已保存为布局修订 ${response.layoutRevision.layoutRevision}`);
+      setSavedMessage(`模板与章节顺序已保存为布局修订 ${response.layoutRevision.layoutRevision}`);
     },
     onError: (error) => {
       if (error instanceof ProductApiError && error.code === "RESUME_DOCUMENT_REVISION_CONFLICT") {
         setLayoutConflict(true);
         void Promise.all([contentQuery.refetch(), layoutQuery.refetch()]);
       }
+    },
+  });
+
+  const docxMutation = useMutation({
+    mutationFn: async () => {
+      if (!serverContentRevision || !serverLayout) {
+        throw new Error("当前正文或布局修订尚未读取完成。");
+      }
+      return apiDownload(
+        resumeDocumentDocxPath({
+          documentId: resumeDocument.id,
+          contentRevisionId: serverContentRevision.id,
+          layoutRevisionId: serverLayout.id,
+        }),
+      );
+    },
+    retry: false,
+    onSuccess: ({ blob, fileName }) => {
+      const href = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = href;
+      anchor.download = fileName ?? "Aijob-简历.docx";
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(href), 0);
+      setSavedMessage("DOCX 已按当前固定修订生成，文件未在服务器落盘");
     },
   });
 
@@ -365,7 +407,30 @@ export function ResumeDocumentEditor({
   const confirmedEvidence =
     evidenceQuery.data && "evidence" in evidenceQuery.data ? evidenceQuery.data.evidence : [];
   const selectedEvidenceIds = selectedEntry?.block.evidenceIds ?? [];
-  const busy = contentMutation.isPending || layoutMutation.isPending || reviewBusy;
+  const busy =
+    contentMutation.isPending || layoutMutation.isPending || docxMutation.isPending || reviewBusy;
+  const printDocument =
+    typeof document === "undefined"
+      ? null
+      : createPortal(
+          <article
+            className={`career-resume-print-document${
+              templateDraft === "cn_compact_technical" ? " is-compact-technical" : " is-classic"
+            }`}
+            aria-hidden="true"
+          >
+            <h1>{resumeDocument.title}</h1>
+            {orderedSections.map((section) => (
+              <section key={section.id}>
+                <h2>{section.title}</h2>
+                {section.blocks.map((block) => (
+                  <p key={block.id}>{block.text}</p>
+                ))}
+              </section>
+            ))}
+          </article>,
+          document.body,
+        );
 
   return (
     <section className="career-resume-editor" aria-label={`${contextLabel}结构化编辑器`}>
@@ -382,6 +447,25 @@ export function ResumeDocumentEditor({
           <span className={hasUnsavedChanges ? "is-dirty" : "is-saved"}>
             {hasUnsavedChanges ? "有未保存修改" : (savedMessage ?? "已与服务器同步")}
           </span>
+          <label className="career-resume-editor__template-picker">
+            <span>中文模板</span>
+            <select
+              value={templateDraft}
+              disabled={busy}
+              onChange={(event) => {
+                const nextTemplate = event.currentTarget.value as ResumeTemplateKey;
+                setTemplateDraft(nextTemplate);
+                setLayoutTouched(
+                  nextTemplate !== serverLayout.templateKey ||
+                    !sectionOrderEquals(reconciledLayoutOrder, serverSectionOrder),
+                );
+                setSavedMessage(null);
+              }}
+            >
+              <option value="cn_classic_single_column">经典单栏</option>
+              <option value="cn_compact_technical">紧凑技术</option>
+            </select>
+          </label>
           <button
             className="career-button career-button--quiet"
             type="button"
@@ -392,6 +476,7 @@ export function ResumeDocumentEditor({
               setContentBaseRevisionId(serverContentRevision.id);
               setContentTouched(false);
               setLayoutOrderDraft(serverSectionOrder);
+              setTemplateDraft(serverLayout.templateKey);
               setLayoutTouched(false);
               setContentConflict(false);
               setLayoutConflict(false);
@@ -406,7 +491,7 @@ export function ResumeDocumentEditor({
             disabled={!layoutDirty || contentDirty || busy || layoutConflict}
             onClick={() => layoutMutation.mutate()}
           >
-            保存章节顺序
+            保存模板与排序
           </button>
           <button
             className="career-button career-button--primary"
@@ -415,6 +500,22 @@ export function ResumeDocumentEditor({
             onClick={() => contentMutation.mutate()}
           >
             {contentMutation.isPending ? "正在保存…" : "保存正文修订"}
+          </button>
+          <button
+            className="career-button career-button--quiet"
+            type="button"
+            disabled={hasUnsavedChanges || busy || contentConflict || layoutConflict}
+            onClick={() => window.print()}
+          >
+            浏览器打印
+          </button>
+          <button
+            className="career-button career-button--quiet"
+            type="button"
+            disabled={hasUnsavedChanges || busy || contentConflict || layoutConflict}
+            onClick={() => docxMutation.mutate()}
+          >
+            {docxMutation.isPending ? "正在生成 DOCX…" : "下载 DOCX"}
           </button>
         </div>
       </header>
@@ -456,8 +557,8 @@ export function ResumeDocumentEditor({
         <section className="career-resume-editor__conflict" role="alert">
           <Icon name="warning" size={19} />
           <div>
-            <strong>章节顺序已在其他页面更新</strong>
-            <p>你的排序草稿仍保留。核对最新顺序后，可明确选择继续使用本地排序。</p>
+            <strong>模板或章节顺序已在其他页面更新</strong>
+            <p>你的布局草稿仍保留。核对最新布局后，可明确选择继续使用本地设置。</p>
             <div>
               <button
                 type="button"
@@ -466,17 +567,18 @@ export function ResumeDocumentEditor({
                   setLayoutTouched(true);
                 }}
               >
-                保留本地排序
+                保留本地布局
               </button>
               <button
                 type="button"
                 onClick={() => {
                   setLayoutOrderDraft(serverSectionOrder);
+                  setTemplateDraft(serverLayout.templateKey);
                   setLayoutTouched(false);
                   setLayoutConflict(false);
                 }}
               >
-                加载服务器顺序
+                加载服务器布局
               </button>
             </div>
           </div>
@@ -492,6 +594,12 @@ export function ResumeDocumentEditor({
         <div className="career-inline-error" role="alert">
           <strong>章节顺序没有保存</strong>
           <span>{errorMessage(layoutMutation.error)}</span>
+        </div>
+      ) : null}
+      {docxMutation.isError ? (
+        <div className="career-inline-error" role="alert">
+          <strong>DOCX 没有生成</strong>
+          <span>{errorMessage(docxMutation.error)}</span>
         </div>
       ) : null}
       {validationErrors.length > 0 ? (
@@ -571,7 +679,13 @@ export function ResumeDocumentEditor({
             <span>A4 结构编辑</span>
             <span>自动保存已关闭</span>
           </div>
-          <article>
+          <article
+            className={
+              templateDraft === "cn_compact_technical"
+                ? "career-resume-editor__paper is-compact-technical"
+                : "career-resume-editor__paper is-classic"
+            }
+          >
             {orderedSections.map((section) => (
               <section key={section.id}>
                 <header>
@@ -745,6 +859,7 @@ export function ResumeDocumentEditor({
           </footer>
         </aside>
       </div>
+      {printDocument}
       {resumeDocument.kind === "case_derived" ? (
         <ResumeReviewPanel
           documentId={resumeDocument.id}

@@ -224,6 +224,18 @@ export function listResumeDocumentLayout(documentId: string, signal?: AbortSigna
   );
 }
 
+export function resumeDocumentDocxPath(input: {
+  documentId: string;
+  contentRevisionId: string;
+  layoutRevisionId: string;
+}): string {
+  const params = new URLSearchParams({
+    contentRevisionId: input.contentRevisionId,
+    layoutRevisionId: input.layoutRevisionId,
+  });
+  return `/v1/resume-documents/${encodeURIComponent(input.documentId)}/docx?${params.toString()}`;
+}
+
 export function putResumeDocumentContent(
   documentId: string,
   request: PutResumeDocumentContentRevisionRequest,
