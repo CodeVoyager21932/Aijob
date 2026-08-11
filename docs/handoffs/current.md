@@ -14,6 +14,10 @@
 >
 > M3-1 Web 提交：`73f3420 feat(web): add case application timeline`
 >
+> M3-2 平台提交：`e2a74fe feat(platform): add deterministic interview sessions`
+>
+> M3-2 Web 提交：`33b220b feat(web): add case interview workspace`
+>
 > 文档提交后的精确 HEAD 以 `git log -1` 为准。
 >
 > 工作树预期只剩未跟踪 `.claude/`；不得读取、修改、暂存、覆盖或清理它。
@@ -26,13 +30,13 @@
 
 计划索引：[docs/plans](../plans/README.md)
 
-最近切片验收：[M3-1 显式投递记录与 Case 时间线](../evidence/product/career-os-v2/m3-1-explicit-application-acceptance-2026-08-11.md)
+最近切片验收：[M3-2 确定性文字面试](../evidence/product/career-os-v2/m3-2-deterministic-interview-acceptance-2026-08-11.md)
 
 ## 1. 当前唯一目标
 
 当前唯一里程碑是 **M3 投递与持续改进**：
 
-当前唯一执行切片是 **M3-2 确定性文字面试**；M3-1 已通过验收，下面的完整链路只用于说明 M3 终点，不得据此并行实现后续反馈或复盘。
+当前唯一执行切片是 **M3-3 反馈与复盘**；M3-1 与 M3-2 已通过验收，下面的完整链路只用于说明 M3 终点，不得据此并行实现后续确认回流。
 
 ```text
 岗位专属简历与官方投递入口
@@ -57,8 +61,12 @@
 - M3-1 受影响包完整回归为 Contracts 66/66、Platform 452/452、Web 119/119；lint 421 files、typecheck、build、audit 与 `git diff --check` 通过。
 - M3-1 浏览器已通过合成私有 JD → 投递二次确认 → Case 时间线、刷新、历史、320/640 CSS px 和控制台检查；`VITE_CAREER_OS_V2=false` 已恢复旧壳层并确认无 Career OS 新入口，M2 旗标关闭证据缺口已补齐。
 - Web main chunk 为 551.87 kB；`CaseApplicationWorkspace` 为 8.43 kB 独立 lazy chunk，相对 Phase 1A 主包增长仍约 8.0%。
+- M3-2 已完成 owner-protected Interview Session 列表/创建/详情/回答 API，以及 Case `面试`真实工作区；Session 固定 Case、岗位上下文、Case-derived Resume content revision 与 evidence revision，回答以不可变 Turn 追加。
+- M3-2 全仓串行 Gate 为 Config 17、Contracts 69、Database 54、Platform 456、Web 122，共 718/718；lint 428 files、typecheck、build、audit 与 `git diff --check` 通过。
+- M3-2 浏览器已通过合成私有 JD/Resume/evidence 的前置条件、显式创建、两题回答、完成、刷新、深链和历史恢复；1280 CSS px 无水平溢出且控制台无新增 warning/error。真实 320px、200%、键盘与焦点复验明确留在 M3-5，不得误写为已通过。
+- Web main chunk 当前为 553.92 kB；`CaseInterviewWorkspace` 为 9.21 kB 独立 lazy chunk，相对 M3-1 主包只增加约 0.37%，相对 Phase 1A 仍低于 10%。
 - 产品证据仍为 E0；可信供给仍为 22 岗 / 3 家企业 / 3 个官方 ATS，公共与 Alpha 岗位均为 0。
-- 前后端服务、PostgreSQL 容器与 Docker Desktop 当前均已停止；M3 数据测试继续使用随机命名隔离库。
+- 前后端进程与项目 PostgreSQL 容器当前均已停止，端口 3000、5173、5432 未监听；M3 数据测试继续使用随机命名隔离库，不以 Docker Desktop 进程状态冒充项目服务状态。
 
 ## 3. M3 串行执行清单
 
@@ -73,11 +81,12 @@
    - 用户明确确认后才记录已投递或其他可表示结果，并展示真实 Case 时间线。
    - 兼容旧 decision 只能走已有无损映射；不可表示时明确冲突，不静默丢失。
    - 验收证据：[M3-1 显式投递记录与 Case 时间线](../evidence/product/career-os-v2/m3-1-explicit-application-acceptance-2026-08-11.md)。
-3. **M3-2 确定性文字面试（当前）**
+3. **M3-2 确定性文字面试（已完成）**
    - 建立最小 Interview Session/Turn API 与 Case 界面。
    - 会话固定 Case、岗位版本、Resume/证据修订；模板问题只来自已固定 JD 要求与已确认事实。
    - M3 不接真实 AI；异常时仍可用确定性模板完成。
-4. **M3-3 反馈与复盘**
+   - 验收证据：[M3-2 确定性文字面试](../evidence/product/career-os-v2/m3-2-deterministic-interview-acceptance-2026-08-11.md)。
+4. **M3-3 反馈与复盘（当前）**
    - 保存结构化反馈、证据引用、表达问题、证据缺口和练习计划。
    - 回答不足时标记未知或待补，不推断用户没有提供的经历。
 5. **M3-4 用户确认回流**
@@ -88,24 +97,22 @@
    - 使用合成数据验证 1280/320、200% 等效视口、键盘、焦点、刷新/历史与控制台。
    - 形成 M3 独立验收证据，只作继续 M4、修改、回退或停止决定。
 
-## 4. M3-2 当前代码入口
+## 4. M3-3 当前代码入口
 
 - `packages/contracts/src/interview-debrief-knowledge.ts`
 - `packages/contracts/src/interview-debrief-knowledge.test.ts`
 - `packages/database/src/migrations/028_interview_debrief_knowledge_expand.ts`
 - `packages/database/src/types.ts`
-- `apps/platform/src/applications/routes.ts`
-- `apps/platform/src/applications/service.ts`
-- `apps/platform/src/profile/routes.ts`
-- `apps/platform/src/profile/revision-repository.ts`
-- `apps/platform/src/resume-documents/routes.ts`
-- `apps/platform/src/resume-documents/service.ts`
+- `apps/platform/src/interviews/routes.ts`
+- `apps/platform/src/interviews/service.ts`
+- `apps/platform/src/interviews/routes.integration.test.ts`
 - `apps/platform/src/app.ts`
 - `apps/web/src/api/career-os.ts`
+- `apps/web/src/career-os/interview-view.ts`
+- `apps/web/src/career-os/pages/CaseInterviewWorkspace.tsx`
 - `apps/web/src/career-os/pages/CaseWorkspacePage.tsx`
-- `apps/web/src/career-os/components/CaseTabs.tsx`
 
-先只读确认 migration 028、现有 Case 固定输入、Profile evidence 和 Resume current revision 能否直接支撑 Session/Turn。默认不新增 migration；只有可复现约束缺口才能做最小 additive repair。当前切片只实现确定性模板 Session/Turn 及 Case `interview` 标签，不提前创建反馈、Debrief、Knowledge、真实 AI provider 或第二套事实写入模型。
+先只读确认 migration 028 的 `interview_feedback`、`debriefs`、`debrief_confirmations` 约束，以及已完成 Session/Turn 的固定输入和完成状态。默认不新增 migration；只有可复现约束缺口才能做最小 additive repair。当前切片只实现被 Case 界面直接消费的确定性 Feedback/Debrief 读取与保存，不提前实现确认回流、Knowledge、真实 AI provider 或第二套事实写入模型。
 
 ## 5. 明确排除
 
@@ -121,4 +128,4 @@
 2. 检查分支、HEAD、`git status` 和最近提交；不得处理 `.claude/`。
 3. 确认路线图与本交接都只指向 M3；归档计划和历史验收不得提供下一任务。
 4. 确认本地服务与容器默认关闭；需要 PostgreSQL 时新建随机隔离测试库。
-5. 从 M3-2 开始实现固定 Case/岗位/Resume/证据修订的确定性 Session/Turn；不得从旧 Phase 2B-4C 批量铺设 Interview/Debrief/Knowledge 服务。
+5. 从 M3-3 开始实现同一已完成 Session 的确定性 Feedback/Debrief；不得从旧 Phase 2B-4C 批量铺设 Knowledge、真实 AI 或未来服务。

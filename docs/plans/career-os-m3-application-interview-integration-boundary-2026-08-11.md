@@ -3,7 +3,7 @@
 - 日期：2026-08-11
 - 分支：`codex/career-os-phase-1`
 - 审查基线：`8d125fd docs(evidence): accept m2 professional resume workflow`
-- 状态：**M3-0 已完成的设计与复用记录**
+- 状态：**M3-0 设计基线；M3-1 与 M3-2 已完成**
 - 当前任务仍以 [MVP 路线](../06-mvp-roadmap.md) 与[当前交接](../handoffs/current.md)为准
 
 ## 1. 结论
@@ -68,12 +68,15 @@ M3-1：
 - `GET /v1/application-cases/:caseId/events`
 - `POST /v1/application-cases/:caseId/manual-applications`
 
-M3-2/3：
+M3-2：
 
 - `GET /v1/application-cases/:caseId/interview-sessions`
 - `POST /v1/application-cases/:caseId/interview-sessions`
 - `GET /v1/application-cases/:caseId/interview-sessions/:sessionId`
 - `POST /v1/application-cases/:caseId/interview-sessions/:sessionId/answers`
+
+M3-3/4：
+
 - `GET /v1/application-cases/:caseId/debrief`
 - `PUT /v1/application-cases/:caseId/debrief`
 - `POST /v1/application-cases/:caseId/debrief/confirmations`
@@ -99,4 +102,4 @@ M3-2/3：
 | 数据环境 | 随机 `aijob_m3_baseline_test_*` 隔离库；结束后已删除 |
 | 服务状态 | 前后端未启动；PostgreSQL 容器与 Docker Desktop 验证后再次停止 |
 
-M3-0 没有修改业务代码、Schema 或依赖。下一切片只能是路线图规定的 `M3-1 显式投递记录`。
+M3-0 没有修改业务代码、Schema 或依赖；该结论随后由 M3-1 和 M3-2 的纵向实现验证。M3-2 复用了 migration 028，没有新增 migration、依赖、队列或 AI provider；验收见 [M3-2 确定性文字面试](../evidence/product/career-os-v2/m3-2-deterministic-interview-acceptance-2026-08-11.md)。当前唯一切片由路线图规定为 `M3-3 反馈与复盘`，本设计记录不再生成下一任务。
