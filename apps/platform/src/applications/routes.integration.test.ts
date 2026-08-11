@@ -1356,9 +1356,9 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
   it("creates owner-private JD Cases atomically without publishing or sharing them", async () => {
     const headers = sessionHeaders(secondSession);
     const contentText =
-      "  岗位职责\r\n负责用户研究与需求分析。\r\n任职要求\r\n每周至少实习 4 天；掌握 SQL。\r\n具备良好的自驱力。  ";
+      "  私有用户研究实习生\r\n职责：\r\n负责用户研究与需求分析。\r\n要求：\r\n每周至少实习 4 天；掌握 SQL。\r\n具备良好的自驱力。  ";
     const normalizedContent =
-      "岗位职责\n负责用户研究与需求分析。\n任职要求\n每周至少实习 4 天；掌握 SQL。\n具备良好的自驱力。";
+      "私有用户研究实习生\n职责：\n负责用户研究与需求分析。\n要求：\n每周至少实习 4 天；掌握 SQL。\n具备良好的自驱力。";
     const publicCountBefore = await db
       .selectFrom("catalog.published_jobs")
       .select(({ fn }) => fn.countAll<number>().as("count"))
@@ -1429,8 +1429,11 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
     expect(requirementsResponse.statusCode).toBe(200);
     const requirements = ApplicationCaseRequirementsSchema.parse(requirementsResponse.json());
     expect(requirements.requirements.length).toBeGreaterThan(0);
-    expect(requirements.requirements.map(({ sourceText }) => sourceText)).not.toContain("岗位职责");
-    expect(requirements.requirements.map(({ sourceText }) => sourceText)).not.toContain("任职要求");
+    expect(requirements.requirements.map(({ sourceText }) => sourceText)).not.toContain(
+      "私有用户研究实习生",
+    );
+    expect(requirements.requirements.map(({ sourceText }) => sourceText)).not.toContain("职责");
+    expect(requirements.requirements.map(({ sourceText }) => sourceText)).not.toContain("要求");
     expect(requirements.requirements).toContainEqual(
       expect.objectContaining({
         kind: "other",

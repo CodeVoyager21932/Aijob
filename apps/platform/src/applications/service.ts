@@ -1812,7 +1812,15 @@ function privateJobSourceMetadata(
 }
 
 const PurePrivateJobHeading =
-  /^(?:岗位职责|职位描述|工作内容|任职要求|岗位要求|资格条件|职位要求)[:：]?$/;
+  /^(?:职责|要求|岗位职责|职位描述|工作内容|任职要求|岗位要求|资格条件|职位要求)[:：]?$/;
+
+function isPrivateJobMetadataLine(sourceText: string, title: string): boolean {
+  const normalizedSourceText = sourceText.normalize("NFKC").replace(/\s+/g, "").trim();
+  const normalizedTitle = title.normalize("NFKC").replace(/\s+/g, "").trim();
+  return (
+    normalizedSourceText === normalizedTitle || PurePrivateJobHeading.test(normalizedSourceText)
+  );
+}
 
 async function resolvePrivateInputJobContext(
   db: Transaction<Database>,
@@ -1867,7 +1875,7 @@ async function resolvePrivateInputJobContext(
     publishedJobVersionId: snapshotId,
     sourceText: contentText,
     evidenceRefPrefix: `private-job-snapshot:${snapshotId}:revision:1`,
-  }).filter((requirement) => !PurePrivateJobHeading.test(requirement.sourceText));
+  }).filter((requirement) => !isPrivateJobMetadataLine(requirement.sourceText, request.title));
 
   await db
     .insertInto("application.private_job_snapshots")

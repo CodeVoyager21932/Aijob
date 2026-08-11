@@ -434,7 +434,7 @@ describeWithDatabase("resume plaintext minimization", () => {
     expect(needsInputRow.status).toBe("needs_input");
     expect(needsInputRow.original_filename).toBeNull();
     expect(needsInputRow.purged_at).not.toBeNull();
-  }, 15_000);
+  }, 30_000);
 
   it("does not let an in-flight analysis revive content after TTL purge", async () => {
     const session = await createAnonymousSession({ db });

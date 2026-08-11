@@ -3,6 +3,7 @@ import type { ApplicationCaseRequirements, JobRequirement } from "@aijob/contrac
 import { describe, expect, it } from "vitest";
 import {
   requirementGroup,
+  requirementKindLabel,
   requirementNextStep,
   summarizeRequirementProgress,
 } from "./requirements-view";
@@ -30,6 +31,11 @@ describe("M1 requirement view", () => {
     expect(requirementGroup(requirement("skill", "skill"))).toBe("capability");
     expect(requirementGroup(requirement("other", "other"))).toBe("unknown");
     expect(requirementGroup(requirement("unknown", "skill", "unknown"))).toBe("unknown");
+  });
+
+  it("labels distinct facts extracted from the same JD sentence", () => {
+    expect(requirementKindLabel("graduation_year")).toBe("毕业年份");
+    expect(requirementKindLabel("student_status")).toBe("在校状态");
   });
 
   it("derives progress from persisted states and active evidence links", () => {

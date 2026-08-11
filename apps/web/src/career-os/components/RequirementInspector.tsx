@@ -11,6 +11,7 @@ import type { ApplicationCaseView } from "../application-case-view";
 import {
   type RequirementGroup,
   requirementGroups,
+  requirementKindLabel,
   requirementNextStep,
 } from "../requirements-view";
 import { ContextInspectorFrame } from "./ContextInspector";
@@ -142,7 +143,7 @@ export function RequirementInspector({
         <blockquote className="career-requirement-quote">
           <p>{requirement.sourceText}</p>
           <cite>
-            {sourceLabel}
+            {requirementKindLabel(requirement.kind)} · {sourceLabel}
             {requirement.sourceSpan
               ? ` · 字符 ${requirement.sourceSpan.start}–${requirement.sourceSpan.end}`
               : ""}

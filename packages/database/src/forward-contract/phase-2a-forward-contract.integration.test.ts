@@ -16,7 +16,7 @@ const unknown = JSON.stringify({ state: "unknown", reason: "source_not_stated" }
 const known = (value: unknown, evidenceRef: string) =>
   JSON.stringify({ state: "known", value, evidenceRefs: [evidenceRef] });
 
-describeWithDatabase("migrations 026B through 030 Phase 2A/2B forward repairs", () => {
+describeWithDatabase("migrations 026B through 031 Phase 2A/2B forward repairs", () => {
   const ids = {
     organization: randomUUID(),
     source: randomUUID(),
@@ -556,7 +556,7 @@ describeWithDatabase("migrations 026B through 030 Phase 2A/2B forward repairs", 
     }
   }, 120_000);
 
-  it("migrates empty and populated 025 databases through 026 without expiring accounts", async () => {
+  it("migrates empty and populated 025 databases through the latest repair without expiring accounts", async () => {
     const [migration, emptyMigration] = await Promise.all([
       sql<{ name: string }>`
         SELECT name FROM kysely_migration ORDER BY timestamp DESC LIMIT 1
@@ -565,8 +565,8 @@ describeWithDatabase("migrations 026B through 030 Phase 2A/2B forward repairs", 
         SELECT name FROM kysely_migration ORDER BY timestamp DESC LIMIT 1
       `.execute(emptyDb),
     ]);
-    expect(migration.rows[0]?.name).toBe("030_resume_revision_mutation_receipts");
-    expect(emptyMigration.rows[0]?.name).toBe("030_resume_revision_mutation_receipts");
+    expect(migration.rows[0]?.name).toBe("031_resume_review_task_type");
+    expect(emptyMigration.rows[0]?.name).toBe("031_resume_review_task_type");
 
     const accountOwner = await db
       .selectFrom("identity.owners")

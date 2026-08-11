@@ -151,15 +151,10 @@ function uniqueText(values: string[]): string[] {
 }
 
 function evidenceBackedRewrite(evidence: ConfirmedEvidence[]): string {
-  const claims = uniqueText(evidence.map(evidencePrimaryText));
-  const skills = uniqueText(evidence.flatMap((item) => item.skills));
-  const outcomes = uniqueText(evidence.flatMap((item) => item.outcomes));
-  const parts = [
-    ...claims,
-    ...(skills.length > 0 ? [`技能：${skills.join("、")}`] : []),
-    ...(outcomes.length > 0 ? [`结果：${outcomes.join("；")}`] : []),
-  ];
-  const proposed = parts.join("；");
+  const claims = uniqueText(
+    evidence.map(evidencePrimaryText).map((claim) => claim.replace(/[。；;]+$/u, "").trim()),
+  );
+  const proposed = claims.join("；");
   return proposed.length <= 10_000 ? proposed : (claims[0] ?? "");
 }
 
@@ -481,6 +476,7 @@ export async function getCurrentResumeReview(input: {
     .where("review.owner_id", "=", input.owner.ownerId)
     .where("review.owner_epoch", "=", input.owner.ownerEpoch)
     .where("review.deleted_at", "is", null)
+    .orderBy("review.updated_at", "desc")
     .orderBy("review.created_at", "desc")
     .orderBy("review.id", "desc")
     .executeTakeFirst();

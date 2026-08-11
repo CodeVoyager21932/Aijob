@@ -26,6 +26,7 @@ import {
   getRequirementState,
   requirementGroup,
   requirementGroups,
+  requirementKindLabel,
   requirementSourceLabel,
 } from "../requirements-view";
 
@@ -375,7 +376,10 @@ export function CaseRequirementsWorkspace({
                           </span>
                           <span className="career-requirement-row__content">
                             <strong>{requirement.sourceText}</strong>
-                            <small>{requirementSourceLabel(data)}</small>
+                            <small>
+                              {requirementKindLabel(requirement.kind)} ·{" "}
+                              {requirementSourceLabel(data)}
+                            </small>
                           </span>
                           <EvidenceState state={state} />
                           <Icon name="chevron" size={17} />

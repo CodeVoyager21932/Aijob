@@ -1503,6 +1503,7 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
         })
       ).json(),
     );
+    expect(rejectableReview.review?.reviewRun.id).toBe(rejectedReview.review.reviewRun.id);
     const rejectedSuggestion = rejectableReview.review?.suggestions[0];
     if (!rejectedSuggestion) throw new Error("REJECTABLE_SUGGESTION_MISSING");
     const rejectedResponse = await app.inject({

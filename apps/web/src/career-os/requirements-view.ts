@@ -40,6 +40,25 @@ const hardKinds = new Set<JobRequirement["kind"]>([
   "language",
 ]);
 
+const requirementKindLabels = {
+  graduation_year: "毕业年份",
+  student_status: "在校状态",
+  city: "工作城市",
+  arrival_date: "到岗时间",
+  weekly_attendance: "每周出勤",
+  duration: "实习时长",
+  education: "学历",
+  major: "专业",
+  language: "语言",
+  skill: "技能",
+  experience: "经历与职责",
+  other: "其他原文",
+} as const satisfies Record<JobRequirement["kind"], string>;
+
+export function requirementKindLabel(kind: JobRequirement["kind"]): string {
+  return requirementKindLabels[kind];
+}
+
 export function requirementGroup(requirement: JobRequirement): RequirementGroup {
   if (requirement.operator === "unknown" || requirement.kind === "other") return "unknown";
   if (hardKinds.has(requirement.kind)) return "hard";
