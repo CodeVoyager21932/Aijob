@@ -4,6 +4,7 @@ import {
   ApplicationCaseMutationResponseSchema,
   ApplicationCaseRequirementsSchema,
   ApplicationCaseWithJobContextSchema,
+  ConfirmCaseDebriefResponseSchema,
   CreateApplicationCaseResponseSchema,
   CreateInterviewSessionResponseSchema,
   CreateResumeDocumentResponseSchema,
@@ -79,6 +80,10 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
     await app.close();
     const ownerIds = [mainSession.context.ownerId, otherSession.context.ownerId];
     await db.transaction().execute(async (transaction) => {
+      await transaction
+        .deleteFrom("application.debrief_item_decisions")
+        .where("owner_id", "in", ownerIds)
+        .execute();
       await transaction
         .deleteFrom("application.debrief_confirmations")
         .where("owner_id", "in", ownerIds)
@@ -447,6 +452,8 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
     expect(GetCaseDebriefResponseSchema.parse(emptyDebrief.json())).toEqual({
       feedback: null,
       debrief: null,
+      itemDecisions: [],
+      confirmation: null,
     });
     const activeSessionDebrief = await app.inject({
       method: "PUT",
@@ -557,6 +564,112 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
     expect(GetCaseDebriefResponseSchema.parse(loadedDebrief.json())).toEqual({
       feedback: preparedBody.feedback,
       debrief: preparedBody.debrief,
+      itemDecisions: [],
+      confirmation: null,
+    });
+
+    await expect(
+      db
+        .insertInto("application.debrief_confirmations")
+        .values({
+          owner_id: mainSession.context.ownerId,
+          owner_epoch: mainSession.context.ownerEpoch,
+          debrief_id: preparedBody.debrief.id,
+          based_on_debrief_revision: 1,
+          idempotency_key_hash: "d".repeat(64),
+        })
+        .execute(),
+    ).rejects.toThrow(/DEBRIEF_ITEM_DECISIONS_INCOMPLETE/);
+
+    const itemDecisions = [
+      ...preparedBody.debrief.expressionIssues.map((item, index) => ({
+        itemKind: "expression_issue" as const,
+        itemId: item.id,
+        decision:
+          index === 0
+            ? ("edited" as const)
+            : index === 1
+              ? ("rejected" as const)
+              : ("accepted" as const),
+        editedText: index === 0 ? "先说明真实情境，再说明本人行动与可核对结果。" : null,
+      })),
+      ...preparedBody.debrief.evidenceGaps.map((item) => ({
+        itemKind: "evidence_gap" as const,
+        itemId: item.id,
+        decision: "deferred" as const,
+        editedText: null,
+      })),
+    ];
+    const incompleteConfirmation = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${createdCase.id}/debrief/confirmations`,
+      headers: { ...headers, "idempotency-key": `incomplete-confirmation-${randomUUID()}` },
+      payload: { expectedDebriefRevision: 1, itemDecisions: [] },
+    });
+    expect(incompleteConfirmation.statusCode).toBe(409);
+    expect(incompleteConfirmation.json()).toMatchObject({
+      code: "DEBRIEF_ITEM_DECISIONS_INCOMPLETE",
+    });
+    const confirmationKey = `debrief-confirmation-${randomUUID()}`;
+    const confirmationRequest = { expectedDebriefRevision: 1, itemDecisions };
+    const confirmedDebrief = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${createdCase.id}/debrief/confirmations`,
+      headers: { ...headers, "idempotency-key": confirmationKey },
+      payload: confirmationRequest,
+    });
+    expect(confirmedDebrief.statusCode, JSON.stringify(confirmedDebrief.json())).toBe(201);
+    expect(confirmedDebrief.headers["cache-control"]).toContain("no-store");
+    const confirmedBody = ConfirmCaseDebriefResponseSchema.parse(confirmedDebrief.json());
+    expect(confirmedBody).toMatchObject({
+      created: true,
+      debrief: { id: preparedBody.debrief.id, status: "confirmed", revision: 2 },
+      confirmation: { basedOnDebriefRevision: 1 },
+    });
+    expect(confirmedBody.itemDecisions).toHaveLength(itemDecisions.length);
+
+    const confirmationReplay = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${createdCase.id}/debrief/confirmations`,
+      headers: { ...headers, "idempotency-key": confirmationKey },
+      payload: confirmationRequest,
+    });
+    expect(confirmationReplay.statusCode).toBe(201);
+    expect(confirmationReplay.json()).toEqual(confirmedBody);
+    const sameConfirmationNewKey = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${createdCase.id}/debrief/confirmations`,
+      headers: { ...headers, "idempotency-key": `same-confirmation-${randomUUID()}` },
+      payload: confirmationRequest,
+    });
+    expect(sameConfirmationNewKey.statusCode).toBe(200);
+    expect(ConfirmCaseDebriefResponseSchema.parse(sameConfirmationNewKey.json())).toEqual({
+      ...confirmedBody,
+      created: false,
+    });
+    const confirmationKeyReuse = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${createdCase.id}/debrief/confirmations`,
+      headers: { ...headers, "idempotency-key": confirmationKey },
+      payload: { ...confirmationRequest, expectedDebriefRevision: 2 },
+    });
+    expect(confirmationKeyReuse.statusCode).toBe(409);
+    expect(confirmationKeyReuse.json()).toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+
+    const confirmedRead = GetCaseDebriefResponseSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/application-cases/${createdCase.id}/debrief`,
+          headers,
+        })
+      ).json(),
+    );
+    expect(confirmedRead).toEqual({
+      feedback: preparedBody.feedback,
+      debrief: confirmedBody.debrief,
+      itemDecisions: confirmedBody.itemDecisions,
+      confirmation: confirmedBody.confirmation,
     });
     const storedReviewCounts = await Promise.all([
       db
@@ -635,6 +748,17 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
     });
     expect(crossOwnerDebrief.statusCode).toBe(404);
     expect(crossOwnerDebrief.json()).toMatchObject({ code: "APPLICATION_CASE_NOT_FOUND" });
+    const crossOwnerConfirmation = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${createdCase.id}/debrief/confirmations`,
+      headers: {
+        ...sessionHeaders(otherSession),
+        "idempotency-key": `cross-owner-confirmation-${randomUUID()}`,
+      },
+      payload: confirmationRequest,
+    });
+    expect(crossOwnerConfirmation.statusCode).toBe(404);
+    expect(crossOwnerConfirmation.json()).toMatchObject({ code: "APPLICATION_CASE_NOT_FOUND" });
     const invalidCursor = await app.inject({
       method: "GET",
       url: `/v1/application-cases/${createdCase.id}/interview-sessions?cursor=invalid`,
@@ -658,5 +782,15 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
       payload: { interviewSessionId: createdBody.sessionId, expectedSessionRevision: 3 },
     });
     expect(missingDebriefCsrf.statusCode).toBe(403);
+    const missingConfirmationCsrf = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${createdCase.id}/debrief/confirmations`,
+      headers: {
+        ...headersWithoutCsrf,
+        "idempotency-key": `csrf-confirmation-${randomUUID()}`,
+      },
+      payload: confirmationRequest,
+    });
+    expect(missingConfirmationCsrf.statusCode).toBe(403);
   }, 30_000);
 });

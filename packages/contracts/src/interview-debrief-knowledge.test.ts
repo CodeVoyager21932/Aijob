@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ConfirmCaseDebriefRequestSchema,
+  ConfirmCaseDebriefResponseSchema,
   CreateInterviewSessionRequestSchema,
   CreateInterviewSessionResponseSchema,
   DebriefConfirmationSchema,
@@ -272,18 +274,131 @@ describe("Interview, Debrief and Knowledge contracts", () => {
     };
     expect(DebriefSchema.parse(debrief).status).toBe("confirmed");
     expect(DebriefSchema.safeParse({ ...debrief, confirmedAt: null }).success).toBe(false);
+    const confirmation = DebriefConfirmationSchema.parse({
+      schemaVersion: "debrief-confirmation-v1",
+      id: ids.item,
+      ownerId: ids.owner,
+      ownerEpoch: 1,
+      debriefId: ids.debrief,
+      basedOnDebriefRevision: 1,
+      idempotencyKeyHash: "a".repeat(64),
+      decisionMode: "whole_only",
+      confirmedAt: timestamp,
+    });
+    expect(confirmation.basedOnDebriefRevision).toBe(1);
     expect(
-      DebriefConfirmationSchema.parse({
-        schemaVersion: "debrief-confirmation-v1",
-        id: ids.item,
+      GetCaseDebriefResponseSchema.parse({
+        feedback: null,
+        debrief,
+        itemDecisions: [],
+        confirmation,
+      }).confirmation?.decisionMode,
+    ).toBe("whole_only");
+  });
+
+  it("requires one explicit decision per actionable Debrief item before confirmation", () => {
+    const debrief = DebriefSchema.parse({
+      schemaVersion: "debrief-v1",
+      id: ids.debrief,
+      ownerId: ids.owner,
+      ownerEpoch: 1,
+      caseId: ids.case,
+      detachedFromCaseId: null,
+      jobContext: privateJobContext,
+      interviewSessionId: ids.session,
+      evidenceRevisionId: ids.evidenceRevision,
+      expressionIssues: [{ id: ids.item, description: "The answer was too broad.", turnIds: [] }],
+      evidenceGaps: [
+        { id: ids.link, description: "The evidence link needs confirmation.", requirementIds: [] },
+      ],
+      practicePlan: [{ id: ids.clip, action: "Practice a concise STAR answer.", targetDate: null }],
+      status: "confirmed",
+      revision: 2,
+      confirmedAt: timestamp,
+      deletedAt: null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+    const itemDecisions = [
+      {
+        schemaVersion: "debrief-item-decision-v1" as const,
+        id: ids.session,
         ownerId: ids.owner,
         ownerEpoch: 1,
         debriefId: ids.debrief,
         basedOnDebriefRevision: 1,
-        idempotencyKeyHash: "a".repeat(64),
-        confirmedAt: timestamp,
-      }).basedOnDebriefRevision,
-    ).toBe(1);
+        itemKind: "expression_issue" as const,
+        itemId: ids.item,
+        decision: "edited" as const,
+        editedText: "先说明情境，再说明本人行动与真实结果。",
+        createdAt: timestamp,
+      },
+      {
+        schemaVersion: "debrief-item-decision-v1" as const,
+        id: ids.evidenceRevision,
+        ownerId: ids.owner,
+        ownerEpoch: 1,
+        debriefId: ids.debrief,
+        basedOnDebriefRevision: 1,
+        itemKind: "evidence_gap" as const,
+        itemId: ids.link,
+        decision: "deferred" as const,
+        editedText: null,
+        createdAt: timestamp,
+      },
+    ];
+    const confirmation = DebriefConfirmationSchema.parse({
+      schemaVersion: "debrief-confirmation-v1",
+      id: ids.otherOwner,
+      ownerId: ids.owner,
+      ownerEpoch: 1,
+      debriefId: ids.debrief,
+      basedOnDebriefRevision: 1,
+      idempotencyKeyHash: "a".repeat(64),
+      decisionMode: "itemized_v1",
+      confirmedAt: timestamp,
+    });
+
+    expect(
+      ConfirmCaseDebriefRequestSchema.parse({
+        expectedDebriefRevision: 1,
+        itemDecisions: itemDecisions.map(({ itemKind, itemId, decision, editedText }) => ({
+          itemKind,
+          itemId,
+          decision,
+          editedText,
+        })),
+      }).itemDecisions,
+    ).toHaveLength(2);
+    expect(
+      ConfirmCaseDebriefResponseSchema.parse({
+        created: true,
+        debrief,
+        itemDecisions,
+        confirmation,
+      }).debrief.status,
+    ).toBe("confirmed");
+    expect(
+      ConfirmCaseDebriefRequestSchema.safeParse({
+        expectedDebriefRevision: 1,
+        itemDecisions: [
+          {
+            itemKind: "expression_issue",
+            itemId: ids.item,
+            decision: "accepted",
+            editedText: "Accepted decisions cannot smuggle edited text.",
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      ConfirmCaseDebriefResponseSchema.safeParse({
+        created: true,
+        debrief,
+        itemDecisions: itemDecisions.slice(0, 1),
+        confirmation,
+      }).success,
+    ).toBe(false);
   });
 
   it("prepares one Session-bound draft feedback and debrief without implicit confirmation", () => {
@@ -334,11 +449,22 @@ describe("Interview, Debrief and Knowledge contracts", () => {
     expect(
       PrepareCaseDebriefResponseSchema.parse({ created: true, feedback, debrief }).debrief.status,
     ).toBe("draft");
-    expect(GetCaseDebriefResponseSchema.parse({ feedback: null, debrief: null })).toEqual({
-      feedback: null,
-      debrief: null,
-    });
-    expect(GetCaseDebriefResponseSchema.safeParse({ feedback, debrief: null }).success).toBe(false);
+    expect(
+      GetCaseDebriefResponseSchema.parse({
+        feedback: null,
+        debrief: null,
+        itemDecisions: [],
+        confirmation: null,
+      }),
+    ).toEqual({ feedback: null, debrief: null, itemDecisions: [], confirmation: null });
+    expect(
+      GetCaseDebriefResponseSchema.safeParse({
+        feedback,
+        debrief: null,
+        itemDecisions: [],
+        confirmation: null,
+      }).success,
+    ).toBe(false);
     expect(
       PrepareCaseDebriefResponseSchema.safeParse({
         created: true,

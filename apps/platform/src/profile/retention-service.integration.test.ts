@@ -256,6 +256,10 @@ describeWithDatabase("owner, export and tombstone retention", () => {
       .where("owner_id", "=", ownerId)
       .execute();
     await db
+      .deleteFrom("application.debrief_item_decisions")
+      .where("owner_id", "=", ownerId)
+      .execute();
+    await db
       .deleteFrom("application.debrief_confirmations")
       .where("owner_id", "=", ownerId)
       .execute();
@@ -1078,6 +1082,31 @@ describeWithDatabase("owner, export and tombstone retention", () => {
       })
       .execute();
     await db
+      .insertInto("application.debrief_item_decisions")
+      .values([
+        {
+          owner_id: owner.ownerId,
+          owner_epoch: owner.ownerEpoch,
+          debrief_id: ids.debrief,
+          based_on_debrief_revision: 1,
+          item_kind: "expression_issue",
+          item_id: ids.debriefIssue,
+          decision_value: "accepted",
+          edited_text: null,
+        },
+        {
+          owner_id: owner.ownerId,
+          owner_epoch: owner.ownerEpoch,
+          debrief_id: ids.debrief,
+          based_on_debrief_revision: 1,
+          item_kind: "evidence_gap",
+          item_id: ids.debriefGap,
+          decision_value: "deferred",
+          edited_text: null,
+        },
+      ])
+      .execute();
+    await db
       .insertInto("application.debrief_confirmations")
       .values({
         id: ids.debriefConfirmation,
@@ -1481,6 +1510,7 @@ describeWithDatabase("owner, export and tombstone retention", () => {
       "profile.resume_review_runs",
       "application.interview_feedback",
       "application.interview_turns",
+      "application.debrief_item_decisions",
       "application.debrief_confirmations",
       "application.debriefs",
       "application.interview_sessions",
@@ -1954,6 +1984,7 @@ describeWithDatabase("owner, export and tombstone retention", () => {
       "profile.resume_review_runs",
       "application.interview_feedback",
       "application.interview_turns",
+      "application.debrief_item_decisions",
       "application.debrief_confirmations",
       "application.debriefs",
       "application.interview_sessions",

@@ -565,8 +565,8 @@ describeWithDatabase("migrations 026B through 031 Phase 2A/2B forward repairs", 
         SELECT name FROM kysely_migration ORDER BY timestamp DESC LIMIT 1
       `.execute(emptyDb),
     ]);
-    expect(migration.rows[0]?.name).toBe("031_resume_review_task_type");
-    expect(emptyMigration.rows[0]?.name).toBe("031_resume_review_task_type");
+    expect(migration.rows[0]?.name).toBe("032_debrief_item_decisions");
+    expect(emptyMigration.rows[0]?.name).toBe("032_debrief_item_decisions");
 
     const accountOwner = await db
       .selectFrom("identity.owners")
@@ -1851,6 +1851,32 @@ describeWithDatabase("migrations 026B through 031 Phase 2A/2B forward repairs", 
       .execute();
 
     await db
+      .insertInto("application.debrief_item_decisions")
+      .values([
+        {
+          owner_id: ids.owner,
+          owner_epoch: 1,
+          debrief_id: ids.debrief,
+          based_on_debrief_revision: 1,
+          item_kind: "expression_issue",
+          item_id: ids.debriefIssue,
+          decision_value: "accepted",
+          edited_text: null,
+        },
+        {
+          owner_id: ids.owner,
+          owner_epoch: 1,
+          debrief_id: ids.debrief,
+          based_on_debrief_revision: 1,
+          item_kind: "evidence_gap",
+          item_id: ids.debriefGap,
+          decision_value: "deferred",
+          edited_text: null,
+        },
+      ])
+      .execute();
+
+    await db
       .insertInto("application.debrief_confirmations")
       .values({
         id: ids.debriefConfirmation,
@@ -2441,7 +2467,17 @@ describeWithDatabase("migrations 026B through 031 Phase 2A/2B forward repairs", 
           'aijob_web_api',
           'application.debrief_confirmations',
           'INSERT'
-        ) AS "webCanInsertDebriefConfirmation"
+        ) AS "webCanInsertDebriefConfirmation",
+        has_table_privilege(
+          'aijob_web_api',
+          'application.debrief_item_decisions',
+          'INSERT'
+        ) AS "webCanInsertDebriefDecision",
+        has_table_privilege(
+          'aijob_match_worker',
+          'application.debrief_item_decisions',
+          'INSERT'
+        ) AS "matchCanInsertDebriefDecision"
     `.execute(db);
     expect(privileges.rows[0]).toEqual({
       collectorCanReadReview: false,
@@ -2458,6 +2494,8 @@ describeWithDatabase("migrations 026B through 031 Phase 2A/2B forward repairs", 
       matchCanInsertDebriefConfirmation: false,
       matchCanInsertKnowledge: false,
       webCanInsertDebriefConfirmation: true,
+      webCanInsertDebriefDecision: true,
+      matchCanInsertDebriefDecision: false,
     });
 
     await expect(

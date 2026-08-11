@@ -1007,7 +1007,22 @@ export interface DebriefConfirmationTable {
   schema_version: Generated<string>;
   based_on_debrief_revision: number;
   idempotency_key_hash: string;
+  decision_projection_version: Generated<string>;
   confirmed_at: Generated<Timestamp>;
+}
+
+export interface DebriefItemDecisionTable {
+  id: Generated<string>;
+  owner_id: string;
+  owner_epoch: number;
+  debrief_id: string;
+  schema_version: Generated<string>;
+  based_on_debrief_revision: number;
+  item_kind: string;
+  item_id: string;
+  decision_value: string;
+  edited_text: string | null;
+  created_at: Generated<Timestamp>;
 }
 
 export interface KnowledgeClipTable {
@@ -1189,6 +1204,7 @@ export interface Database {
   "application.interview_feedback": InterviewFeedbackTable;
   "application.debriefs": DebriefTable;
   "application.debrief_confirmations": DebriefConfirmationTable;
+  "application.debrief_item_decisions": DebriefItemDecisionTable;
   "application.knowledge_clips": KnowledgeClipTable;
   "application.knowledge_clip_case_links": KnowledgeClipCaseLinkTable;
   "decision_feedback_audit.audit_events": AuditEventTable;

@@ -370,15 +370,160 @@ export const DebriefConfirmationSchema = z
     debriefId: UuidSchema,
     basedOnDebriefRevision: RevisionSchema,
     idempotencyKeyHash: Sha256Schema,
+    decisionMode: z.enum(["whole_only", "itemized_v1"]),
     confirmedAt: TimestampSchema,
   })
   .strict();
 export type DebriefConfirmation = z.infer<typeof DebriefConfirmationSchema>;
 
+export const DebriefItemKindSchema = z.enum(["expression_issue", "evidence_gap"]);
+export type DebriefItemKind = z.infer<typeof DebriefItemKindSchema>;
+
+export const DebriefItemDecisionValueSchema = z.enum([
+  "accepted",
+  "edited",
+  "rejected",
+  "deferred",
+]);
+export type DebriefItemDecisionValue = z.infer<typeof DebriefItemDecisionValueSchema>;
+
+const DebriefItemDecisionFieldsSchema = z
+  .object({
+    itemKind: DebriefItemKindSchema,
+    itemId: UuidSchema,
+    decision: DebriefItemDecisionValueSchema,
+    editedText: z.string().trim().min(1).max(2_000).nullable(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if ((value.decision === "edited") !== (value.editedText !== null)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["editedText"],
+        message: "editedText must be present exactly when the decision is edited",
+      });
+    }
+  });
+
+export const DebriefItemDecisionInputSchema = DebriefItemDecisionFieldsSchema;
+export type DebriefItemDecisionInput = z.infer<typeof DebriefItemDecisionInputSchema>;
+
+export const DebriefItemDecisionSchema = z
+  .object({
+    schemaVersion: z.literal("debrief-item-decision-v1"),
+    id: UuidSchema,
+    ownerId: UuidSchema,
+    ownerEpoch: OwnerEpochSchema,
+    debriefId: UuidSchema,
+    basedOnDebriefRevision: RevisionSchema,
+    itemKind: DebriefItemKindSchema,
+    itemId: UuidSchema,
+    decision: DebriefItemDecisionValueSchema,
+    editedText: z.string().trim().min(1).max(2_000).nullable(),
+    createdAt: TimestampSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if ((value.decision === "edited") !== (value.editedText !== null)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["editedText"],
+        message: "editedText must be present exactly when the decision is edited",
+      });
+    }
+  });
+export type DebriefItemDecision = z.infer<typeof DebriefItemDecisionSchema>;
+
+export const ConfirmCaseDebriefRequestSchema = z
+  .object({
+    expectedDebriefRevision: RevisionSchema,
+    itemDecisions: z.array(DebriefItemDecisionInputSchema).max(200),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const keys = value.itemDecisions.map((item) => `${item.itemKind}:${item.itemId}`);
+    if (new Set(keys).size !== keys.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["itemDecisions"],
+        message: "Each Debrief item may be decided only once",
+      });
+    }
+  });
+export type ConfirmCaseDebriefRequest = z.infer<typeof ConfirmCaseDebriefRequestSchema>;
+
+function validateDebriefDecisionProjection(
+  value: {
+    debrief: Debrief;
+    itemDecisions: DebriefItemDecision[];
+    confirmation: DebriefConfirmation | null;
+  },
+  context: z.RefinementCtx,
+): void {
+  const expectedKeys = new Set([
+    ...value.debrief.expressionIssues.map((item) => `expression_issue:${item.id}`),
+    ...value.debrief.evidenceGaps.map((item) => `evidence_gap:${item.id}`),
+  ]);
+  const actualKeys = value.itemDecisions.map((item) => `${item.itemKind}:${item.itemId}`);
+  if (
+    actualKeys.some((key) => !expectedKeys.has(key)) ||
+    new Set(actualKeys).size !== actualKeys.length
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["itemDecisions"],
+      message: "Debrief item decisions must reference unique actionable items",
+    });
+  }
+  if (value.itemDecisions.some((item) => item.debriefId !== value.debrief.id)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["itemDecisions", "debriefId"],
+      message: "Debrief item decisions must reference the returned debrief",
+    });
+  }
+  if (value.debrief.status === "draft") {
+    if (value.confirmation !== null || value.itemDecisions.length > 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["confirmation"],
+        message: "Draft debriefs cannot expose persisted decisions or confirmations",
+      });
+    }
+    return;
+  }
+  if (!value.confirmation || value.confirmation.debriefId !== value.debrief.id) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["confirmation"],
+      message: "Confirmed debriefs must expose their append-only confirmation",
+    });
+  }
+  if (
+    value.confirmation?.decisionMode === "itemized_v1" &&
+    actualKeys.length !== expectedKeys.size
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["itemDecisions"],
+      message: "Confirmed debriefs must include one decision for every actionable item",
+    });
+  }
+  if (value.confirmation?.decisionMode === "whole_only" && value.itemDecisions.length > 0) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["itemDecisions"],
+      message: "Legacy whole-only confirmations cannot claim itemized decisions",
+    });
+  }
+}
+
 export const GetCaseDebriefResponseSchema = z
   .object({
     feedback: InterviewFeedbackSchema.nullable(),
     debrief: DebriefSchema.nullable(),
+    itemDecisions: z.array(DebriefItemDecisionSchema).max(200),
+    confirmation: DebriefConfirmationSchema.nullable(),
   })
   .strict()
   .superRefine((value, context) => {
@@ -396,8 +541,46 @@ export const GetCaseDebriefResponseSchema = z
         message: "Feedback and debrief must reference the same interview session",
       });
     }
+    if (!value.debrief) {
+      if (value.itemDecisions.length > 0 || value.confirmation !== null) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["itemDecisions"],
+          message: "Decisions and confirmations cannot be exposed without a debrief",
+        });
+      }
+      return;
+    }
+    validateDebriefDecisionProjection(
+      {
+        debrief: value.debrief,
+        itemDecisions: value.itemDecisions,
+        confirmation: value.confirmation,
+      },
+      context,
+    );
   });
 export type GetCaseDebriefResponse = z.infer<typeof GetCaseDebriefResponseSchema>;
+
+export const ConfirmCaseDebriefResponseSchema = z
+  .object({
+    created: z.boolean(),
+    debrief: DebriefSchema,
+    itemDecisions: z.array(DebriefItemDecisionSchema).max(200),
+    confirmation: DebriefConfirmationSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    validateDebriefDecisionProjection(value, context);
+    if (value.debrief.status !== "confirmed") {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["debrief", "status"],
+        message: "A confirmation response must contain a confirmed debrief",
+      });
+    }
+  });
+export type ConfirmCaseDebriefResponse = z.infer<typeof ConfirmCaseDebriefResponseSchema>;
 
 export const PrepareCaseDebriefRequestSchema = z
   .object({

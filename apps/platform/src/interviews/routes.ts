@@ -1,4 +1,5 @@
 import {
+  ConfirmCaseDebriefRequestSchema,
   CreateInterviewSessionRequestSchema,
   ListInterviewSessionsQuerySchema,
   PrepareCaseDebriefRequestSchema,
@@ -11,7 +12,7 @@ import { z } from "zod";
 import { requireOwnerContext } from "../identity/fastify.js";
 import { ApiProblem, sendApiProblem } from "../identity/http.js";
 import { ServiceError } from "../lib/service-error.js";
-import { getCaseDebrief, prepareCaseDebrief } from "./debrief-service.js";
+import { confirmCaseDebrief, getCaseDebrief, prepareCaseDebrief } from "./debrief-service.js";
 import {
   createInterviewSession,
   getInterviewSession,
@@ -81,6 +82,25 @@ export function registerInterviewRoutes(
       const body = PrepareCaseDebriefRequestSchema.parse(request.body);
       const idempotencyKey = requireIdempotencyKey(request.headers);
       const result = await prepareCaseDebrief({
+        db: options.db,
+        owner,
+        caseId,
+        request: body,
+        idempotencyKey,
+      });
+      return reply.code(result.created ? 201 : 200).send(result);
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.post("/v1/application-cases/:caseId/debrief/confirmations", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { caseId } = CaseParamsSchema.parse(request.params);
+      const body = ConfirmCaseDebriefRequestSchema.parse(request.body);
+      const idempotencyKey = requireIdempotencyKey(request.headers);
+      const result = await confirmCaseDebrief({
         db: options.db,
         owner,
         caseId,

@@ -1,6 +1,14 @@
 import { randomUUID } from "node:crypto";
 import {
+  type ConfirmCaseDebriefRequest,
+  type ConfirmCaseDebriefResponse,
+  ConfirmCaseDebriefResponseSchema,
   type Debrief,
+  type DebriefConfirmation,
+  DebriefConfirmationSchema,
+  type DebriefItemDecision,
+  type DebriefItemDecisionInput,
+  DebriefItemDecisionSchema,
   DebriefSchema,
   type GetCaseDebriefResponse,
   GetCaseDebriefResponseSchema,
@@ -25,6 +33,8 @@ import { ServiceError } from "../lib/service-error.js";
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 type DebriefRow = Selectable<Database["application.debriefs"]>;
+type DebriefConfirmationRow = Selectable<Database["application.debrief_confirmations"]>;
+type DebriefItemDecisionRow = Selectable<Database["application.debrief_item_decisions"]>;
 type FeedbackRow = Selectable<Database["application.interview_feedback"]>;
 type InterviewTurnRow = Selectable<Database["application.interview_turns"]>;
 
@@ -126,6 +136,22 @@ function idempotencyKeyReused(): ServiceError {
   return new ServiceError(409, "IDEMPOTENCY_KEY_REUSED", "同一个请求编号不能用于不同的复盘操作。");
 }
 
+function debriefRevisionConflict(): ServiceError {
+  return new ServiceError(
+    409,
+    "DEBRIEF_REVISION_CONFLICT",
+    "复盘已经在其他页面更新，请重新读取并核对后再确认。",
+  );
+}
+
+function debriefItemDecisionsIncomplete(): ServiceError {
+  return new ServiceError(
+    409,
+    "DEBRIEF_ITEM_DECISIONS_INCOMPLETE",
+    "请为每一条表达问题和证据缺口选择采用、编辑后采用、拒绝或稍后处理。",
+  );
+}
+
 function debriefReadQuery(db: DbExecutor) {
   return db
     .selectFrom("application.debriefs as debrief")
@@ -198,6 +224,36 @@ function mapDebrief(row: DebriefReadRow): Debrief {
     deletedAt: row.deleted_at ? toIso(row.deleted_at) : null,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
+  });
+}
+
+function mapDebriefConfirmation(row: DebriefConfirmationRow): DebriefConfirmation {
+  return DebriefConfirmationSchema.parse({
+    schemaVersion: row.schema_version,
+    id: row.id,
+    ownerId: row.owner_id,
+    ownerEpoch: Number(row.owner_epoch),
+    debriefId: row.debrief_id,
+    basedOnDebriefRevision: Number(row.based_on_debrief_revision),
+    idempotencyKeyHash: row.idempotency_key_hash,
+    decisionMode: row.decision_projection_version,
+    confirmedAt: toIso(row.confirmed_at),
+  });
+}
+
+function mapDebriefItemDecision(row: DebriefItemDecisionRow): DebriefItemDecision {
+  return DebriefItemDecisionSchema.parse({
+    schemaVersion: row.schema_version,
+    id: row.id,
+    ownerId: row.owner_id,
+    ownerEpoch: Number(row.owner_epoch),
+    debriefId: row.debrief_id,
+    basedOnDebriefRevision: Number(row.based_on_debrief_revision),
+    itemKind: row.item_kind,
+    itemId: row.item_id,
+    decision: row.decision_value,
+    editedText: row.edited_text,
+    createdAt: toIso(row.created_at),
   });
 }
 
@@ -288,17 +344,54 @@ async function loadLatestFeedback(
   return (row as FeedbackRow | undefined) ?? null;
 }
 
+async function loadDebriefItemDecisions(
+  db: DbExecutor,
+  owner: OwnerScope,
+  debriefId: string,
+): Promise<DebriefItemDecision[]> {
+  const rows = await db
+    .selectFrom("application.debrief_item_decisions")
+    .selectAll()
+    .where("owner_id", "=", owner.ownerId)
+    .where("owner_epoch", "=", owner.ownerEpoch)
+    .where("debrief_id", "=", debriefId)
+    .orderBy("item_kind", "asc")
+    .orderBy("item_id", "asc")
+    .limit(200)
+    .execute();
+  return (rows as DebriefItemDecisionRow[]).map(mapDebriefItemDecision);
+}
+
+async function loadDebriefConfirmation(
+  db: DbExecutor,
+  owner: OwnerScope,
+  debriefId: string,
+): Promise<DebriefConfirmation | null> {
+  const row = await db
+    .selectFrom("application.debrief_confirmations")
+    .selectAll()
+    .where("owner_id", "=", owner.ownerId)
+    .where("owner_epoch", "=", owner.ownerEpoch)
+    .where("debrief_id", "=", debriefId)
+    .executeTakeFirst();
+  return row ? mapDebriefConfirmation(row as DebriefConfirmationRow) : null;
+}
+
 async function detailForDebrief(
   db: DbExecutor,
   owner: OwnerScope,
   row: DebriefReadRow,
 ): Promise<GetCaseDebriefResponse> {
-  const feedback = row.interview_session_id
-    ? await loadLatestFeedback(db, owner, row.interview_session_id)
-    : null;
+  const [feedback, itemDecisions, confirmation] = await Promise.all([
+    row.interview_session_id ? loadLatestFeedback(db, owner, row.interview_session_id) : null,
+    loadDebriefItemDecisions(db, owner, row.id),
+    loadDebriefConfirmation(db, owner, row.id),
+  ]);
   return GetCaseDebriefResponseSchema.parse({
     feedback: feedback ? mapFeedback(feedback) : null,
     debrief: mapDebrief(row),
+    itemDecisions,
+    confirmation,
   });
 }
 
@@ -429,7 +522,14 @@ export async function getCaseDebrief(input: {
 }): Promise<GetCaseDebriefResponse> {
   await assertCaseExists(input.db, input.owner, input.caseId);
   const row = await loadActiveDebrief(input.db, input.owner, input.caseId);
-  if (!row) return GetCaseDebriefResponseSchema.parse({ feedback: null, debrief: null });
+  if (!row) {
+    return GetCaseDebriefResponseSchema.parse({
+      feedback: null,
+      debrief: null,
+      itemDecisions: [],
+      confirmation: null,
+    });
+  }
   return detailForDebrief(input.db, input.owner, row);
 }
 
@@ -591,5 +691,186 @@ export async function prepareCaseDebrief(input: {
       })
       .execute();
     return prepareResponse(transaction, input.owner, debriefId, true);
+  });
+}
+
+function normalizedItemDecisions(
+  itemDecisions: readonly DebriefItemDecisionInput[],
+): DebriefItemDecisionInput[] {
+  return [...itemDecisions].sort((left, right) => {
+    const leftKey = `${left.itemKind}:${left.itemId}`;
+    const rightKey = `${right.itemKind}:${right.itemId}`;
+    return leftKey.localeCompare(rightKey);
+  });
+}
+
+function persistedDecisionsMatchRequest(
+  persisted: readonly DebriefItemDecision[],
+  requested: readonly DebriefItemDecisionInput[],
+): boolean {
+  const persistedInput = persisted.map(({ itemKind, itemId, decision, editedText }) => ({
+    itemKind,
+    itemId,
+    decision,
+    editedText,
+  }));
+  return (
+    hashCanonicalJson(normalizedItemDecisions(persistedInput)) ===
+    hashCanonicalJson(normalizedItemDecisions(requested))
+  );
+}
+
+function assertCompleteItemDecisions(
+  debrief: Debrief,
+  itemDecisions: readonly DebriefItemDecisionInput[],
+): void {
+  const expected = new Set([
+    ...debrief.expressionIssues.map((item) => `expression_issue:${item.id}`),
+    ...debrief.evidenceGaps.map((item) => `evidence_gap:${item.id}`),
+  ]);
+  const actual = new Set(itemDecisions.map((item) => `${item.itemKind}:${item.itemId}`));
+  if (
+    actual.size !== itemDecisions.length ||
+    actual.size !== expected.size ||
+    [...actual].some((key) => !expected.has(key))
+  ) {
+    throw debriefItemDecisionsIncomplete();
+  }
+}
+
+async function confirmationResponse(
+  db: DbExecutor,
+  owner: OwnerScope,
+  debriefId: string,
+  created: boolean,
+): Promise<ConfirmCaseDebriefResponse> {
+  const row = await loadDebriefById(db, owner, debriefId);
+  if (!row) throw debriefNotAvailable();
+  const detail = await detailForDebrief(db, owner, row);
+  if (!detail.debrief || !detail.confirmation) throw debriefNotAvailable();
+  return ConfirmCaseDebriefResponseSchema.parse({
+    created,
+    debrief: detail.debrief,
+    itemDecisions: detail.itemDecisions,
+    confirmation: detail.confirmation,
+  });
+}
+
+export async function confirmCaseDebrief(input: {
+  db: Kysely<Database>;
+  owner: OwnerScope;
+  caseId: string;
+  request: ConfirmCaseDebriefRequest;
+  idempotencyKey: string;
+}): Promise<ConfirmCaseDebriefResponse> {
+  const idempotencyKeyHash = hashCanonicalJson({
+    scope: "case-debrief-confirmation-v1",
+    ownerId: input.owner.ownerId,
+    idempotencyKey: input.idempotencyKey,
+  });
+
+  return input.db.transaction().execute(async (transaction) => {
+    await lockOwnerIdempotencyKey(transaction, {
+      ownerId: input.owner.ownerId,
+      scope: "case-debrief:confirm",
+      idempotencyKey: input.idempotencyKey,
+    });
+    await assertActiveOwnerEpoch(transaction, input.owner.ownerId, input.owner.ownerEpoch);
+
+    const applicationCase = await transaction
+      .selectFrom("application.application_cases")
+      .select("id")
+      .where("id", "=", input.caseId)
+      .where("owner_id", "=", input.owner.ownerId)
+      .where("owner_epoch", "=", input.owner.ownerEpoch)
+      .where("deleted_at", "is", null)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!applicationCase) throw applicationCaseNotFound();
+
+    const row = await debriefReadQuery(transaction)
+      .where("debrief.owner_id", "=", input.owner.ownerId)
+      .where("debrief.owner_epoch", "=", input.owner.ownerEpoch)
+      .where("debrief.case_id", "=", input.caseId)
+      .where("debrief.deleted_at", "is", null)
+      .forUpdate("debrief")
+      .executeTakeFirst();
+    if (!row) throw debriefNotAvailable();
+    const debriefRow = row as DebriefReadRow;
+
+    const replayRow = await transaction
+      .selectFrom("application.debrief_confirmations")
+      .selectAll()
+      .where("owner_id", "=", input.owner.ownerId)
+      .where("owner_epoch", "=", input.owner.ownerEpoch)
+      .where("idempotency_key_hash", "=", idempotencyKeyHash)
+      .executeTakeFirst();
+    if (replayRow) {
+      const replay = mapDebriefConfirmation(replayRow as DebriefConfirmationRow);
+      const persisted = await loadDebriefItemDecisions(transaction, input.owner, replay.debriefId);
+      if (
+        replay.debriefId !== debriefRow.id ||
+        replay.basedOnDebriefRevision !== input.request.expectedDebriefRevision ||
+        !persistedDecisionsMatchRequest(persisted, input.request.itemDecisions)
+      ) {
+        throw idempotencyKeyReused();
+      }
+      return confirmationResponse(transaction, input.owner, replay.debriefId, true);
+    }
+
+    const existingConfirmation = await loadDebriefConfirmation(
+      transaction,
+      input.owner,
+      debriefRow.id,
+    );
+    if (existingConfirmation) {
+      const persisted = await loadDebriefItemDecisions(transaction, input.owner, debriefRow.id);
+      if (
+        existingConfirmation.basedOnDebriefRevision === input.request.expectedDebriefRevision &&
+        persistedDecisionsMatchRequest(persisted, input.request.itemDecisions)
+      ) {
+        return confirmationResponse(transaction, input.owner, debriefRow.id, false);
+      }
+      throw debriefRevisionConflict();
+    }
+
+    const debrief = mapDebrief(debriefRow);
+    if (debrief.status !== "draft" || debrief.revision !== input.request.expectedDebriefRevision) {
+      throw debriefRevisionConflict();
+    }
+    assertCompleteItemDecisions(debrief, input.request.itemDecisions);
+
+    const decisions = normalizedItemDecisions(input.request.itemDecisions);
+    if (decisions.length > 0) {
+      await transaction
+        .insertInto("application.debrief_item_decisions")
+        .values(
+          decisions.map((decision) => ({
+            id: randomUUID(),
+            owner_id: input.owner.ownerId,
+            owner_epoch: input.owner.ownerEpoch,
+            debrief_id: debrief.id,
+            based_on_debrief_revision: debrief.revision,
+            item_kind: decision.itemKind,
+            item_id: decision.itemId,
+            decision_value: decision.decision,
+            edited_text: decision.editedText,
+          })),
+        )
+        .execute();
+    }
+    await transaction
+      .insertInto("application.debrief_confirmations")
+      .values({
+        id: randomUUID(),
+        owner_id: input.owner.ownerId,
+        owner_epoch: input.owner.ownerEpoch,
+        debrief_id: debrief.id,
+        based_on_debrief_revision: debrief.revision,
+        idempotency_key_hash: idempotencyKeyHash,
+        decision_projection_version: "itemized_v1",
+      })
+      .execute();
+    return confirmationResponse(transaction, input.owner, debrief.id, true);
   });
 }
