@@ -81,8 +81,8 @@ Aijob 要先形成一个由 coco 在本地完整体验、能够判断产品流�
 2. `M3-1`（已完成）：完成用户显式投递记录与 Case 时间线；打开官方链接永不自动写入。见 [M3-1 独立验收证据](../evidence/product/career-os-v2/m3-1-explicit-application-acceptance-2026-08-11.md)。
 3. `M3-2`（已完成）：完成固定岗位版本、固定 Resume/证据修订的确定性文字面试 Session/Turn；不接真实 AI，不提前实现反馈与复盘。见 [M3-2 独立验收证据](../evidence/product/career-os-v2/m3-2-deterministic-interview-acceptance-2026-08-11.md)。
 4. `M3-3`（已完成）：完成用户显式生成的结构化反馈与复盘，只输出表达问题、证据缺口和练习计划。见 [M3-3 独立验收证据](../evidence/product/career-os-v2/m3-3-feedback-debrief-acceptance-2026-08-11.md)。
-5. `M3-4`（当前）：由用户明确确认复盘，再选择去补证据、修改岗位简历或暂不处理；确认本身不得自动创造或覆盖经历。
-6. `M3-5`：运行全仓与浏览器 Gate，形成独立证据并作继续 M4、修改、回退或停止决定。
+5. `M3-4`（已完成）：由用户逐项采用、编辑、拒绝或稍后处理后明确确认复盘，再通过受控入口去补证据或修改岗位简历；确认本身不创造或覆盖经历。见 [M3-4 独立验收证据](../evidence/product/career-os-v2/m3-4-user-confirmed-backflow-acceptance-2026-08-11.md)。
+6. `M3-5`（当前）：运行全仓与浏览器总 Gate，形成 M3 独立证据并作继续 M4、修改、回退或停止决定。
 
 ### M4：旧流程收口与测试候选
 

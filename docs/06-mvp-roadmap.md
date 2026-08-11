@@ -6,11 +6,12 @@
 
 - 旧的 G4-first 严格总计划已废止并归档，不再提供当前任务或工期基线。
 - 当前采用 [Career OS 当前交付计划](plans/career-os-current-delivery-plan.md)：先完成 coco 可在本地完整体验的 OS 2.0 测试候选，再单独进入 Private Alpha 和推广上线 Gate。
-- 已完成的 migrations 025–031、Phase 2B-1/2/3/4A/4B 全部保留；尚未开始的 Phase 2B-4C Interview/Debrief/Knowledge Service Boundary 停止作为下一任务。
+- 已完成的 migrations 025–032、Phase 2B-1/2/3/4A/4B 全部保留；旧 Phase 2B-4C 不再作为任务来源，当前用户闭环需要的 Interview/Debrief 已由 M3 纵向交付，Knowledge 仍未开始且不属于 M3。
 - `M1 真实 Case 工作台` 与 `M2 专业简历闭环` 均已通过独立工程验收；M2 证据见[专业简历闭环验收](evidence/product/career-os-v2/m2-professional-resume-acceptance-2026-08-11.md)。
 - `M3-1 显式投递记录` 已通过[独立工程验收](evidence/product/career-os-v2/m3-1-explicit-application-acceptance-2026-08-11.md)：打开链接不改阶段，只有用户二次确认后才写入 Case 时间线；该次决定为继续 M3-2。
 - `M3-2 确定性文字面试` 已通过[独立工程验收](evidence/product/career-os-v2/m3-2-deterministic-interview-acceptance-2026-08-11.md)：Session 固定 Case、岗位、Resume 与证据修订，回答追加保存且刷新/深链可恢复。
-- `M3-3 反馈与复盘` 已通过[独立工程验收](evidence/product/career-os-v2/m3-3-feedback-debrief-acceptance-2026-08-11.md)：用户显式生成固定到已完成 Session 的结构化反馈、表达问题、证据缺口和练习计划；打开与刷新不隐式写入，当前切片切换为 `M3-4 用户确认回流`。
+- `M3-3 反馈与复盘` 已通过[独立工程验收](evidence/product/career-os-v2/m3-3-feedback-debrief-acceptance-2026-08-11.md)：用户显式生成固定到已完成 Session 的结构化反馈、表达问题、证据缺口和练习计划；打开与刷新不隐式写入。
+- `M3-4 用户确认回流` 已通过[独立工程验收](evidence/product/career-os-v2/m3-4-user-confirmed-backflow-acceptance-2026-08-11.md)：用户逐项采用、编辑、拒绝或稍后处理后显式确认，选择与整份确认原子保存；确认只提供返回 Requirements/Resume 的入口，不自动写入事实或简历。
 - 当前唯一里程碑切换为 **M3 投递与持续改进**。只实现用户显式投递记录、确定性文字面试、结构化反馈/复盘及回流，不从旧 Phase 2B 计划生成任务。
 - 旧计划的真实性、安全、隐私、供给和服务器要求已提取为 [Private Alpha 与上线就绪 Gate](plans/private-alpha-readiness-gates.md)，标准不降低，但不再阻塞当前本地可测试闭环。
 
@@ -20,14 +21,14 @@
 |---|---|
 | 更新日期 | 2026-08-11 |
 | 当前阶段 | Career OS 2.0 M3 投递与持续改进 |
-| 当前唯一目标 | `M3-4 用户确认回流`：基于既有 Debrief Confirmation 约束，让用户明确确认后再选择去补证据、修改岗位简历或暂不处理；不自动生成或覆盖事实/简历 |
-| 工程基线 | M1、M2、M3-1、M3-2、M3-3 已完成；M3-3 全仓串行回归 Config 17、Contracts 70、Database 54、Platform 458、Web 124，共 723/723；lint 430 files、typecheck、build、audit、隔离 PostgreSQL 与 1280 浏览器检查通过 |
-| 前端基线 | `/resumes` 与 Case `resume` 复用同一 Resume V2 编辑器；Case `application` 和 `interview` 分别使用真实时间线、Session/Turn 与只读 Feedback/Debrief；面试为 15.56 kB 独立 lazy chunk，主包 554.99 kB |
+| 当前唯一目标 | `M3-5 工程与浏览器 Gate`：用合成数据复验 M3 从显式投递到确认回流的完整链路、安全/删除/错误边界、1280/320、200% 等效视口、键盘、焦点、旗标回退和包体，再作继续 M4、修改、回退或停止决定 |
+| 工程基线 | M1、M2、M3-1、M3-2、M3-3、M3-4 已完成；M3-4 全仓串行回归 Config 17、Contracts 71、Database 54、Platform 458、Web 125，共 725/725；lint 432 files、typecheck、build、audit、隔离 PostgreSQL 与 1280/320 浏览器检查通过 |
+| 前端基线 | `/resumes` 与 Case `resume` 复用同一 Resume V2 编辑器；Case `application`、`interview` 和 `debrief` 复用真实时间线、Session/Turn、Feedback/Debrief 与逐项确认；面试/复盘为 20.98 kB 独立 lazy chunk，主包 558.27 kB |
 | 当前产品证据 | E0：没有可复核目标用户行为证据 |
 | 可信供给 | 22 岗 / 3 家企业 / 3 个官方 ATS；公共与 Alpha 岗位均为 0 |
 | 当前 AI | 公开和远程环境关闭；M3 只用确定性模板文字面试，不调用真实 AI |
 | 参与者验证 | 未开始；G0 为 0/2，G1 未开始 |
-| 当前下一决定 | 完成 M3-4 用户确认与受控回流并通过 focused Gate 后，选择继续 M3-5、修改、回退或停止 |
+| 当前下一决定 | 完成 M3-5 总 Gate 后，选择继续 M4、修改、回退或停止；M3 未通过前不得提前迁移旧入口 |
 | 时间盒 | M3 为 2–3 个有效开发日；M3–M4 剩余基线为 1–3 个有效开发日 |
 
 岗位数量、工程测试、页面完成或 AI 调用都不能把产品证据从 E0 自动提升。
@@ -66,7 +67,7 @@ flowchart LR
 - [x] 打开官方链接绝不自动改变阶段；用户二次确认后才记录已投递并写入真实 Case 时间线。见 [M3-1 验收](evidence/product/career-os-v2/m3-1-explicit-application-acceptance-2026-08-11.md)。
 - [x] 建立最小确定性文字面试 Session/Turn，问题只引用固定岗位版本与同 owner 已确认事实。见 [M3-2 验收](evidence/product/career-os-v2/m3-2-deterministic-interview-acceptance-2026-08-11.md)。
 - [x] 生成结构化反馈与复盘：只指出表达问题、证据缺口和练习计划，不创造经历或修改事实。见 [M3-3 验收](evidence/product/career-os-v2/m3-3-feedback-debrief-acceptance-2026-08-11.md)。
-- [ ] 复盘建议只有经用户确认后才能回到证据或简历；拒绝和暂不处理也要保留用户选择。
+- [x] 复盘建议只有经用户确认后才能回到证据或简历；拒绝和暂不处理也保留用户选择。见 [M3-4 验收](evidence/product/career-os-v2/m3-4-user-confirmed-backflow-acceptance-2026-08-11.md)。
 - [ ] 覆盖 owner、CSRF、幂等、revision conflict、删除、空/失败状态、1280/320、200% 等效视口、键盘、包体和旗标回退。
 - [ ] 形成 M3 独立验收证据，并作继续 M4、修改、回退或停止决定。
 

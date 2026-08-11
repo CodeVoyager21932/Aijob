@@ -22,6 +22,10 @@
 >
 > M3-3 Web 提交：`f8f9265 feat(web): show interview feedback and debrief`
 >
+> M3-4 平台提交：`7e4d30e feat(platform): add itemized debrief confirmation`
+>
+> M3-4 Web 提交：`26918db feat(web): add user-confirmed debrief backflow`
+>
 > 文档提交后的精确 HEAD 以 `git log -1` 为准。
 >
 > 工作树预期只剩未跟踪 `.claude/`；不得读取、修改、暂存、覆盖或清理它。
@@ -34,13 +38,13 @@
 
 计划索引：[docs/plans](../plans/README.md)
 
-最近切片验收：[M3-3 反馈与复盘](../evidence/product/career-os-v2/m3-3-feedback-debrief-acceptance-2026-08-11.md)
+最近切片验收：[M3-4 用户确认回流](../evidence/product/career-os-v2/m3-4-user-confirmed-backflow-acceptance-2026-08-11.md)
 
 ## 1. 当前唯一目标
 
 当前唯一里程碑是 **M3 投递与持续改进**：
 
-当前唯一执行切片是 **M3-4 用户确认回流**；M3-1、M3-2 与 M3-3 已通过验收，下面的完整链路只用于说明 M3 终点，不得据此提前执行 M3-5 或 M4。
+当前唯一执行切片是 **M3-5 工程与浏览器 Gate**；M3-1 至 M3-4 已通过独立切片验收，下面的完整链路用于 M3 总验收，不得据此提前执行 M4。
 
 ```text
 岗位专属简历与官方投递入口
@@ -74,6 +78,11 @@
 - M3-3 最终全仓串行 Gate 为 Config 17、Contracts 70、Database 54、Platform 458、Web 124，共 723/723；lint 430 files、typecheck、build、audit 与 `git diff --check` 通过。
 - M3-3 浏览器已验证点击前数据库 Feedback/Debrief 为 0/0、点击后为 1/1、confirmation 为 0；刷新恢复同一只读草稿，第二 Session 只提示并返回原复盘。1280 CSS px 无水平溢出且控制台无 warning/error；320px、200%、键盘和焦点仍由 M3-5 总 Gate 复验。
 - Web main chunk 当前为 554.99 kB；`CaseInterviewWorkspace` 为 15.56 kB 独立 lazy chunk，相对 M3-2 主包增加约 0.19%，相对 Phase 1A 仍低于 10%。
+- M3-4 已新增 additive migration 032 与 itemized Debrief Confirmation：表达问题和证据缺口分别保存 `accepted / edited / rejected / deferred`，逐项决定、整份确认和 Debrief revision 推进在同一 PostgreSQL 事务完成；旧整份确认明确保留为 `whole_only` 历史只读记录。
+- M3-4 确认只表示用户认可改进方向，不创建经历、不修改证据、不覆盖 Resume revision；只有采用或编辑后采用才显示返回同一 Case Requirements/Resume 的受控入口，拒绝和稍后处理同样持久化。
+- M3-4 最终全仓串行 Gate 为 Config 17、Contracts 71、Database 54、Platform 458、Web 125，共 725/725；lint 432 files、typecheck、build、audit 与 `git diff --check` 通过。
+- M3-4 浏览器已用合成私有 Case 验证编辑后采用、拒绝、稍后处理、采用、刷新持久化、精确 requirement 深链与岗位简历回流；1280/320 CSS px 均无页面级横向溢出，控制台无 warning/error。200% 等效视口、完整键盘/焦点、旗标回退与 M3 全链路仍由 M3-5 守门。
+- Web main chunk 当前为 558.27 kB，相对 M3-3 增长约 0.59%，相对 Phase 1A 增长约 9.3%；`CaseInterviewWorkspace` 为 20.98 kB 独立 lazy chunk，仍未进入岗位或 Case 列表首屏。
 - 产品证据仍为 E0；可信供给仍为 22 岗 / 3 家企业 / 3 个官方 ATS，公共与 Alpha 岗位均为 0。
 - 前后端进程与项目 PostgreSQL 容器当前均已停止，端口 3000、5173、5432 未监听；M3 数据测试继续使用随机命名隔离库，不以 Docker Desktop 进程状态冒充项目服务状态。
 
@@ -99,20 +108,21 @@
    - 保存结构化反馈、证据引用、表达问题、证据缺口和练习计划。
    - 回答不足时标记未知或待补，不推断用户没有提供的经历。
    - 验收证据：[M3-3 反馈与复盘](../evidence/product/career-os-v2/m3-3-feedback-debrief-acceptance-2026-08-11.md)。
-5. **M3-4 用户确认回流（当前）**
-   - 复用 migration 028 的 Debrief Confirmation revision guard；只有用户显式确认才能把 draft 标记为 confirmed。
-   - 确认后只提供“去补证据”“去修改岗位简历”“暂不处理”三条受控路径；确认本身不得创建经历、修改证据或覆盖 Resume revision。
-   - 若现有 confirmation 只能表达整份复盘确认而不能表达细粒度建议决定，先形成最小契约判断；不得未经证据扩建第三套事实或简历写入模型。
-6. **M3-5 工程与浏览器 Gate**
+5. **M3-4 用户确认回流（已完成）**
+   - migration 032 以 additive/append-only 方式保存逐项采用、编辑、拒绝和稍后处理；旧 migration 028 整份确认不伪造逐项决定。
+   - 确认后只提供“去补证据”“去修改岗位简历”的受控入口；确认本身不创建经历、修改证据或覆盖 Resume revision。
+   - 验收证据：[M3-4 用户确认回流](../evidence/product/career-os-v2/m3-4-user-confirmed-backflow-acceptance-2026-08-11.md)。
+6. **M3-5 工程与浏览器 Gate（当前）**
    - 覆盖 owner、CSRF、幂等、固定版本、revision conflict、墓碑/删除、空/错误、旗标回退和包体。
    - 使用合成数据验证 1280/320、200% 等效视口、键盘、焦点、刷新/历史与控制台。
    - 形成 M3 独立验收证据，只作继续 M4、修改、回退或停止决定。
 
-## 4. M3-4 当前代码入口
+## 4. M3-5 当前检查入口
 
 - `packages/contracts/src/interview-debrief-knowledge.ts`
 - `packages/contracts/src/interview-debrief-knowledge.test.ts`
 - `packages/database/src/migrations/028_interview_debrief_knowledge_expand.ts`
+- `packages/database/src/migrations/032_debrief_item_decisions.ts`
 - `packages/database/src/types.ts`
 - `apps/platform/src/interviews/debrief-service.ts`
 - `apps/platform/src/interviews/routes.ts`
@@ -120,12 +130,13 @@
 - `apps/platform/src/app.ts`
 - `apps/web/src/api/career-os.ts`
 - `apps/web/src/career-os/interview-view.ts`
+- `apps/web/src/career-os/components/DebriefConfirmationPanel.tsx`
 - `apps/web/src/career-os/pages/CaseInterviewWorkspace.tsx`
 - `apps/web/src/career-os/pages/CaseRequirementsWorkspace.tsx`
 - `apps/web/src/career-os/pages/CaseResumeWorkspace.tsx`
 - `apps/web/src/career-os/pages/CaseWorkspacePage.tsx`
 
-先只读确认 migration 028 的 `debrief_confirmations` 唯一键、revision guard、projection trigger 与不可变约束，再核对 M3-3 当前 GET/PUT 的幂等和 owner 锁顺序。默认不新增 migration；只有“采用/拒绝/暂不处理”存在无法由当前模型安全表达且确属当前用户闭环的可复现缺口，才能提出最小 additive repair。当前切片只实现用户显式确认和返回 M1 Requirements/M2 Resume 编辑器的受控入口；不自动写入事实、证据、简历，不实现 Knowledge 或真实 AI。
+M3-5 默认只做验收与修复，不扩展产品范围。先用全新的随机 `aijob_*_test` 数据库重跑 M3 从显式投递、模板面试、反馈复盘到确认回流的完整合成链路，再复验 owner、CSRF、幂等、revision conflict、删除/墓碑、空/失败状态、URL 历史、1280/320、200% 等效视口、键盘、焦点、旗标回退和包体。只有发现可复现的当前闭环缺口才做最小修复；不得提前迁移旧入口、实现 Knowledge、接真实 AI 或铺设未来服务。M3-5 结束时必须形成 M3 总验收证据，并只作继续 M4、修改、回退或停止决定。
 
 ## 5. 明确排除
 
@@ -141,4 +152,4 @@
 2. 检查分支、HEAD、`git status` 和最近提交；不得处理 `.claude/`。
 3. 确认路线图与本交接都只指向 M3；归档计划和历史验收不得提供下一任务。
 4. 确认本地服务与容器默认关闭；需要 PostgreSQL 时新建随机隔离测试库。
-5. 从 M3-4 开始实现 Debrief 显式确认与受控回流；不得从旧 Phase 2B-4C 批量铺设 Knowledge、真实 AI、未来服务或第三套事实写入模型。
+5. 从 M3-5 开始执行 M3 总 Gate；不得从旧 Phase 2B-4C 批量铺设 Knowledge、真实 AI、未来服务或第三套事实写入模型。
