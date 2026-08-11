@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
+  applicationCaseEventsPath,
   applicationCaseListPath,
   resumeDocumentDocxPath,
   resumeDocumentListPath,
@@ -11,6 +12,16 @@ describe("Career OS API paths", () => {
     expect(applicationCaseListPath()).toBe("/v1/application-cases?limit=100");
     expect(applicationCaseListPath({ limit: 20, cursor: "opaque+/=" })).toBe(
       "/v1/application-cases?limit=20&cursor=opaque%2B%2F%3D",
+    );
+  });
+
+  it("binds a Case timeline cursor to the selected Case path", () => {
+    const caseId = randomUUID();
+    expect(applicationCaseEventsPath(caseId)).toBe(
+      `/v1/application-cases/${caseId}/events?limit=50`,
+    );
+    expect(applicationCaseEventsPath(caseId, { limit: 10, cursor: "older+/=" })).toBe(
+      `/v1/application-cases/${caseId}/events?limit=10&cursor=older%2B%2F%3D`,
     );
   });
 

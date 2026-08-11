@@ -1772,6 +1772,173 @@
   font-size: 0.77rem;
 }
 
+.career-application-workspace {
+  display: grid;
+  gap: 18px;
+  padding-top: 18px;
+}
+
+.career-application-handoff,
+.career-application-confirmation,
+.career-application-timeline {
+  padding: 22px;
+  border: 1px solid var(--career-line);
+  border-radius: 10px;
+  background: white;
+}
+
+.career-application-handoff,
+.career-application-confirmation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.career-application-handoff h2,
+.career-application-confirmation h2,
+.career-application-timeline h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.career-application-handoff p:not(.career-application-eyebrow),
+.career-application-confirmation > div > p:not(.career-application-eyebrow),
+.career-application-timeline > header > p {
+  max-width: 720px;
+  margin: 7px 0 0;
+  color: var(--career-muted);
+  font-size: 0.74rem;
+  line-height: 1.7;
+}
+
+.career-application-eyebrow {
+  margin: 0 0 6px;
+  color: var(--career-blue);
+  font-size: 0.66rem;
+  font-weight: 780;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.career-application-link-missing {
+  max-width: 260px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f4f6f9;
+  color: var(--career-muted);
+  font-size: 0.72rem;
+  line-height: 1.55;
+}
+
+.career-application-confirmation {
+  border-left: 4px solid var(--career-green);
+}
+
+.career-application-confirmation__check {
+  display: grid;
+  min-width: min(100%, 370px);
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid #dbe4f4;
+  border-radius: 9px;
+  background: #f7f9fd;
+}
+
+.career-application-confirmation__check > strong {
+  font-size: 0.82rem;
+}
+
+.career-application-confirmation__check > p {
+  margin: 0;
+  color: var(--career-muted);
+  font-size: 0.72rem;
+  line-height: 1.6;
+}
+
+.career-application-confirmation__check > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.career-application-timeline > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--career-line);
+}
+
+.career-application-timeline > header > p {
+  max-width: 430px;
+  text-align: right;
+}
+
+.career-application-timeline > ol {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.career-application-timeline > ol > li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--career-line);
+}
+
+.career-application-timeline > ol > li > span {
+  width: 10px;
+  height: 10px;
+  margin-top: 4px;
+  border: 2px solid white;
+  border-radius: 50%;
+  background: var(--career-blue);
+  box-shadow: 0 0 0 1px #b7c7e0;
+}
+
+.career-application-timeline li header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.career-application-timeline li strong {
+  font-size: 0.79rem;
+}
+
+.career-application-timeline li time,
+.career-application-timeline li small {
+  color: var(--career-muted);
+  font-size: 0.66rem;
+}
+
+.career-application-timeline li p {
+  margin: 5px 0 0;
+  color: var(--career-muted);
+  font-size: 0.72rem;
+  line-height: 1.6;
+}
+
+.career-application-timeline li small {
+  display: inline-block;
+  margin-top: 6px;
+}
+
+.career-application-timeline > .career-button {
+  margin-top: 16px;
+}
+
+.career-application-timeline__empty {
+  margin: 18px 0 0;
+  color: var(--career-muted);
+  font-size: 0.75rem;
+}
+
 .career-case-phase-placeholder {
   display: grid;
   min-height: 330px;
@@ -4460,6 +4627,27 @@
     min-height: 100px;
   }
 
+  .career-application-handoff,
+  .career-application-confirmation,
+  .career-application-timeline > header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .career-application-handoff > .career-button,
+  .career-application-confirmation > .career-button {
+    width: 100%;
+  }
+
+  .career-application-confirmation__check {
+    min-width: 0;
+  }
+
+  .career-application-timeline > header > p {
+    max-width: none;
+    text-align: left;
+  }
+
   .career-case-phase-placeholder {
     min-height: 300px;
     grid-template-columns: 1fr;
@@ -4811,6 +4999,22 @@
   .career-resume-review__actions .career-button,
   .career-resume-review__decision-draft .career-button {
     width: 100%;
+  }
+
+  .career-application-handoff,
+  .career-application-confirmation,
+  .career-application-timeline {
+    padding: 18px 16px;
+  }
+
+  .career-application-confirmation__check > div:last-child .career-button {
+    width: 100%;
+  }
+
+  .career-application-timeline li header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
   }
 }
 

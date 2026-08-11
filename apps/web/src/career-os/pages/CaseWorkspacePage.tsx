@@ -1,6 +1,6 @@
 import type { ApplicationCaseWithJobContext } from "@aijob/contracts";
 import { useQuery } from "@tanstack/react-query";
-import { lazy, Suspense, type ReactNode } from "react";
+import { lazy, type ReactNode, Suspense } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import {
   careerOsQueryKeys,
@@ -25,21 +25,22 @@ const CaseResumeWorkspace = lazy(() =>
     default: module.CaseResumeWorkspace,
   })),
 );
+const CaseApplicationWorkspace = lazy(() =>
+  import("./CaseApplicationWorkspace").then((module) => ({
+    default: module.CaseApplicationWorkspace,
+  })),
+);
 
-type PlaceholderCaseTab = Exclude<CaseTab, "overview" | "requirements" | "resume">;
+type PlaceholderCaseTab = Exclude<CaseTab, "overview" | "requirements" | "resume" | "application">;
 
 const phaseContent: Record<PlaceholderCaseTab, { title: string; copy: string }> = {
-  application: {
-    title: "投递记录不在 M1 范围内",
-    copy: "打开外部页面与手动确认已投递仍是两个独立事件；当前版本不会根据链接点击改变阶段。",
-  },
   interview: {
-    title: "文字面试不在 M1 范围内",
-    copy: "M1 只完成 Case、要求核对与派生简历只读闭环，不提前扩建面试领域。",
+    title: "文字面试将在 M3 下一切片开放",
+    copy: "当前先完成显式投递记录，不会从旧计划直接铺设面试服务。",
   },
   debrief: {
-    title: "复盘不在 M1 范围内",
-    copy: "复盘将在后续闭环中建设，当前不会自动形成或回写任何经历表达。",
+    title: "复盘将在文字面试之后开放",
+    copy: "复盘只会指出表达和证据缺口，不会自动形成或回写经历表达。",
   },
 };
 
@@ -139,7 +140,7 @@ function PhasePlaceholder({ tab }: { tab: PlaceholderCaseTab }) {
         <Icon name={tab === "interview" ? "interview" : "briefcase"} />
       </span>
       <div>
-        <p>M1 未开放</p>
+        <p>M3 分步开放</p>
         <h2>{content.title}</h2>
         <p>{content.copy}</p>
       </div>
@@ -160,6 +161,13 @@ function renderCaseTab(tab: CaseTab, applicationCase: ApplicationCaseWithJobCont
     return (
       <Suspense fallback={<output className="career-request-state">正在打开简历工作区…</output>}>
         <CaseResumeWorkspace key={applicationCase.id} applicationCase={applicationCase} />
+      </Suspense>
+    );
+  }
+  if (tab === "application") {
+    return (
+      <Suspense fallback={<output className="career-request-state">正在打开投递工作区…</output>}>
+        <CaseApplicationWorkspace key={applicationCase.id} applicationCase={applicationCase} />
       </Suspense>
     );
   }

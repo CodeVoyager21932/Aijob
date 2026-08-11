@@ -1,4 +1,5 @@
 import type {
+  ApplicationCaseCommandResponse,
   ApplicationCaseMutationResponse,
   ApplicationCaseRequirements,
   ApplicationCaseWithJobContext,
@@ -13,6 +14,7 @@ import type {
   DecideResumeReviewSuggestionRequest,
   DecideResumeReviewSuggestionResponse,
   LegacyResumeContentConversion,
+  ListApplicationCaseEventsResponse,
   ListApplicationCasesResponse,
   ListResumeDocumentContentRevisionsResponse,
   ListResumeDocumentLayoutRevisionsResponse,
@@ -23,6 +25,7 @@ import type {
   PutResumeDocumentContentRevisionResponse,
   PutResumeDocumentLayoutRevisionRequest,
   PutResumeDocumentLayoutRevisionResponse,
+  RecordManualApplicationRequest,
   ResumeDocument,
   ResumeEvidenceRevision,
   UpdateCaseQuestionRequest,
@@ -34,6 +37,7 @@ export const careerOsQueryKeys = {
   cases: ["career-os", "application-cases"] as const,
   caseList: () => ["career-os", "application-cases", "list"] as const,
   caseDetail: (caseId: string) => ["career-os", "application-cases", "detail", caseId] as const,
+  caseEvents: (caseId: string) => ["career-os", "application-cases", caseId, "events"] as const,
   requirements: (caseId: string) =>
     ["career-os", "application-cases", caseId, "requirements"] as const,
   evidence: ["career-os", "profile", "evidence"] as const,
@@ -92,6 +96,42 @@ export function createApplicationCase(
     body: request,
     idempotencyKey,
   });
+}
+
+export interface ListApplicationCaseEventsInput {
+  cursor?: string;
+  limit?: number;
+}
+
+export function applicationCaseEventsPath(
+  caseId: string,
+  input: ListApplicationCaseEventsInput = {},
+): string {
+  const params = new URLSearchParams();
+  params.set("limit", String(input.limit ?? 50));
+  if (input.cursor) params.set("cursor", input.cursor);
+  return `/v1/application-cases/${encodeURIComponent(caseId)}/events?${params.toString()}`;
+}
+
+export function listApplicationCaseEvents(
+  caseId: string,
+  input: ListApplicationCaseEventsInput = {},
+  signal?: AbortSignal,
+) {
+  return apiRequest<ListApplicationCaseEventsResponse>(applicationCaseEventsPath(caseId, input), {
+    signal,
+  });
+}
+
+export function recordManualApplication(
+  caseId: string,
+  request: RecordManualApplicationRequest,
+  idempotencyKey: string,
+) {
+  return apiRequest<ApplicationCaseCommandResponse>(
+    `/v1/application-cases/${encodeURIComponent(caseId)}/manual-applications`,
+    { method: "POST", body: request, idempotencyKey },
+  );
 }
 
 export function getApplicationCaseRequirements(caseId: string, signal?: AbortSignal) {
