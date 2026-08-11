@@ -3,6 +3,8 @@ import type {
   ApplicationCaseMutationResponse,
   ApplicationCaseRequirements,
   ApplicationCaseWithJobContext,
+  ConfirmCaseDebriefRequest,
+  ConfirmCaseDebriefResponse,
   CreateApplicationCaseResponse,
   CreateApplicationCaseWithJobContextRequest,
   CreateCaseQuestionRequest,
@@ -218,6 +220,22 @@ export function prepareCaseDebrief(
 ) {
   return apiRequest<PrepareCaseDebriefResponse>(caseDebriefPath(caseId), {
     method: "PUT",
+    body: request,
+    idempotencyKey,
+  });
+}
+
+export function caseDebriefConfirmationPath(caseId: string): string {
+  return `${caseDebriefPath(caseId)}/confirmations`;
+}
+
+export function confirmCaseDebrief(
+  caseId: string,
+  request: ConfirmCaseDebriefRequest,
+  idempotencyKey: string,
+) {
+  return apiRequest<ConfirmCaseDebriefResponse>(caseDebriefConfirmationPath(caseId), {
+    method: "POST",
     body: request,
     idempotencyKey,
   });

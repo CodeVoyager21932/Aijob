@@ -36,18 +36,6 @@ const CaseInterviewWorkspace = lazy(() =>
   })),
 );
 
-type PlaceholderCaseTab = Exclude<
-  CaseTab,
-  "overview" | "requirements" | "resume" | "application" | "interview"
->;
-
-const phaseContent: Record<PlaceholderCaseTab, { title: string; copy: string }> = {
-  debrief: {
-    title: "复盘将在文字面试之后开放",
-    copy: "复盘只会指出表达和证据缺口，不会自动形成或回写经历表达。",
-  },
-};
-
 function CaseProgress({ stage }: { stage: ApplicationCaseWithJobContext["stage"] }) {
   const activeIndex = caseStages.findIndex((item) => item.value === stage);
   return (
@@ -136,22 +124,6 @@ function CaseOverview({ applicationCase }: { applicationCase: ApplicationCaseWit
   );
 }
 
-function PhasePlaceholder({ tab }: { tab: PlaceholderCaseTab }) {
-  const content = phaseContent[tab];
-  return (
-    <section className="career-case-phase-placeholder">
-      <span>
-        <Icon name="briefcase" />
-      </span>
-      <div>
-        <p>M3 分步开放</p>
-        <h2>{content.title}</h2>
-        <p>{content.copy}</p>
-      </div>
-    </section>
-  );
-}
-
 function renderCaseTab(tab: CaseTab, applicationCase: ApplicationCaseWithJobContext): ReactNode {
   if (tab === "overview") return <CaseOverview applicationCase={applicationCase} />;
   if (tab === "requirements") {
@@ -175,14 +147,14 @@ function renderCaseTab(tab: CaseTab, applicationCase: ApplicationCaseWithJobCont
       </Suspense>
     );
   }
-  if (tab === "interview") {
+  if (tab === "interview" || tab === "debrief") {
     return (
       <Suspense fallback={<output className="career-request-state">正在打开面试工作区…</output>}>
         <CaseInterviewWorkspace key={applicationCase.id} applicationCase={applicationCase} />
       </Suspense>
     );
   }
-  return <PhasePlaceholder tab={tab} />;
+  return null;
 }
 
 export function CaseWorkspacePage() {

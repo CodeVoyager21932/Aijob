@@ -2413,6 +2413,173 @@
   line-height: 1.65;
 }
 
+.career-debrief-confirmation {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #cdddf3;
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
+.career-debrief-confirmation > header,
+.career-debrief-confirmation > footer,
+.career-debrief-decision-list > li > header,
+.career-debrief-decision-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.career-debrief-confirmation > header p,
+.career-debrief-confirmation > header h3,
+.career-debrief-confirmation > footer p,
+.career-debrief-decision-list p {
+  margin: 0;
+}
+
+.career-debrief-confirmation > header p {
+  color: var(--career-blue);
+  font-size: 0.61rem;
+  font-weight: 780;
+  letter-spacing: 0.04em;
+}
+
+.career-debrief-confirmation > header h3 {
+  margin-top: 4px;
+  font-size: 0.82rem;
+}
+
+.career-debrief-confirmation > header time,
+.career-debrief-decision-list small {
+  color: var(--career-muted);
+  font-size: 0.61rem;
+}
+
+.career-debrief-confirmation__boundary {
+  padding: 10px 12px;
+  margin: 0;
+  border-left: 3px solid var(--career-blue);
+  background: #eef5ff;
+  color: #42536b;
+  font-size: 0.67rem;
+  line-height: 1.65;
+}
+
+.career-debrief-decision-list {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.career-debrief-decision-list > li {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #dce5f1;
+  border-radius: 9px;
+  background: #fff;
+}
+
+.career-debrief-decision-list > li > header span {
+  color: var(--career-blue);
+  font-size: 0.63rem;
+  font-weight: 760;
+}
+
+.career-debrief-decision-list > li > p,
+.career-debrief-decision-result > p {
+  font-size: 0.7rem;
+  line-height: 1.65;
+}
+
+.career-debrief-decision-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.career-debrief-decision-options button {
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid #cfd8e5;
+  border-radius: 7px;
+  background: #fff;
+  color: #526176;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.64rem;
+  font-weight: 700;
+}
+
+.career-debrief-decision-options button[aria-pressed="true"] {
+  border-color: var(--career-blue);
+  background: var(--career-blue-soft);
+  color: var(--career-blue);
+}
+
+.career-debrief-decision-options button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.career-debrief-decision-edit {
+  display: grid;
+  gap: 6px;
+}
+
+.career-debrief-decision-edit span {
+  color: var(--career-muted);
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.career-debrief-decision-edit textarea {
+  width: 100%;
+  min-height: 78px;
+  padding: 10px;
+  resize: vertical;
+  border: 1px solid #cfd8e5;
+  border-radius: 7px;
+  color: var(--career-text);
+  font: inherit;
+  font-size: 0.7rem;
+  line-height: 1.55;
+}
+
+.career-debrief-decision-result {
+  align-items: flex-start;
+  padding-top: 2px;
+}
+
+.career-debrief-decision-result strong {
+  color: #2f6b4f;
+  font-size: 0.66rem;
+}
+
+.career-debrief-decision-result > p {
+  flex: 1;
+  color: var(--career-muted);
+}
+
+.career-debrief-confirmation > footer {
+  align-items: flex-end;
+  padding-top: 2px;
+}
+
+.career-debrief-confirmation > footer p {
+  max-width: 650px;
+  color: var(--career-muted);
+  font-size: 0.64rem;
+  line-height: 1.6;
+}
+
 .career-case-phase-placeholder {
   display: grid;
   min-height: 330px;
@@ -5562,6 +5729,18 @@
 
   .career-interview-debrief-grid {
     grid-template-columns: 1fr;
+  }
+
+  .career-debrief-confirmation > header,
+  .career-debrief-confirmation > footer,
+  .career-debrief-decision-result {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .career-debrief-confirmation > footer .career-button,
+  .career-debrief-decision-result .career-button {
+    width: 100%;
   }
 }
 

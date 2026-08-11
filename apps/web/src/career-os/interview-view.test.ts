@@ -1,6 +1,10 @@
 import type { InterviewSessionDetail } from "@aijob/contracts";
 import { describe, expect, it } from "vitest";
 import {
+  debriefActionItems,
+  debriefBackflowPath,
+  debriefConfirmationReady,
+  debriefDecisionKey,
   caseDebriefSessionState,
   currentInterviewQuestion,
   interviewFeedbackCategoryLabels,
@@ -101,5 +105,66 @@ describe("interview view model", () => {
         sessionId,
       ),
     ).toBe("other");
+  });
+
+  it("requires one local choice per actionable item and returns only controlled backflow paths", () => {
+    const debrief = {
+      schemaVersion: "debrief-v1" as const,
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      ownerId: detail.session.ownerId,
+      ownerEpoch: 1,
+      caseId: detail.session.caseId,
+      detachedFromCaseId: null,
+      jobContext: detail.session.jobContext,
+      interviewSessionId: sessionId,
+      evidenceRevisionId: detail.session.evidenceRevisionId,
+      expressionIssues: [
+        {
+          id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          description: "表达需要更具体。",
+          turnIds: [],
+        },
+      ],
+      evidenceGaps: [
+        {
+          id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          description: "证据关联仍待核对。",
+          requirementIds: ["requirement-1"],
+        },
+      ],
+      practicePlan: [],
+      status: "draft" as const,
+      revision: 1,
+      confirmedAt: null,
+      deletedAt: null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    const items = debriefActionItems(debrief);
+    const first = items[0];
+    const second = items[1];
+    if (!first || !second || !debrief.caseId) throw new Error("DEBRIEF_ITEM_FIXTURE_MISSING");
+    const drafts = {
+      [debriefDecisionKey(first)]: {
+        itemKind: first.kind,
+        itemId: first.id,
+        decision: "accepted" as const,
+        editedText: null,
+      },
+      [debriefDecisionKey(second)]: {
+        itemKind: second.kind,
+        itemId: second.id,
+        decision: "edited" as const,
+        editedText: "补充真实结果的来源说明。",
+      },
+    };
+    expect(debriefConfirmationReady(debrief, {})).toBe(false);
+    expect(debriefConfirmationReady(debrief, drafts)).toBe(true);
+    expect(debriefBackflowPath(debrief.caseId, first)).toBe(
+      `/applications/${debrief.caseId}/resume`,
+    );
+    expect(debriefBackflowPath(debrief.caseId, second)).toBe(
+      `/applications/${debrief.caseId}/requirements?requirement=requirement-1`,
+    );
   });
 });

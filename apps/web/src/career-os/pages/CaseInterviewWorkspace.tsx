@@ -1,9 +1,15 @@
-import type { ApplicationCaseWithJobContext, InterviewSession } from "@aijob/contracts";
+import type {
+  ApplicationCaseWithJobContext,
+  ConfirmCaseDebriefRequest,
+  GetCaseDebriefResponse,
+  InterviewSession,
+} from "@aijob/contracts";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   careerOsQueryKeys,
+  confirmCaseDebrief,
   createInterviewSession,
   getCaseDebrief,
   getInterviewSession,
@@ -12,6 +18,7 @@ import {
   submitInterviewAnswer,
 } from "../../api/career-os";
 import { createIdempotencyKey, ProductApiError } from "../../api/client";
+import { DebriefConfirmationPanel } from "../components/DebriefConfirmationPanel";
 import { Icon } from "../components/Icon";
 import {
   caseDebriefSessionState,
@@ -42,6 +49,7 @@ export function CaseInterviewWorkspace({
   const createCommandRef = useRef<{ signature: string; key: string } | null>(null);
   const answerCommandRef = useRef<{ signature: string; key: string } | null>(null);
   const prepareDebriefCommandRef = useRef<{ signature: string; key: string } | null>(null);
+  const confirmDebriefCommandRef = useRef<{ signature: string; key: string } | null>(null);
   const sessionsQuery = useInfiniteQuery({
     queryKey: careerOsQueryKeys.interviewSessions(applicationCase.id),
     initialPageParam: null as string | null,
@@ -187,6 +195,8 @@ export function CaseInterviewWorkspace({
       queryClient.setQueryData(careerOsQueryKeys.caseDebrief(applicationCase.id), {
         feedback: result.feedback,
         debrief: result.debrief,
+        itemDecisions: [],
+        confirmation: null,
       });
     },
     onError: async (error, variables) => {
@@ -199,6 +209,38 @@ export function CaseInterviewWorkspace({
         });
       }
       if (error instanceof ProductApiError && error.code === "CASE_DEBRIEF_ALREADY_EXISTS") {
+        await queryClient.invalidateQueries({
+          queryKey: careerOsQueryKeys.caseDebrief(applicationCase.id),
+        });
+      }
+    },
+  });
+
+  const confirmDebriefMutation = useMutation({
+    mutationFn: ({ request, key }: { request: ConfirmCaseDebriefRequest; key: string }) =>
+      confirmCaseDebrief(applicationCase.id, request, key),
+    retry: false,
+    onSuccess: (result) => {
+      confirmDebriefCommandRef.current = null;
+      queryClient.setQueryData<GetCaseDebriefResponse>(
+        careerOsQueryKeys.caseDebrief(applicationCase.id),
+        (current) =>
+          current
+            ? {
+                feedback: current.feedback,
+                debrief: result.debrief,
+                itemDecisions: result.itemDecisions,
+                confirmation: result.confirmation,
+              }
+            : current,
+      );
+    },
+    onError: async (error) => {
+      if (
+        error instanceof ProductApiError &&
+        (error.code === "DEBRIEF_REVISION_CONFLICT" ||
+          error.code === "DEBRIEF_ITEM_DECISIONS_INCOMPLETE")
+      ) {
         await queryClient.invalidateQueries({
           queryKey: careerOsQueryKeys.caseDebrief(applicationCase.id),
         });
@@ -244,6 +286,19 @@ export function CaseInterviewWorkspace({
       sessionId: detail.session.id,
       expectedSessionRevision: detail.session.revision,
       key: prepareDebriefCommandRef.current.key,
+    });
+  };
+  const confirmDebrief = (request: ConfirmCaseDebriefRequest) => {
+    const signature = `${applicationCase.id}:${request.expectedDebriefRevision}:${JSON.stringify(request.itemDecisions)}`;
+    if (confirmDebriefCommandRef.current?.signature !== signature) {
+      confirmDebriefCommandRef.current = {
+        signature,
+        key: createIdempotencyKey("debrief-confirmation"),
+      };
+    }
+    confirmDebriefMutation.mutate({
+      request,
+      key: confirmDebriefCommandRef.current.key,
     });
   };
   const createNeedsResume =
@@ -668,10 +723,16 @@ export function CaseInterviewWorkspace({
                           </section>
                         </div>
 
-                        <p className="career-interview-review__draft-note">
-                          这是一份只读草稿，不会自动修改简历、经历证据或 Case
-                          状态。确认与受控回流将在后续独立步骤中处理。
-                        </p>
+                        <DebriefConfirmationPanel
+                          key={debrief.id}
+                          caseId={applicationCase.id}
+                          debrief={debrief}
+                          itemDecisions={debriefQuery.data?.itemDecisions ?? []}
+                          confirmation={debriefQuery.data?.confirmation ?? null}
+                          pending={confirmDebriefMutation.isPending}
+                          error={confirmDebriefMutation.error}
+                          onConfirm={confirmDebrief}
+                        />
                       </div>
                     ) : null}
                   </section>
