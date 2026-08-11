@@ -1,0 +1,142 @@
+import {
+  CreateInterviewSessionRequestSchema,
+  ListInterviewSessionsQuerySchema,
+  SubmitInterviewAnswerRequestSchema,
+} from "@aijob/contracts";
+import type { Database } from "@aijob/database";
+import type { FastifyInstance } from "fastify";
+import type { Kysely } from "kysely";
+import { z } from "zod";
+import { requireOwnerContext } from "../identity/fastify.js";
+import { ApiProblem, sendApiProblem } from "../identity/http.js";
+import { ServiceError } from "../lib/service-error.js";
+import {
+  createInterviewSession,
+  getInterviewSession,
+  listInterviewSessions,
+  submitInterviewAnswer,
+} from "./service.js";
+
+const CaseParamsSchema = z.object({ caseId: z.string().uuid() }).strict();
+const SessionParamsSchema = z
+  .object({ caseId: z.string().uuid(), sessionId: z.string().uuid() })
+  .strict();
+const IdempotencyKeySchema = z.string().trim().min(1).max(200);
+
+function requireIdempotencyKey(headers: Record<string, unknown>): string {
+  const value = headers["idempotency-key"];
+  if (typeof value !== "string") {
+    throw new ServiceError(400, "IDEMPOTENCY_KEY_REQUIRED", "面试写操作必须提供请求编号。");
+  }
+  return IdempotencyKeySchema.parse(value);
+}
+
+function handleError(
+  error: unknown,
+  request: Parameters<typeof sendApiProblem>[0],
+  reply: Parameters<typeof sendApiProblem>[1],
+) {
+  if (error instanceof ServiceError) {
+    return sendApiProblem(
+      request,
+      reply,
+      new ApiProblem(error.statusCode, error.code, "无法处理面试练习", error.message),
+    );
+  }
+  if (error instanceof z.ZodError) {
+    return sendApiProblem(
+      request,
+      reply,
+      new ApiProblem(
+        400,
+        "INVALID_INTERVIEW_REQUEST",
+        "面试练习请求格式不正确",
+        "请刷新页面并检查游标、回答或请求编号后重试。",
+      ),
+    );
+  }
+  throw error;
+}
+
+export function registerInterviewRoutes(
+  app: FastifyInstance,
+  options: { db: Kysely<Database> },
+): void {
+  app.get("/v1/application-cases/:caseId/interview-sessions", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { caseId } = CaseParamsSchema.parse(request.params);
+      const query = ListInterviewSessionsQuerySchema.parse(request.query);
+      return reply.send(await listInterviewSessions({ db: options.db, owner, caseId, query }));
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.post("/v1/application-cases/:caseId/interview-sessions", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { caseId } = CaseParamsSchema.parse(request.params);
+      const body = CreateInterviewSessionRequestSchema.parse(request.body);
+      const idempotencyKey = requireIdempotencyKey(request.headers);
+      return reply.code(201).send(
+        await createInterviewSession({
+          db: options.db,
+          owner,
+          caseId,
+          request: body,
+          idempotencyKey,
+        }),
+      );
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.get("/v1/application-cases/:caseId/interview-sessions/:sessionId", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { caseId, sessionId } = SessionParamsSchema.parse(request.params);
+      const detail = await getInterviewSession({ db: options.db, owner, caseId, sessionId });
+      if (!detail) {
+        return sendApiProblem(
+          request,
+          reply,
+          new ApiProblem(
+            404,
+            "INTERVIEW_SESSION_NOT_FOUND",
+            "没有找到这次面试练习",
+            "记录不存在、已删除或不属于当前用户。",
+          ),
+        );
+      }
+      return reply.send(detail);
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.post(
+    "/v1/application-cases/:caseId/interview-sessions/:sessionId/answers",
+    async (request, reply) => {
+      try {
+        const owner = requireOwnerContext(request);
+        const { caseId, sessionId } = SessionParamsSchema.parse(request.params);
+        const body = SubmitInterviewAnswerRequestSchema.parse(request.body);
+        const idempotencyKey = requireIdempotencyKey(request.headers);
+        return reply.send(
+          await submitInterviewAnswer({
+            db: options.db,
+            owner,
+            caseId,
+            sessionId,
+            request: body,
+            idempotencyKey,
+          }),
+        );
+      } catch (error) {
+        return handleError(error, request, reply);
+      }
+    },
+  );
+}

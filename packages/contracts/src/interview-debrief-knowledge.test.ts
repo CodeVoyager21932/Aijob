@@ -1,13 +1,19 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CreateInterviewSessionRequestSchema,
+  CreateInterviewSessionResponseSchema,
   DebriefConfirmationSchema,
   DebriefSchema,
+  InterviewSessionDetailSchema,
   InterviewFeedbackSchema,
   InterviewSessionSchema,
   InterviewTurnSchema,
   KnowledgeClipCaseLinkSchema,
   KnowledgeClipSchema,
+  ListInterviewSessionsQuerySchema,
+  SubmitInterviewAnswerRequestSchema,
+  SubmitInterviewAnswerResponseSchema,
 } from "./interview-debrief-knowledge.js";
 
 const ids = {
@@ -116,8 +122,89 @@ describe("Interview, Debrief and Knowledge contracts", () => {
     };
     expect(InterviewTurnSchema.parse(turn).sequence).toBe(1);
     expect(
-      InterviewTurnSchema.safeParse({ ...turn, evidenceIds: ["evidence-1", "evidence-1"] })
-        .success,
+      InterviewTurnSchema.safeParse({ ...turn, evidenceIds: ["evidence-1", "evidence-1"] }).success,
+    ).toBe(false);
+  });
+
+  it("accepts only explicit template-session creation inputs", () => {
+    expect(CreateInterviewSessionRequestSchema.parse({ expectedCaseRevision: 3 })).toEqual({
+      expectedCaseRevision: 3,
+    });
+    expect(
+      CreateInterviewSessionRequestSchema.safeParse({
+        expectedCaseRevision: 3,
+        mode: "controlled_ai",
+      }).success,
+    ).toBe(false);
+    expect(ListInterviewSessionsQuerySchema.parse({}).limit).toBe(20);
+  });
+
+  it("keeps session detail contiguous and bound to one session", () => {
+    const question = InterviewTurnSchema.parse({
+      schemaVersion: "interview-turn-v1",
+      id: ids.item,
+      ownerId: ids.owner,
+      ownerEpoch: 1,
+      interviewSessionId: ids.session,
+      sequence: 1,
+      kind: "question",
+      content: "请只使用真实经历作答。",
+      requirementIds: [],
+      evidenceIds: [],
+      createdAt: timestamp,
+    });
+    expect(
+      CreateInterviewSessionResponseSchema.parse({
+        sessionId: ids.session,
+        firstQuestion: question,
+      }).sessionId,
+    ).toBe(ids.session);
+    expect(
+      InterviewSessionDetailSchema.parse({ session: validSession, turns: [question] }).turns,
+    ).toHaveLength(1);
+    expect(
+      InterviewSessionDetailSchema.safeParse({
+        session: validSession,
+        turns: [{ ...question, sequence: 2 }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("bounds answers and returns one replay-stable command result", () => {
+    const request = SubmitInterviewAnswerRequestSchema.parse({
+      expectedRevision: 1,
+      answer: "  我会基于真实项目说明。  ",
+    });
+    expect(request.answer).toBe("我会基于真实项目说明。");
+
+    const answer = InterviewTurnSchema.parse({
+      schemaVersion: "interview-turn-v1",
+      id: ids.item,
+      ownerId: ids.owner,
+      ownerEpoch: 1,
+      interviewSessionId: ids.session,
+      sequence: 2,
+      kind: "answer",
+      content: request.answer,
+      requirementIds: [],
+      evidenceIds: [],
+      createdAt: timestamp,
+    });
+    expect(
+      SubmitInterviewAnswerResponseSchema.parse({
+        answer,
+        nextQuestion: null,
+        appliedRevision: 2,
+        completed: true,
+      }).completed,
+    ).toBe(true);
+    expect(
+      SubmitInterviewAnswerResponseSchema.safeParse({
+        answer,
+        nextQuestion: null,
+        appliedRevision: 2,
+        completed: false,
+      }).success,
     ).toBe(false);
   });
 

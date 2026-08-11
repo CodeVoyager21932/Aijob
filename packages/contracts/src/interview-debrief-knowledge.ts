@@ -147,6 +147,105 @@ export const InterviewTurnSchema = z
   .strict();
 export type InterviewTurn = z.infer<typeof InterviewTurnSchema>;
 
+export const InterviewSessionCursorSchema = z
+  .object({
+    createdAt: TimestampSchema,
+    id: UuidSchema,
+  })
+  .strict();
+export type InterviewSessionCursor = z.infer<typeof InterviewSessionCursorSchema>;
+
+export const ListInterviewSessionsQuerySchema = z
+  .object({
+    cursor: z.string().trim().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+  })
+  .strict();
+export type ListInterviewSessionsQuery = z.infer<typeof ListInterviewSessionsQuerySchema>;
+
+export const ListInterviewSessionsResponseSchema = z
+  .object({
+    items: z.array(InterviewSessionSchema).max(50),
+    nextCursor: z.string().nullable(),
+  })
+  .strict();
+export type ListInterviewSessionsResponse = z.infer<typeof ListInterviewSessionsResponseSchema>;
+
+export const CreateInterviewSessionRequestSchema = z
+  .object({
+    expectedCaseRevision: RevisionSchema,
+  })
+  .strict();
+export type CreateInterviewSessionRequest = z.infer<typeof CreateInterviewSessionRequestSchema>;
+
+export const CreateInterviewSessionResponseSchema = z
+  .object({
+    sessionId: UuidSchema,
+    firstQuestion: InterviewTurnSchema,
+  })
+  .strict();
+export type CreateInterviewSessionResponse = z.infer<typeof CreateInterviewSessionResponseSchema>;
+
+export const InterviewSessionDetailSchema = z
+  .object({
+    session: InterviewSessionSchema,
+    turns: z.array(InterviewTurnSchema).max(200),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    for (const [index, turn] of value.turns.entries()) {
+      if (turn.interviewSessionId !== value.session.id || turn.sequence !== index + 1) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["turns", index],
+          message: "Interview turns must be contiguous and belong to the session",
+        });
+      }
+    }
+  });
+export type InterviewSessionDetail = z.infer<typeof InterviewSessionDetailSchema>;
+
+export const SubmitInterviewAnswerRequestSchema = z
+  .object({
+    expectedRevision: RevisionSchema,
+    answer: z.string().trim().min(1).max(20_000),
+  })
+  .strict();
+export type SubmitInterviewAnswerRequest = z.infer<typeof SubmitInterviewAnswerRequestSchema>;
+
+export const SubmitInterviewAnswerResponseSchema = z
+  .object({
+    answer: InterviewTurnSchema,
+    nextQuestion: InterviewTurnSchema.nullable(),
+    appliedRevision: RevisionSchema,
+    completed: z.boolean(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.completed === (value.nextQuestion !== null)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["nextQuestion"],
+        message: "A completed answer cannot expose a next question",
+      });
+    }
+    if (value.answer.kind !== "answer") {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["answer", "kind"],
+        message: "The command result must contain an answer turn",
+      });
+    }
+    if (value.nextQuestion && value.nextQuestion.kind === "answer") {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["nextQuestion", "kind"],
+        message: "The next turn must be a question",
+      });
+    }
+  });
+export type SubmitInterviewAnswerResponse = z.infer<typeof SubmitInterviewAnswerResponseSchema>;
+
 export const InterviewFeedbackCategorySchema = z.enum([
   "relevance",
   "structure",

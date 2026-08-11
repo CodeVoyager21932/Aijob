@@ -12,6 +12,7 @@ import { registerDecisionRoutes } from "./decisions/routes.js";
 import { installAnonymousIdentity } from "./identity/fastify.js";
 import { isApiProblem, sendApiProblem } from "./identity/http.js";
 import { registerInsightRoutes } from "./insights/routes.js";
+import { registerInterviewRoutes } from "./interviews/routes.js";
 import { sha256 } from "./lib/canonical-json.js";
 import { registerMatchingRoutes } from "./matching/routes.js";
 import { registerProfileRoutes } from "./profile/routes.js";
@@ -117,6 +118,7 @@ export function buildApp(input: { config: AppConfig; db: Kysely<Database> }): Fa
     db: input.db,
     enableLocalMvp: input.config.enableLocalMvp,
   });
+  registerInterviewRoutes(app, { db: input.db });
 
   if (
     input.config.enableInternalPreview &&
