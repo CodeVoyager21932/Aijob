@@ -3,7 +3,7 @@
 - 日期：2026-08-11
 - 分支：`codex/career-os-phase-1`
 - 审查基线：`8d125fd docs(evidence): accept m2 professional resume workflow`
-- 状态：**M3-0 设计基线；M3-1 与 M3-2 已完成**
+- 状态：**M3-0 设计基线；M3-1、M3-2 与 M3-3 已完成**
 - 当前任务仍以 [MVP 路线](../06-mvp-roadmap.md) 与[当前交接](../handoffs/current.md)为准
 
 ## 1. 结论
@@ -31,8 +31,8 @@ Case 显式投递命令与时间线
 | Case 时间线 | 追加式 `application.case_events` | 没有 owner-protected 列表 API | 新增按 sequence 倒序的游标读取；跨 owner、已删除 Case 统一 404 |
 | 文字面试 | migration 028 与 Interview 合同 | 无服务、路由或界面 | 模板模式同步创建 active Session 和首题；回答追加 Turn，确定性选择下一题或完成 |
 | 固定事实 | Session 固定 Case、岗位上下文、evidence revision，可选 Resume revision | 没有创建时选择规则 | 优先使用同 Case 派生简历固定的 evidence/content revision；缺前置资产时明确引导，不创建伪事实 |
-| 面试反馈 | 追加式 `interview_feedback` 和严格 JSON | 无生成与读取 | Session 完成后同步生成模板反馈；引用同 Session 的 Turn/Requirement/Evidence ID |
-| 复盘 | `debriefs`、`debrief_confirmations` 与确认投影 trigger | 无服务、路由或界面 | 每个 Case 一个活动复盘；保存表达问题、证据缺口和练习计划，显式确认后追加 Case event |
+| 面试反馈 | 追加式 `interview_feedback` 和严格 JSON | 无生成与读取 | Session 完成后由用户显式生成模板反馈；打开页面不写入，结果引用同 Session 的 Turn/Requirement/Evidence ID |
+| 复盘 | `debriefs`、`debrief_confirmations` 与确认投影 trigger | 无服务、路由或界面 | 每个 Case 一个活动复盘；M3-3 保存表达问题、证据缺口和练习计划，M3-4 才允许显式确认与受控回流 |
 | 改进回流 | M1 Requirements 与 M2 Resume V2 编辑器 | 旧计划容易引入第三套事实/简历写入 | M3 不自动生成新经历或改写简历；确认后提供精确入口，由用户在既有编辑器亲自补证据或保存新 Resume revision |
 | Knowledge | migration 028 已预留表 | 当前用户闭环不需要 | M3 完全排除，不创建服务或页面数据请求 |
 
@@ -75,10 +75,13 @@ M3-2：
 - `GET /v1/application-cases/:caseId/interview-sessions/:sessionId`
 - `POST /v1/application-cases/:caseId/interview-sessions/:sessionId/answers`
 
-M3-3/4：
+M3-3：
 
 - `GET /v1/application-cases/:caseId/debrief`
 - `PUT /v1/application-cases/:caseId/debrief`
+
+M3-4：
+
 - `POST /v1/application-cases/:caseId/debrief/confirmations`
 
 所有读取使用 `no-store`；所有写入要求 CSRF、稳定幂等键和 owner epoch。跨 owner、已删除或已 detach 的当前 Case 统一不可枚举 404；revision 冲突使用标准 Problem Details，不自动重放用户正文。
@@ -102,4 +105,4 @@ M3-3/4：
 | 数据环境 | 随机 `aijob_m3_baseline_test_*` 隔离库；结束后已删除 |
 | 服务状态 | 前后端未启动；PostgreSQL 容器与 Docker Desktop 验证后再次停止 |
 
-M3-0 没有修改业务代码、Schema 或依赖；该结论随后由 M3-1 和 M3-2 的纵向实现验证。M3-2 复用了 migration 028，没有新增 migration、依赖、队列或 AI provider；验收见 [M3-2 确定性文字面试](../evidence/product/career-os-v2/m3-2-deterministic-interview-acceptance-2026-08-11.md)。当前唯一切片由路线图规定为 `M3-3 反馈与复盘`，本设计记录不再生成下一任务。
+M3-0 没有修改业务代码、Schema 或依赖；该结论随后由 M3-1、M3-2 和 M3-3 的纵向实现验证。M3-3 继续复用 migration 028，没有新增 migration、依赖、队列或 AI provider；验收见 [M3-3 反馈与复盘](../evidence/product/career-os-v2/m3-3-feedback-debrief-acceptance-2026-08-11.md)。当前唯一切片由路线图规定为 `M3-4 用户确认回流`，本设计记录不再生成下一任务。
