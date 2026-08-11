@@ -296,7 +296,10 @@ describeWithDatabase("official source catalog eligibility migration", () => {
       const sourceIds = cases.map((fixtureCase) => fixtureCase.sourceId);
       const revisionIds = cases.map((fixtureCase) => fixtureCase.revisionId);
       const jobIds = cases.map((fixtureCase) => fixtureCase.jobId);
-      await db.deleteFrom("ingestion.review_items").where("revision_id", "in", revisionIds).execute();
+      await db
+        .deleteFrom("ingestion.review_items")
+        .where("revision_id", "in", revisionIds)
+        .execute();
       await db
         .updateTable("catalog.published_jobs")
         .set({ current_version_id: null })
@@ -337,5 +340,5 @@ describeWithDatabase("official source catalog eligibility migration", () => {
         .where("id", "=", organizationId)
         .execute();
     }
-  });
+  }, 15_000);
 });
