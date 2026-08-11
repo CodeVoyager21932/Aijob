@@ -59,7 +59,7 @@ flowchart LR
 
 ### 固定交付
 
-- [ ] 复核既有 decision、Case event 和 Interview/Debrief 代码边界，先形成 M3 最小复用矩阵；没有界面消费者的未来服务不提前实现。
+- [x] 复核既有 decision、Case event 和 Interview/Debrief 代码边界，形成 [M3 最小复用矩阵](plans/career-os-m3-application-interview-integration-boundary-2026-08-11.md)；没有界面消费者的未来服务不提前实现。
 - [ ] 打开官方链接绝不自动改变阶段；用户显式记录已投递或其他可表示状态，写入真实 Case 时间线。
 - [ ] 建立最小确定性文字面试 Session/Turn，问题只引用固定岗位版本与同 owner 已确认事实。
 - [ ] 生成结构化反馈与复盘：只指出表达问题、证据缺口和练习计划，不创造经历或修改事实。

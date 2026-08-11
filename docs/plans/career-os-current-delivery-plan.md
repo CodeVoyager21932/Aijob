@@ -77,8 +77,8 @@ Aijob 要先形成一个由 coco 在本地完整体验、能够判断产品流�
 
 固定串行切片：
 
-1. `M3-0`：复核既有 decisions、Case events、Interview/Debrief 契约和占位界面，形成最小复用矩阵与 focused 基线。
-2. `M3-1`：完成用户显式投递记录与 Case 时间线；打开官方链接永不自动写入。
+1. `M3-0`（已完成）：复核既有 decisions、Case events、Interview/Debrief 契约和占位界面，形成[最小复用矩阵与 focused 基线](career-os-m3-application-interview-integration-boundary-2026-08-11.md)。
+2. `M3-1`（当前）：完成用户显式投递记录与 Case 时间线；打开官方链接永不自动写入。
 3. `M3-2`：完成固定岗位版本、固定证据修订的确定性文字面试 Session/Turn。
 4. `M3-3`：完成结构化反馈与复盘，只输出表达问题、证据缺口和练习计划。
 5. `M3-4`：由用户确认把改进带回已确认事实或简历；不得自动创造或覆盖经历。
