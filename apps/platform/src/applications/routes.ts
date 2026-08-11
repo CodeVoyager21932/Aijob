@@ -1,9 +1,11 @@
 import {
-  CreateCaseQuestionRequestSchema,
   CreateApplicationCaseWithJobContextRequestSchema,
+  CreateCaseQuestionRequestSchema,
+  ListApplicationCaseEventsQuerySchema,
   ListApplicationCasesQuerySchema,
   PutCaseRequirementEvidenceLinksRequestSchema,
   PutCaseRequirementStateRequestSchema,
+  RecordManualApplicationRequestSchema,
   TransitionApplicationCaseRequestSchema,
   UpdateCaseQuestionRequestSchema,
   UpgradeApplicationCaseJobVersionRequestSchema,
@@ -16,14 +18,16 @@ import { requireOwnerContext } from "../identity/fastify.js";
 import { ApiProblem, sendApiProblem } from "../identity/http.js";
 import { ServiceError } from "../lib/service-error.js";
 import {
-  createApplicationCaseQuestion,
   createApplicationCase,
+  createApplicationCaseQuestion,
   getApplicationCase,
   getApplicationCaseJobVersionDiff,
   getApplicationCaseRequirements,
+  listApplicationCaseEvents,
   listApplicationCases,
   putApplicationCaseRequirementEvidenceLinks,
   putApplicationCaseRequirementState,
+  recordManualApplication,
   transitionApplicationCase,
   updateApplicationCaseQuestion,
   upgradeApplicationCaseJobVersion,
@@ -123,6 +127,37 @@ export function registerApplicationCaseRoutes(
         );
       }
       return reply.send(applicationCase);
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.get("/v1/application-cases/:caseId/events", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { caseId } = ParamsSchema.parse(request.params);
+      const query = ListApplicationCaseEventsQuerySchema.parse(request.query);
+      return reply.send(await listApplicationCaseEvents({ db: options.db, owner, caseId, query }));
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.post("/v1/application-cases/:caseId/manual-applications", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { caseId } = ParamsSchema.parse(request.params);
+      const body = RecordManualApplicationRequestSchema.parse(request.body);
+      const idempotencyKey = requireIdempotencyKey(request.headers);
+      return reply.send(
+        await recordManualApplication({
+          db: options.db,
+          owner,
+          caseId,
+          request: body,
+          idempotencyKey,
+        }),
+      );
     } catch (error) {
       return handleError(error, request, reply);
     }

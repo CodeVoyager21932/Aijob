@@ -6,6 +6,7 @@ import {
   ApplicationCaseMutationResponseSchema,
   ApplicationCaseRequirementsSchema,
   CreateApplicationCaseResponseSchema,
+  ListApplicationCaseEventsResponseSchema,
   ListApplicationCasesResponseSchema,
 } from "@aijob/contracts";
 import { createDatabase, type Database, migrateToLatest } from "@aijob/database";
@@ -1352,6 +1353,201 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       { sequence: 5, event_type: "stage_transitioned" },
     ]);
   }, 40_000);
+
+  it("records an application only through an explicit Case command and exposes its timeline", async () => {
+    const fixture = publicFixtures[1];
+    if (!fixture) throw new Error("PUBLIC_FIXTURE_MISSING");
+    const headers = sessionHeaders(secondSession);
+    const { [CSRF_HEADER_NAME]: _csrf, ...headersWithoutCsrf } = headers;
+    const created = await app.inject({
+      method: "POST",
+      url: "/v1/application-cases",
+      headers: { ...headers, "idempotency-key": `m3-public-case-${randomUUID()}` },
+      payload: {
+        jobContext: {
+          kind: "public",
+          publishedJobId: fixture.jobId,
+          publishedJobVersionId: fixture.versionId,
+        },
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const applicationCase = CreateApplicationCaseResponseSchema.parse(
+      created.json(),
+    ).applicationCase;
+    expect(applicationCase).toMatchObject({ stage: "interested", revision: 1 });
+
+    const initialTimeline = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${applicationCase.id}/events?limit=1`,
+      headers,
+    });
+    expect(initialTimeline.statusCode).toBe(200);
+    expect(initialTimeline.headers["cache-control"]).toBe("no-store");
+    expect(ListApplicationCaseEventsResponseSchema.parse(initialTimeline.json())).toMatchObject({
+      items: [{ eventType: "case_created", sequence: 1 }],
+      nextCursor: null,
+    });
+
+    const crossOwnerTimeline = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${applicationCase.id}/events`,
+      headers: sessionHeaders(firstSession),
+    });
+    expect(crossOwnerTimeline.statusCode).toBe(404);
+    expect(crossOwnerTimeline.json()).toMatchObject({ code: "APPLICATION_CASE_NOT_FOUND" });
+
+    const missingCsrf = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${applicationCase.id}/manual-applications`,
+      headers: { ...headersWithoutCsrf, "idempotency-key": `m3-csrf-${randomUUID()}` },
+      payload: { expectedRevision: 1 },
+    });
+    expect(missingCsrf.statusCode).toBe(403);
+    expect(missingCsrf.json()).toMatchObject({ code: "CSRF_REJECTED" });
+
+    const missingKey = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${applicationCase.id}/manual-applications`,
+      headers,
+      payload: { expectedRevision: 1 },
+    });
+    expect(missingKey.statusCode).toBe(400);
+    expect(missingKey.json()).toMatchObject({ code: "IDEMPOTENCY_KEY_REQUIRED" });
+
+    const commandKey = `m3-manual-application-${randomUUID()}`;
+    const recorded = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${applicationCase.id}/manual-applications`,
+      headers: { ...headers, "idempotency-key": commandKey },
+      payload: { expectedRevision: 1 },
+    });
+    expect(recorded.statusCode).toBe(200);
+    expect(recorded.headers["cache-control"]).toBe("no-store");
+    const recordedBody = ApplicationCaseCommandResponseSchema.parse(recorded.json());
+    expect(recordedBody).toMatchObject({
+      event: {
+        caseId: applicationCase.id,
+        sequence: 2,
+        eventType: "manual_application_recorded",
+        eventData: {
+          fromStage: "interested",
+          toStage: "applied",
+          reasonCode: null,
+        },
+      },
+    });
+
+    const replay = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${applicationCase.id}/manual-applications`,
+      headers: { ...headers, "idempotency-key": commandKey },
+      payload: { expectedRevision: 1 },
+    });
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json()).toEqual(recordedBody);
+
+    const conflictingReplay = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${applicationCase.id}/manual-applications`,
+      headers: { ...headers, "idempotency-key": commandKey },
+      payload: { expectedRevision: 2 },
+    });
+    expect(conflictingReplay.statusCode).toBe(409);
+    expect(conflictingReplay.json()).toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+
+    const refreshed = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${applicationCase.id}`,
+      headers,
+    });
+    expect(refreshed.json()).toMatchObject({ stage: "applied", revision: 2 });
+    const legacyProjection = await app.inject({
+      method: "GET",
+      url: "/v1/job-decisions",
+      headers,
+    });
+    expect(legacyProjection.json()).toEqual([
+      expect.objectContaining({
+        publishedJobId: fixture.jobId,
+        status: "applied",
+        revision: 1,
+      }),
+    ]);
+
+    const firstTimelinePage = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${applicationCase.id}/events?limit=1`,
+      headers,
+    });
+    const firstTimelineBody = ListApplicationCaseEventsResponseSchema.parse(
+      firstTimelinePage.json(),
+    );
+    expect(firstTimelineBody.items).toMatchObject([
+      { eventType: "manual_application_recorded", sequence: 2 },
+    ]);
+    expect(firstTimelineBody.nextCursor).toBeTruthy();
+    const secondTimelinePage = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${applicationCase.id}/events?limit=1&cursor=${encodeURIComponent(firstTimelineBody.nextCursor as string)}`,
+      headers,
+    });
+    expect(ListApplicationCaseEventsResponseSchema.parse(secondTimelinePage.json())).toMatchObject({
+      items: [{ eventType: "case_created", sequence: 1 }],
+      nextCursor: null,
+    });
+
+    const malformedCursor = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${applicationCase.id}/events?cursor=not-a-cursor`,
+      headers,
+    });
+    expect(malformedCursor.statusCode).toBe(400);
+    expect(malformedCursor.json()).toMatchObject({
+      code: "INVALID_APPLICATION_CASE_EVENT_CURSOR",
+    });
+
+    const duplicate = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${applicationCase.id}/manual-applications`,
+      headers: { ...headers, "idempotency-key": `m3-duplicate-${randomUUID()}` },
+      payload: { expectedRevision: 2 },
+    });
+    expect(duplicate.statusCode).toBe(409);
+    expect(duplicate.json()).toMatchObject({ code: "APPLICATION_ALREADY_RECORDED" });
+
+    const privateCreated = await app.inject({
+      method: "POST",
+      url: "/v1/application-cases",
+      headers: { ...headers, "idempotency-key": `m3-private-case-${randomUUID()}` },
+      payload: {
+        jobContext: {
+          kind: "private_input",
+          title: "M3 synthetic private internship",
+          companyName: null,
+          contentText: "职责：完成合成投递记录。\n要求：在校生。",
+          source: { kind: "unspecified" },
+          duplicateHandling: "create_separate",
+        },
+      },
+    });
+    const privateCase = CreateApplicationCaseResponseSchema.parse(
+      privateCreated.json(),
+    ).applicationCase;
+    const privateRecorded = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${privateCase.id}/manual-applications`,
+      headers: { ...headers, "idempotency-key": `m3-private-record-${randomUUID()}` },
+      payload: { expectedRevision: 1 },
+    });
+    expect(privateRecorded.statusCode).toBe(200);
+    const legacyAfterPrivate = await app.inject({
+      method: "GET",
+      url: "/v1/job-decisions",
+      headers,
+    });
+    expect(legacyAfterPrivate.json()).toHaveLength(1);
+  }, 20_000);
 
   it("creates owner-private JD Cases atomically without publishing or sharing them", async () => {
     const headers = sessionHeaders(secondSession);

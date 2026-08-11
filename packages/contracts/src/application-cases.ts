@@ -338,6 +338,13 @@ export type TransitionApplicationCaseRequest = z.infer<
   typeof TransitionApplicationCaseRequestSchema
 >;
 
+export const RecordManualApplicationRequestSchema = z
+  .object({
+    expectedRevision: RevisionSchema,
+  })
+  .strict();
+export type RecordManualApplicationRequest = z.infer<typeof RecordManualApplicationRequestSchema>;
+
 export const UpgradeApplicationCaseJobVersionRequestSchema = z
   .object({
     expectedRevision: RevisionSchema,
@@ -364,6 +371,14 @@ export const ListApplicationCasesQuerySchema = z
   })
   .strict();
 export type ListApplicationCasesQuery = z.infer<typeof ListApplicationCasesQuerySchema>;
+
+export const ListApplicationCaseEventsQuerySchema = z
+  .object({
+    cursor: z.string().trim().min(1).max(1_024).optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+  })
+  .strict();
+export type ListApplicationCaseEventsQuery = z.infer<typeof ListApplicationCaseEventsQuerySchema>;
 
 export const ListApplicationCasesResponseSchema = z
   .object({
@@ -926,6 +941,16 @@ export const ApplicationCaseEventReadModelSchema = z.union([
   LegacyApplicationCaseEventSchema,
 ]);
 export type ApplicationCaseEventReadModel = z.infer<typeof ApplicationCaseEventReadModelSchema>;
+
+export const ListApplicationCaseEventsResponseSchema = z
+  .object({
+    items: z.array(ApplicationCaseEventReadModelSchema),
+    nextCursor: z.string().trim().min(1).nullable(),
+  })
+  .strict();
+export type ListApplicationCaseEventsResponse = z.infer<
+  typeof ListApplicationCaseEventsResponseSchema
+>;
 
 export const CaseRequirementStateSchema = z
   .object({

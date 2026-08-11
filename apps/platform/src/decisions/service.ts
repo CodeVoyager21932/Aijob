@@ -59,6 +59,16 @@ export async function putJobDecision(
 
   const row = await db.transaction().execute(async (transaction) => {
     await lockActiveOwnerEpoch(transaction, owner);
+    await transaction
+      .selectFrom("application.application_cases")
+      .select("id")
+      .where("owner_id", "=", owner.ownerId)
+      .where("owner_epoch", "=", owner.ownerEpoch)
+      .where("published_job_id", "=", publishedJobId)
+      .where("ended_at", "is", null)
+      .where("deleted_at", "is", null)
+      .forUpdate()
+      .executeTakeFirst();
 
     let persisted: Selectable<Database["decision.job_decisions"]> | undefined;
     if (input.expectedRevision === 0) {

@@ -5,8 +5,8 @@ import {
   ApplicationCaseCommandResponseSchema,
   ApplicationCaseCursorSchema,
   ApplicationCaseEventSchema,
-  ApplicationCaseJobVersionDiffResponseSchema,
   ApplicationCaseJobDisplaySchema,
+  ApplicationCaseJobVersionDiffResponseSchema,
   ApplicationCaseMutationResponseSchema,
   ApplicationCaseRequirementsSchema,
   ApplicationCaseSchema,
@@ -14,8 +14,8 @@ import {
   CaseOutcomeSchema,
   CaseQuestionSchema,
   CaseRequirementEvidenceLinkSchema,
-  CaseRequirementStateSchema,
   CaseRequirementStateReadModelSchema,
+  CaseRequirementStateSchema,
   CaseStageSchema,
   CreateApplicationCaseRequestSchema,
   CreateApplicationCaseResponseSchema,
@@ -24,12 +24,15 @@ import {
   InterviewModeSchema,
   JobContextSchema,
   LegacyApplicationCaseEventSchema,
+  ListApplicationCaseEventsQuerySchema,
+  ListApplicationCaseEventsResponseSchema,
   ListApplicationCasesResponseSchema,
   PrivateJobSnapshotSchema,
   PrivateRequirementContextSchema,
   PublicJobReferenceSchema,
   PublicRequirementContextSchema,
   PutCaseRequirementEvidenceLinksRequestSchema,
+  RecordManualApplicationRequestSchema,
   RequirementContextSchema,
   RequirementEvidenceStateSchema,
   ResumeSuggestionDecisionSchema,
@@ -724,6 +727,44 @@ describe("ApplicationCase contracts", () => {
         reason: "用户填写的自由文本不能进入审计事件",
       }).success,
     ).toBe(false);
+  });
+
+  it("keeps manual application writes revisioned and event history paginated", () => {
+    expect(RecordManualApplicationRequestSchema.parse({ expectedRevision: 2 })).toEqual({
+      expectedRevision: 2,
+    });
+    expect(RecordManualApplicationRequestSchema.safeParse({ expectedRevision: 0 }).success).toBe(
+      false,
+    );
+    expect(
+      RecordManualApplicationRequestSchema.safeParse({ expectedRevision: 2, applied: true })
+        .success,
+    ).toBe(false);
+
+    expect(ListApplicationCaseEventsQuerySchema.parse({})).toEqual({ limit: 50 });
+    expect(ListApplicationCaseEventsQuerySchema.parse({ limit: "100", cursor: "next" })).toEqual({
+      limit: 100,
+      cursor: "next",
+    });
+    expect(ListApplicationCaseEventsQuerySchema.safeParse({ limit: 101 }).success).toBe(false);
+
+    const event = {
+      id: ids.event,
+      caseId: ids.case,
+      sequence: 3,
+      eventType: "manual_application_recorded" as const,
+      actorType: "owner" as const,
+      eventData: {
+        schemaVersion: "case-event-v1" as const,
+        fromStage: "preparing" as const,
+        toStage: "applied" as const,
+        reasonCode: null,
+      },
+      createdAt: "2026-08-06T00:00:00.000Z",
+    };
+    expect(
+      ListApplicationCaseEventsResponseSchema.parse({ items: [event], nextCursor: "older" }),
+    ).toEqual({ items: [event], nextCursor: "older" });
   });
 
   it("keeps command and deterministic job-version diff responses strict", () => {

@@ -4,10 +4,12 @@ import {
   ApplicationCaseCommandResponseSchema,
   ApplicationCaseCursorSchema,
   type ApplicationCaseEvent,
+  type ApplicationCaseEventReadModel,
+  ApplicationCaseEventReadModelSchema,
   ApplicationCaseEventSchema,
+  ApplicationCaseJobDisplaySchema,
   type ApplicationCaseJobVersionDiffResponse,
   ApplicationCaseJobVersionDiffResponseSchema,
-  ApplicationCaseJobDisplaySchema,
   type ApplicationCaseMutationResponse,
   ApplicationCaseMutationResponseSchema,
   type ApplicationCaseRequirements,
@@ -30,12 +32,16 @@ import {
   type JobRequirement,
   JobRequirementSchema,
   type JobVersionDiffField,
+  type ListApplicationCaseEventsQuery,
+  type ListApplicationCaseEventsResponse,
+  ListApplicationCaseEventsResponseSchema,
   type ListApplicationCasesQuery,
   type ListApplicationCasesResponse,
   ListApplicationCasesResponseSchema,
   PublicJobReferenceSchema,
   type PutCaseRequirementEvidenceLinksRequest,
   type PutCaseRequirementStateRequest,
+  type RecordManualApplicationRequest,
   type RequirementContext,
   ResumeEvidenceRevisionSchema,
   type TransitionApplicationCaseRequest,
@@ -155,6 +161,14 @@ const CursorEnvelopeSchema = z
   })
   .strict();
 
+const EventCursorEnvelopeSchema = z
+  .object({
+    version: z.literal(1),
+    caseId: z.string().uuid(),
+    beforeSequence: z.number().int().positive(),
+  })
+  .strict();
+
 type ResolvedJobContext =
   | {
       kind: "public";
@@ -205,6 +219,21 @@ function mapCaseEvent(row: CaseEventRow): ApplicationCaseEvent {
     eventData: parseJsonValue(row.event_data),
     createdAt: toIso(row.created_at),
   });
+}
+
+function mapCaseEventReadModel(row: CaseEventRow): ApplicationCaseEventReadModel {
+  const candidate = {
+    id: row.id,
+    caseId: row.case_id,
+    sequence: Number(row.sequence),
+    eventType: row.event_type,
+    actorType: row.actor_type,
+    eventData: parseJsonValue(row.event_data),
+    createdAt: toIso(row.created_at),
+  };
+  const strictEvent = ApplicationCaseEventSchema.safeParse(candidate);
+  if (strictEvent.success) return strictEvent.data;
+  return ApplicationCaseEventReadModelSchema.parse({ ...candidate, legacyReadOnly: true });
 }
 
 function emptyRequirementChanges() {
@@ -1177,6 +1206,73 @@ export async function listApplicationCases(input: {
   });
 }
 
+function encodeEventCursor(caseId: string, beforeSequence: number): string {
+  return Buffer.from(JSON.stringify({ version: 1, caseId, beforeSequence }), "utf8").toString(
+    "base64url",
+  );
+}
+
+function decodeEventCursor(value: string, caseId: string): number {
+  try {
+    const cursor = EventCursorEnvelopeSchema.parse(
+      JSON.parse(Buffer.from(value, "base64url").toString("utf8")),
+    );
+    if (cursor.caseId !== caseId) throw new Error("EVENT_CURSOR_CASE_MISMATCH");
+    return cursor.beforeSequence;
+  } catch {
+    throw new ServiceError(
+      400,
+      "INVALID_APPLICATION_CASE_EVENT_CURSOR",
+      "求职项目时间线游标无效，请从最新记录重新加载。",
+    );
+  }
+}
+
+export async function listApplicationCaseEvents(input: {
+  db: Kysely<Database>;
+  owner: OwnerScope;
+  caseId: string;
+  query: ListApplicationCaseEventsQuery;
+}): Promise<ListApplicationCaseEventsResponse> {
+  const applicationCase = await loadCaseById(input.db, input.owner, input.caseId);
+  if (!applicationCase) throw caseNotFound();
+  const beforeSequence = input.query.cursor
+    ? decodeEventCursor(input.query.cursor, input.caseId)
+    : null;
+  let query = input.db
+    .selectFrom("application.case_events")
+    .select([
+      "id",
+      "owner_epoch",
+      "case_id",
+      "sequence",
+      "event_type",
+      "actor_type",
+      "event_data",
+      "request_hash",
+      "created_at",
+    ])
+    .where("owner_id", "=", input.owner.ownerId)
+    .where("owner_epoch", "=", input.owner.ownerEpoch)
+    .where("case_id", "=", input.caseId);
+  if (beforeSequence !== null) {
+    query = query.where("sequence", "<", beforeSequence);
+  }
+  const rows = await query
+    .orderBy("sequence", "desc")
+    .limit(input.query.limit + 1)
+    .execute();
+  const hasMore = rows.length > input.query.limit;
+  const items = rows
+    .slice(0, input.query.limit)
+    .map((row) => mapCaseEventReadModel(row as CaseEventRow));
+  const lastItem = items.at(-1);
+  return ListApplicationCaseEventsResponseSchema.parse({
+    items,
+    nextCursor: hasMore && lastItem ? encodeEventCursor(input.caseId, lastItem.sequence) : null,
+  });
+}
+
 export async function getApplicationCase(input: {
   db: Kysely<Database>;
   owner: OwnerScope;
@@ -2076,6 +2172,136 @@ export async function createApplicationCase(input: {
     const applicationCase = await loadCaseById(transaction, input.owner, caseId);
     if (!applicationCase) throw new Error("APPLICATION_CASE_INSERT_NOT_READABLE");
     return CreateApplicationCaseResponseSchema.parse({ applicationCase, created: true });
+  });
+}
+
+async function projectManualApplicationToLegacyDecision(
+  transaction: Transaction<Database>,
+  owner: OwnerScope,
+  applicationCase: ApplicationCaseMutationRow,
+): Promise<void> {
+  if (!applicationCase.published_job_id) return;
+  const existing = await transaction
+    .selectFrom("decision.job_decisions")
+    .select(["owner_epoch", "status", "revision"])
+    .where("owner_id", "=", owner.ownerId)
+    .where("published_job_id", "=", applicationCase.published_job_id)
+    .forUpdate()
+    .executeTakeFirst();
+  if (!existing) {
+    await transaction
+      .insertInto("decision.job_decisions")
+      .values({
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        published_job_id: applicationCase.published_job_id,
+        status: "applied",
+        reason: null,
+        revision: 1,
+        official_link_opened_at: null,
+        updated_at: new Date(),
+      })
+      .executeTakeFirstOrThrow();
+    return;
+  }
+  if (Number(existing.owner_epoch) !== owner.ownerEpoch) {
+    throw new ServiceError(
+      409,
+      "LEGACY_DECISION_EPOCH_CONFLICT",
+      "旧岗位状态属于已撤销的数据周期，请先完成数据清理后重试。",
+    );
+  }
+  if (existing.status === "applied") return;
+  await transaction
+    .updateTable("decision.job_decisions")
+    .set({
+      status: "applied",
+      reason: null,
+      revision: Number(existing.revision) + 1,
+      updated_at: monotonicUpdatedAt(),
+    })
+    .where("owner_id", "=", owner.ownerId)
+    .where("owner_epoch", "=", owner.ownerEpoch)
+    .where("published_job_id", "=", applicationCase.published_job_id)
+    .where("revision", "=", Number(existing.revision))
+    .executeTakeFirstOrThrow();
+}
+
+export async function recordManualApplication(input: {
+  db: Kysely<Database>;
+  owner: OwnerScope;
+  caseId: string;
+  request: RecordManualApplicationRequest;
+  idempotencyKey: string;
+}): Promise<ApplicationCaseCommandResponse> {
+  const idempotencyScope = "application-case:manual-application";
+  const requestHash = hashCanonicalJson({ caseId: input.caseId, request: input.request });
+  return input.db.transaction().execute(async (transaction) => {
+    await lockOwnerIdempotencyKey(transaction, {
+      ownerId: input.owner.ownerId,
+      scope: idempotencyScope,
+      idempotencyKey: input.idempotencyKey,
+    });
+    await assertActiveOwnerEpoch(transaction, input.owner.ownerId, input.owner.ownerEpoch);
+    const replay = await replayCaseCommand(transaction, input.owner, {
+      scope: idempotencyScope,
+      idempotencyKey: input.idempotencyKey,
+      requestHash,
+    });
+    if (replay) return replay;
+
+    const applicationCase = await loadCaseForUpdate(transaction, input.owner, input.caseId);
+    if (!applicationCase) throw caseNotFound();
+    if (Number(applicationCase.revision) !== input.request.expectedRevision) {
+      throw revisionConflict();
+    }
+    const fromStage = applicationCase.stage as CaseStage;
+    if (fromStage === "applied") {
+      throw new ServiceError(
+        409,
+        "APPLICATION_ALREADY_RECORDED",
+        "该求职项目已经标记为已投递，无需重复记录。",
+      );
+    }
+    if (fromStage !== "interested" && fromStage !== "preparing") {
+      throw new ServiceError(
+        409,
+        "INVALID_CASE_TRANSITION",
+        "当前阶段不能重新记录为已投递，请先核对求职项目时间线。",
+      );
+    }
+
+    const nextRevision = Number(applicationCase.revision) + 1;
+    await transaction
+      .updateTable("application.application_cases")
+      .set({
+        stage: "applied",
+        outcome: null,
+        ended_at: null,
+        revision: nextRevision,
+        updated_at: monotonicUpdatedAt(),
+      })
+      .where("id", "=", applicationCase.id)
+      .where("owner_id", "=", input.owner.ownerId)
+      .where("owner_epoch", "=", input.owner.ownerEpoch)
+      .where("revision", "=", input.request.expectedRevision)
+      .executeTakeFirstOrThrow();
+    await projectManualApplicationToLegacyDecision(transaction, input.owner, applicationCase);
+    return appendCaseEvent(transaction, {
+      owner: input.owner,
+      caseId: applicationCase.id,
+      sequence: nextRevision,
+      eventType: "manual_application_recorded",
+      eventData: {
+        schemaVersion: "case-event-v1",
+        fromStage,
+        toStage: "applied",
+        reasonCode: null,
+      },
+      idempotencyScope,
+      idempotencyKey: input.idempotencyKey,
+      requestHash,
+    });
   });
 }
 
