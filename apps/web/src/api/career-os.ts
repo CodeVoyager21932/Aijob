@@ -6,6 +6,8 @@ import type {
   CreateApplicationCaseResponse,
   CreateApplicationCaseWithJobContextRequest,
   CreateCaseQuestionRequest,
+  CreateInterviewSessionRequest,
+  CreateInterviewSessionResponse,
   CreateResumeDocumentRequest,
   CreateResumeDocumentResponse,
   CreateResumeReviewRequest,
@@ -14,6 +16,8 @@ import type {
   DecideResumeReviewSuggestionRequest,
   DecideResumeReviewSuggestionResponse,
   LegacyResumeContentConversion,
+  InterviewSessionDetail,
+  ListInterviewSessionsResponse,
   ListApplicationCaseEventsResponse,
   ListApplicationCasesResponse,
   ListResumeDocumentContentRevisionsResponse,
@@ -28,6 +32,8 @@ import type {
   RecordManualApplicationRequest,
   ResumeDocument,
   ResumeEvidenceRevision,
+  SubmitInterviewAnswerRequest,
+  SubmitInterviewAnswerResponse,
   UpdateCaseQuestionRequest,
 } from "@aijob/contracts";
 import { apiRequest } from "./client";
@@ -62,6 +68,10 @@ export const careerOsQueryKeys = {
     ["career-os", "resume-documents", documentId, "layout"] as const,
   resumeReview: (documentId: string) =>
     ["career-os", "resume-documents", documentId, "review"] as const,
+  interviewSessions: (caseId: string) =>
+    ["career-os", "application-cases", caseId, "interview-sessions"] as const,
+  interviewSession: (caseId: string, sessionId: string) =>
+    ["career-os", "application-cases", caseId, "interview-sessions", sessionId] as const,
 };
 
 export interface ListApplicationCasesInput {
@@ -130,6 +140,61 @@ export function recordManualApplication(
 ) {
   return apiRequest<ApplicationCaseCommandResponse>(
     `/v1/application-cases/${encodeURIComponent(caseId)}/manual-applications`,
+    { method: "POST", body: request, idempotencyKey },
+  );
+}
+
+export interface ListInterviewSessionsInput {
+  cursor?: string;
+  limit?: number;
+}
+
+export function interviewSessionListPath(
+  caseId: string,
+  input: ListInterviewSessionsInput = {},
+): string {
+  const params = new URLSearchParams();
+  params.set("limit", String(input.limit ?? 20));
+  if (input.cursor) params.set("cursor", input.cursor);
+  return `/v1/application-cases/${encodeURIComponent(caseId)}/interview-sessions?${params.toString()}`;
+}
+
+export function listInterviewSessions(
+  caseId: string,
+  input: ListInterviewSessionsInput = {},
+  signal?: AbortSignal,
+) {
+  return apiRequest<ListInterviewSessionsResponse>(interviewSessionListPath(caseId, input), {
+    signal,
+  });
+}
+
+export function createInterviewSession(
+  caseId: string,
+  request: CreateInterviewSessionRequest,
+  idempotencyKey: string,
+) {
+  return apiRequest<CreateInterviewSessionResponse>(
+    `/v1/application-cases/${encodeURIComponent(caseId)}/interview-sessions`,
+    { method: "POST", body: request, idempotencyKey },
+  );
+}
+
+export function getInterviewSession(caseId: string, sessionId: string, signal?: AbortSignal) {
+  return apiRequest<InterviewSessionDetail>(
+    `/v1/application-cases/${encodeURIComponent(caseId)}/interview-sessions/${encodeURIComponent(sessionId)}`,
+    { signal },
+  );
+}
+
+export function submitInterviewAnswer(
+  caseId: string,
+  sessionId: string,
+  request: SubmitInterviewAnswerRequest,
+  idempotencyKey: string,
+) {
+  return apiRequest<SubmitInterviewAnswerResponse>(
+    `/v1/application-cases/${encodeURIComponent(caseId)}/interview-sessions/${encodeURIComponent(sessionId)}/answers`,
     { method: "POST", body: request, idempotencyKey },
   );
 }

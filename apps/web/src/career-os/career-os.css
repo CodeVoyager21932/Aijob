@@ -1939,6 +1939,319 @@
   font-size: 0.75rem;
 }
 
+.career-interview-workspace {
+  display: grid;
+  gap: 18px;
+  padding-top: 18px;
+}
+
+.career-interview-guardrail {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 22px;
+  border: 1px solid #d9e4f5;
+  border-left: 4px solid var(--career-blue);
+  border-radius: 10px;
+  background: linear-gradient(135deg, #f8fbff, #fff);
+}
+
+.career-interview-guardrail > span {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--career-blue-soft);
+  color: var(--career-blue);
+}
+
+.career-interview-guardrail p:first-child,
+.career-interview-session__header p {
+  margin: 0 0 5px;
+  color: var(--career-blue);
+  font-size: 0.66rem;
+  font-weight: 780;
+  letter-spacing: 0.06em;
+}
+
+.career-interview-guardrail h2,
+.career-interview-empty h2,
+.career-interview-session__header h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.career-interview-guardrail div > p:last-child,
+.career-interview-empty p {
+  max-width: 760px;
+  margin: 7px 0 0;
+  color: var(--career-muted);
+  font-size: 0.74rem;
+  line-height: 1.7;
+}
+
+.career-interview-empty {
+  padding: 34px 24px;
+  border: 1px dashed #cbd3df;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  text-align: center;
+}
+
+.career-interview-empty p {
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.career-interview-layout {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 230px minmax(0, 1fr);
+  align-items: start;
+  gap: 18px;
+}
+
+.career-interview-history,
+.career-interview-session {
+  min-width: 0;
+  border: 1px solid var(--career-line);
+  border-radius: 10px;
+  background: white;
+}
+
+.career-interview-history {
+  overflow: hidden;
+}
+
+.career-interview-history > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 16px;
+  border-bottom: 1px solid var(--career-line);
+}
+
+.career-interview-history > header strong {
+  font-size: 0.8rem;
+}
+
+.career-interview-history > header span,
+.career-interview-history time {
+  color: var(--career-muted);
+  font-size: 0.64rem;
+}
+
+.career-interview-history ol {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.career-interview-history li + li {
+  border-top: 1px solid var(--career-line);
+}
+
+.career-interview-history li > button {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 8px;
+  padding: 13px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--career-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.career-interview-history li > button:hover,
+.career-interview-history li > button.is-active {
+  background: #f4f7fc;
+}
+
+.career-interview-history li > button.is-active {
+  box-shadow: inset 3px 0 0 var(--career-blue);
+}
+
+.career-interview-history li span,
+.career-interview-history li strong {
+  font-size: 0.72rem;
+}
+
+.career-interview-history time {
+  grid-column: 1 / -1;
+}
+
+.career-interview-history > .career-button {
+  width: calc(100% - 24px);
+  margin: 12px;
+}
+
+.career-interview-session {
+  padding: 22px;
+}
+
+.career-interview-session__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--career-line);
+}
+
+.career-interview-session__header dl {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 0;
+}
+
+.career-interview-session__header dl > div {
+  min-width: 92px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: #f5f7fa;
+}
+
+.career-interview-session__header dt {
+  color: var(--career-muted);
+  font-size: 0.6rem;
+}
+
+.career-interview-session__header dd {
+  overflow: hidden;
+  margin: 3px 0 0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.67rem;
+  text-overflow: ellipsis;
+}
+
+.career-interview-transcript {
+  display: grid;
+  gap: 12px;
+  padding: 18px 0;
+  margin: 0;
+  list-style: none;
+}
+
+.career-interview-transcript > li {
+  max-width: min(88%, 760px);
+  padding: 14px 16px;
+  border: 1px solid #dfe5ee;
+  border-radius: 10px;
+  background: #f8f9fb;
+}
+
+.career-interview-transcript > li.is-answer {
+  justify-self: end;
+  border-color: #cadbf5;
+  background: #f2f7ff;
+}
+
+.career-interview-transcript li header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.career-interview-transcript li strong {
+  font-size: 0.7rem;
+}
+
+.career-interview-transcript li header span,
+.career-interview-transcript li small {
+  color: var(--career-muted);
+  font-size: 0.62rem;
+}
+
+.career-interview-transcript li p {
+  margin: 7px 0 0;
+  font-size: 0.77rem;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.career-interview-transcript li small {
+  display: block;
+  margin-top: 8px;
+}
+
+.career-interview-answer {
+  display: grid;
+  gap: 9px;
+  padding: 16px;
+  border: 1px solid #d9e4f5;
+  border-radius: 10px;
+  background: #fbfdff;
+}
+
+.career-interview-answer > label {
+  font-size: 0.74rem;
+  font-weight: 760;
+}
+
+.career-interview-answer textarea {
+  width: 100%;
+  min-height: 150px;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid #cfd8e6;
+  border-radius: 8px;
+  background: white;
+  color: var(--career-text);
+  font: inherit;
+  font-size: 0.76rem;
+  line-height: 1.7;
+}
+
+.career-interview-answer textarea:focus {
+  border-color: var(--career-blue);
+  outline: 3px solid rgba(45, 101, 181, 0.16);
+}
+
+.career-interview-answer > div:not(.career-inline-error) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.career-interview-answer > div > span {
+  color: var(--career-muted);
+  font-size: 0.64rem;
+}
+
+.career-interview-complete {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 9px;
+  background: #edf8f1;
+  color: #1f6a3c;
+}
+
+.career-interview-complete__copy {
+  display: grid;
+  gap: 3px;
+}
+
+.career-interview-complete strong {
+  font-size: 0.76rem;
+}
+
+.career-interview-complete span {
+  font-size: 0.68rem;
+  line-height: 1.55;
+}
+
 .career-case-phase-placeholder {
   display: grid;
   min-height: 330px;
@@ -5015,6 +5328,81 @@
     align-items: flex-start;
     flex-direction: column;
     gap: 4px;
+  }
+}
+
+@media (max-width: 767px) {
+  .career-interview-guardrail {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 18px 16px;
+  }
+
+  .career-interview-guardrail > .career-button {
+    width: 100%;
+    grid-column: 1 / -1;
+  }
+
+  .career-interview-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .career-interview-history ol {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+  }
+
+  .career-interview-history li {
+    min-width: 145px;
+    border-top: 0 !important;
+    border-right: 1px solid var(--career-line);
+    scroll-snap-align: start;
+  }
+
+  .career-interview-session {
+    padding: 18px 16px;
+  }
+
+  .career-interview-session__header {
+    flex-direction: column;
+  }
+
+  .career-interview-session__header dl {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .career-interview-session__header dl > div {
+    min-width: min(100%, 110px);
+    flex: 1;
+  }
+
+  .career-interview-transcript > li {
+    max-width: 96%;
+  }
+
+  .career-interview-answer > div:not(.career-inline-error) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .career-interview-answer .career-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 380px) {
+  .career-interview-guardrail {
+    grid-template-columns: 1fr;
+  }
+
+  .career-interview-session__header dl {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .career-interview-transcript > li {
+    max-width: 100%;
   }
 }
 

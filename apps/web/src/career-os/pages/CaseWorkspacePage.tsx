@@ -30,14 +30,18 @@ const CaseApplicationWorkspace = lazy(() =>
     default: module.CaseApplicationWorkspace,
   })),
 );
+const CaseInterviewWorkspace = lazy(() =>
+  import("./CaseInterviewWorkspace").then((module) => ({
+    default: module.CaseInterviewWorkspace,
+  })),
+);
 
-type PlaceholderCaseTab = Exclude<CaseTab, "overview" | "requirements" | "resume" | "application">;
+type PlaceholderCaseTab = Exclude<
+  CaseTab,
+  "overview" | "requirements" | "resume" | "application" | "interview"
+>;
 
 const phaseContent: Record<PlaceholderCaseTab, { title: string; copy: string }> = {
-  interview: {
-    title: "文字面试将在 M3 下一切片开放",
-    copy: "当前先完成显式投递记录，不会从旧计划直接铺设面试服务。",
-  },
   debrief: {
     title: "复盘将在文字面试之后开放",
     copy: "复盘只会指出表达和证据缺口，不会自动形成或回写经历表达。",
@@ -137,7 +141,7 @@ function PhasePlaceholder({ tab }: { tab: PlaceholderCaseTab }) {
   return (
     <section className="career-case-phase-placeholder">
       <span>
-        <Icon name={tab === "interview" ? "interview" : "briefcase"} />
+        <Icon name="briefcase" />
       </span>
       <div>
         <p>M3 分步开放</p>
@@ -168,6 +172,13 @@ function renderCaseTab(tab: CaseTab, applicationCase: ApplicationCaseWithJobCont
     return (
       <Suspense fallback={<output className="career-request-state">正在打开投递工作区…</output>}>
         <CaseApplicationWorkspace key={applicationCase.id} applicationCase={applicationCase} />
+      </Suspense>
+    );
+  }
+  if (tab === "interview") {
+    return (
+      <Suspense fallback={<output className="career-request-state">正在打开面试工作区…</output>}>
+        <CaseInterviewWorkspace key={applicationCase.id} applicationCase={applicationCase} />
       </Suspense>
     );
   }

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   applicationCaseEventsPath,
   applicationCaseListPath,
+  interviewSessionListPath,
   resumeDocumentDocxPath,
   resumeDocumentListPath,
 } from "./career-os";
@@ -22,6 +23,16 @@ describe("Career OS API paths", () => {
     );
     expect(applicationCaseEventsPath(caseId, { limit: 10, cursor: "older+/=" })).toBe(
       `/v1/application-cases/${caseId}/events?limit=10&cursor=older%2B%2F%3D`,
+    );
+  });
+
+  it("binds interview history pagination to the selected Case", () => {
+    const caseId = randomUUID();
+    expect(interviewSessionListPath(caseId)).toBe(
+      `/v1/application-cases/${caseId}/interview-sessions?limit=20`,
+    );
+    expect(interviewSessionListPath(caseId, { limit: 10, cursor: "older+/=" })).toBe(
+      `/v1/application-cases/${caseId}/interview-sessions?limit=10&cursor=older%2B%2F%3D`,
     );
   });
 
