@@ -5,14 +5,19 @@ import { Link, useSearchParams } from "react-router-dom";
 import {
   careerOsQueryKeys,
   createInterviewSession,
+  getCaseDebrief,
   getInterviewSession,
   listInterviewSessions,
+  prepareCaseDebrief,
   submitInterviewAnswer,
 } from "../../api/career-os";
 import { createIdempotencyKey, ProductApiError } from "../../api/client";
 import { Icon } from "../components/Icon";
 import {
+  caseDebriefSessionState,
   currentInterviewQuestion,
+  interviewFeedbackCategoryLabels,
+  interviewFeedbackSeverityLabels,
   interviewStatusLabels,
   interviewTurnLabel,
 } from "../interview-view";
@@ -36,6 +41,7 @@ export function CaseInterviewWorkspace({
   const [draft, setDraft] = useState("");
   const createCommandRef = useRef<{ signature: string; key: string } | null>(null);
   const answerCommandRef = useRef<{ signature: string; key: string } | null>(null);
+  const prepareDebriefCommandRef = useRef<{ signature: string; key: string } | null>(null);
   const sessionsQuery = useInfiniteQuery({
     queryKey: careerOsQueryKeys.interviewSessions(applicationCase.id),
     initialPageParam: null as string | null,
@@ -58,6 +64,12 @@ export function CaseInterviewWorkspace({
     queryFn: ({ signal }) =>
       getInterviewSession(applicationCase.id, selectedSessionId ?? "", signal),
     enabled: Boolean(selectedSessionId),
+    retry: (failureCount, error) =>
+      error instanceof ProductApiError && error.status === 404 ? false : failureCount < 1,
+  });
+  const debriefQuery = useQuery({
+    queryKey: careerOsQueryKeys.caseDebrief(applicationCase.id),
+    queryFn: ({ signal }) => getCaseDebrief(applicationCase.id, signal),
     retry: (failureCount, error) =>
       error instanceof ProductApiError && error.status === 404 ? false : failureCount < 1,
   });
@@ -154,8 +166,54 @@ export function CaseInterviewWorkspace({
     },
   });
 
+  const prepareDebriefMutation = useMutation({
+    mutationFn: ({
+      sessionId,
+      expectedSessionRevision,
+      key,
+    }: {
+      sessionId: string;
+      expectedSessionRevision: number;
+      key: string;
+    }) =>
+      prepareCaseDebrief(
+        applicationCase.id,
+        { interviewSessionId: sessionId, expectedSessionRevision },
+        key,
+      ),
+    retry: false,
+    onSuccess: (result) => {
+      prepareDebriefCommandRef.current = null;
+      queryClient.setQueryData(careerOsQueryKeys.caseDebrief(applicationCase.id), {
+        feedback: result.feedback,
+        debrief: result.debrief,
+      });
+    },
+    onError: async (error, variables) => {
+      if (
+        error instanceof ProductApiError &&
+        error.code === "INTERVIEW_SESSION_REVISION_CONFLICT"
+      ) {
+        await queryClient.invalidateQueries({
+          queryKey: careerOsQueryKeys.interviewSession(applicationCase.id, variables.sessionId),
+        });
+      }
+      if (error instanceof ProductApiError && error.code === "CASE_DEBRIEF_ALREADY_EXISTS") {
+        await queryClient.invalidateQueries({
+          queryKey: careerOsQueryKeys.caseDebrief(applicationCase.id),
+        });
+      }
+    },
+  });
+
   const detail = detailQuery.data;
   const currentQuestion = currentInterviewQuestion(detail);
+  const reviewState = caseDebriefSessionState(
+    debriefQuery.data,
+    detail?.session.id ?? selectedSessionId,
+  );
+  const feedback = reviewState === "selected" ? debriefQuery.data?.feedback : null;
+  const debrief = reviewState === "selected" ? debriefQuery.data?.debrief : null;
   const submitAnswer = () => {
     const answer = draft.trim();
     if (!detail || !currentQuestion || !answer) return;
@@ -173,6 +231,21 @@ export function CaseInterviewWorkspace({
       key: answerCommandRef.current.key,
     });
   };
+  const prepareDebrief = () => {
+    if (!detail || detail.session.status !== "completed") return;
+    const signature = `${detail.session.id}:${detail.session.revision}`;
+    if (prepareDebriefCommandRef.current?.signature !== signature) {
+      prepareDebriefCommandRef.current = {
+        signature,
+        key: createIdempotencyKey("interview-debrief"),
+      };
+    }
+    prepareDebriefMutation.mutate({
+      sessionId: detail.session.id,
+      expectedSessionRevision: detail.session.revision,
+      key: prepareDebriefCommandRef.current.key,
+    });
+  };
   const createNeedsResume =
     createMutation.error instanceof ProductApiError &&
     createMutation.error.code === "INTERVIEW_INPUTS_NOT_READY";
@@ -182,6 +255,10 @@ export function CaseInterviewWorkspace({
   const answerConflict =
     answerMutation.error instanceof ProductApiError &&
     answerMutation.error.code === "INTERVIEW_SESSION_REVISION_CONFLICT";
+  const debriefConflict =
+    prepareDebriefMutation.error instanceof ProductApiError &&
+    (prepareDebriefMutation.error.code === "INTERVIEW_SESSION_REVISION_CONFLICT" ||
+      prepareDebriefMutation.error.code === "CASE_DEBRIEF_ALREADY_EXISTS");
 
   return (
     <div className="career-interview-workspace">
@@ -404,13 +481,200 @@ export function CaseInterviewWorkspace({
                 ) : null}
 
                 {detail.session.status === "completed" ? (
-                  <output className="career-interview-complete">
-                    <Icon name="check" />
-                    <span className="career-interview-complete__copy">
-                      <strong>本轮模板面试已完成</strong>
-                      <span>当前只保留问答记录；反馈与复盘会在 M3 后续切片单独开放。</span>
-                    </span>
-                  </output>
+                  <section
+                    className="career-interview-review"
+                    aria-labelledby="interview-review-title"
+                  >
+                    <header className="career-interview-complete">
+                      <Icon name="check" />
+                      <span className="career-interview-complete__copy">
+                        <strong id="interview-review-title">本轮模板面试已完成</strong>
+                        <span>
+                          反馈只检查回答中可观察的结构、长度和显式证据关联，不判断经历真伪、ATS
+                          得分或录用概率。
+                        </span>
+                      </span>
+                    </header>
+
+                    {debriefQuery.isPending ? (
+                      <output className="career-request-state">正在读取本求职项目的复盘…</output>
+                    ) : null}
+                    {debriefQuery.isError ? (
+                      <div className="career-inline-error" role="alert">
+                        <strong>反馈与复盘暂时无法读取</strong>
+                        <span>
+                          {debriefQuery.error instanceof Error
+                            ? debriefQuery.error.message
+                            : "请稍后重试。"}
+                        </span>
+                        <button type="button" onClick={() => void debriefQuery.refetch()}>
+                          重新读取
+                        </button>
+                      </div>
+                    ) : null}
+
+                    {!debriefQuery.isPending && !debriefQuery.isError && reviewState === "empty" ? (
+                      <div className="career-interview-review__prepare">
+                        <div>
+                          <strong>生成确定性反馈与复盘</strong>
+                          <p>
+                            只有点击后才会写入；生成结果固定到本轮
+                            Session、岗位版本、岗位简历和证据修订。
+                          </p>
+                        </div>
+                        <button
+                          className="career-button career-button--primary"
+                          type="button"
+                          disabled={prepareDebriefMutation.isPending}
+                          onClick={prepareDebrief}
+                        >
+                          {prepareDebriefMutation.isPending ? "正在生成…" : "生成反馈与复盘"}
+                        </button>
+                      </div>
+                    ) : null}
+
+                    {!debriefQuery.isPending && !debriefQuery.isError && reviewState === "other" ? (
+                      <div className="career-interview-review__prepare">
+                        <div>
+                          <strong>本求职项目已有另一轮复盘</strong>
+                          <p>一个求职项目当前只保留一份活动复盘，请打开生成它的面试记录查看。</p>
+                        </div>
+                        {debriefQuery.data?.debrief?.interviewSessionId ? (
+                          <button
+                            className="career-button career-button--quiet"
+                            type="button"
+                            onClick={() =>
+                              selectSession(
+                                debriefQuery.data?.debrief?.interviewSessionId ?? detail.session.id,
+                              )
+                            }
+                          >
+                            打开对应练习
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {prepareDebriefMutation.isError ? (
+                      <div className="career-inline-error" role="alert">
+                        <strong>
+                          {debriefConflict ? "面试或现有复盘已经变化" : "反馈与复盘没有生成"}
+                        </strong>
+                        <span>
+                          {debriefConflict
+                            ? "已重新读取最新数据，请核对后再决定是否生成。"
+                            : prepareDebriefMutation.error instanceof Error
+                              ? prepareDebriefMutation.error.message
+                              : "请稍后重试。"}
+                        </span>
+                      </div>
+                    ) : null}
+
+                    {reviewState === "selected" && (!feedback || !debrief) ? (
+                      <div className="career-inline-error" role="alert">
+                        <strong>复盘记录不完整</strong>
+                        <span>当前记录缺少结构化反馈，请重新读取；系统不会自动补写。</span>
+                        <button type="button" onClick={() => void debriefQuery.refetch()}>
+                          重新读取
+                        </button>
+                      </div>
+                    ) : null}
+
+                    {feedback && debrief ? (
+                      <div className="career-interview-review__content">
+                        <section className="career-interview-feedback-summary">
+                          <div>
+                            <h3>本轮观察</h3>
+                            <p>确定性模板反馈 · 草稿</p>
+                          </div>
+                          <p>{feedback.feedback.summary}</p>
+                          <ul>
+                            {feedback.feedback.strengths.map((strength) => (
+                              <li key={strength}>{strength}</li>
+                            ))}
+                          </ul>
+                        </section>
+
+                        <section className="career-interview-feedback-items">
+                          <header>
+                            <h3>逐项提示</h3>
+                            <span>{feedback.feedback.items.length} 项</span>
+                          </header>
+                          {feedback.feedback.items.length > 0 ? (
+                            <ol>
+                              {feedback.feedback.items.map((item) => (
+                                <li key={item.id}>
+                                  <header>
+                                    <strong>
+                                      {interviewFeedbackCategoryLabels[item.category]}
+                                    </strong>
+                                    <span data-severity={item.severity}>
+                                      {interviewFeedbackSeverityLabels[item.severity]}
+                                    </span>
+                                  </header>
+                                  <p>{item.message}</p>
+                                  {item.improvement ? <small>{item.improvement}</small> : null}
+                                </li>
+                              ))}
+                            </ol>
+                          ) : (
+                            <p className="career-interview-review__empty">
+                              模板没有发现结构或显式证据关联提示；这不代表回答质量、事实真实性或岗位适配度已经通过专业评估。
+                            </p>
+                          )}
+                        </section>
+
+                        <div className="career-interview-debrief-grid">
+                          <section>
+                            <header>
+                              <h3>表达问题</h3>
+                              <span>{debrief.expressionIssues.length}</span>
+                            </header>
+                            {debrief.expressionIssues.length > 0 ? (
+                              <ul>
+                                {debrief.expressionIssues.map((issue) => (
+                                  <li key={issue.id}>{issue.description}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p>本轮没有生成表达结构提示。</p>
+                            )}
+                          </section>
+                          <section>
+                            <header>
+                              <h3>证据缺口</h3>
+                              <span>{debrief.evidenceGaps.length}</span>
+                            </header>
+                            {debrief.evidenceGaps.length > 0 ? (
+                              <ul>
+                                {debrief.evidenceGaps.map((gap) => (
+                                  <li key={gap.id}>{gap.description}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p>本轮没有生成显式证据关联提示。</p>
+                            )}
+                          </section>
+                          <section>
+                            <header>
+                              <h3>练习计划</h3>
+                              <span>{debrief.practicePlan.length}</span>
+                            </header>
+                            <ol>
+                              {debrief.practicePlan.map((item) => (
+                                <li key={item.id}>{item.action}</li>
+                              ))}
+                            </ol>
+                          </section>
+                        </div>
+
+                        <p className="career-interview-review__draft-note">
+                          这是一份只读草稿，不会自动修改简历、经历证据或 Case
+                          状态。确认与受控回流将在后续独立步骤中处理。
+                        </p>
+                      </div>
+                    ) : null}
+                  </section>
                 ) : null}
               </>
             ) : null}

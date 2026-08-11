@@ -1,7 +1,10 @@
 import type { InterviewSessionDetail } from "@aijob/contracts";
 import { describe, expect, it } from "vitest";
 import {
+  caseDebriefSessionState,
   currentInterviewQuestion,
+  interviewFeedbackCategoryLabels,
+  interviewFeedbackSeverityLabels,
   interviewStatusLabels,
   interviewTurnLabel,
 } from "./interview-view";
@@ -82,5 +85,21 @@ describe("interview view model", () => {
     expect(interviewStatusLabels.active).toBe("进行中");
     expect(interviewTurnLabel("question")).toBe("模板问题");
     expect(interviewTurnLabel("answer")).toBe("你的回答");
+    expect(interviewFeedbackCategoryLabels.evidence).toBe("证据关联");
+    expect(interviewFeedbackSeverityLabels.warning).toBe("建议核对");
+  });
+
+  it("distinguishes the selected Session debrief from another Case debrief", () => {
+    expect(caseDebriefSessionState(undefined, sessionId)).toBe("empty");
+    expect(caseDebriefSessionState({ debrief: null }, sessionId)).toBe("empty");
+    expect(caseDebriefSessionState({ debrief: { interviewSessionId: sessionId } }, sessionId)).toBe(
+      "selected",
+    );
+    expect(
+      caseDebriefSessionState(
+        { debrief: { interviewSessionId: "99999999-9999-4999-8999-999999999999" } },
+        sessionId,
+      ),
+    ).toBe("other");
   });
 });

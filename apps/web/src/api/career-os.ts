@@ -15,14 +15,17 @@ import type {
   CurrentResumeReviewResponse,
   DecideResumeReviewSuggestionRequest,
   DecideResumeReviewSuggestionResponse,
-  LegacyResumeContentConversion,
+  GetCaseDebriefResponse,
   InterviewSessionDetail,
-  ListInterviewSessionsResponse,
+  LegacyResumeContentConversion,
   ListApplicationCaseEventsResponse,
   ListApplicationCasesResponse,
+  ListInterviewSessionsResponse,
   ListResumeDocumentContentRevisionsResponse,
   ListResumeDocumentLayoutRevisionsResponse,
   ListResumeDocumentsResponse,
+  PrepareCaseDebriefRequest,
+  PrepareCaseDebriefResponse,
   PutCaseRequirementEvidenceLinksRequest,
   PutCaseRequirementStateRequest,
   PutResumeDocumentContentRevisionRequest,
@@ -72,6 +75,7 @@ export const careerOsQueryKeys = {
     ["career-os", "application-cases", caseId, "interview-sessions"] as const,
   interviewSession: (caseId: string, sessionId: string) =>
     ["career-os", "application-cases", caseId, "interview-sessions", sessionId] as const,
+  caseDebrief: (caseId: string) => ["career-os", "application-cases", caseId, "debrief"] as const,
 };
 
 export interface ListApplicationCasesInput {
@@ -197,6 +201,26 @@ export function submitInterviewAnswer(
     `/v1/application-cases/${encodeURIComponent(caseId)}/interview-sessions/${encodeURIComponent(sessionId)}/answers`,
     { method: "POST", body: request, idempotencyKey },
   );
+}
+
+export function caseDebriefPath(caseId: string): string {
+  return `/v1/application-cases/${encodeURIComponent(caseId)}/debrief`;
+}
+
+export function getCaseDebrief(caseId: string, signal?: AbortSignal) {
+  return apiRequest<GetCaseDebriefResponse>(caseDebriefPath(caseId), { signal });
+}
+
+export function prepareCaseDebrief(
+  caseId: string,
+  request: PrepareCaseDebriefRequest,
+  idempotencyKey: string,
+) {
+  return apiRequest<PrepareCaseDebriefResponse>(caseDebriefPath(caseId), {
+    method: "PUT",
+    body: request,
+    idempotencyKey,
+  });
 }
 
 export function getApplicationCaseRequirements(caseId: string, signal?: AbortSignal) {

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   applicationCaseEventsPath,
   applicationCaseListPath,
+  caseDebriefPath,
   interviewSessionListPath,
   resumeDocumentDocxPath,
   resumeDocumentListPath,
@@ -34,6 +35,11 @@ describe("Career OS API paths", () => {
     expect(interviewSessionListPath(caseId, { limit: 10, cursor: "older+/=" })).toBe(
       `/v1/application-cases/${caseId}/interview-sessions?limit=10&cursor=older%2B%2F%3D`,
     );
+  });
+
+  it("keeps deterministic feedback and debrief under the selected Case", () => {
+    const caseId = randomUUID();
+    expect(caseDebriefPath(caseId)).toBe(`/v1/application-cases/${caseId}/debrief`);
   });
 
   it("signs resume list requests with their visible filters", () => {

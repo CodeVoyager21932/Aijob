@@ -1,4 +1,10 @@
-import type { InterviewSession, InterviewSessionDetail, InterviewTurn } from "@aijob/contracts";
+import type {
+  InterviewFeedbackCategory,
+  InterviewFeedbackSeverity,
+  InterviewSession,
+  InterviewSessionDetail,
+  InterviewTurn,
+} from "@aijob/contracts";
 
 export const interviewStatusLabels: Record<InterviewSession["status"], string> = {
   queued: "准备中",
@@ -7,6 +13,29 @@ export const interviewStatusLabels: Record<InterviewSession["status"], string> =
   failed: "未完成",
   deleted: "已删除",
 };
+
+export const interviewFeedbackCategoryLabels: Record<InterviewFeedbackCategory, string> = {
+  relevance: "回答相关性",
+  structure: "表达结构",
+  evidence: "证据关联",
+  clarity: "信息清晰度",
+};
+
+export const interviewFeedbackSeverityLabels: Record<InterviewFeedbackSeverity, string> = {
+  info: "提示",
+  warning: "建议核对",
+  critical: "需要立即核对",
+};
+
+export type CaseDebriefSessionState = "empty" | "selected" | "other";
+
+export function caseDebriefSessionState(
+  response: { debrief: { interviewSessionId: string | null } | null } | undefined,
+  selectedSessionId: string | null,
+): CaseDebriefSessionState {
+  if (!response?.debrief) return "empty";
+  return response.debrief.interviewSessionId === selectedSessionId ? "selected" : "other";
+}
 
 export function currentInterviewQuestion(
   detail: InterviewSessionDetail | undefined,
