@@ -6,7 +6,7 @@
 >
 > 上位事实源：[ADR-0030](../../../decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md)、[当前交付计划](../../../plans/career-os-current-delivery-plan.md)
 
-当前新路线的首个真实工作台里程碑见 [M1 真实 Case 工作台验收](m1-real-case-workspace-acceptance-2026-08-09.md)。该证据取代本目录历史 Phase 2B 验收中的“下一步”，但不删除历史工程事实；当前唯一目标由动态路线与交接确定。
+当前新路线的工程证据依次见 [M1 真实 Case 工作台](m1-real-case-workspace-acceptance-2026-08-09.md)、[M2 专业简历闭环](m2-professional-resume-acceptance-2026-08-11.md)和 [M3-1 显式投递记录](m3-1-explicit-application-acceptance-2026-08-11.md)。这些证据取代本目录历史 Phase 2B 验收中的“下一步”，但不删除历史工程事实；当前唯一目标只由动态路线与当前交接确定。
 
 长期架构修正以 [ADR-0031](../../../decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md) 和 [Phase 2R 对齐报告](phase-2r-architecture-realignment-2026-08-06.md) 为准；本目录的概念图仍只约束布局、信息层级和交互关系，不覆盖长期生命周期、私有 JD 或 Resume Review 数据契约。
 
@@ -65,4 +65,4 @@ ApplicationCase 前向修复见 [Phase 2A-026 验收](phase-2a-026-application-c
 - 拒绝：独立简历产品品牌、自动接受、完整编辑器提前接入、未经确认的事实或数字进入建议稿。
 - Phase 1B 已实现完整静态工作区；真实 Resume V2、DOCX 行为和 AI 接口仍属于后续阶段。
 
-发生歧义时，优先级固定为：ADR-0030 → 升级计划 → 本解释契约 → PNG 视觉内容。
+发生歧义时，优先级固定为：动态路线与当前交接 → 当前交付计划 → ADR-0030/0031 → 本解释契约 → PNG 视觉内容。归档升级计划不得提供当前任务。

@@ -8,6 +8,7 @@
 - 当前采用 [Career OS 当前交付计划](plans/career-os-current-delivery-plan.md)：先完成 coco 可在本地完整体验的 OS 2.0 测试候选，再单独进入 Private Alpha 和推广上线 Gate。
 - 已完成的 migrations 025–031、Phase 2B-1/2/3/4A/4B 全部保留；尚未开始的 Phase 2B-4C Interview/Debrief/Knowledge Service Boundary 停止作为下一任务。
 - `M1 真实 Case 工作台` 与 `M2 专业简历闭环` 均已通过独立工程验收；M2 证据见[专业简历闭环验收](evidence/product/career-os-v2/m2-professional-resume-acceptance-2026-08-11.md)。
+- `M3-1 显式投递记录` 已通过[独立工程验收](evidence/product/career-os-v2/m3-1-explicit-application-acceptance-2026-08-11.md)：打开链接不改阶段，只有用户二次确认后才写入 Case 时间线；当前切片切换为 `M3-2 确定性文字面试`。
 - 当前唯一里程碑切换为 **M3 投递与持续改进**。只实现用户显式投递记录、确定性文字面试、结构化反馈/复盘及回流，不从旧 Phase 2B 计划生成任务。
 - 旧计划的真实性、安全、隐私、供给和服务器要求已提取为 [Private Alpha 与上线就绪 Gate](plans/private-alpha-readiness-gates.md)，标准不降低，但不再阻塞当前本地可测试闭环。
 
@@ -17,14 +18,14 @@
 |---|---|
 | 更新日期 | 2026-08-11 |
 | 当前阶段 | Career OS 2.0 M3 投递与持续改进 |
-| 当前唯一目标 | 用户显式记录投递 → 模板文字面试 → 结构化反馈与复盘 → 用户确认后回到证据和简历继续改进 |
-| 工程基线 | M1、M2 已完成；M2 全仓串行 701/701，lint、typecheck、build、audit 与合成数据浏览器主路径通过。详见 M2 独立验收证据 |
-| 前端基线 | `/resumes` 与 Case `resume` 复用同一 Resume V2 编辑器；两模板、A4 预览、逐条建议、DOCX 与打印已接入，编辑器保持懒加载 |
+| 当前唯一目标 | `M3-2 确定性文字面试`：固定同一 Case、岗位版本、Resume/证据修订，完成模板 Session/Turn；不接真实 AI，不提前实现反馈或复盘 |
+| 工程基线 | M1、M2 已完成；M3-1 受影响包回归 Contracts 66/66、Platform 452/452、Web 119/119，lint 421 files、typecheck、build、audit、隔离 PostgreSQL 与浏览器 Gate 通过 |
+| 前端基线 | `/resumes` 与 Case `resume` 复用同一 Resume V2 编辑器；Case `application` 已接真实时间线和显式投递，保持 8.43 kB 独立 lazy chunk；主包 551.87 kB |
 | 当前产品证据 | E0：没有可复核目标用户行为证据 |
 | 可信供给 | 22 岗 / 3 家企业 / 3 个官方 ATS；公共与 Alpha 岗位均为 0 |
 | 当前 AI | 公开和远程环境关闭；M3 只用确定性模板文字面试，不调用真实 AI |
 | 参与者验证 | 未开始；G0 为 0/2，G1 未开始 |
-| 当前下一决定 | 完成 M3 工程与浏览器 Gate、形成证据包后，只能选择继续 M4、修改、回退或停止 |
+| 当前下一决定 | 完成 M3-2 固定输入的确定性文字面试并通过 focused Gate 后，选择继续 M3-3、修改、回退或停止 |
 | 时间盒 | M3 为 2–3 个有效开发日；M3–M4 剩余基线为 3–5 个有效开发日 |
 
 岗位数量、工程测试、页面完成或 AI 调用都不能把产品证据从 E0 自动提升。
@@ -60,7 +61,7 @@ flowchart LR
 ### 固定交付
 
 - [x] 复核既有 decision、Case event 和 Interview/Debrief 代码边界，形成 [M3 最小复用矩阵](plans/career-os-m3-application-interview-integration-boundary-2026-08-11.md)；没有界面消费者的未来服务不提前实现。
-- [ ] 打开官方链接绝不自动改变阶段；用户显式记录已投递或其他可表示状态，写入真实 Case 时间线。
+- [x] 打开官方链接绝不自动改变阶段；用户二次确认后才记录已投递并写入真实 Case 时间线。见 [M3-1 验收](evidence/product/career-os-v2/m3-1-explicit-application-acceptance-2026-08-11.md)。
 - [ ] 建立最小确定性文字面试 Session/Turn，问题只引用固定岗位版本与同 owner 已确认事实。
 - [ ] 生成结构化反馈与复盘：只指出表达问题、证据缺口和练习计划，不创造经历或修改事实。
 - [ ] 复盘建议只有经用户确认后才能回到证据或简历；拒绝和暂不处理也要保留用户选择。
