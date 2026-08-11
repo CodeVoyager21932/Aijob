@@ -5,13 +5,16 @@ import {
   CreateInterviewSessionResponseSchema,
   DebriefConfirmationSchema,
   DebriefSchema,
-  InterviewSessionDetailSchema,
+  GetCaseDebriefResponseSchema,
   InterviewFeedbackSchema,
+  InterviewSessionDetailSchema,
   InterviewSessionSchema,
   InterviewTurnSchema,
   KnowledgeClipCaseLinkSchema,
   KnowledgeClipSchema,
   ListInterviewSessionsQuerySchema,
+  PrepareCaseDebriefRequestSchema,
+  PrepareCaseDebriefResponseSchema,
   SubmitInterviewAnswerRequestSchema,
   SubmitInterviewAnswerResponseSchema,
 } from "./interview-debrief-knowledge.js";
@@ -281,6 +284,68 @@ describe("Interview, Debrief and Knowledge contracts", () => {
         confirmedAt: timestamp,
       }).basedOnDebriefRevision,
     ).toBe(1);
+  });
+
+  it("prepares one Session-bound draft feedback and debrief without implicit confirmation", () => {
+    const feedback = InterviewFeedbackSchema.parse({
+      schemaVersion: "interview-feedback-record-v1",
+      id: ids.item,
+      ownerId: ids.owner,
+      ownerEpoch: 1,
+      interviewSessionId: ids.session,
+      revision: 1,
+      generatorMode: "template",
+      feedback: {
+        schemaVersion: "interview-feedback-v1",
+        summary: "模板只检查可观察的表达结构与显式证据关联。",
+        strengths: ["已完成全部模板问题"],
+        items: [],
+        practicePriorities: ["使用真实经历练习结构化表达"],
+      },
+      createdAt: timestamp,
+    });
+    const debrief = DebriefSchema.parse({
+      schemaVersion: "debrief-v1",
+      id: ids.debrief,
+      ownerId: ids.owner,
+      ownerEpoch: 1,
+      caseId: ids.case,
+      detachedFromCaseId: null,
+      jobContext: privateJobContext,
+      interviewSessionId: ids.session,
+      evidenceRevisionId: ids.evidenceRevision,
+      expressionIssues: [],
+      evidenceGaps: [],
+      practicePlan: [{ id: ids.clip, action: "再次练习并保持真实、具体。", targetDate: null }],
+      status: "draft",
+      revision: 1,
+      confirmedAt: null,
+      deletedAt: null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+
+    expect(
+      PrepareCaseDebriefRequestSchema.parse({
+        interviewSessionId: ids.session,
+        expectedSessionRevision: 3,
+      }),
+    ).toEqual({ interviewSessionId: ids.session, expectedSessionRevision: 3 });
+    expect(
+      PrepareCaseDebriefResponseSchema.parse({ created: true, feedback, debrief }).debrief.status,
+    ).toBe("draft");
+    expect(GetCaseDebriefResponseSchema.parse({ feedback: null, debrief: null })).toEqual({
+      feedback: null,
+      debrief: null,
+    });
+    expect(GetCaseDebriefResponseSchema.safeParse({ feedback, debrief: null }).success).toBe(false);
+    expect(
+      PrepareCaseDebriefResponseSchema.safeParse({
+        created: true,
+        feedback,
+        debrief: { ...debrief, interviewSessionId: ids.otherOwner },
+      }).success,
+    ).toBe(false);
   });
 
   it("keeps Knowledge clips as private HTTPS citations without captured bodies", () => {

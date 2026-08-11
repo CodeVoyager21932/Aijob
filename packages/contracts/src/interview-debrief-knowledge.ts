@@ -375,6 +375,56 @@ export const DebriefConfirmationSchema = z
   .strict();
 export type DebriefConfirmation = z.infer<typeof DebriefConfirmationSchema>;
 
+export const GetCaseDebriefResponseSchema = z
+  .object({
+    feedback: InterviewFeedbackSchema.nullable(),
+    debrief: DebriefSchema.nullable(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.feedback && !value.debrief) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["feedback"],
+        message: "Feedback cannot be exposed without its Case debrief",
+      });
+    }
+    if (value.feedback && value.debrief?.interviewSessionId !== value.feedback.interviewSessionId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["feedback", "interviewSessionId"],
+        message: "Feedback and debrief must reference the same interview session",
+      });
+    }
+  });
+export type GetCaseDebriefResponse = z.infer<typeof GetCaseDebriefResponseSchema>;
+
+export const PrepareCaseDebriefRequestSchema = z
+  .object({
+    interviewSessionId: UuidSchema,
+    expectedSessionRevision: RevisionSchema,
+  })
+  .strict();
+export type PrepareCaseDebriefRequest = z.infer<typeof PrepareCaseDebriefRequestSchema>;
+
+export const PrepareCaseDebriefResponseSchema = z
+  .object({
+    created: z.boolean(),
+    feedback: InterviewFeedbackSchema,
+    debrief: DebriefSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.debrief.interviewSessionId !== value.feedback.interviewSessionId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["feedback", "interviewSessionId"],
+        message: "Feedback and debrief must reference the same interview session",
+      });
+    }
+  });
+export type PrepareCaseDebriefResponse = z.infer<typeof PrepareCaseDebriefResponseSchema>;
+
 export const KnowledgeClipSchema = z
   .object({
     schemaVersion: z.literal("knowledge-clip-v1"),

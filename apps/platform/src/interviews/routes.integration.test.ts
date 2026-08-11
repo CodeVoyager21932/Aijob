@@ -7,8 +7,10 @@ import {
   CreateApplicationCaseResponseSchema,
   CreateInterviewSessionResponseSchema,
   CreateResumeDocumentResponseSchema,
+  GetCaseDebriefResponseSchema,
   InterviewSessionDetailSchema,
   ListInterviewSessionsResponseSchema,
+  PrepareCaseDebriefResponseSchema,
   SubmitInterviewAnswerResponseSchema,
 } from "@aijob/contracts";
 import { createDatabase, type Database, migrateToLatest } from "@aijob/database";
@@ -77,6 +79,18 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
     await app.close();
     const ownerIds = [mainSession.context.ownerId, otherSession.context.ownerId];
     await db.transaction().execute(async (transaction) => {
+      await transaction
+        .deleteFrom("application.debrief_confirmations")
+        .where("owner_id", "in", ownerIds)
+        .execute();
+      await transaction
+        .deleteFrom("application.debriefs")
+        .where("owner_id", "in", ownerIds)
+        .execute();
+      await transaction
+        .deleteFrom("application.interview_feedback")
+        .where("owner_id", "in", ownerIds)
+        .execute();
       await transaction
         .deleteFrom("application.interview_turns")
         .where("owner_id", "in", ownerIds)
@@ -422,6 +436,27 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
     });
     expect(answerKeyReuse.statusCode).toBe(409);
     expect(answerKeyReuse.json()).toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+
+    const emptyDebrief = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${createdCase.id}/debrief`,
+      headers,
+    });
+    expect(emptyDebrief.statusCode).toBe(200);
+    expect(emptyDebrief.headers["cache-control"]).toContain("no-store");
+    expect(GetCaseDebriefResponseSchema.parse(emptyDebrief.json())).toEqual({
+      feedback: null,
+      debrief: null,
+    });
+    const activeSessionDebrief = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${createdCase.id}/debrief`,
+      headers: { ...headers, "idempotency-key": `active-debrief-${randomUUID()}` },
+      payload: { interviewSessionId: createdBody.sessionId, expectedSessionRevision: 2 },
+    });
+    expect(activeSessionDebrief.statusCode).toBe(409);
+    expect(activeSessionDebrief.json()).toMatchObject({ code: "INTERVIEW_SESSION_NOT_COMPLETED" });
+
     const staleAnswer = await app.inject({
       method: "POST",
       url: `/v1/application-cases/${createdCase.id}/interview-sessions/${createdBody.sessionId}/answers`,
@@ -456,6 +491,89 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
     expect(completedDetail.turns.map(({ sequence }) => sequence)).toEqual([1, 2, 3, 4]);
     expect(completedDetail.turns.every(({ evidenceIds }) => evidenceIds.length === 0)).toBe(true);
 
+    const debriefKey = `case-debrief-${randomUUID()}`;
+    const preparedDebrief = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${createdCase.id}/debrief`,
+      headers: { ...headers, "idempotency-key": debriefKey },
+      payload: { interviewSessionId: createdBody.sessionId, expectedSessionRevision: 3 },
+    });
+    expect(preparedDebrief.statusCode, JSON.stringify(preparedDebrief.json())).toBe(201);
+    const preparedBody = PrepareCaseDebriefResponseSchema.parse(preparedDebrief.json());
+    expect(preparedBody).toMatchObject({
+      created: true,
+      feedback: {
+        interviewSessionId: createdBody.sessionId,
+        revision: 1,
+        generatorMode: "template",
+      },
+      debrief: {
+        caseId: createdCase.id,
+        interviewSessionId: createdBody.sessionId,
+        evidenceRevisionId,
+        status: "draft",
+        revision: 1,
+      },
+    });
+    expect(preparedBody.feedback.feedback.items.length).toBeGreaterThan(0);
+    expect(preparedBody.debrief.expressionIssues.length).toBeGreaterThan(0);
+    expect(preparedBody.debrief.evidenceGaps).toHaveLength(1);
+    expect(preparedBody.debrief.practicePlan.length).toBeGreaterThan(0);
+    expect(JSON.stringify(preparedBody)).not.toMatch(/ats|录用概率|匹配分|score/i);
+
+    const debriefReplay = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${createdCase.id}/debrief`,
+      headers: { ...headers, "idempotency-key": debriefKey },
+      payload: { interviewSessionId: createdBody.sessionId, expectedSessionRevision: 3 },
+    });
+    expect(debriefReplay.statusCode).toBe(201);
+    expect(debriefReplay.json()).toEqual(preparedBody);
+    const sameResourceNewKey = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${createdCase.id}/debrief`,
+      headers: { ...headers, "idempotency-key": `same-debrief-${randomUUID()}` },
+      payload: { interviewSessionId: createdBody.sessionId, expectedSessionRevision: 3 },
+    });
+    expect(sameResourceNewKey.statusCode).toBe(200);
+    expect(PrepareCaseDebriefResponseSchema.parse(sameResourceNewKey.json())).toEqual({
+      ...preparedBody,
+      created: false,
+    });
+    const debriefKeyReuse = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${createdCase.id}/debrief`,
+      headers: { ...headers, "idempotency-key": debriefKey },
+      payload: { interviewSessionId: createdBody.sessionId, expectedSessionRevision: 2 },
+    });
+    expect(debriefKeyReuse.statusCode).toBe(409);
+    expect(debriefKeyReuse.json()).toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+    const loadedDebrief = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${createdCase.id}/debrief`,
+      headers,
+    });
+    expect(loadedDebrief.statusCode).toBe(200);
+    expect(GetCaseDebriefResponseSchema.parse(loadedDebrief.json())).toEqual({
+      feedback: preparedBody.feedback,
+      debrief: preparedBody.debrief,
+    });
+    const storedReviewCounts = await Promise.all([
+      db
+        .selectFrom("application.interview_feedback")
+        .select(({ fn }) => fn.countAll<number>().as("count"))
+        .where("owner_id", "=", mainSession.context.ownerId)
+        .where("interview_session_id", "=", createdBody.sessionId)
+        .executeTakeFirstOrThrow(),
+      db
+        .selectFrom("application.debriefs")
+        .select(({ fn }) => fn.countAll<number>().as("count"))
+        .where("owner_id", "=", mainSession.context.ownerId)
+        .where("case_id", "=", createdCase.id)
+        .executeTakeFirstOrThrow(),
+    ]);
+    expect(storedReviewCounts.map(({ count }) => Number(count))).toEqual([1, 1]);
+
     const storedEvent = await db
       .selectFrom("application.case_events")
       .select(["sequence", "event_type", "event_data"])
@@ -468,6 +586,41 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
       expect.objectContaining({ interviewSessionId: createdBody.sessionId, mode: "template" }),
     );
 
+    const secondSessionResponse = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${createdCase.id}/interview-sessions`,
+      headers: { ...headers, "idempotency-key": `second-session-${randomUUID()}` },
+      payload: { expectedCaseRevision: 4 },
+    });
+    expect(secondSessionResponse.statusCode, JSON.stringify(secondSessionResponse.json())).toBe(
+      201,
+    );
+    const secondSession = CreateInterviewSessionResponseSchema.parse(secondSessionResponse.json());
+    const secondSessionFirstAnswer = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${createdCase.id}/interview-sessions/${secondSession.sessionId}/answers`,
+      headers: { ...headers, "idempotency-key": `second-answer-one-${randomUUID()}` },
+      payload: { expectedRevision: 1, answer: "第二轮第一段合成回答。" },
+    });
+    expect(secondSessionFirstAnswer.statusCode).toBe(200);
+    const secondSessionFinalAnswer = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${createdCase.id}/interview-sessions/${secondSession.sessionId}/answers`,
+      headers: { ...headers, "idempotency-key": `second-answer-two-${randomUUID()}` },
+      payload: { expectedRevision: 2, answer: "第二轮第二段合成回答。" },
+    });
+    expect(
+      SubmitInterviewAnswerResponseSchema.parse(secondSessionFinalAnswer.json()),
+    ).toMatchObject({ completed: true, appliedRevision: 3 });
+    const secondSessionDebrief = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${createdCase.id}/debrief`,
+      headers: { ...headers, "idempotency-key": `second-session-debrief-${randomUUID()}` },
+      payload: { interviewSessionId: secondSession.sessionId, expectedSessionRevision: 3 },
+    });
+    expect(secondSessionDebrief.statusCode).toBe(409);
+    expect(secondSessionDebrief.json()).toMatchObject({ code: "CASE_DEBRIEF_ALREADY_EXISTS" });
+
     const crossOwner = await app.inject({
       method: "GET",
       url: `/v1/application-cases/${createdCase.id}/interview-sessions/${createdBody.sessionId}`,
@@ -475,6 +628,13 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
     });
     expect(crossOwner.statusCode).toBe(404);
     expect(crossOwner.json()).toMatchObject({ code: "APPLICATION_CASE_NOT_FOUND" });
+    const crossOwnerDebrief = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${createdCase.id}/debrief`,
+      headers: sessionHeaders(otherSession),
+    });
+    expect(crossOwnerDebrief.statusCode).toBe(404);
+    expect(crossOwnerDebrief.json()).toMatchObject({ code: "APPLICATION_CASE_NOT_FOUND" });
     const invalidCursor = await app.inject({
       method: "GET",
       url: `/v1/application-cases/${createdCase.id}/interview-sessions?cursor=invalid`,
@@ -491,5 +651,12 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
       payload: { expectedCaseRevision: 4 },
     });
     expect(missingCsrf.statusCode).toBe(403);
+    const missingDebriefCsrf = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${createdCase.id}/debrief`,
+      headers: { ...headersWithoutCsrf, "idempotency-key": `csrf-debrief-${randomUUID()}` },
+      payload: { interviewSessionId: createdBody.sessionId, expectedSessionRevision: 3 },
+    });
+    expect(missingDebriefCsrf.statusCode).toBe(403);
   }, 30_000);
 });
