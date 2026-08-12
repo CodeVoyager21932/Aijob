@@ -1,6 +1,6 @@
 # Aijob：可信官方岗位驱动的求职 OS
 
-> 2026-08-12：`M3 投递与持续改进` 已通过[完整工程与浏览器总验收](docs/evidence/product/career-os-v2/m3-workflow-acceptance-2026-08-12.md)，M4-0、[M4-1 兼容入口和写边界](docs/evidence/product/career-os-v2/m4-1-legacy-write-boundary-acceptance-2026-08-12.md)、[M4-2A 单项删除和选择性级联](docs/evidence/product/career-os-v2/m4-2a-selective-deletion-acceptance-2026-08-12.md)与 [M4-2B 数据真相和错误恢复](docs/evidence/product/career-os-v2/m4-2b-data-truth-and-recovery-acceptance-2026-08-12.md)均已完成。当前唯一目标是 `M4-3 一岗本地测试候选`。旧 G4-first 严格总计划已[废止并归档](docs/plans/career-os-v2-upgrade-plan-2026-08-04.md)，不得再提供下一任务。
+> 2026-08-12：`M3 投递与持续改进` 已通过[完整工程与浏览器总验收](docs/evidence/product/career-os-v2/m3-workflow-acceptance-2026-08-12.md)，M4-0、[M4-1 兼容入口和写边界](docs/evidence/product/career-os-v2/m4-1-legacy-write-boundary-acceptance-2026-08-12.md)、[M4-2A 单项删除和选择性级联](docs/evidence/product/career-os-v2/m4-2a-selective-deletion-acceptance-2026-08-12.md)、[M4-2B 数据真相和错误恢复](docs/evidence/product/career-os-v2/m4-2b-data-truth-and-recovery-acceptance-2026-08-12.md)与 [M4-3 一岗本地测试候选](docs/evidence/product/career-os-v2/m4-3-one-job-local-candidate-acceptance-2026-08-12.md)均已完成。当前唯一目标是 `M4-4 工程与浏览器 Gate`。旧 G4-first 严格总计划已[废止并归档](docs/plans/career-os-v2-upgrade-plan-2026-08-04.md)，不得再提供下一任务。
 
 这是一个待验证的产品项目，面向**未来 30 天真实投递实习岗位、已有中文简历、近期使用过多个官方渠道的中国大陆在校生**。它只把企业官方招聘网站和经企业官网确认的官方 ATS 中当前存在的具体岗位整理为可追溯信息；高校就业网站、政府页面、公众号和其他二手页面只用于发现企业及其官网方向。系统依据用户确认过的约束与经历证据，帮助用户完成投递、暂缓或放弃的高质量决定，最终回到企业官网或官方 ATS 投递。
 
@@ -11,15 +11,15 @@
 | 项目 | 当前值 |
 |---|---|
 | 快照日期 | 2026-08-12 |
-| 当前阶段 | Career OS 2.0 `M4 旧流程收口与测试候选`；M1–M3、M4-0、M4-1、M4-2A 与 M4-2B 已完成，当前执行 M4-3 一岗本地测试候选。Private Alpha 供给与服务器 Gate 通过前，G0/G1 继续暂停 |
+| 当前阶段 | Career OS 2.0 `M4 旧流程收口与测试候选`；M1–M3、M4-0、M4-1、M4-2A、M4-2B 与 M4-3 已完成，当前执行 M4-4 工程与浏览器 Gate。Private Alpha 供给与服务器 Gate 通过前，G0/G1 继续暂停 |
 | 当前范围 | 干净验收库 `aijob_alpha` 为 22 条可信可见活动岗位、3 家企业、3 个官方 ATS 来源；距离硬门槛仍缺 978 岗、97 家。SME 为 2/3 家、14/22 岗，人工来源为 0；Alpha 与公共岗位均为 0。开发库 14/2 及纠偏前 231/149/29 只保留为历史运行事实 |
 | 协议校准 | 尚未开始；供给硬门槛和服务器就绪 Gate 通过后，只有 coco 明确启动才做 2 人校准；历史可核验记录仍为 0/2 |
 | 正式实验 | 暂停；供给硬门槛、服务器就绪 Gate 与 G0 通过后再做 6 人正式任务和 72 小时回访 |
 | 历史研究样本 | 5 条本地产品/运营岗位；不等于完整 MVP 目录 |
 | 当前证据 | E0：尚无可复核目标用户行为证据，两个产品假设均未判定 |
-| 当前实现策略 | 保留现有 PostgreSQL、模块化单体、可信来源门和受控 AI 边界；以 Case 工作台为唯一业务真源，私有 JD 仅 owner 可见。M4-1 已停止 V2 下旧并行写入；M4-2A 已接通单项删除和删除/脱离选择；M4-2B 已完成真实数据范围、简历确认原子性、会话失效恢复和入口收口。当前只把现有能力贯通为一岗合成测试候选 |
+| 当前实现策略 | 保留现有 PostgreSQL、模块化单体、可信来源门和受控 AI 边界；以 Case 工作台为唯一业务真源，私有 JD 仅 owner 可见。M4-1 已停止 V2 下旧并行写入；M4-2A/M4-2B 已接通删除、数据真相、原子确认和会话恢复；M4-3 已把现有能力贯通为同一合成公共 Case 候选。当前只做最终工程与浏览器总验收 |
 | 来源发现进度 | 已按 ADR-0019 完成 1000/1000 家企业/机构审查记录；34 个来源配置中 12 个为 canonical（7 个活动确定性、2 个浏览器提醒、3 个硬冲突暂停），22 个高校等来源均降级为 `discovery_only`。当前审计没有 `capacity` 就绪候选 |
-| 工程切片 | M4-2B 全仓回归 Config 17、Contracts 79、Database 54、Platform 458、Web 141，共 749/749；lint 444、typecheck、build、audit 与 diff check 通过。主包 564.42 kB，较 M4-2A 增长约 0.40%。当前只执行 M4-3，不实现邮箱账号、真实 AI、真实来源或 contract migration，公共版本仍为 0 |
+| 工程切片 | M4-3 全仓回归 Config 17、Contracts 79、Database 54、Platform 459、Web 141，共 750/750；lint 444、typecheck、build、audit 与 diff check 通过。主包仍为 564.42 kB。当前只执行 M4-4，不实现邮箱账号、真实 AI、真实来源或 contract migration，公共版本仍为 0 |
 | AI 状态 | Review、Interview、Feedback 与 Debrief 均必须与用户确认事实分离；公开环境继续关闭，M4 沿用确定性模板，不调用真实 AI |
 
 以上内容只用于帮助首次阅读者定位本次文档基线。后续动态阶段、样本进度、Gate 状态和下一决策日期只更新到 [MVP 路线与当前决策面板](docs/06-mvp-roadmap.md)；如有差异，以该面板为准。

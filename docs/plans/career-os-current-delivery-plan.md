@@ -35,9 +35,9 @@ Aijob 要先形成一个由 coco 在本地完整体验、能够判断产品流�
 | M1 真实 Case 工作台 | 2.5–3 日 | Case/要求读取与写入真实内部状态，岗位简历读取真实修订 | 已完成；[验收证据](../evidence/product/career-os-v2/m1-real-case-workspace-acceptance-2026-08-09.md) |
 | M2 专业简历闭环 | 2–3 日 | 简历解析确认、结构编辑、章节调整、逐条建议、两模板和导出进入同一 OS | 已完成；[验收证据](../evidence/product/career-os-v2/m2-professional-resume-acceptance-2026-08-11.md) |
 | M3 投递与持续改进 | 2–3 日 | 手动投递记录、模板文字面试、结构化反馈和复盘回流 | 已完成；[验收证据](../evidence/product/career-os-v2/m3-workflow-acceptance-2026-08-12.md) |
-| M4 旧流程收口与测试候选 | 剩余 0.75–1.0 日 | 重复入口收口、删除和异常状态完整，一岗端到端可验收 | **当前唯一目标；M4-3 执行中** |
+| M4 旧流程收口与测试候选 | 剩余 0.25–0.5 日 | 重复入口收口、删除和异常状态完整，一岗端到端可验收 | **当前唯一目标；M4-4 执行中** |
 
-当前剩余工作量基线为 0.75–1.0 个有效开发日。M4-0 只读审计、M4-1 旧并行写入隔离、M4-2A 单项删除/选择性级联和 M4-2B 数据真相/错误恢复均已完成；剩余工作只覆盖合成一岗候选和最终 Gate。每个切片结束后重估，不以继续铺设未来后端来延长阶段。
+当前剩余工作量基线为 0.25–0.5 个有效开发日。M4-0 只读审计、M4-1 旧并行写入隔离、M4-2A 单项删除/选择性级联、M4-2B 数据真相/错误恢复和 M4-3 合成一岗候选均已完成；剩余工作只覆盖最终工程与浏览器 Gate。每个切片结束后重估，不以继续铺设未来后端来延长阶段。
 
 ### M1：真实 Case 工作台
 
@@ -92,8 +92,8 @@ Aijob 要先形成一个由 coco 在本地完整体验、能够判断产品流�
 2. `M4-1`（已完成）：V2 下 JobDetail 只保留岗位事实、外链和 Case 创建；Recommendation/Insight 为零请求兼容说明；旧 Tailoring 只读；`/resume` 出口与旧数据 URL 进入新 OS。验收见 [M4-1 兼容入口与写边界](../evidence/product/career-os-v2/m4-1-legacy-write-boundary-acceptance-2026-08-12.md)。
 3. `M4-2A`（已完成）：复用现有 Schema 完成 Case、Resume、Interview、Debrief 单项删除和 Case 选择性级联/脱离，没有增加 migration。验收见 [M4-2A 单项删除与选择性级联](../evidence/product/career-os-v2/m4-2a-selective-deletion-acceptance-2026-08-12.md)。
 4. `M4-2B`（已完成）：数据设置展示真实保留模式、完整范围和已脱离 Case 的资产；简历确认原子提交、会话失效恢复、开发阶段标签与未实现主导航均已收口。验收见 [M4-2B 数据真相与错误恢复](../evidence/product/career-os-v2/m4-2b-data-truth-and-recovery-acceptance-2026-08-12.md)。
-5. `M4-3`（当前，0.5 日）：用合成 Case 贯通要求、岗位简历、Review、DOCX/打印、外链、显式投递、模板面试、复盘回流、选择性删除和全部个人数据删除。
-6. `M4-4`（0.25–0.5 日）：完成全仓与浏览器 Gate，形成独立测试候选证据包，再决定继续 Private Alpha 准备、修改、回退或停止。
+5. `M4-3`（已完成）：同一合成公共 Case 已贯通要求、岗位简历、Review、DOCX、外链无副作用、显式投递、模板面试、复盘回流、选择性删除和全部个人数据删除。验收见 [M4-3 一岗本地测试候选](../evidence/product/career-os-v2/m4-3-one-job-local-candidate-acceptance-2026-08-12.md)。
+6. `M4-4`（当前，0.25–0.5 日）：完成全仓与浏览器 Gate，形成独立测试候选证据包，再决定完成 M4 并进入 Private Alpha 准备、修改、回退或停止。
 
 M4 不做 G4 前 contract migration，不删除无法证明已迁移的历史内容，不移除 `VITE_CAREER_OS_V2` 回退路径，也不实现 Knowledge、真实 AI、真实来源、邮箱、服务器或参与者能力。
 
