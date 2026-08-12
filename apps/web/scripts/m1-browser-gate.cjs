@@ -2,7 +2,6 @@ const { randomUUID } = require("node:crypto");
 const { mkdir } = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-const { chromium } = require("playwright");
 const { Client } = require("../../../packages/database/node_modules/pg");
 
 const baseUrl = process.env.M1_BASE_URL || "http://127.0.0.1:5174";
@@ -11,7 +10,7 @@ const browserExecutable = process.env.M1_BROWSER_EXECUTABLE || undefined;
 const screenshotDirectory =
   process.env.M1_SCREENSHOT_DIR || path.join(os.tmpdir(), "aijob-m1-browser-gate");
 const flagOff = process.argv.includes("--flag-off");
-const publicTitle = "M1 合成产品实习生";
+const publicTitle = process.env.M1_PUBLIC_TITLE || "M1 合成产品实习生";
 
 function assert(condition, message) {
   if (!condition) throw new Error(`M1_BROWSER_ASSERTION_FAILED: ${message}`);
@@ -571,6 +570,7 @@ async function runM1(browser, client, jobId) {
 }
 
 async function main() {
+  const { chromium } = require("playwright");
   assert(databaseUrl, "M1_DATABASE_URL is required");
   await mkdir(screenshotDirectory, { recursive: true });
   const client = new Client({ connectionString: databaseUrl });
@@ -595,7 +595,11 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { seedBaseResume, seedCatalog };

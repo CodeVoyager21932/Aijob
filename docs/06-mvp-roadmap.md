@@ -13,7 +13,8 @@
 - `M4-2A 单项删除与选择性级联` 已通过[独立工程验收](evidence/product/career-os-v2/m4-2a-selective-deletion-acceptance-2026-08-12.md)：Case、Resume、Interview、Debrief 均具备 owner-protected 单项删除；Case 删除要求用户逐类选择删除或脱离，私有 JD 快照按最后活动引用决定保留或墓碑化；没有新增 migration。
 - `M4-2B 数据真相与错误恢复` 已通过[独立工程验收](evidence/product/career-os-v2/m4-2b-data-truth-and-recovery-acceptance-2026-08-12.md)：数据设置读取真实 owner 保留模式与完整资产范围；脱离资产可发现/删除；简历确认成为单事务；读取可安全恢复一次而 mutation 不重放；占位导航和用户可见开发标签已收口。
 - `M4-3 一岗本地测试候选` 已通过[独立工程验收](evidence/product/career-os-v2/m4-3-one-job-local-candidate-acceptance-2026-08-12.md)：同一合成公共岗位 Case 已从 API 创建/重开、固定岗位版本、Requirements/Evidence、Resume/Review、DOCX、外链无写入、显式投递、模板面试、复盘确认和回流运行到选择性删除与全部 owner 删除；公共合成岗位保持存在。
-- M4-3 决定为 **继续**：当前唯一切片切换为 `M4-4 工程与浏览器 Gate`。只对已有候选执行完整浏览器、可访问性、错误恢复、旗标回退、打印和包体总验收；只有发现可复现阻塞时才做最小修复。
+- `M4-4 工程与浏览器 Gate` 已通过[M4 工程与浏览器总验收](evidence/product/career-os-v2/m4-engineering-browser-gate-acceptance-2026-08-12.md)：1280/320、200% 等效视口、键盘/焦点、刷新/历史、404/409/API 恢复、旗标回退、DOCX/打印、零外联、懒加载、包体与全仓 750/750 均通过。
+- M4 决定为 **完成并进入 Private Alpha 准备**。这不是启动真实 Alpha 的授权；下一实现切片必须由 coco 单独决定，且不得绕过供给、服务器、身份、安全、G0/G1 与 G4 Gate。
 - 真实性、安全、隐私、供给和服务器要求继续由 [Private Alpha 与上线就绪 Gate](plans/private-alpha-readiness-gates.md) 守门，但该 Gate 不生成 M4 当前任务。
 
 ## 2. 当前快照
@@ -21,16 +22,16 @@
 | 项目 | 当前事实 |
 |---|---|
 | 更新日期 | 2026-08-12 |
-| 当前阶段 | Career OS 2.0 M4 旧流程收口与测试候选 |
-| 当前唯一目标 | `M4-4 工程与浏览器 Gate`：在隔离 PostgreSQL 与合成数据上完成 1280/320、200% 等效视口、键盘/焦点、刷新/历史、错误恢复、旗标回退、控制台、打印和包体总验收；不扩建未来服务 |
-| 工程基线 | M1–M3、M4-0、M4-1、M4-2A、M4-2B、M4-3 已完成；M4-3 全仓回归 Config 17、Contracts 79、Database 54、Platform 459、Web 141，共 750/750；lint 444 files、typecheck、build、audit、隔离 PostgreSQL 与 diff check 通过 |
+| 当前阶段 | Career OS 2.0 M1–M4 已完成；等待 coco 授权 Private Alpha 准备的具体切片 |
+| 当前唯一目标 | 暂无自动执行任务；保持 M4 通过基线，等待 coco 从 Private Alpha 就绪 Gate 中明确授权下一项准备工作 |
+| 工程基线 | M1–M4 已完成；M4 最终全仓回归 Config 17、Contracts 79、Database 54、Platform 459、Web 141，共 750/750；lint 445 files、typecheck、build、audit、全新隔离 PostgreSQL 与 diff check 通过 |
 | 前端基线 | `/settings/data` 已展示真实保留模式、完整资产范围与脱离资产管理；简历确认已原子化，会话边界不自动重放写入，未实现顶层入口已隐藏。主包 564.42 kB，数据设置 9.15 kB、面试 23.51 kB、简历编辑器 29.23 kB，重工作区仍为独立 lazy chunk |
 | 当前产品证据 | E0：没有可复核目标用户行为证据 |
 | 可信供给 | 22 岗 / 3 家企业 / 3 个官方 ATS；公共与 Alpha 岗位均为 0 |
 | 当前 AI | 公开和远程环境关闭；M4 沿用确定性模板，不调用真实 AI |
 | 参与者验证 | 未开始；G0 为 0/2，G1 未开始 |
-| 当前下一决定 | M4-4 总 Gate 后只选择完成 M4 并进入 Private Alpha 准备、修改、回退或停止；不得把自动化候选冒充浏览器总验收，也不得因 Gate 扩建未来模块 |
-| 时间盒 | M4-0、M4-1、M4-2A、M4-2B、M4-3 已完成；M4 剩余约 0.25–0.5 个有效开发日 |
+| 当前下一决定 | 等待 coco 明确选择并授权 Private Alpha 准备的具体切片；不得因 M4 工程通过而自动访问真实来源、启动服务器或招募参与者 |
+| 时间盒 | M1–M4 已完成；后续时间盒尚未授权 |
 
 岗位数量、工程测试、页面完成或 AI 调用都不能把产品证据从 E0 自动提升。
 
@@ -41,8 +42,8 @@ flowchart LR
     M0["M0 核心地基<br/>已完成"] --> M1["M1 真实 Case 工作台<br/>已完成"]
     M1 --> M2["M2 专业简历闭环<br/>已完成"]
     M2 --> M3["M3 投递与持续改进<br/>已完成"]
-    M3 --> M4["M4 本地测试候选<br/>当前"]
-    M4 --> A["Private Alpha 准备<br/>100/1000 + 服务器"]
+    M3 --> M4["M4 本地测试候选<br/>已完成"]
+    M4 --> A["Private Alpha 准备<br/>待授权：100/1000 + 服务器"]
     A --> V["G0/G1 用户验证"]
     V --> G4["G4 Private Alpha"]
     G4 --> L["推广上线准备<br/>至少 10000 岗"]
@@ -54,22 +55,22 @@ flowchart LR
 | M1 真实 Case 工作台 | Case/要求读取与写入真实内部状态，岗位简历读取真实修订 | 已完成；[验收证据](evidence/product/career-os-v2/m1-real-case-workspace-acceptance-2026-08-09.md) |
 | M2 专业简历闭环 | 解析确认、结构编辑、章节调整、逐条建议、两模板和导出统一 | 已完成；[验收证据](evidence/product/career-os-v2/m2-professional-resume-acceptance-2026-08-11.md) |
 | M3 投递与持续改进 | 手动投递、模板文字面试、反馈和复盘回流 | 已完成；[验收证据](evidence/product/career-os-v2/m3-workflow-acceptance-2026-08-12.md) |
-| M4 本地测试候选 | 重复入口收口、删除/异常完整、一岗端到端通过 | **当前唯一目标** |
+| M4 本地测试候选 | 重复入口收口、删除/异常完整、一岗端到端通过 | 已完成；[总验收证据](evidence/product/career-os-v2/m4-engineering-browser-gate-acceptance-2026-08-12.md) |
 
-## 4. M4 当前执行边界
+## 4. M4 已完成边界
 
-### 用户任务
+### 已验收用户任务
 
 用户从一个清晰入口进入同一 Career OS，能够完成一岗闭环、理解旧内容去向、处理错误并主动删除数据；旧页面不再与新 OS 竞争写入真源。
 
-### 固定串行切片
+### 已完成串行切片
 
 - [x] `M4-0 旧入口与一岗闭环差异审计`（已完成）：确认 `/resume` 必须保留为共享解析/确认入口，旧 Tailoring 保留只读；定位 V2 下旧并行写入、匿名 30 天兼容 TTL 与长期文案冲突、单项删除未接 API/UI、简历确认部分写和用户可见开发标签。
 - [x] `M4-1 兼容入口与写边界`（已完成）：V2 岗位详情停止旧 Match/Decision/Tailoring/外链跟踪，Recommendation/Insight 为零请求兼容说明，旧 Tailoring 只读，`/resume` 出口与旧数据 URL 已进入新 OS；Web 131/131 和旗标回退策略通过。
 - [x] `M4-2A 单项删除与选择性级联`（已完成）：复用现有 `deleted_at`、detach guard 和 owner epoch，为 Case、Resume、Interview、Debrief 接 owner-protected 删除；Case 删除逐项选择删除或脱离派生资产。验收见 [M4-2A 独立工程证据](evidence/product/career-os-v2/m4-2a-selective-deletion-acceptance-2026-08-12.md)。
 - [x] `M4-2B 数据真相与错误恢复`（已完成）：设置页展示真实 owner retention mode/expiry、完整数据范围与脱离 Case 的资产；简历确认原子提交、会话失效恢复、开发标签和未实现主导航均已收口。验收见 [M4-2B 独立工程证据](evidence/product/career-os-v2/m4-2b-data-truth-and-recovery-acceptance-2026-08-12.md)。
 - [x] `M4-3 一岗本地测试候选`（已完成）：同一合成公共 Case 已贯通要求、岗位简历、Review、DOCX、外链无副作用、显式投递、模板面试、复盘回流、选择性删除和全部个人数据删除。验收见 [M4-3 独立工程证据](evidence/product/career-os-v2/m4-3-one-job-local-candidate-acceptance-2026-08-12.md)。
-- [ ] `M4-4 工程与浏览器 Gate`（当前，0.25–0.5 日）：运行全仓、1280/320、200% 等效、键盘/焦点、刷新/历史、旗标回退、控制台、打印和包体检查，形成 M4 独立测试候选证据。
+- [x] `M4-4 工程与浏览器 Gate`（已完成）：全仓、1280/320、200% 等效、键盘/焦点、刷新/历史、错误恢复、旗标回退、控制台、打印、懒加载和包体检查通过。验收见 [M4 总证据](evidence/product/career-os-v2/m4-engineering-browser-gate-acceptance-2026-08-12.md)。
 
 ### 明确排除
 
@@ -82,7 +83,7 @@ flowchart LR
 
 | Gate | 最低条件 | 当前状态 |
 |---|---|---|
-| Private Alpha 产品 | M1–M4 与完整一岗闭环通过 | M1–M3 已通过；M4 未通过 |
+| Private Alpha 产品 | M1–M4 与完整一岗闭环通过 | **已通过本地合成工程 Gate**；不等于供给、服务器或用户 Gate 通过 |
 | 可信供给 | 100 家企业 / 1000 条活动可信实习岗位及既定 SME、职能、城市、人工来源分布 | 22 岗 / 3 家，未通过 |
 | 来源持续性 | 至少 3 个已准入确定性来源连续 7 天按 12 小时周期运行 | 0/3，未开始 |
 | 服务器就绪 | 邀请、邮箱身份、安全、隔离解析、备份恢复、监控和负载通过 | 未授权、未开始 |
