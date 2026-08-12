@@ -1,12 +1,12 @@
-# 当前项目交接：Aijob Career OS M4-2A 单项删除与选择性级联
+# 当前项目交接：Aijob Career OS M4-2B 数据真相与错误恢复
 
 > 交接日期：2026-08-12
 >
 > 当前分支：`codex/career-os-phase-1`
 >
-> M4-0 审计：`cb0b245 docs(plan): accept m4 legacy route audit`
+> M4-2A Platform/Contracts：`e1ede50 feat(platform): add selective career asset deletion`
 >
-> M4-1 代码：`84ebe34 feat(web): isolate legacy career os writes`
+> M4-2A Web：`9cfe889 feat(web): add explicit career asset deletion controls`
 >
 > 后续精确 HEAD 以 `git log -1` 为准。
 >
@@ -16,104 +16,102 @@
 
 唯一活动计划：[Career OS 当前交付计划](../plans/career-os-current-delivery-plan.md)
 
-当前审计基线：[M4-0 旧入口与一岗闭环差异审计](../plans/career-os-m4-legacy-entry-and-one-job-gap-audit-2026-08-12.md)
-
-最近验收：[M4-1 兼容入口与写边界](../evidence/product/career-os-v2/m4-1-legacy-write-boundary-acceptance-2026-08-12.md)
+最近验收：[M4-2A 单项删除与选择性级联](../evidence/product/career-os-v2/m4-2a-selective-deletion-acceptance-2026-08-12.md)
 
 后续 Gate：[Private Alpha 与上线就绪 Gate](../plans/private-alpha-readiness-gates.md)
 
 ## 1. 当前唯一目标
 
-当前唯一里程碑是 **M4 旧流程收口与测试候选**，当前唯一执行切片是 **M4-2A 单项删除与选择性级联**。
+当前唯一里程碑是 **M4 旧流程收口与测试候选**，当前唯一执行切片是 **M4-2B 数据真相与错误恢复**。
 
-只为以下当前资产接真实 owner-protected 删除：
+本切片只收口四个已证明会破坏本地测试可信度的缺口：
 
-- ApplicationCase。
-- Resume Document V2。
-- Interview Session。
-- Debrief。
+1. `/settings/data` 读取并展示当前 owner 的真实 `retentionMode`、到期时间和完整数据范围，包含从 Case 脱离后仍保留的 Resume、Interview 与 Debrief；匿名 owner 不得写成长期账号，account-managed owner 不得写成 30 天自动删除。
+2. 简历确认必须把事实、偏好、结构化文档/证据和解析原文清除放在单个 PostgreSQL 事务中；任一 revision 冲突或写入失败时全部回滚，不能继续使用前端三个串行 PUT。
+3. 会话失效后可以安全恢复读取，但 mutation 不自动重放；必须清理旧 owner 的 React Query/本地 journey 状态，保留用户尚未提交的界面草稿，并明确要求用户核对后再次提交。
+4. 删除用户可见的 M1/M2/M3/Phase/PoC 开发标签；主导航只展示已经具备真实页面的入口，未实现的 Knowledge 和跨 Case Interview 索引不得继续以占位页伪装可用功能。
 
-删除 Case 时，必须让用户分别决定其派生 Resume、Interview 与 Debrief 是“同时删除”还是“保留并脱离 Case”；不得使用数据库物理级联替用户作决定。私有 JD 只能对当前 owner 可见，最后一个引用它的 Case 删除后不得留下可访问正文。
+M4-2B 不实现邮箱验证码、账号认领或 account-managed 转换。它只诚实展示数据库当前模式，并修复本地匿名会话的真实错误路径。
 
-所有命令必须使用 `expectedRevision`、稳定幂等键、CSRF、`no-store` 和不可枚举跨 owner 404。删除后同一 owner 刷新、重新建立会话、重放旧幂等键或收到迟到任务时，资产不得重新可见或被继续写入。
-
-M4-2A 不处理账号/邮箱、真实保留模式、简历确认原子化、会话失效总线或开发标签清理；这些仍属于 M4-2B。
-
-## 2. 已通过基线
+## 2. 已通过基线与已知事实
 
 - M1–M3 已完成真实 Case、Requirements、Resume V2/Review/导出、显式投递、确定性文字面试、反馈复盘和用户确认回流。
-- M4-0 已确认旧 `/resume` 必须保留为共享解析入口，旧 Tailoring 必须保留只读历史。
-- M4-1 已停止 V2 正常路径中的旧 Match/Decision/Tailoring/Recommendation/Insight/official-link-opened 并行写入；旧数据没有删除，旗标关闭策略保持 `legacy`。
-- M4-1 Web 完整回归 33 files、131/131；typecheck、lint 436、build 和 diff check 通过。主包 560.59 kB，相对 M3 增长约 0.42%。
-- 全部 owner 删除 `DELETE /v1/profile` 已覆盖 M1–M3 新旧数据，但不能替代本切片的单项删除。
-- Schema 已有 Case、Resume Document、Interview Session、Debrief 的 `deleted_at`；派生 Resume、Interview 与 Debrief 已有 `detached_from_case_id` 和只允许从当前 Case 脱离一次的数据库 guard。当前缺口是公开 Contract、Service、Route 与 Web 确认界面。
+- M4-1 已停止 V2 正常路径中的旧 Match/Decision/Tailoring/Recommendation/Insight/official-link-opened 并行写入；旧数据没有删除，旗标关闭策略仍为 `legacy`。
+- M4-2A 已接通 Case、Resume、Interview、Debrief 的 owner-protected 单项删除与 Case 选择性删除/脱离；全仓串行回归 736/736，lint 439、typecheck、build、audit 与 diff check 通过。
+- M4-2A 删除命令使用 `expectedRevision`、墓碑和自然重放，不存在持久化 `Idempotency-Key` 删除回执；Case revision 递增，但没有伪造不存在的删除 Case event。后续文档与实现不得重新声称这两项能力。
+- 脱离后的岗位简历已可从 `/resumes` 发现；脱离后的 Interview/Debrief 目前只有底层记录，没有跨 Case 用户索引。M4-2B 的数据范围必须显式展示并提供删除入口，或作出“修改”决定，不能把不可发现的数据称为已可管理。
+- `DataControlPage` 仍写死“本机匿名、最长 30 天”，并只统计旧 Facts/Preferences/Evidence/Document/Decisions；这与现有长期 owner Schema 及 M1–M3 资产范围冲突。
+- `ResumeConfirmPage` 当前依次执行 Facts、Preferences、Evidence 三个 PUT；中间失败会形成部分提交。
+- `GET /v1/session` 当前只返回 `{ authenticated }`；Contracts 已有 `CareerOwnerSchema`，数据库已有 `retention_mode` 与 `retention_expires_at`，但当前页面没有真实投影。
+- 项目前后端和 PostgreSQL 当前关闭；本轮 9 个精确命名隔离测试库已删除。需要集成测试时只启动项目 PostgreSQL，并使用随机命名的 `aijob_*_test_*` 隔离库。
 - 产品证据仍为 E0；可信供给仍为 22 岗 / 3 家企业 / 3 个官方 ATS，公共与 Alpha 岗位为 0。
-- 项目前后端和 PostgreSQL 当前关闭；需要集成测试时只启动项目 PostgreSQL，并使用随机命名的 `aijob_*_test_*` 隔离库。
 
 ## 3. 固定实现顺序
 
-1. 先逐表核对 FK、状态/修订 guard、Review/Export/Turn/Feedback/Debrief 依赖与现有全部删除顺序，形成命令到数据动作矩阵；不新增 migration。
-2. 在现有 Contracts 中增加最小删除请求与结果，固定 `expectedRevision` 和 Case 的三类 `delete | detach` 选择；先补解析测试。
-3. 在现有 Platform 模块中用单个 PostgreSQL 事务锁定 owner 资产、校验 revision、执行墓碑/脱离、处理私有 JD 最后引用，并记录必要的不可变 Case event；先补集成测试再注册路由。
-4. 在 Career OS API/query keys 中接删除命令；mutation 不自动重试，409 保留用户选择并重读，404 回到真实不存在状态。
-5. 在 Case、Resume、Interview 与 Debrief 当前页面增加明确删除入口。Case 确认界面逐类说明删除/脱离结果；默认不替用户选择，不使用模糊“清理”文案。
-6. 运行 focused Contracts/Platform/Web、隔离 PostgreSQL，再运行与变更相称的全仓 Gate。只有删除后不复活和旗标回退通过，才更新到 M4-2B。
+同一时间只允许一个检查点进行，不为 M4-2B 再派生未来后端：
 
-## 4. 代码入口
+1. **只读差异矩阵**：核对 owner/session 字段、全部资产表、脱离资产查询、Resume Confirmation 三次写入与原文清除顺序、401/403/409 行为和用户可见开发标签；先写最小契约与退出条件。
+2. **数据真相**：增加最小 owner/data-scope 读取投影，按 owner epoch 统计当前可见 Facts、Preferences、Evidence、Resume Documents/Reviews、Cases、Interviews、Debriefs 及脱离资产；`/settings/data` 使用真实数据并保留全部删除入口。不要建设账号注册页。
+3. **原子确认**：复用现有 profile/revision repository 与 Resume Analysis 清除逻辑，在一个事务中校验三个 expected revision、写入事实/偏好/文档/证据并清除原文；Web 只调用一个确认命令。旧三个 PUT 继续兼容其他现有调用，不做 contract migration。
+4. **会话失效恢复**：集中识别 `SESSION_REQUIRED`/owner epoch 失效；读取最多安全重建一次本地匿名会话，写入绝不自动重放。owner 改变时清空旧缓存和 journey ID，页面显示“会话已更新，请核对后再次提交”。
+5. **产品文案与入口**：移除用户界面中的 M1/M2/M3/Phase/PoC 字样；保留真实的今日、岗位、Case、简历和设置入口，隐藏尚无真实资产索引的 Knowledge/Interview 顶层入口，Case 内面试流程不受影响。
+6. **Gate 与决定**：运行 focused Contracts/Platform/Web、随机隔离 PostgreSQL，再运行与改动相称的 lint、typecheck、串行 tests、build、audit 和 diff check。只有数据范围真实、确认不部分提交、会话不静默覆盖且旧旗标回退不变，才决定继续 M4-3。
 
-Contracts：
+## 4. 准备检查的代码入口
 
-- `packages/contracts/src/application-cases.ts`
-- `packages/contracts/src/resume-documents.ts`
-- `packages/contracts/src/interview-debrief-knowledge.ts`
-- 对应 `.test.ts`
+Identity / Data scope：
 
-Platform：
+- `packages/contracts/src/identity.ts`
+- `apps/platform/src/identity/fastify.ts`
+- `apps/platform/src/identity/session-repository.ts`
+- `apps/platform/src/profile/routes.ts`
+- `apps/web/src/api/client.ts`
+- `apps/web/src/pages/DataControlPage.tsx`
 
-- `apps/platform/src/applications/service.ts`
-- `apps/platform/src/applications/routes.ts`
-- `apps/platform/src/applications/routes.integration.test.ts`
-- `apps/platform/src/resume-documents/service.ts`
-- `apps/platform/src/resume-documents/routes.ts`
-- `apps/platform/src/resume-documents/routes.integration.test.ts`
-- `apps/platform/src/interviews/service.ts`
-- `apps/platform/src/interviews/debrief-service.ts`
-- `apps/platform/src/interviews/routes.ts`
-- `apps/platform/src/interviews/routes.integration.test.ts`
+Resume confirmation：
 
-Web：
+- `packages/contracts/src/profile.ts`
+- `apps/platform/src/profile/revision-repository.ts`
+- `apps/platform/src/resume/repository.ts`
+- `apps/platform/src/resume/routes.ts`
+- `apps/web/src/pages/ResumeConfirmPage.tsx`
+- `apps/web/src/product/resume-confirmation.ts`
 
-- `apps/web/src/api/career-os.ts`
-- `apps/web/src/career-os/pages/ApplicationsPage.tsx`
-- `apps/web/src/career-os/pages/CaseWorkspacePage.tsx`
-- `apps/web/src/career-os/pages/ResumeAssetsPage.tsx`
+Navigation / copy：
+
+- `apps/web/src/App.tsx`
+- `apps/web/src/career-os/navigation.ts`
+- `apps/web/src/career-os/components/GlobalSidebar.tsx`
+- `apps/web/src/career-os/pages/CareerOsHomePage.tsx`
+- `apps/web/src/career-os/pages/CareerOsPlaceholderPage.tsx`
+- `apps/web/src/career-os/components/DebriefConfirmationPanel.tsx`
+- `apps/web/src/career-os/pages/CaseRequirementsWorkspace.tsx`
+- `apps/web/src/career-os/pages/CaseResumeWorkspace.tsx`
 - `apps/web/src/career-os/pages/CaseInterviewWorkspace.tsx`
-- `apps/web/src/career-os/components/CaseHeader.tsx`
-- 相关 query/view/component tests
 
-## 5. M4-2A 退出条件
+## 5. M4-2B 退出条件
 
-只有以下全部成立才可进入 M4-2B：
+只有以下全部成立才可进入 M4-3：
 
-1. Case、Resume、Interview、Debrief 均可由 owner 单项删除，并立即从列表、详情和后续写入中消失。
-2. Case 删除对三类派生资产逐类执行用户所选的删除或脱离；脱离资产不再反向依赖已删除 Case，保留其固定岗位/证据来源且不会伪造成新的 Case。
-3. 跨 owner 返回不可枚举 404；stale revision 返回标准 409；幂等重放返回同一结果，同键不同请求明确冲突；CSRF 与 `no-store` 通过。
-4. 私有 JD 不进入公共目录；最后引用删除后不留下 owner 可读正文。删除、刷新、重登、旧命令重放和迟到任务均不复活数据。
-5. 功能旗标关闭的旧 ProductShell 与旧数据不受影响；没有 migration、第二套删除队列或隐式物理级联。
-6. focused 与全仓工程检查通过，并记录继续 M4-2B、修改、回退或停止之一。
+1. 设置页显示当前 owner 的真实保留模式和到期时间；资产计数覆盖 M1–M3、新旧兼容资产及脱离 Case 的资产，未知或尚未实现的账号能力不被伪造。
+2. 脱离后的 Resume、Interview、Debrief 都能从数据范围发现并由 owner 单项删除；跨 owner 仍为不可枚举 404。
+3. 简历确认任一 revision 冲突或内部失败时 Facts、Preferences、Document/Evidence 与解析原文均保持原状；成功时四类结果一次提交且原文按边界清除。
+4. 会话失效不自动重放 mutation、不沿用旧 owner 缓存；用户草稿不被静默丢弃，重新建立会话后的首次写入需要再次明确操作。
+5. 用户可见页面不再出现 M1/M2/M3/Phase/PoC 开发标签；主导航不再暴露只有占位文案的功能；旗标关闭时旧 ProductShell 不变。
+6. focused 与全仓工程检查通过，并记录继续 M4-3、修改、回退或停止之一。
 
 ## 6. 固定排除
 
 - 不访问真实招聘来源、真实 JD、真实 AI、真实简历、邮件、服务器或参与者数据。
-- 不实现 Knowledge、语音/音视频面试、自动投递、站外通知、社区或未来智能生成。
+- 不实现邮箱验证码、手机号、账号认领、Knowledge、跨 Case 智能生成、语音/音视频面试、自动投递或站外通知。
 - 不新增数据库、migration、Redis、向量库、第二套队列、第二套认证或新的 AI SDK。
-- 不在 M4-2A 修改匿名 30 天兼容 TTL、实现邮箱账号、原子简历确认或清理导航标签。
+- 不做 G4 前 contract migration，不删除无法证明已迁移的旧资产，不移除 `VITE_CAREER_OS_V2` 回退路径。
 - 不读取、暂存或提交 `.claude/`、`.data/`、密钥、令牌、简历原文、本地业务数据库、下载产物或本机截图。
 
 ## 7. 接手检查表
 
 1. 按顺序读取 `AGENTS.md`、`README.md`、`docs/06-mvp-roadmap.md`、本文件和 `docs/plans/README.md`。
 2. 检查分支、HEAD、`git status` 和最近提交；已有改动不得覆盖，`.claude/` 不得处理。
-3. 确认路线图、当前交付计划和本交接都只指向 M4-2A；归档计划和历史验收不得提供当前任务。
-4. 先完成只读 FK/guard/依赖矩阵，再写 Contract；如果既有 Schema 无法表达用户选择，记录阻断并作“修改”决定，不顺手增加 migration。
+3. 确认路线图、当前交付计划和本交接都只指向 M4-2B；归档计划和历史验收不得提供当前任务。
+4. 先完成只读差异矩阵，不以新增账号系统、未来跨 Case 中心或 migration 解决当前诚实性问题。
 5. 所有 PostgreSQL 测试使用随机隔离库；结束后按精确库名清理并关闭项目容器。
