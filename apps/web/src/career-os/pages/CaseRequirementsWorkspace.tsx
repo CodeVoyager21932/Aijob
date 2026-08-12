@@ -214,14 +214,18 @@ export function CaseRequirementsWorkspace({
   );
 
   const closeInspector = useCallback(() => {
+    const requirementId = selectedRequirement?.id;
+    const next = new URLSearchParams(searchParams);
+    next.delete("requirement");
+    setSearchParams(next, { replace: true });
     setInspectorOpen(false);
-    if (!selectedRequirement) return;
+    if (!requirementId) return;
     window.requestAnimationFrame(() => {
       document
-        .querySelector<HTMLButtonElement>(`[data-requirement-trigger="${selectedRequirement.id}"]`)
+        .querySelector<HTMLButtonElement>(`[data-requirement-trigger="${requirementId}"]`)
         ?.focus();
     });
-  }, [selectedRequirement]);
+  }, [searchParams, selectedRequirement, setSearchParams]);
 
   const groupedRequirements = useMemo(
     () =>

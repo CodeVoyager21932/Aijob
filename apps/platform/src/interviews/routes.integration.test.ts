@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { AppConfig } from "@aijob/config";
 import {
+  ApplicationCaseCommandResponseSchema,
   ApplicationCaseMutationResponseSchema,
   ApplicationCaseRequirementsSchema,
   ApplicationCaseWithJobContextSchema,
@@ -163,7 +164,7 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
     await db.destroy();
   });
 
-  it("creates and completes a deterministic template interview with pinned inputs", async () => {
+  it("runs the deterministic M3 application, interview and confirmed debrief flow", async () => {
     const headers = sessionHeaders(mainSession);
     const createCase = await app.inject({
       method: "POST",
@@ -349,12 +350,36 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
       currentContentRevisionId: expect.any(String),
     });
 
+    const applicationKey = `manual-application-${randomUUID()}`;
+    const recordedApplication = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${createdCase.id}/manual-applications`,
+      headers: { ...headers, "idempotency-key": applicationKey },
+      payload: { expectedRevision: 3 },
+    });
+    expect(recordedApplication.statusCode, JSON.stringify(recordedApplication.json())).toBe(200);
+    expect(ApplicationCaseCommandResponseSchema.parse(recordedApplication.json())).toMatchObject({
+      event: {
+        caseId: createdCase.id,
+        sequence: 4,
+        eventType: "manual_application_recorded",
+        eventData: { fromStage: "interested", toStage: "applied", reasonCode: null },
+      },
+    });
+    const applicationReplay = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${createdCase.id}/manual-applications`,
+      headers: { ...headers, "idempotency-key": applicationKey },
+      payload: { expectedRevision: 3 },
+    });
+    expect(applicationReplay.json()).toEqual(recordedApplication.json());
+
     const createKey = `interview-session-${randomUUID()}`;
     const created = await app.inject({
       method: "POST",
       url: `/v1/application-cases/${createdCase.id}/interview-sessions`,
       headers: { ...headers, "idempotency-key": createKey },
-      payload: { expectedCaseRevision: 3 },
+      payload: { expectedCaseRevision: 4 },
     });
     expect(created.statusCode, JSON.stringify(created.json())).toBe(201);
     expect(created.headers["cache-control"]).toBe("no-store");
@@ -371,7 +396,7 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
       method: "POST",
       url: `/v1/application-cases/${createdCase.id}/interview-sessions`,
       headers: { ...headers, "idempotency-key": createKey },
-      payload: { expectedCaseRevision: 3 },
+      payload: { expectedCaseRevision: 4 },
     });
     expect(replay.statusCode).toBe(201);
     expect(replay.json()).toEqual(createdBody);
@@ -379,7 +404,7 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
       method: "POST",
       url: `/v1/application-cases/${createdCase.id}/interview-sessions`,
       headers: { ...headers, "idempotency-key": createKey },
-      payload: { expectedCaseRevision: 4 },
+      payload: { expectedCaseRevision: 5 },
     });
     expect(reusedCreationKey.statusCode).toBe(409);
     expect(reusedCreationKey.json()).toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
@@ -694,7 +719,7 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
       .where("case_id", "=", createdCase.id)
       .where("event_type", "=", "interview_started")
       .executeTakeFirstOrThrow();
-    expect(storedEvent).toMatchObject({ sequence: 4, event_type: "interview_started" });
+    expect(storedEvent).toMatchObject({ sequence: 5, event_type: "interview_started" });
     expect(storedEvent.event_data).toEqual(
       expect.objectContaining({ interviewSessionId: createdBody.sessionId, mode: "template" }),
     );
@@ -703,7 +728,7 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
       method: "POST",
       url: `/v1/application-cases/${createdCase.id}/interview-sessions`,
       headers: { ...headers, "idempotency-key": `second-session-${randomUUID()}` },
-      payload: { expectedCaseRevision: 4 },
+      payload: { expectedCaseRevision: 5 },
     });
     expect(secondSessionResponse.statusCode, JSON.stringify(secondSessionResponse.json())).toBe(
       201,
