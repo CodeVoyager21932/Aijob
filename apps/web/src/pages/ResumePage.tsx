@@ -8,6 +8,7 @@ import {
   submitResumeFile,
   submitResumeText,
 } from "../api/product";
+import { resumeCompletionPath } from "../career-os/legacy-compatibility";
 import { JourneySteps, ProductError } from "../components/ProductStates";
 import { shouldEnableCareerOsV2 } from "../environment";
 import { detectBrowserPii, piiLabel } from "../product/domain";
@@ -118,7 +119,7 @@ export function ResumePage() {
     },
     onSuccess: (revision) => {
       queryClient.setQueryData(["product", "profile", "evidence"], revision);
-      navigate(careerOsV2Enabled ? "/resumes" : "/recommendations?start=1");
+      navigate(resumeCompletionPath(careerOsV2Enabled, "saved"));
     },
   });
 
@@ -148,7 +149,7 @@ export function ResumePage() {
 
   return (
     <>
-      <JourneySteps current={2} />
+      {careerOsV2Enabled ? null : <JourneySteps current={2} />}
       <header className="product-hero">
         <div>
           <p className="eyebrow">需要个性化时再提供简历</p>
@@ -206,11 +207,15 @@ export function ResumePage() {
           </p>
           {selectedSavedBlocks.size === 0 ? (
             <div className="product-callout is-warning">
-              当前没有选择任何经历证据，所以推荐页只能显示“简历暂未体现”。请在下方勾选真实经历。
+              {careerOsV2Enabled
+                ? "当前没有选择任何经历证据，岗位要求核对会保守显示“证据待补充”。请在下方勾选真实经历。"
+                : "当前没有选择任何经历证据，所以推荐页只能显示“简历暂未体现”。请在下方勾选真实经历。"}
             </div>
           ) : null}
           <p className="saved-selection-note">
-            可以一键全选，再取消个人信息、求职意向等不属于经历证据的区块；只有保存后才会生成新推荐。
+            {careerOsV2Enabled
+              ? "可以一键全选，再取消个人信息、求职意向等不属于经历证据的区块；保存后会形成新的证据修订。"
+              : "可以一键全选，再取消个人信息、求职意向等不属于经历证据的区块；只有保存后才会生成新推荐。"}
           </p>
           <div className="saved-document-sections">
             {savedDocument.sections.map((section) => (
@@ -247,14 +252,18 @@ export function ResumePage() {
               disabled={reuseMutation.isPending}
               onClick={() => reuseMutation.mutate()}
             >
-              {reuseMutation.isPending ? "正在保存并重新匹配…" : "保存证据选择并生成最新推荐"}
+              {reuseMutation.isPending
+                ? "正在保存证据选择…"
+                : careerOsV2Enabled
+                  ? "保存证据选择并返回简历资产"
+                  : "保存证据选择并生成最新推荐"}
             </button>
             <button
               className="button button--secondary"
               type="button"
-              onClick={() => navigate("/recommendations?start=1")}
+              onClick={() => navigate(resumeCompletionPath(careerOsV2Enabled, "saved"))}
             >
-              不修改，直接沿用当前资料
+              {careerOsV2Enabled ? "不修改，返回简历资产" : "不修改，直接沿用当前资料"}
             </button>
             <a className="text-link" href="#new-resume">
               上传新版简历

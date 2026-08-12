@@ -9,13 +9,16 @@ import {
   getProfileFacts,
   getProfilePreferences,
 } from "../api/product";
+import { resumeCompletionPath } from "../career-os/legacy-compatibility";
 import { ProductError, ProductLoading } from "../components/ProductStates";
+import { shouldEnableCareerOsV2 } from "../environment";
 import { clearDeletedOwnerCache } from "../product/privacy-cache";
 import { clearJourneyState } from "../product/session-state";
 
 export function DataControlPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const careerOsV2Enabled = shouldEnableCareerOsV2({ flag: import.meta.env.VITE_CAREER_OS_V2 });
   const [confirmation, setConfirmation] = useState("");
   const [understood, setUnderstood] = useState(false);
   const [facts, preferences, evidence, document, decisions] = useQueries({
@@ -47,7 +50,9 @@ export function DataControlPage() {
     onSuccess: () => {
       clearDeletedOwnerCache(queryClient);
       clearJourneyState();
-      navigate("/data-control/deletion", { replace: true });
+      navigate(careerOsV2Enabled ? "/settings/data/deletion" : "/data-control/deletion", {
+        replace: true,
+      });
     },
   });
   const isLoading =
@@ -132,9 +137,9 @@ export function DataControlPage() {
             <button
               className="button button--secondary"
               type="button"
-              onClick={() => navigate("/recommendations?start=1")}
+              onClick={() => navigate(resumeCompletionPath(careerOsV2Enabled, "saved"))}
             >
-              沿用当前资料生成推荐
+              {careerOsV2Enabled ? "打开简历资产" : "沿用当前资料生成推荐"}
             </button>
           </div>
         </section>

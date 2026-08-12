@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AlphaAccessGate } from "./components/AlphaAccessGate";
 import { AppShell } from "./components/AppShell";
 import { ProductShell } from "./components/ProductShell";
+import { legacySurfaceMode } from "./career-os/legacy-compatibility";
 import {
   shouldEnableCareerOsV2,
   shouldEnableInternalSurfaces,
@@ -54,6 +55,11 @@ const CareerOsPlaceholderPage = lazy(() =>
     default: module.CareerOsPlaceholderPage,
   })),
 );
+const LegacyCompatibilityPage = lazy(() =>
+  import("./career-os/pages/LegacyCompatibilityPage").then((module) => ({
+    default: module.LegacyCompatibilityPage,
+  })),
+);
 
 export function App() {
   const environment = {
@@ -66,6 +72,10 @@ export function App() {
   const careerOsV2Enabled = shouldEnableCareerOsV2({
     flag: import.meta.env.VITE_CAREER_OS_V2,
   });
+  const recommendationMode = legacySurfaceMode(careerOsV2Enabled, "recommendations");
+  const insightMode = legacySurfaceMode(careerOsV2Enabled, "insights");
+  const tailoringMode = legacySurfaceMode(careerOsV2Enabled, "resume_tailoring");
+  const dataControlMode = legacySurfaceMode(careerOsV2Enabled, "data_control");
 
   if (!productSurfacesEnabled) {
     return (
@@ -102,17 +112,57 @@ export function App() {
             <Route path="/interviews" element={<CareerOsPlaceholderPage surface="interviews" />} />
             <Route path="/knowledge" element={<CareerOsPlaceholderPage surface="knowledge" />} />
             <Route path="/settings/data" element={<DataControlPage />} />
+            <Route path="/settings/data/deletion" element={<DeletionStatusPage />} />
           </>
         ) : null}
         <Route path="/jobs" element={<JobListPage />} />
         <Route path="/jobs/:jobId" element={<JobDetailPage />} />
-        <Route path="/insights" element={<JobInsightsPage />} />
+        <Route
+          path="/insights"
+          element={
+            insightMode === "compatibility" ? (
+              <LegacyCompatibilityPage surface="insights" />
+            ) : (
+              <JobInsightsPage />
+            )
+          }
+        />
         <Route path="/resume" element={<ResumePage />} />
         <Route path="/resume/confirm/:analysisId" element={<ResumeConfirmPage />} />
-        <Route path="/recommendations" element={<RecommendationsPage />} />
-        <Route path="/resume-tailorings/:runId" element={<ResumeTailoringPage />} />
-        <Route path="/data-control" element={<DataControlPage />} />
-        <Route path="/data-control/deletion" element={<DeletionStatusPage />} />
+        <Route
+          path="/recommendations"
+          element={
+            recommendationMode === "compatibility" ? (
+              <LegacyCompatibilityPage surface="recommendations" />
+            ) : (
+              <RecommendationsPage />
+            )
+          }
+        />
+        <Route
+          path="/resume-tailorings/:runId"
+          element={<ResumeTailoringPage readOnly={tailoringMode === "read_only"} />}
+        />
+        <Route
+          path="/data-control"
+          element={
+            dataControlMode === "redirect" ? (
+              <Navigate to="/settings/data" replace />
+            ) : (
+              <DataControlPage />
+            )
+          }
+        />
+        <Route
+          path="/data-control/deletion"
+          element={
+            dataControlMode === "redirect" ? (
+              <Navigate to="/settings/data/deletion" replace />
+            ) : (
+              <DeletionStatusPage />
+            )
+          }
+        />
       </Route>
       {internalSurfacesEnabled ? (
         <Route path="/research" element={<ResearchShell />}>

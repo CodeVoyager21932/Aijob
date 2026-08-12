@@ -1486,6 +1486,14 @@
   line-height: 1.8;
 }
 
+.career-placeholder-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+
 .career-phase-label {
   margin: 20px 0 16px;
   color: var(--career-amber);
@@ -5211,6 +5219,15 @@
 
   .career-placeholder-page h1 {
     font-size: 2rem;
+  }
+
+  .career-placeholder-page__actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .career-placeholder-page__actions .career-button {
+    width: 100%;
   }
 
   .career-case-header {

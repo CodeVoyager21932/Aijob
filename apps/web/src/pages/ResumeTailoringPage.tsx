@@ -30,7 +30,7 @@ const segmentDecisionLabels: Record<ResumeTailoringSegment["decision"], string> 
   edited: "已保存编辑",
 };
 
-export function ResumeTailoringPage() {
+export function ResumeTailoringPage({ readOnly = false }: { readOnly?: boolean }) {
   const { runId = "" } = useParams();
   const queryClient = useQueryClient();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -71,19 +71,24 @@ export function ResumeTailoringPage() {
     }: {
       segment: ResumeTailoringSegment;
       action: "accepted" | "rejected" | "edited";
-    }) =>
-      putTailoringSegment(
+    }) => {
+      if (readOnly) throw new Error("这条旧简历优化记录当前只读。");
+      return putTailoringSegment(
         runId,
         segment.id,
         action === "edited"
           ? { decision: "edited", editedText: drafts[segment.id] || segment.suggestedText }
           : { decision: action },
-      ),
+      );
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["product", "tailoring", runId] }),
   });
 
   const exportMutation = useMutation({
-    mutationFn: () => createResumeExport(runId),
+    mutationFn: () => {
+      if (readOnly) throw new Error("只读历史不能创建新的导出。");
+      return createResumeExport(runId);
+    },
     onSuccess: (result) => {
       setExportId(result.id);
       writeJourneyId("tailoringRunId", runId);
@@ -143,8 +148,11 @@ export function ResumeTailoringPage() {
         title="本次简历优化没有完成"
         error={new Error(run.failureCode || "推荐与岗位浏览仍可继续使用。")}
         action={
-          <Link className="button button--secondary" to="/recommendations">
-            返回岗位推荐
+          <Link
+            className="button button--secondary"
+            to={readOnly ? "/applications" : "/recommendations"}
+          >
+            {readOnly ? "返回我的求职" : "返回岗位推荐"}
           </Link>
         }
       />
@@ -153,20 +161,31 @@ export function ResumeTailoringPage() {
 
   return (
     <>
-      <JourneySteps current={4} />
+      {readOnly ? null : <JourneySteps current={4} />}
       <header className="product-hero">
         <div>
-          <p className="eyebrow">修改权始终在你手里</p>
-          <h1>逐段审核岗位定向简历</h1>
+          <p className="eyebrow">{readOnly ? "旧版优化历史" : "修改权始终在你手里"}</p>
+          <h1>{readOnly ? "查看旧版岗位定向简历" : "逐段审核岗位定向简历"}</h1>
           <p>
-            每条建议必须回指岗位要求与已确认经历证据。接受、拒绝或编辑后，再复制或导出统一 ATS 友好
-            DOCX。
+            {readOnly
+              ? "这里保留你过去的原文、建议和决定，不会猜测绑定到新的求职项目，也不会产生新的修改或导出。"
+              : "每条建议必须回指岗位要求与已确认经历证据。接受、拒绝或编辑后，再复制或导出统一 ATS 友好 DOCX。"}
           </p>
         </div>
         <span className={`product-chip ${run.usedTemplateFallback ? "is-warning" : ""}`}>
           {run.usedTemplateFallback ? "安全模板降级" : "受控 AI"}
         </span>
       </header>
+
+      {readOnly ? (
+        <div className="product-callout" aria-live="polite">
+          <strong>这是一条只读历史</strong>
+          <p>你仍可查看、复制，并下载仍在有效期内的既有文件。新的岗位简历请从求职项目创建。</p>
+          <Link className="button button--secondary" to="/applications">
+            打开我的求职
+          </Link>
+        </div>
+      ) : null}
 
       {run.usedTemplateFallback ? (
         <div className="product-callout is-warning" aria-live="polite">
@@ -218,6 +237,7 @@ export function ResumeTailoringPage() {
                         ),
                       )}
                       value={drafts[segment.id] ?? segment.suggestedText}
+                      readOnly={readOnly}
                       onInput={growTextarea}
                       onChange={(event) =>
                         setDrafts({ ...drafts, [segment.id]: event.target.value })
@@ -252,32 +272,34 @@ export function ResumeTailoringPage() {
                     <small>该区块未被改写，按原章节和原顺序保留。</small>
                   )}
                 </div>
-                <div className="segment-actions">
-                  <button
-                    className="button button--primary"
-                    type="button"
-                    disabled={segmentMutation.isPending}
-                    onClick={() => segmentMutation.mutate({ segment, action: "accepted" })}
-                  >
-                    接受建议
-                  </button>
-                  <button
-                    className="button button--secondary"
-                    type="button"
-                    disabled={segmentMutation.isPending}
-                    onClick={() => segmentMutation.mutate({ segment, action: "edited" })}
-                  >
-                    保存我的编辑
-                  </button>
-                  <button
-                    className="button button--ghost"
-                    type="button"
-                    disabled={segmentMutation.isPending}
-                    onClick={() => segmentMutation.mutate({ segment, action: "rejected" })}
-                  >
-                    保留原文
-                  </button>
-                </div>
+                {readOnly ? null : (
+                  <div className="segment-actions">
+                    <button
+                      className="button button--primary"
+                      type="button"
+                      disabled={segmentMutation.isPending}
+                      onClick={() => segmentMutation.mutate({ segment, action: "accepted" })}
+                    >
+                      接受建议
+                    </button>
+                    <button
+                      className="button button--secondary"
+                      type="button"
+                      disabled={segmentMutation.isPending}
+                      onClick={() => segmentMutation.mutate({ segment, action: "edited" })}
+                    >
+                      保存我的编辑
+                    </button>
+                    <button
+                      className="button button--ghost"
+                      type="button"
+                      disabled={segmentMutation.isPending}
+                      onClick={() => segmentMutation.mutate({ segment, action: "rejected" })}
+                    >
+                      保留原文
+                    </button>
+                  </div>
+                )}
               </article>
             </li>
           ))}
@@ -316,16 +338,18 @@ export function ResumeTailoringPage() {
                 ? "复制失败，请手动选择"
                 : "复制最终文本"}
           </button>
-          <button
-            className="button button--primary"
-            type="button"
-            disabled={exportMutation.isPending || run.segments.length === 0}
-            onClick={() => exportMutation.mutate()}
-          >
-            {exportMutation.isPending ? "正在创建导出…" : "生成 ATS 友好 DOCX"}
-          </button>
+          {readOnly ? null : (
+            <button
+              className="button button--primary"
+              type="button"
+              disabled={exportMutation.isPending || run.segments.length === 0}
+              onClick={() => exportMutation.mutate()}
+            >
+              {exportMutation.isPending ? "正在创建导出…" : "生成 ATS 友好 DOCX"}
+            </button>
+          )}
         </div>
-        {exportMutation.isError ? (
+        {!readOnly && exportMutation.isError ? (
           <ProductError title="导出任务没有创建成功" error={exportMutation.error} />
         ) : null}
         {exportQuery.data?.tailoringRunId === runId ? (

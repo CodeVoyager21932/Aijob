@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { careerOsQueryKeys, createApplicationCase } from "../api/career-os";
 import { createIdempotencyKey } from "../api/client";
+import { legacySurfaceMode } from "../career-os/legacy-compatibility";
 import {
   createMatchRun,
   createResumeTailoring,
@@ -77,6 +78,8 @@ export function JobDetailPage() {
   const careerOsV2Enabled = shouldEnableCareerOsV2({
     flag: import.meta.env.VITE_CAREER_OS_V2,
   });
+  const legacyActionsEnabled =
+    legacySurfaceMode(careerOsV2Enabled, "job_detail_actions") === "legacy";
 
   const jobQuery = useQuery({
     queryKey: ["product", "job", jobId],
@@ -86,24 +89,28 @@ export function JobDetailPage() {
   const decisionsQuery = useQuery({
     queryKey: ["product", "decisions"],
     queryFn: ({ signal }) => getJobDecisions(signal),
+    enabled: legacyActionsEnabled,
   });
   const factsQuery = useQuery({
     queryKey: ["product", "profile", "facts"],
     queryFn: ({ signal }) => getProfileFacts(signal),
+    enabled: legacyActionsEnabled,
   });
   const preferencesQuery = useQuery({
     queryKey: ["product", "profile", "preferences"],
     queryFn: ({ signal }) => getProfilePreferences(signal),
+    enabled: legacyActionsEnabled,
   });
   const evidenceQuery = useQuery({
     queryKey: ["product", "profile", "evidence"],
     queryFn: ({ signal }) => getProfileEvidence(signal),
+    enabled: legacyActionsEnabled,
   });
-  const matchRunId = searchParams.get("matchRunId");
+  const matchRunId = legacyActionsEnabled ? searchParams.get("matchRunId") : null;
   const matchQuery = useQuery({
     queryKey: ["product", "match", matchRunId],
     queryFn: ({ signal }) => getMatchRun(matchRunId || "", signal),
-    enabled: Boolean(matchRunId),
+    enabled: legacyActionsEnabled && Boolean(matchRunId),
     refetchInterval: (query) =>
       ["queued", "processing"].includes(query.state.data?.status ?? "") ? 800 : false,
   });
@@ -115,7 +122,7 @@ export function JobDetailPage() {
   const currentMatchRun = matchVersionState === "current" ? matchQuery.data : undefined;
 
   useEffect(() => {
-    if (!matchVersionMismatch) return;
+    if (!legacyActionsEnabled || !matchVersionMismatch) return;
     setStaleMatchNoticeJobId(jobId);
     setSearchParams(
       (current) => {
@@ -125,14 +132,15 @@ export function JobDetailPage() {
       },
       { replace: true },
     );
-  }, [jobId, matchVersionMismatch, setSearchParams]);
+  }, [jobId, legacyActionsEnabled, matchVersionMismatch, setSearchParams]);
 
   const decision = decisionsQuery.data?.find((item) => item.publishedJobId === jobId);
   useEffect(() => {
-    if (!decision || loadedDecisionRevision.current === decision.revision) return;
+    if (!legacyActionsEnabled || !decision || loadedDecisionRevision.current === decision.revision)
+      return;
     loadedDecisionRevision.current = decision.revision;
     setDecisionReason(decision.reason ?? "");
-  }, [decision]);
+  }, [decision, legacyActionsEnabled]);
   const decisionMutation = useMutation({
     mutationFn: (status: JobDecisionStatus) =>
       putJobDecision(jobId, {
@@ -264,7 +272,7 @@ export function JobDetailPage() {
 
   return (
     <>
-      <JourneySteps current={currentMatchRun ? 3 : 1} />
+      {legacyActionsEnabled ? <JourneySteps current={currentMatchRun ? 3 : 1} /> : null}
       <Link className="back-link" to="/jobs">
         ← 返回岗位列表
       </Link>
@@ -417,99 +425,111 @@ export function JobDetailPage() {
           </dl>
         </section>
 
-        <section className="product-panel" aria-labelledby="match-heading">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">资格、证据、偏好严格分开</p>
-              <h2 id="match-heading">我的岗位判断</h2>
-            </div>
-            {!matchRunId && !showStaleMatch ? (
-              <button
-                className="button button--primary"
-                type="button"
-                disabled={matchMutation.isPending}
-                onClick={() => matchMutation.mutate()}
-              >
-                {matchMutation.isPending ? "正在创建…" : "用已确认资料核对"}
-              </button>
-            ) : null}
-          </div>
-          {matchMutation.isError ? (
-            <ProductError title="还不能开始核对" error={matchMutation.error} />
-          ) : null}
-          {!matchRunId && !showStaleMatch ? (
-            <p className="muted-copy">
-              未上传简历也可以查看岗位。只有你确认过的事实和经历证据才会参与判断。
-            </p>
-          ) : null}
-          {showStaleMatch ? (
-            <ProductEmpty
-              title="这次判断不属于当前岗位版本"
-              action={
-                <button
-                  className="button button--primary"
-                  type="button"
-                  disabled={matchMutation.isPending}
-                  onClick={() => matchMutation.mutate()}
+        {legacyActionsEnabled ? (
+          <>
+            <section className="product-panel" aria-labelledby="match-heading">
+              <div className="panel-heading">
+                <div>
+                  <p className="eyebrow">资格、证据、偏好严格分开</p>
+                  <h2 id="match-heading">我的岗位判断</h2>
+                </div>
+                {!matchRunId && !showStaleMatch ? (
+                  <button
+                    className="button button--primary"
+                    type="button"
+                    disabled={matchMutation.isPending}
+                    onClick={() => matchMutation.mutate()}
+                  >
+                    {matchMutation.isPending ? "正在创建…" : "用已确认资料核对"}
+                  </button>
+                ) : null}
+              </div>
+              {matchMutation.isError ? (
+                <ProductError title="还不能开始核对" error={matchMutation.error} />
+              ) : null}
+              {!matchRunId && !showStaleMatch ? (
+                <p className="muted-copy">
+                  未上传简历也可以查看岗位。只有你确认过的事实和经历证据才会参与判断。
+                </p>
+              ) : null}
+              {showStaleMatch ? (
+                <ProductEmpty
+                  title="这次判断不属于当前岗位版本"
+                  action={
+                    <button
+                      className="button button--primary"
+                      type="button"
+                      disabled={matchMutation.isPending}
+                      onClick={() => matchMutation.mutate()}
+                    >
+                      {matchMutation.isPending ? "正在重新核对…" : "重新核对当前岗位"}
+                    </button>
+                  }
                 >
-                  {matchMutation.isPending ? "正在重新核对…" : "重新核对当前岗位"}
-                </button>
-              }
-            >
-              <p>岗位内容可能已更新，旧判断已从地址中移除，不会展示在当前岗位下。</p>
-            </ProductEmpty>
-          ) : null}
-          {!showStaleMatch && matchRunId && matchQuery.isPending ? (
-            <ProductLoading label="正在生成三轴判断" />
-          ) : null}
-          {!showStaleMatch && matchQuery.isError ? <ProductError error={matchQuery.error} /> : null}
-          {currentMatchRun ? <MatchResult run={currentMatchRun} /> : null}
-        </section>
+                  <p>岗位内容可能已更新，旧判断已从地址中移除，不会展示在当前岗位下。</p>
+                </ProductEmpty>
+              ) : null}
+              {!showStaleMatch && matchRunId && matchQuery.isPending ? (
+                <ProductLoading label="正在生成三轴判断" />
+              ) : null}
+              {!showStaleMatch && matchQuery.isError ? (
+                <ProductError error={matchQuery.error} />
+              ) : null}
+              {currentMatchRun ? <MatchResult run={currentMatchRun} /> : null}
+            </section>
 
-        <section className="product-panel" aria-labelledby="decision-heading">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">由你做决定</p>
-              <h2 id="decision-heading">投递状态</h2>
-            </div>
-            <span className="product-chip">{decisionLabels[decision?.status ?? "undecided"]}</span>
-          </div>
-          <fieldset className="decision-options">
-            <legend className="sr-only">岗位投递状态</legend>
-            {(Object.keys(decisionLabels) as JobDecisionStatus[]).map((status) => (
-              <button
-                key={status}
-                className={decision?.status === status ? "is-selected" : ""}
-                type="button"
-                disabled={decisionMutation.isPending || decisionsQuery.isPending}
-                onClick={() => decisionMutation.mutate(status)}
-              >
-                {decisionLabels[status]}
-              </button>
-            ))}
-          </fieldset>
-          <label className="full-field">
-            <span>我的理由（可选）</span>
-            <textarea
-              rows={3}
-              value={decisionReason}
-              onChange={(event) => setDecisionReason(event.target.value)}
-              placeholder="例如：城市合适，但毕业年份需要向 HR 确认"
-            />
-          </label>
-          {decisionMutation.isError ? (
-            <ProductError title="状态保存失败" error={decisionMutation.error} />
-          ) : null}
-          {decisionsQuery.isError ? (
-            <ProductError title="现有投递状态读取失败" error={decisionsQuery.error} />
-          ) : null}
-        </section>
+            <section className="product-panel" aria-labelledby="decision-heading">
+              <div className="panel-heading">
+                <div>
+                  <p className="eyebrow">由你做决定</p>
+                  <h2 id="decision-heading">投递状态</h2>
+                </div>
+                <span className="product-chip">
+                  {decisionLabels[decision?.status ?? "undecided"]}
+                </span>
+              </div>
+              <fieldset className="decision-options">
+                <legend className="sr-only">岗位投递状态</legend>
+                {(Object.keys(decisionLabels) as JobDecisionStatus[]).map((status) => (
+                  <button
+                    key={status}
+                    className={decision?.status === status ? "is-selected" : ""}
+                    type="button"
+                    disabled={decisionMutation.isPending || decisionsQuery.isPending}
+                    onClick={() => decisionMutation.mutate(status)}
+                  >
+                    {decisionLabels[status]}
+                  </button>
+                ))}
+              </fieldset>
+              <label className="full-field">
+                <span>我的理由（可选）</span>
+                <textarea
+                  rows={3}
+                  value={decisionReason}
+                  onChange={(event) => setDecisionReason(event.target.value)}
+                  placeholder="例如：城市合适，但毕业年份需要向 HR 确认"
+                />
+              </label>
+              {decisionMutation.isError ? (
+                <ProductError title="状态保存失败" error={decisionMutation.error} />
+              ) : null}
+              {decisionsQuery.isError ? (
+                <ProductError title="现有投递状态读取失败" error={decisionsQuery.error} />
+              ) : null}
+            </section>
+          </>
+        ) : null}
 
         <section className="product-handoff" aria-labelledby="official-heading">
           <div>
             <p className="eyebrow">官方页面交接</p>
             <h2 id="official-heading">前往企业官方页面自行投递</h2>
-            <p>打开链接不会自动标记“已投递”；返回后请按真实进度更新状态。</p>
+            <p>
+              {careerOsV2Enabled
+                ? "打开链接不会自动标记“已投递”；返回求职项目后，请按真实进度手动记录。"
+                : "打开链接不会自动标记“已投递”；返回后请按真实进度更新状态。"}
+            </p>
           </div>
           {officialApplicationUrl ? (
             <div className="product-handoff__actions">
@@ -518,9 +538,13 @@ export function JobDetailPage() {
                 href={officialApplicationUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={() => {
-                  void markOfficialLinkOpened(job.id).catch(() => undefined);
-                }}
+                onClick={
+                  legacyActionsEnabled
+                    ? () => {
+                        void markOfficialLinkOpened(job.id).catch(() => undefined);
+                      }
+                    : undefined
+                }
               >
                 前往企业招聘入口 ↗
               </a>
@@ -559,37 +583,39 @@ export function JobDetailPage() {
           )}
         </section>
 
-        <section className="product-panel" aria-labelledby="tailor-heading">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">最后一步，可随时降级为安全模板</p>
-              <h2 id="tailor-heading">针对这个岗位优化简历表达</h2>
+        {legacyActionsEnabled ? (
+          <section className="product-panel" aria-labelledby="tailor-heading">
+            <div className="panel-heading">
+              <div>
+                <p className="eyebrow">最后一步，可随时降级为安全模板</p>
+                <h2 id="tailor-heading">针对这个岗位优化简历表达</h2>
+              </div>
             </div>
-          </div>
-          <p className="muted-copy">
-            AI
-            或模板只能重写已确认事实，并逐段给出要求与证据引用。它不能新增经历，也不会自动改写最终简历。
-          </p>
-          <label className="consent-row">
-            <input
-              type="checkbox"
-              checked={privacyConsent}
-              onChange={(event) => setPrivacyConsent(event.target.checked)}
-            />
-            我同意发送去标识化、已确认的简历证据片段用于本次岗位定向优化
-          </label>
-          <button
-            className="button button--primary"
-            type="button"
-            disabled={tailoringMutation.isPending || !privacyConsent}
-            onClick={() => tailoringMutation.mutate()}
-          >
-            {tailoringMutation.isPending ? "正在创建优化任务…" : "生成逐段对照修改稿"}
-          </button>
-          {tailoringMutation.isError ? (
-            <ProductError title="暂时不能生成修改稿" error={tailoringMutation.error} />
-          ) : null}
-        </section>
+            <p className="muted-copy">
+              AI
+              或模板只能重写已确认事实，并逐段给出要求与证据引用。它不能新增经历，也不会自动改写最终简历。
+            </p>
+            <label className="consent-row">
+              <input
+                type="checkbox"
+                checked={privacyConsent}
+                onChange={(event) => setPrivacyConsent(event.target.checked)}
+              />
+              我同意发送去标识化、已确认的简历证据片段用于本次岗位定向优化
+            </label>
+            <button
+              className="button button--primary"
+              type="button"
+              disabled={tailoringMutation.isPending || !privacyConsent}
+              onClick={() => tailoringMutation.mutate()}
+            >
+              {tailoringMutation.isPending ? "正在创建优化任务…" : "生成逐段对照修改稿"}
+            </button>
+            {tailoringMutation.isError ? (
+              <ProductError title="暂时不能生成修改稿" error={tailoringMutation.error} />
+            ) : null}
+          </section>
+        ) : null}
       </article>
     </>
   );

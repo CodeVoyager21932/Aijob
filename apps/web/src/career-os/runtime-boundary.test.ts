@@ -10,6 +10,7 @@ const entryFiles = [
   resolve(sourceRoot, "pages/CareerOsHomePage.tsx"),
   resolve(sourceRoot, "pages/CaseWorkspacePage.tsx"),
 ];
+const compatibilityEntry = resolve(sourceRoot, "pages/LegacyCompatibilityPage.tsx");
 
 function resolveRelativeImport(fromFile: string, specifier: string): string | null {
   const candidate = resolve(dirname(fromFile), specifier);
@@ -42,5 +43,13 @@ describe("Career OS runtime boundary", () => {
     expect([...graph.keys()].some((file) => file.endsWith("domain.ts"))).toBe(false);
     expect([...graph.keys()].some((file) => file.endsWith("case-workspace-domain.ts"))).toBe(false);
     expect([...graph.values()].some((source) => /\bcareerCases\b/.test(source))).toBe(false);
+  });
+
+  it("keeps retired recommendation and insight handoffs free of product API requests", () => {
+    const graph = collectRuntimeGraph([compatibilityEntry]);
+    expect([...graph.keys()].some((file) => /[\\/]api[\\/]/.test(file))).toBe(false);
+    expect([...graph.values()].some((source) => source.includes("@tanstack/react-query"))).toBe(
+      false,
+    );
   });
 });

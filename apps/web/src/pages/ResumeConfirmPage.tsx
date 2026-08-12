@@ -11,6 +11,7 @@ import {
   putProfileFacts,
   putProfilePreferences,
 } from "../api/product";
+import { resumeCompletionPath } from "../career-os/legacy-compatibility";
 import {
   JourneySteps,
   ProductEmpty,
@@ -177,7 +178,7 @@ export function ResumeConfirmPage() {
     onSuccess: () => {
       removeConfirmedResumeAnalysisCache(queryClient, analysisId);
       writeJourneyId("analysisId", analysisId);
-      navigate(careerOsV2Enabled ? "/resumes?source=confirmed" : "/recommendations?start=1");
+      navigate(resumeCompletionPath(careerOsV2Enabled, "confirmed"));
     },
   });
 
@@ -244,8 +245,11 @@ export function ResumeConfirmPage() {
       <ProductEmpty
         title="这份简历已经完成确认"
         action={
-          <Link className="button button--primary" to="/recommendations">
-            查看岗位推荐
+          <Link
+            className="button button--primary"
+            to={resumeCompletionPath(careerOsV2Enabled, "confirmed")}
+          >
+            {careerOsV2Enabled ? "查看简历资产" : "查看岗位推荐"}
           </Link>
         }
       >
@@ -256,7 +260,7 @@ export function ResumeConfirmPage() {
 
   return (
     <>
-      <JourneySteps current={2} />
+      {careerOsV2Enabled ? null : <JourneySteps current={2} />}
       <header className="product-hero">
         <div>
           <p className="eyebrow">解析不等于确认</p>
