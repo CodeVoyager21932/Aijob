@@ -3,7 +3,7 @@
 - 日期：2026-08-11
 - 分支：`codex/career-os-phase-1`
 - 审查基线：`8d125fd docs(evidence): accept m2 professional resume workflow`
-- 状态：**M3-0 设计基线；M3-1、M3-2 与 M3-3 已完成**
+- 状态：**M3 已完成；仅作历史设计与实现边界记录**
 - 当前任务仍以 [MVP 路线](../06-mvp-roadmap.md) 与[当前交接](../handoffs/current.md)为准
 
 ## 1. 结论
@@ -19,7 +19,7 @@ Case 显式投递命令与时间线
 → 用户确认后回到既有 Requirements/Resume 编辑器
 ```
 
-因此 M3 只补契约、模块化单体服务、owner-protected API 和对应 Case 标签页；不新增 migration，除非实现时出现可复现的数据库约束缺口。
+因此 M3 只补契约、模块化单体服务、owner-protected API 和对应 Case 标签页；M3-4 发现逐项决定无法由既有整份确认无损表达后，按本条例外增加了最小 additive migration 032，其余范围没有扩建。
 
 ## 2. 复用矩阵
 
@@ -88,7 +88,7 @@ M3-4：
 
 ## 5. 不需要的架构变化
 
-- 不新增 migration、表、数据库、Redis、队列、认证、AI SDK、向量库或搜索服务。
+- 除已验收的 additive migration 032 与 `debrief_item_decisions` 外，不新增 migration、表、数据库、Redis、队列、认证、AI SDK、向量库或搜索服务。
 - 不把 Interview 或 Debrief 塞进 ApplicationCase 主表；继续使用已有聚合并通过 Case event 连接。
 - 不复用 legacy `job_decisions` 作为新 UI 查询源。
 - 不让 match-worker 参与模板 Session 的同步用户交互；已有权限只保留未来受控任务和删除用途。
@@ -105,4 +105,4 @@ M3-4：
 | 数据环境 | 随机 `aijob_m3_baseline_test_*` 隔离库；结束后已删除 |
 | 服务状态 | 前后端未启动；PostgreSQL 容器与 Docker Desktop 验证后再次停止 |
 
-M3-0 没有修改业务代码、Schema 或依赖；该结论随后由 M3-1、M3-2 和 M3-3 的纵向实现验证。M3-3 继续复用 migration 028，没有新增 migration、依赖、队列或 AI provider；验收见 [M3-3 反馈与复盘](../evidence/product/career-os-v2/m3-3-feedback-debrief-acceptance-2026-08-11.md)。当前唯一切片由路线图规定为 `M3-4 用户确认回流`，本设计记录不再生成下一任务。
+M3-0 没有修改业务代码、Schema 或依赖；该结论随后由 M3-1 至 M3-5 的纵向实现与总 Gate 验证。M3-4 为逐项选择的不可变、原子保存增加 migration 032；M3 总验收见 [投递与持续改进总验收](../evidence/product/career-os-v2/m3-workflow-acceptance-2026-08-12.md)。M3 已结束，本设计记录不再生成下一任务；当前目标只由路线图与交接确定。

@@ -2,34 +2,31 @@
 
 > 本文是当前阶段、真实分母、Gate 状态和下一决定的唯一动态事实源。历史执行细节由独立验收证据和 Git 保留，不再堆叠在本面板。
 
-## 1. 最新决定（2026-08-11）
+## 1. 最新决定（2026-08-12）
 
-- 旧的 G4-first 严格总计划已废止并归档，不再提供当前任务或工期基线。
-- 当前采用 [Career OS 当前交付计划](plans/career-os-current-delivery-plan.md)：先完成 coco 可在本地完整体验的 OS 2.0 测试候选，再单独进入 Private Alpha 和推广上线 Gate。
-- 已完成的 migrations 025–032、Phase 2B-1/2/3/4A/4B 全部保留；旧 Phase 2B-4C 不再作为任务来源，当前用户闭环需要的 Interview/Debrief 已由 M3 纵向交付，Knowledge 仍未开始且不属于 M3。
-- `M1 真实 Case 工作台` 与 `M2 专业简历闭环` 均已通过独立工程验收；M2 证据见[专业简历闭环验收](evidence/product/career-os-v2/m2-professional-resume-acceptance-2026-08-11.md)。
-- `M3-1 显式投递记录` 已通过[独立工程验收](evidence/product/career-os-v2/m3-1-explicit-application-acceptance-2026-08-11.md)：打开链接不改阶段，只有用户二次确认后才写入 Case 时间线；该次决定为继续 M3-2。
-- `M3-2 确定性文字面试` 已通过[独立工程验收](evidence/product/career-os-v2/m3-2-deterministic-interview-acceptance-2026-08-11.md)：Session 固定 Case、岗位、Resume 与证据修订，回答追加保存且刷新/深链可恢复。
-- `M3-3 反馈与复盘` 已通过[独立工程验收](evidence/product/career-os-v2/m3-3-feedback-debrief-acceptance-2026-08-11.md)：用户显式生成固定到已完成 Session 的结构化反馈、表达问题、证据缺口和练习计划；打开与刷新不隐式写入。
-- `M3-4 用户确认回流` 已通过[独立工程验收](evidence/product/career-os-v2/m3-4-user-confirmed-backflow-acceptance-2026-08-11.md)：用户逐项采用、编辑、拒绝或稍后处理后显式确认，选择与整份确认原子保存；确认只提供返回 Requirements/Resume 的入口，不自动写入事实或简历。
-- 当前唯一里程碑切换为 **M3 投递与持续改进**。只实现用户显式投递记录、确定性文字面试、结构化反馈/复盘及回流，不从旧 Phase 2B 计划生成任务。
-- 旧计划的真实性、安全、隐私、供给和服务器要求已提取为 [Private Alpha 与上线就绪 Gate](plans/private-alpha-readiness-gates.md)，标准不降低，但不再阻塞当前本地可测试闭环。
+- 旧的 G4-first 严格总计划继续保持废止和归档状态，不提供当前任务或工期基线；migrations 025–032 与历史 Phase 2B 工程成果只作为既有事实保留。
+- `M1 真实 Case 工作台`、`M2 专业简历闭环` 与 `M3 投递与持续改进` 已全部通过独立工程验收。M3 总证据见[投递与持续改进总验收](evidence/product/career-os-v2/m3-workflow-acceptance-2026-08-12.md)。
+- M3 完整合成链已经从显式投递、模板面试、反馈复盘运行到逐项确认和 Requirements/Resume 回流；最终全仓 725/725、1280/640/320、并发冲突、真实 404、焦点返回、旗标回退与包体检查通过。
+- M3 Gate 修复了 Requirement 检查器关闭后仍保留深链参数、导致移动抽屉重新打开的当前闭环缺口；没有扩展 Knowledge、真实 AI、真实来源或未来服务。
+- 决定为 **继续**，当前唯一里程碑切换为 **M4 旧流程收口与测试候选**；当前唯一切片是 `M4-0 旧入口与一岗闭环差异审计`。
+- M4 先识别 `/resume`、`/recommendations`、`/insights` 与新 OS 的重复读写、删除和异常缺口，再做最小兼容收口；不得直接删除旧字段、历史内容或旗标回退路径。
+- 真实性、安全、隐私、供给和服务器要求继续由 [Private Alpha 与上线就绪 Gate](plans/private-alpha-readiness-gates.md) 守门，但该 Gate 不生成 M4 当前任务。
 
 ## 2. 当前快照
 
 | 项目 | 当前事实 |
 |---|---|
-| 更新日期 | 2026-08-11 |
-| 当前阶段 | Career OS 2.0 M3 投递与持续改进 |
-| 当前唯一目标 | `M3-5 工程与浏览器 Gate`：用合成数据复验 M3 从显式投递到确认回流的完整链路、安全/删除/错误边界、1280/320、200% 等效视口、键盘、焦点、旗标回退和包体，再作继续 M4、修改、回退或停止决定 |
-| 工程基线 | M1、M2、M3-1、M3-2、M3-3、M3-4 已完成；M3-4 全仓串行回归 Config 17、Contracts 71、Database 54、Platform 458、Web 125，共 725/725；lint 432 files、typecheck、build、audit、隔离 PostgreSQL 与 1280/320 浏览器检查通过 |
-| 前端基线 | `/resumes` 与 Case `resume` 复用同一 Resume V2 编辑器；Case `application`、`interview` 和 `debrief` 复用真实时间线、Session/Turn、Feedback/Debrief 与逐项确认；面试/复盘为 20.98 kB 独立 lazy chunk，主包 558.27 kB |
+| 更新日期 | 2026-08-12 |
+| 当前阶段 | Career OS 2.0 M4 旧流程收口与测试候选 |
+| 当前唯一目标 | `M4-0 旧入口与一岗闭环差异审计`：逐路由确认旧 `/resume`、`/recommendations`、`/insights` 与新 OS 的读写真源、可迁移内容、只读历史、删除/异常缺口和旗标回退；只输出可复核矩阵与最小 M4-1 改动清单 |
+| 工程基线 | M1、M2、M3 已完成；M3 最终全仓串行回归 Config 17、Contracts 71、Database 54、Platform 458、Web 125，共 725/725；lint 432 files、typecheck、build、audit、隔离 PostgreSQL 与浏览器总 Gate 通过 |
+| 前端基线 | `/resumes` 与 Case `resume` 复用 Resume V2；Case `application`、`interview`、`debrief` 已形成真实连续闭环；主包 558.27 kB，面试/复盘 20.98 kB、要求 12.92 kB、简历编辑器 29.23 kB，均为独立 lazy chunk |
 | 当前产品证据 | E0：没有可复核目标用户行为证据 |
 | 可信供给 | 22 岗 / 3 家企业 / 3 个官方 ATS；公共与 Alpha 岗位均为 0 |
-| 当前 AI | 公开和远程环境关闭；M3 只用确定性模板文字面试，不调用真实 AI |
+| 当前 AI | 公开和远程环境关闭；M4 沿用确定性模板，不调用真实 AI |
 | 参与者验证 | 未开始；G0 为 0/2，G1 未开始 |
-| 当前下一决定 | 完成 M3-5 总 Gate 后，选择继续 M4、修改、回退或停止；M3 未通过前不得提前迁移旧入口 |
-| 时间盒 | M3 为 2–3 个有效开发日；M3–M4 剩余基线为 1–3 个有效开发日 |
+| 当前下一决定 | 完成 M4-0 审计后，只选择继续 M4-1、修改、回退或停止；没有矩阵证据前不直接重定向或删除旧入口 |
+| 时间盒 | M4 为 1–2 个有效开发日；M4-0 为 0.25–0.5 日 |
 
 岗位数量、工程测试、页面完成或 AI 调用都不能把产品证据从 E0 自动提升。
 
@@ -39,8 +36,8 @@
 flowchart LR
     M0["M0 核心地基<br/>已完成"] --> M1["M1 真实 Case 工作台<br/>已完成"]
     M1 --> M2["M2 专业简历闭环<br/>已完成"]
-    M2 --> M3["M3 投递与持续改进<br/>当前"]
-    M3 --> M4["M4 本地测试候选"]
+    M2 --> M3["M3 投递与持续改进<br/>已完成"]
+    M3 --> M4["M4 本地测试候选<br/>当前"]
     M4 --> A["Private Alpha 准备<br/>100/1000 + 服务器"]
     A --> V["G0/G1 用户验证"]
     V --> G4["G4 Private Alpha"]
@@ -52,37 +49,35 @@ flowchart LR
 | M0 核心地基 | 静态统一工作台，以及 owner-protected Case、Requirement、Resume V2 API | 已完成 |
 | M1 真实 Case 工作台 | Case/要求读取与写入真实内部状态，岗位简历读取真实修订 | 已完成；[验收证据](evidence/product/career-os-v2/m1-real-case-workspace-acceptance-2026-08-09.md) |
 | M2 专业简历闭环 | 解析确认、结构编辑、章节调整、逐条建议、两模板和导出统一 | 已完成；[验收证据](evidence/product/career-os-v2/m2-professional-resume-acceptance-2026-08-11.md) |
-| M3 投递与持续改进 | 手动投递、模板文字面试、反馈和复盘回流 | **当前唯一目标** |
-| M4 本地测试候选 | 重复入口收口、删除/异常完整、一岗端到端通过 | 未开始 |
+| M3 投递与持续改进 | 手动投递、模板文字面试、反馈和复盘回流 | 已完成；[验收证据](evidence/product/career-os-v2/m3-workflow-acceptance-2026-08-12.md) |
+| M4 本地测试候选 | 重复入口收口、删除/异常完整、一岗端到端通过 | **当前唯一目标** |
 
-## 4. M3 当前执行边界
+## 4. M4 当前执行边界
 
 ### 用户任务
 
-用户导出岗位简历并前往官方页面手动投递后，显式记录结果；随后基于同一 Case、固定岗位版本和已确认事实完成确定性文字面试、结构化反馈与复盘，再由用户决定是否把改进带回证据或简历。
+用户从一个清晰入口进入同一 Career OS，能够完成一岗闭环、理解旧内容去向、处理错误并主动删除数据；旧页面不再与新 OS 竞争写入真源。
 
-### 固定交付
+### 固定串行切片
 
-- [x] 复核既有 decision、Case event 和 Interview/Debrief 代码边界，形成 [M3 最小复用矩阵](plans/career-os-m3-application-interview-integration-boundary-2026-08-11.md)；没有界面消费者的未来服务不提前实现。
-- [x] 打开官方链接绝不自动改变阶段；用户二次确认后才记录已投递并写入真实 Case 时间线。见 [M3-1 验收](evidence/product/career-os-v2/m3-1-explicit-application-acceptance-2026-08-11.md)。
-- [x] 建立最小确定性文字面试 Session/Turn，问题只引用固定岗位版本与同 owner 已确认事实。见 [M3-2 验收](evidence/product/career-os-v2/m3-2-deterministic-interview-acceptance-2026-08-11.md)。
-- [x] 生成结构化反馈与复盘：只指出表达问题、证据缺口和练习计划，不创造经历或修改事实。见 [M3-3 验收](evidence/product/career-os-v2/m3-3-feedback-debrief-acceptance-2026-08-11.md)。
-- [x] 复盘建议只有经用户确认后才能回到证据或简历；拒绝和暂不处理也保留用户选择。见 [M3-4 验收](evidence/product/career-os-v2/m3-4-user-confirmed-backflow-acceptance-2026-08-11.md)。
-- [ ] 覆盖 owner、CSRF、幂等、revision conflict、删除、空/失败状态、1280/320、200% 等效视口、键盘、包体和旗标回退。
-- [ ] 形成 M3 独立验收证据，并作继续 M4、修改、回退或停止决定。
+- [ ] `M4-0 旧入口与一岗闭环差异审计`（当前，0.25–0.5 日）：逐路由列出入口、用户任务、读写接口、数据真源、重复功能、可迁移内容、无法确定归属的只读历史、删除/异常缺口、旗标关闭行为和建议处置；只形成矩阵，不改业务。
+- [ ] `M4-1 兼容入口最小收口`（0.5 日）：按审计结论把可无损进入新 OS 的旧入口改为明确引导或兼容跳转；无法唯一关联的历史内容保留只读，不删除旧字段或做 contract migration。
+- [ ] `M4-2 删除与异常闭环`（0.5 日）：补齐当前界面真正缺少的单项/全部删除、404/409/会话过期/API 失败恢复和删除后不复活；不为未来场景扩建服务。
+- [ ] `M4-3 一岗本地测试候选`（0.5 日）：使用一个合成 Case 贯通要求、岗位简历、Review、DOCX/打印、外链交接、显式投递、模板面试、复盘回流和全部个人数据删除。
+- [ ] `M4-4 工程与浏览器 Gate`（0.25–0.5 日）：运行全仓、1280/320、200% 等效、键盘/焦点、刷新/历史、旗标回退、控制台和包体检查，形成 M4 独立测试候选证据。
 
 ### 明确排除
 
-- 不实现 Knowledge、跨 Case 智能生成、语音/音视频面试、自动投递或站外通知。
-- 不接真实招聘来源、真实 AI、真实简历、邮件、服务器或参与者数据；只使用合成 Case、岗位、简历和回答夹具。
-- 不在 M3 迁移 `/resume`、`/recommendations`、`/insights` 等旧页面；重复入口收口属于 M4。
-- 不因未来需求新增数据库、Redis、向量库、第二套队列、第二套认证或新的 AI SDK。
+- 不在审计前假设 `/resume`、`/recommendations`、`/insights` 必须全部重定向或删除。
+- 不做 G4 前的 contract migration，不删除无法证明已迁移的历史内容，不移除 `VITE_CAREER_OS_V2` 回退路径。
+- 不实现 Knowledge、真实 AI、真实来源扩容、邮箱、服务器、参与者招募、语音面试、自动投递或站外通知。
+- 不新增数据库、Redis、向量库、第二套队列、第二套认证或新的 AI SDK。
 
 ## 5. 后续 Gate
 
 | Gate | 最低条件 | 当前状态 |
 |---|---|---|
-| Private Alpha 产品 | M1–M4 与完整一岗闭环通过 | M1、M2 已通过；M3、M4 未通过 |
+| Private Alpha 产品 | M1–M4 与完整一岗闭环通过 | M1–M3 已通过；M4 未通过 |
 | 可信供给 | 100 家企业 / 1000 条活动可信实习岗位及既定 SME、职能、城市、人工来源分布 | 22 岗 / 3 家，未通过 |
 | 来源持续性 | 至少 3 个已准入确定性来源连续 7 天按 12 小时周期运行 | 0/3，未开始 |
 | 服务器就绪 | 邀请、邮箱身份、安全、隔离解析、备份恢复、监控和负载通过 | 未授权、未开始 |

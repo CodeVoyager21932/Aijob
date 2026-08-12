@@ -1,6 +1,6 @@
 # Aijob：可信官方岗位驱动的求职 OS
 
-> 2026-08-11：`M2 专业简历闭环`、`M3-1 显式投递记录`、`M3-2 确定性文字面试`、`M3-3 反馈与复盘` 与 `M3-4 用户确认回流` 已分别通过[工程验收](docs/evidence/product/career-os-v2/m2-professional-resume-acceptance-2026-08-11.md)、[投递切片验收](docs/evidence/product/career-os-v2/m3-1-explicit-application-acceptance-2026-08-11.md)、[面试切片验收](docs/evidence/product/career-os-v2/m3-2-deterministic-interview-acceptance-2026-08-11.md)、[反馈复盘验收](docs/evidence/product/career-os-v2/m3-3-feedback-debrief-acceptance-2026-08-11.md)和[确认回流验收](docs/evidence/product/career-os-v2/m3-4-user-confirmed-backflow-acceptance-2026-08-11.md)，当前唯一切片为 `M3-5 工程与浏览器 Gate`。migrations 025–032 与历史 `Phase 2B-*` 工程成果继续保留，但旧 G4-first 严格总计划已[废止并归档](docs/plans/career-os-v2-upgrade-plan-2026-08-04.md)，不得再提供下一任务。M3 不访问真实招聘来源、真实 AI、邮件、服务器或真实简历。
+> 2026-08-12：`M3 投递与持续改进` 已通过[完整工程与浏览器总验收](docs/evidence/product/career-os-v2/m3-workflow-acceptance-2026-08-12.md)，当前唯一目标切换为 `M4-0 旧入口与一岗闭环差异审计`。migrations 025–032 与历史 `Phase 2B-*` 工程成果继续保留，但旧 G4-first 严格总计划已[废止并归档](docs/plans/career-os-v2-upgrade-plan-2026-08-04.md)，不得再提供下一任务。M4 当前不访问真实招聘来源、真实 AI、邮件、服务器或真实简历，也不在审计前直接删除或重定向旧入口。
 
 这是一个待验证的产品项目，面向**未来 30 天真实投递实习岗位、已有中文简历、近期使用过多个官方渠道的中国大陆在校生**。它只把企业官方招聘网站和经企业官网确认的官方 ATS 中当前存在的具体岗位整理为可追溯信息；高校就业网站、政府页面、公众号和其他二手页面只用于发现企业及其官网方向。系统依据用户确认过的约束与经历证据，帮助用户完成投递、暂缓或放弃的高质量决定，最终回到企业官网或官方 ATS 投递。
 
@@ -10,17 +10,17 @@
 
 | 项目 | 当前值 |
 |---|---|
-| 快照日期 | 2026-08-11 |
-| 当前阶段 | Career OS 2.0 `M3 投递与持续改进`；M1、M2、M3-1、M3-2、M3-3 与 M3-4 已完成，当前执行 M3-5 工程与浏览器 Gate。Private Alpha 供给与服务器 Gate 通过前，G0/G1 继续暂停 |
+| 快照日期 | 2026-08-12 |
+| 当前阶段 | Career OS 2.0 `M4 旧流程收口与测试候选`；M1–M3 已完成，当前执行 M4-0 旧入口与一岗闭环差异审计。Private Alpha 供给与服务器 Gate 通过前，G0/G1 继续暂停 |
 | 当前范围 | 干净验收库 `aijob_alpha` 为 22 条可信可见活动岗位、3 家企业、3 个官方 ATS 来源；距离硬门槛仍缺 978 岗、97 家。SME 为 2/3 家、14/22 岗，人工来源为 0；Alpha 与公共岗位均为 0。开发库 14/2 及纠偏前 231/149/29 只保留为历史运行事实 |
 | 协议校准 | 尚未开始；供给硬门槛和服务器就绪 Gate 通过后，只有 coco 明确启动才做 2 人校准；历史可核验记录仍为 0/2 |
 | 正式实验 | 暂停；供给硬门槛、服务器就绪 Gate 与 G0 通过后再做 6 人正式任务和 72 小时回访 |
 | 历史研究样本 | 5 条本地产品/运营岗位；不等于完整 MVP 目录 |
 | 当前证据 | E0：尚无可复核目标用户行为证据，两个产品假设均未判定 |
-| 当前实现策略 | 保留现有 PostgreSQL、模块化单体、可信来源门和受控 AI 边界；以 Case 工作台为唯一业务真源，职业资产长期保留并由用户主动删除，私有 JD 仅 owner 可见；既有解析、事实确认、Resume V2、确定性建议、DOCX、显式投递、Case 时间线、固定输入的模板文字面试、结构化复盘及逐项确认回流已形成连续闭环，当前只执行 M3 总 Gate |
+| 当前实现策略 | 保留现有 PostgreSQL、模块化单体、可信来源门和受控 AI 边界；以 Case 工作台为唯一业务真源，职业资产长期保留并由用户主动删除，私有 JD 仅 owner 可见；连续闭环已通过 M3 总 Gate，M4 先审计旧入口、重复写入、删除和异常缺口，再做最小兼容收口 |
 | 来源发现进度 | 已按 ADR-0019 完成 1000/1000 家企业/机构审查记录；34 个来源配置中 12 个为 canonical（7 个活动确定性、2 个浏览器提醒、3 个硬冲突暂停），22 个高校等来源均降级为 `discovery_only`。当前审计没有 `capacity` 就绪候选 |
-| 工程切片 | M3-4 已完成：全仓串行 725/725、lint 432 files、typecheck、build、audit 与隔离 PostgreSQL 通过；逐项采用/编辑/拒绝/稍后处理、原子确认、刷新恢复、删除覆盖和受控返回 Requirements/Resume 已验收，当前只执行 M3-5 总 Gate，公共版本仍为 0 |
-| AI 状态 | Review、Interview、Feedback 与 Debrief 均必须与用户确认事实分离；公开环境继续关闭，M3 只使用确定性模板，不调用真实 AI |
+| 工程切片 | M3 已完成：全仓串行 725/725，1280/640/320、并发冲突、404、焦点返回、旗标回退和包体通过；当前只执行 M4-0 审计，不提前删除旧入口或做 contract migration，公共版本仍为 0 |
+| AI 状态 | Review、Interview、Feedback 与 Debrief 均必须与用户确认事实分离；公开环境继续关闭，M4 沿用确定性模板，不调用真实 AI |
 
 以上内容只用于帮助首次阅读者定位本次文档基线。后续动态阶段、样本进度、Gate 状态和下一决策日期只更新到 [MVP 路线与当前决策面板](docs/06-mvp-roadmap.md)；如有差异，以该面板为准。
 

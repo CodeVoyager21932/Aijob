@@ -6,7 +6,7 @@
 >
 > 上位事实源：[ADR-0030](../../../decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md)、[当前交付计划](../../../plans/career-os-current-delivery-plan.md)
 
-当前新路线的工程证据依次见 [M1 真实 Case 工作台](m1-real-case-workspace-acceptance-2026-08-09.md)、[M2 专业简历闭环](m2-professional-resume-acceptance-2026-08-11.md)、[M3-1 显式投递记录](m3-1-explicit-application-acceptance-2026-08-11.md)、[M3-2 确定性文字面试](m3-2-deterministic-interview-acceptance-2026-08-11.md)和 [M3-3 反馈与复盘](m3-3-feedback-debrief-acceptance-2026-08-11.md)。这些证据取代本目录历史 Phase 2B 验收中的“下一步”，但不删除历史工程事实；当前唯一目标只由动态路线与当前交接确定。
+当前新路线的工程证据依次见 [M1 真实 Case 工作台](m1-real-case-workspace-acceptance-2026-08-09.md)、[M2 专业简历闭环](m2-professional-resume-acceptance-2026-08-11.md)、[M3-1 显式投递记录](m3-1-explicit-application-acceptance-2026-08-11.md)、[M3-2 确定性文字面试](m3-2-deterministic-interview-acceptance-2026-08-11.md)、[M3-3 反馈与复盘](m3-3-feedback-debrief-acceptance-2026-08-11.md)、[M3-4 用户确认回流](m3-4-user-confirmed-backflow-acceptance-2026-08-11.md)和 [M3 总验收](m3-workflow-acceptance-2026-08-12.md)。这些证据取代本目录历史 Phase 2B 验收中的“下一步”，但不删除历史工程事实；当前唯一目标只由动态路线与当前交接确定。
 
 长期架构修正以 [ADR-0031](../../../decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md) 和 [Phase 2R 对齐报告](phase-2r-architecture-realignment-2026-08-06.md) 为准；本目录的概念图仍只约束布局、信息层级和交互关系，不覆盖长期生命周期、私有 JD 或 Resume Review 数据契约。
 
