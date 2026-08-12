@@ -2,7 +2,13 @@ import type { ApplicationCaseView } from "../application-case-view";
 import { Icon } from "./Icon";
 import { StageBadge } from "./StageBadge";
 
-export function CaseHeader({ applicationCase }: { applicationCase: ApplicationCaseView }) {
+export function CaseHeader({
+  applicationCase,
+  onRequestDelete,
+}: {
+  applicationCase: ApplicationCaseView;
+  onRequestDelete?: () => void;
+}) {
   return (
     <header className="career-case-header">
       <div className="career-case-header__identity">
@@ -26,17 +32,28 @@ export function CaseHeader({ applicationCase }: { applicationCase: ApplicationCa
           </span>
         </div>
       </div>
-      {applicationCase.externalUrl ? (
-        <a
-          className="career-button career-button--quiet"
-          href={applicationCase.externalUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {applicationCase.externalUrlVerified ? "打开岗位页面" : "打开用户提供链接"}
-          <Icon name="external" size={16} />
-        </a>
-      ) : null}
+      <div className="career-case-header__actions">
+        {applicationCase.externalUrl ? (
+          <a
+            className="career-button career-button--quiet"
+            href={applicationCase.externalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {applicationCase.externalUrlVerified ? "打开岗位页面" : "打开用户提供链接"}
+            <Icon name="external" size={16} />
+          </a>
+        ) : null}
+        {onRequestDelete ? (
+          <button
+            className="career-button career-button--danger-quiet"
+            type="button"
+            onClick={onRequestDelete}
+          >
+            删除求职项目
+          </button>
+        ) : null}
+      </div>
     </header>
   );
 }

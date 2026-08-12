@@ -1,16 +1,18 @@
 import type { ResumeDocument } from "@aijob/contracts";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   careerOsQueryKeys,
   createResumeDocument,
+  deleteResumeDocument,
   getLegacyResumeContentConversion,
   getResumeDocument,
   listResumeDocuments,
   putResumeDocumentContent,
 } from "../../api/career-os";
 import { createIdempotencyKey, ProductApiError } from "../../api/client";
+import { AssetDeletionDialog } from "../components/AssetDeletionDialog";
 import { Icon } from "../components/Icon";
 import { ResumeDocumentEditor } from "../components/ResumeDocumentEditor";
 import {
@@ -28,17 +30,12 @@ function formatDate(value: string): string {
   }).format(new Date(value));
 }
 
-function isBaseDocument(
-  document: ResumeDocument | undefined,
-): document is Extract<ResumeDocument, { kind: "base" }> {
-  return document?.kind === "base";
-}
-
 export function ResumeAssetsPage() {
   const { documentId } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const importCommandRef = useRef<{
     sourceId: string;
     createKey: string;
@@ -60,6 +57,26 @@ export function ResumeAssetsPage() {
     [assetsQuery.data?.pages],
   );
   const legacySource = assetsQuery.data?.pages[0]?.legacySource ?? null;
+  const derivedAssetsQuery = useInfiniteQuery({
+    queryKey: careerOsQueryKeys.resumeDocuments({ kind: "case_derived" }),
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam, signal }) =>
+      listResumeDocuments(
+        { kind: "case_derived", limit: 100, ...(pageParam ? { cursor: pageParam } : {}) },
+        signal,
+      ),
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+  });
+  const derivedDocuments = useMemo(
+    () =>
+      (derivedAssetsQuery.data?.pages ?? [])
+        .flatMap((page) => page.items)
+        .filter(
+          (document): document is Extract<ResumeDocument, { kind: "case_derived" }> =>
+            document.kind === "case_derived",
+        ),
+    [derivedAssetsQuery.data?.pages],
+  );
 
   const detailQuery = useQuery({
     queryKey: careerOsQueryKeys.resumeDocument(documentId ?? ""),
@@ -69,7 +86,11 @@ export function ResumeAssetsPage() {
       error instanceof ProductApiError && error.status === 404 ? false : failureCount < 1,
   });
   const listedSelection = resolveBaseResumeDocument(baseDocuments, documentId);
-  const selectedDocument = isBaseDocument(detailQuery.data) ? detailQuery.data : listedSelection;
+  const selectedDocument =
+    detailQuery.data ??
+    listedSelection ??
+    (documentId ? derivedDocuments.find((document) => document.id === documentId) : null) ??
+    (!documentId && baseDocuments.length === 0 ? derivedDocuments[0] : null);
 
   const conversionQuery = useQuery({
     queryKey: careerOsQueryKeys.legacyResumeSource(legacySource?.legacySourceRevisionId ?? ""),
@@ -133,8 +154,46 @@ export function ResumeAssetsPage() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: ({
+      documentId: targetId,
+      expectedRevision,
+    }: {
+      documentId: string;
+      expectedRevision: number;
+    }) => deleteResumeDocument(targetId, { expectedRevision }),
+    retry: false,
+    onSuccess: async (_result, variables) => {
+      setDeleteOpen(false);
+      queryClient.removeQueries({
+        queryKey: careerOsQueryKeys.resumeDocument(variables.documentId),
+      });
+      queryClient.removeQueries({
+        queryKey: careerOsQueryKeys.resumeContent(variables.documentId),
+      });
+      queryClient.removeQueries({ queryKey: careerOsQueryKeys.resumeLayout(variables.documentId) });
+      queryClient.removeQueries({ queryKey: careerOsQueryKeys.resumeReview(variables.documentId) });
+      await queryClient.invalidateQueries({ queryKey: careerOsQueryKeys.resumeDocumentLists });
+      navigate("/resumes?source=deleted", { replace: true });
+    },
+    onError: async (error, variables) => {
+      if (
+        error instanceof ProductApiError &&
+        (error.code === "RESUME_DOCUMENT_REVISION_CONFLICT" || error.status === 404)
+      ) {
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: careerOsQueryKeys.resumeDocument(variables.documentId),
+          }),
+          queryClient.invalidateQueries({ queryKey: careerOsQueryKeys.resumeDocumentLists }),
+        ]);
+      }
+    },
+  });
+
   const confirmedNow = searchParams.get("source") === "confirmed";
   const initializedNow = searchParams.get("source") === "initialized";
+  const deletedNow = searchParams.get("source") === "deleted";
   const legacySections = conversionQuery.data?.content.sections ?? [];
 
   return (
@@ -168,6 +227,15 @@ export function ResumeAssetsPage() {
           <span>
             <strong>可编辑基础简历已经建立</strong>
             <span>V1 来源仍保持只读，后续修改都会形成新的不可变修订。</span>
+          </span>
+        </output>
+      ) : null}
+      {deletedNow ? (
+        <output className="career-resume-assets__notice">
+          <Icon name="check" size={18} />
+          <span>
+            <strong>简历资产已删除</strong>
+            <span>其他基础简历、岗位简历、求职项目和面试记录没有被连带删除。</span>
           </span>
         </output>
       ) : null}
@@ -232,6 +300,67 @@ export function ResumeAssetsPage() {
             </button>
           ) : null}
 
+          <section className="career-resume-library__group" aria-labelledby="derived-resumes-title">
+            <header>
+              <div>
+                <p>岗位材料</p>
+                <h3 id="derived-resumes-title">岗位简历</h3>
+              </div>
+              <span>{derivedDocuments.length}</span>
+            </header>
+            {derivedAssetsQuery.isPending ? (
+              <output className="career-request-state">正在读取岗位简历…</output>
+            ) : derivedAssetsQuery.isError ? (
+              <div className="career-inline-error" role="alert">
+                <strong>岗位简历暂时无法读取</strong>
+                <span>
+                  {derivedAssetsQuery.error instanceof Error
+                    ? derivedAssetsQuery.error.message
+                    : "请稍后重试。"}
+                </span>
+                <button type="button" onClick={() => void derivedAssetsQuery.refetch()}>
+                  重新读取
+                </button>
+              </div>
+            ) : derivedDocuments.length > 0 ? (
+              <nav aria-label="岗位简历列表">
+                {derivedDocuments.map((document) => (
+                  <Link
+                    key={document.id}
+                    className={document.id === documentId ? "is-active" : undefined}
+                    to={`/resumes/${document.id}`}
+                  >
+                    <span className="career-resume-library__mark">
+                      <Icon name="document" size={18} />
+                    </span>
+                    <span>
+                      <strong>{document.title}</strong>
+                      <small className={document.detachedFromCaseId ? "is-draft" : "is-ready"}>
+                        {document.detachedFromCaseId ? "已保留为独立资产" : "关联求职项目"}
+                      </small>
+                      <time dateTime={document.updatedAt}>
+                        更新于 {formatDate(document.updatedAt)}
+                      </time>
+                    </span>
+                    <Icon name="chevron" size={16} />
+                  </Link>
+                ))}
+              </nav>
+            ) : (
+              <p className="career-resume-library__empty">还没有岗位简历。</p>
+            )}
+            {derivedAssetsQuery.hasNextPage ? (
+              <button
+                className="career-resume-library__more"
+                type="button"
+                disabled={derivedAssetsQuery.isFetchingNextPage}
+                onClick={() => void derivedAssetsQuery.fetchNextPage()}
+              >
+                {derivedAssetsQuery.isFetchingNextPage ? "正在加载…" : "继续加载"}
+              </button>
+            ) : null}
+          </section>
+
           <section className="career-resume-legacy-card" aria-labelledby="legacy-resume-title">
             <div className="career-resume-legacy-card__label">V1 · 只读来源</div>
             <h3 id="legacy-resume-title">已确认简历快照</h3>
@@ -283,40 +412,62 @@ export function ResumeAssetsPage() {
 
         <main className="career-resume-asset-stage">
           {documentId && detailQuery.isPending ? (
-            <output className="career-request-state">正在读取基础简历…</output>
+            <output className="career-request-state">正在读取简历资产…</output>
           ) : documentId && detailQuery.isError ? (
             <div className="career-empty-state" role="alert">
-              <strong>没有找到这份基础简历</strong>
+              <strong>没有找到这份简历资产</strong>
               <p>记录不存在、已删除或不属于当前账户。</p>
               <Link className="career-button career-button--quiet" to="/resumes">
                 返回简历资产
               </Link>
             </div>
-          ) : detailQuery.data && detailQuery.data.kind !== "base" ? (
-            <div className="career-empty-state" role="alert">
-              <strong>这不是基础简历</strong>
-              <p>岗位派生简历需要从对应的求职项目中打开。</p>
-              <Link className="career-button career-button--quiet" to="/applications">
-                前往我的求职
-              </Link>
-            </div>
           ) : selectedDocument ? (
             selectedDocument.currentContentRevisionId &&
             selectedDocument.currentLayoutRevisionId ? (
-              <ResumeDocumentEditor resumeDocument={selectedDocument} />
+              <>
+                <div className="career-asset-actions">
+                  <span>
+                    {selectedDocument.kind === "base" ? "基础简历" : "岗位简历"} · 修订{" "}
+                    {selectedDocument.revision}
+                  </span>
+                  <button
+                    className="career-button career-button--danger-quiet"
+                    type="button"
+                    onClick={() => setDeleteOpen(true)}
+                  >
+                    删除这份简历
+                  </button>
+                </div>
+                <ResumeDocumentEditor
+                  resumeDocument={selectedDocument}
+                  {...(selectedDocument.kind === "case_derived"
+                    ? {
+                        contextLabel: selectedDocument.detachedFromCaseId
+                          ? "已保留的独立岗位简历"
+                          : "求职项目岗位简历",
+                      }
+                    : {})}
+                />
+              </>
             ) : (
               <section className="career-resume-asset-preview">
                 <header>
                   <div>
-                    <p>Base Resume V2</p>
+                    <p>{selectedDocument.kind === "base" ? "Base Resume V2" : "Case Resume V2"}</p>
                     <h2>{selectedDocument.title}</h2>
                     <span>初始化尚未完成</span>
                   </div>
                 </header>
                 <div className="career-empty-state">
-                  <strong>这份基础简历尚未完成初始化</strong>
-                  <p>可从左侧已确认的 V1 来源继续，不会创建第二套解析数据。</p>
-                  {legacySource && !legacySource.migratedDocumentId ? (
+                  <strong>这份简历尚未完成初始化</strong>
+                  <p>
+                    {selectedDocument.kind === "base"
+                      ? "可从左侧已确认的 V1 来源继续，不会创建第二套解析数据。"
+                      : "当前没有可读取的正文或布局修订，系统不会用静态内容替代。"}
+                  </p>
+                  {selectedDocument.kind === "base" &&
+                  legacySource &&
+                  !legacySource.migratedDocumentId ? (
                     <button
                       className="career-button career-button--primary"
                       type="button"
@@ -375,6 +526,34 @@ export function ResumeAssetsPage() {
           )}
         </main>
       </div>
+      <AssetDeletionDialog
+        open={deleteOpen && Boolean(selectedDocument)}
+        title={`删除这份${selectedDocument?.kind === "case_derived" ? "岗位" : "基础"}简历？`}
+        description={
+          selectedDocument?.kind === "case_derived"
+            ? "只删除当前岗位简历及其简历审阅记录，不删除对应求职项目。"
+            : "只删除当前基础简历及其简历审阅记录，不删除其他简历资产。"
+        }
+        consequence={
+          selectedDocument?.kind === "case_derived"
+            ? "已经固定这份简历修订的面试和复盘不会被连带删除。"
+            : "已经从它派生的岗位简历、面试和复盘不会被连带删除。"
+        }
+        pending={deleteMutation.isPending}
+        error={deleteMutation.error}
+        onClose={() => {
+          if (deleteMutation.isPending) return;
+          setDeleteOpen(false);
+          deleteMutation.reset();
+        }}
+        onConfirm={() => {
+          if (!selectedDocument) return;
+          deleteMutation.mutate({
+            documentId: selectedDocument.id,
+            expectedRevision: selectedDocument.revision,
+          });
+        }}
+      />
     </section>
   );
 }

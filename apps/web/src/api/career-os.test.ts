@@ -54,6 +54,9 @@ describe("Career OS API paths", () => {
     expect(resumeDocumentListPath({ kind: "base" })).toBe(
       "/v1/resume-documents?limit=100&kind=base",
     );
+    expect(resumeDocumentListPath({ kind: "case_derived" })).toBe(
+      "/v1/resume-documents?limit=100&kind=case_derived",
+    );
   });
 
   it("pins DOCX downloads to the content and layout shown in the editor", () => {

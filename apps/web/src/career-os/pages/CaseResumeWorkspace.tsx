@@ -5,11 +5,13 @@ import { Link } from "react-router-dom";
 import {
   careerOsQueryKeys,
   createResumeDocument,
+  deleteResumeDocument,
   getCareerOsEvidence,
   listResumeDocuments,
 } from "../../api/career-os";
 import { createIdempotencyKey, ProductApiError } from "../../api/client";
 import { toApplicationCaseView } from "../application-case-view";
+import { AssetDeletionDialog } from "../components/AssetDeletionDialog";
 import { Icon } from "../components/Icon";
 import { ResumeDocumentEditor } from "../components/ResumeDocumentEditor";
 
@@ -20,6 +22,7 @@ export function CaseResumeWorkspace({
 }) {
   const queryClient = useQueryClient();
   const [selectedBaseId, setSelectedBaseId] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const createCommandRef = useRef<{ signature: string; key: string } | null>(null);
 
   const derivedQuery = useQuery({
@@ -110,6 +113,45 @@ export function CaseResumeWorkspace({
       if (error.code === "APPLICATION_CASE_REVISION_CONFLICT") {
         void queryClient.invalidateQueries({
           queryKey: careerOsQueryKeys.caseDetail(applicationCase.id),
+        });
+      }
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: ({
+      documentId,
+      expectedRevision,
+    }: {
+      documentId: string;
+      expectedRevision: number;
+    }) => deleteResumeDocument(documentId, { expectedRevision }),
+    retry: false,
+    onSuccess: async (_result, variables) => {
+      setDeleteOpen(false);
+      queryClient.removeQueries({
+        queryKey: careerOsQueryKeys.resumeDocument(variables.documentId),
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: careerOsQueryKeys.resumeDocuments({
+            kind: "case_derived",
+            caseId: applicationCase.id,
+          }),
+        }),
+        queryClient.invalidateQueries({ queryKey: careerOsQueryKeys.resumeDocumentLists }),
+      ]);
+    },
+    onError: async (error) => {
+      if (
+        error instanceof ProductApiError &&
+        (error.code === "RESUME_DOCUMENT_REVISION_CONFLICT" || error.status === 404)
+      ) {
+        await queryClient.invalidateQueries({
+          queryKey: careerOsQueryKeys.resumeDocuments({
+            kind: "case_derived",
+            caseId: applicationCase.id,
+          }),
         });
       }
     },
@@ -230,10 +272,41 @@ export function CaseResumeWorkspace({
 
   const applicationCaseView = toApplicationCaseView(applicationCase);
   return (
-    <ResumeDocumentEditor
-      resumeDocument={derivedDocument}
-      contextLabel={`${applicationCaseView.companyName} · ${applicationCaseView.roleTitle} 岗位简历`}
-      evidenceRevisionId={derivedDocument.evidenceRevisionId}
-    />
+    <>
+      <div className="career-asset-actions">
+        <span>岗位简历修订 {derivedDocument.revision}</span>
+        <button
+          className="career-button career-button--danger-quiet"
+          type="button"
+          onClick={() => setDeleteOpen(true)}
+        >
+          删除这份岗位简历
+        </button>
+      </div>
+      <ResumeDocumentEditor
+        resumeDocument={derivedDocument}
+        contextLabel={`${applicationCaseView.companyName} · ${applicationCaseView.roleTitle} 岗位简历`}
+        evidenceRevisionId={derivedDocument.evidenceRevisionId}
+      />
+      <AssetDeletionDialog
+        open={deleteOpen}
+        title="删除这份岗位简历？"
+        description="只删除当前岗位简历及其简历审阅记录，不删除基础简历或求职项目。"
+        consequence="已经固定此简历修订的面试记录不会被连带删除；其中的来源 ID 仍作为历史引用保留。"
+        pending={deleteMutation.isPending}
+        error={deleteMutation.error}
+        onClose={() => {
+          if (deleteMutation.isPending) return;
+          setDeleteOpen(false);
+          deleteMutation.reset();
+        }}
+        onConfirm={() =>
+          deleteMutation.mutate({
+            documentId: derivedDocument.id,
+            expectedRevision: derivedDocument.revision,
+          })
+        }
+      />
+    </>
   );
 }

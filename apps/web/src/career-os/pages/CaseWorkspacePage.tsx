@@ -1,14 +1,16 @@
 import type { ApplicationCaseWithJobContext } from "@aijob/contracts";
-import { useQuery } from "@tanstack/react-query";
-import { lazy, type ReactNode, Suspense } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { lazy, type ReactNode, Suspense, useState } from "react";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import {
   careerOsQueryKeys,
+  deleteApplicationCase,
   getApplicationCase,
   getApplicationCaseRequirements,
 } from "../../api/career-os";
 import { ProductApiError } from "../../api/client";
 import { toApplicationCaseView } from "../application-case-view";
+import { CaseDeletionDialog } from "../components/AssetDeletionDialog";
 import { CaseHeader } from "../components/CaseHeader";
 import { CaseTabs } from "../components/CaseTabs";
 import { Icon } from "../components/Icon";
@@ -159,12 +161,55 @@ function renderCaseTab(tab: CaseTab, applicationCase: ApplicationCaseWithJobCont
 
 export function CaseWorkspacePage() {
   const { caseId = "", tab } = useParams();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const applicationCaseQuery = useQuery({
     queryKey: careerOsQueryKeys.caseDetail(caseId),
     queryFn: ({ signal }) => getApplicationCase(caseId, signal),
     enabled: Boolean(caseId),
     retry: (failureCount, error) =>
       error instanceof ProductApiError && error.status === 404 ? false : failureCount < 1,
+  });
+  const deleteMutation = useMutation({
+    mutationFn: ({
+      targetCaseId,
+      expectedRevision,
+      choices,
+    }: {
+      targetCaseId: string;
+      expectedRevision: number;
+      choices: {
+        resumeDocuments: "delete" | "detach";
+        interviewSessions: "delete" | "detach";
+        debriefs: "delete" | "detach";
+      };
+    }) => deleteApplicationCase(targetCaseId, { expectedRevision, ...choices }),
+    retry: false,
+    onSuccess: async (_result, variables) => {
+      queryClient.removeQueries({ queryKey: careerOsQueryKeys.caseDetail(variables.targetCaseId) });
+      queryClient.removeQueries({
+        queryKey: careerOsQueryKeys.requirements(variables.targetCaseId),
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: careerOsQueryKeys.caseList() }),
+        queryClient.invalidateQueries({ queryKey: careerOsQueryKeys.resumeDocumentLists }),
+      ]);
+      navigate("/applications", {
+        replace: true,
+        state: { careerNotice: "求职项目已按你的选择删除，保留的派生资产没有被连带删除。" },
+      });
+    },
+    onError: async (error, variables) => {
+      if (
+        error instanceof ProductApiError &&
+        (error.code === "APPLICATION_CASE_REVISION_CONFLICT" || error.status === 404)
+      ) {
+        await queryClient.invalidateQueries({
+          queryKey: careerOsQueryKeys.caseDetail(variables.targetCaseId),
+        });
+      }
+    },
   });
 
   if (!isCaseTab(tab)) {
@@ -196,7 +241,7 @@ export function CaseWorkspacePage() {
   const view = toApplicationCaseView(applicationCase);
   return (
     <section className="career-case-workspace">
-      <CaseHeader applicationCase={view} />
+      <CaseHeader applicationCase={view} onRequestDelete={() => setDeleteOpen(true)} />
       <CaseTabs caseId={applicationCase.id} />
       <CaseProgress stage={applicationCase.stage} />
       <div className="career-case-version-note" role="note">
@@ -204,6 +249,24 @@ export function CaseWorkspacePage() {
         {view.fixedVersionLabel}。外部页面更新不会静默替换当前 Case 的固定内容。
       </div>
       {renderCaseTab(tab, applicationCase)}
+      <CaseDeletionDialog
+        open={deleteOpen}
+        privateJob={applicationCase.jobContext.kind === "private"}
+        pending={deleteMutation.isPending}
+        error={deleteMutation.error}
+        onClose={() => {
+          if (deleteMutation.isPending) return;
+          setDeleteOpen(false);
+          deleteMutation.reset();
+        }}
+        onConfirm={(choices) =>
+          deleteMutation.mutate({
+            targetCaseId: applicationCase.id,
+            expectedRevision: applicationCase.revision,
+            choices,
+          })
+        }
+      />
     </section>
   );
 }

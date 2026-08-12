@@ -11,6 +11,8 @@ import {
   careerOsQueryKeys,
   confirmCaseDebrief,
   createInterviewSession,
+  deleteDebrief,
+  deleteInterviewSession,
   getCaseDebrief,
   getInterviewSession,
   listInterviewSessions,
@@ -18,6 +20,7 @@ import {
   submitInterviewAnswer,
 } from "../../api/career-os";
 import { createIdempotencyKey, ProductApiError } from "../../api/client";
+import { AssetDeletionDialog } from "../components/AssetDeletionDialog";
 import { DebriefConfirmationPanel } from "../components/DebriefConfirmationPanel";
 import { Icon } from "../components/Icon";
 import {
@@ -46,6 +49,8 @@ export function CaseInterviewWorkspace({
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [draft, setDraft] = useState("");
+  const [sessionDeleteOpen, setSessionDeleteOpen] = useState(false);
+  const [debriefDeleteOpen, setDebriefDeleteOpen] = useState(false);
   const createCommandRef = useRef<{ signature: string; key: string } | null>(null);
   const answerCommandRef = useRef<{ signature: string; key: string } | null>(null);
   const prepareDebriefCommandRef = useRef<{ signature: string; key: string } | null>(null);
@@ -248,6 +253,84 @@ export function CaseInterviewWorkspace({
     },
   });
 
+  const deleteSessionMutation = useMutation({
+    mutationFn: ({
+      sessionId,
+      expectedRevision,
+    }: {
+      sessionId: string;
+      expectedRevision: number;
+    }) => deleteInterviewSession(sessionId, { expectedRevision }),
+    retry: false,
+    onSuccess: async (_result, variables) => {
+      setSessionDeleteOpen(false);
+      queryClient.removeQueries({
+        queryKey: careerOsQueryKeys.interviewSession(applicationCase.id, variables.sessionId),
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: careerOsQueryKeys.interviewSessions(applicationCase.id),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: careerOsQueryKeys.caseDebrief(applicationCase.id),
+        }),
+      ]);
+      if (selectedSessionId === variables.sessionId) {
+        const next = new URLSearchParams(searchParams);
+        next.delete("session");
+        setSearchParams(next, { replace: true });
+      }
+    },
+    onError: async (error, variables) => {
+      if (
+        error instanceof ProductApiError &&
+        (error.code === "INTERVIEW_SESSION_REVISION_CONFLICT" || error.status === 404)
+      ) {
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: careerOsQueryKeys.interviewSession(applicationCase.id, variables.sessionId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: careerOsQueryKeys.interviewSessions(applicationCase.id),
+          }),
+        ]);
+      }
+    },
+  });
+
+  const deleteDebriefMutation = useMutation({
+    mutationFn: ({
+      debriefId,
+      expectedRevision,
+    }: {
+      debriefId: string;
+      expectedRevision: number;
+    }) => deleteDebrief(debriefId, { expectedRevision }),
+    retry: false,
+    onSuccess: () => {
+      setDebriefDeleteOpen(false);
+      queryClient.setQueryData<GetCaseDebriefResponse>(
+        careerOsQueryKeys.caseDebrief(applicationCase.id),
+        {
+          feedback: null,
+          debrief: null,
+          itemDecisions: [],
+          confirmation: null,
+        },
+      );
+    },
+    onError: async (error) => {
+      if (
+        error instanceof ProductApiError &&
+        (error.code === "DEBRIEF_REVISION_CONFLICT" || error.status === 404)
+      ) {
+        await queryClient.invalidateQueries({
+          queryKey: careerOsQueryKeys.caseDebrief(applicationCase.id),
+        });
+      }
+    },
+  });
+
   const detail = detailQuery.data;
   const currentQuestion = currentInterviewQuestion(detail);
   const reviewState = caseDebriefSessionState(
@@ -338,6 +421,19 @@ export function CaseInterviewWorkspace({
           {createMutation.isPending ? "正在固定输入…" : "开始一轮模板面试"}
         </button>
       </section>
+
+      {debriefQuery.data?.debrief ? (
+        <div className="career-asset-actions">
+          <span>当前复盘 · 修订 {debriefQuery.data.debrief.revision}</span>
+          <button
+            className="career-button career-button--danger-quiet"
+            type="button"
+            onClick={() => setDebriefDeleteOpen(true)}
+          >
+            删除当前复盘
+          </button>
+        </div>
+      ) : null}
 
       {createMutation.isError ? (
         <div className="career-inline-error" role="alert">
@@ -450,9 +546,16 @@ export function CaseInterviewWorkspace({
             {detail ? (
               <>
                 <header className="career-interview-session__header">
-                  <div>
+                  <div className="career-interview-session__identity">
                     <p>{interviewStatusLabels[detail.session.status]}</p>
                     <h2>固定输入的模板面试</h2>
+                    <button
+                      className="career-button career-button--danger-quiet"
+                      type="button"
+                      onClick={() => setSessionDeleteOpen(true)}
+                    >
+                      删除本轮练习
+                    </button>
                   </div>
                   <dl>
                     <div>
@@ -742,6 +845,47 @@ export function CaseInterviewWorkspace({
           </section>
         </div>
       ) : null}
+      <AssetDeletionDialog
+        open={sessionDeleteOpen && Boolean(detail)}
+        title="删除这轮面试练习？"
+        description="只删除当前选择的面试练习，不删除求职项目或岗位简历。"
+        consequence="已经生成的复盘不会自动删除；你可以继续保留，或使用单独的复盘删除入口。"
+        pending={deleteSessionMutation.isPending}
+        error={deleteSessionMutation.error}
+        onClose={() => {
+          if (deleteSessionMutation.isPending) return;
+          setSessionDeleteOpen(false);
+          deleteSessionMutation.reset();
+        }}
+        onConfirm={() => {
+          if (!detail) return;
+          deleteSessionMutation.mutate({
+            sessionId: detail.session.id,
+            expectedRevision: detail.session.revision,
+          });
+        }}
+      />
+      <AssetDeletionDialog
+        open={debriefDeleteOpen && Boolean(debriefQuery.data?.debrief)}
+        title="删除当前复盘？"
+        description="删除表达问题、证据缺口、练习计划和本次确认记录。"
+        consequence="关联面试练习、岗位简历和求职项目不会被连带删除。"
+        pending={deleteDebriefMutation.isPending}
+        error={deleteDebriefMutation.error}
+        onClose={() => {
+          if (deleteDebriefMutation.isPending) return;
+          setDebriefDeleteOpen(false);
+          deleteDebriefMutation.reset();
+        }}
+        onConfirm={() => {
+          const currentDebrief = debriefQuery.data?.debrief;
+          if (!currentDebrief) return;
+          deleteDebriefMutation.mutate({
+            debriefId: currentDebrief.id,
+            expectedRevision: currentDebrief.revision,
+          });
+        }}
+      />
     </div>
   );
 }

@@ -1553,6 +1553,27 @@
   color: var(--career-green);
 }
 
+.career-case-header__actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.career-asset-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--career-line);
+  border-radius: 9px;
+  background: #fbfcfe;
+  color: var(--career-muted);
+  font-size: 0.72rem;
+}
+
 .career-case-tabs {
   display: flex;
   gap: 8px;
@@ -3586,6 +3607,151 @@
   background: #fff7f7;
 }
 
+.career-button--danger-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: #a33f3f;
+}
+
+.career-button--danger-quiet:hover {
+  border-color: #e6caca;
+  background: #fff7f7;
+}
+
+.career-deletion-dialog {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: min(620px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  gap: 18px;
+  overflow-y: auto;
+  padding: 24px;
+  border: 1px solid #e2e6ec;
+  border-radius: 14px;
+  background: white;
+  box-shadow: 0 24px 80px rgba(23, 32, 51, 0.24);
+  transform: translate(-50%, -50%);
+}
+
+.career-deletion-dialog--case {
+  width: min(880px, calc(100vw - 40px));
+}
+
+.career-deletion-dialog > header {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+}
+
+.career-deletion-dialog__icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 10px;
+  background: #fff1f0;
+  color: #a33f3f;
+}
+
+.career-deletion-dialog h2,
+.career-deletion-dialog p {
+  margin: 0;
+}
+
+.career-deletion-dialog > header p {
+  color: #a33f3f;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.career-deletion-dialog > header h2 {
+  margin-top: 4px;
+  font-size: 1.35rem;
+}
+
+.career-deletion-dialog > p {
+  color: var(--career-muted);
+  font-size: 0.78rem;
+  line-height: 1.7;
+}
+
+.career-deletion-dialog__warning {
+  display: grid;
+  gap: 5px;
+  padding: 13px 14px;
+  border: 1px solid #ead8bc;
+  border-radius: 9px;
+  background: #fffaf1;
+  color: #69533a;
+  font-size: 0.73rem;
+  line-height: 1.6;
+}
+
+.career-deletion-dialog > footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.career-deletion-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.career-deletion-choice {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  padding: 11px;
+  border: 1px solid var(--career-line);
+  border-radius: 10px;
+}
+
+.career-deletion-choice legend {
+  padding: 0 4px;
+  color: var(--career-ink);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.career-deletion-choice label {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px;
+  border-radius: 8px;
+  background: #f7f9fc;
+  cursor: pointer;
+}
+
+.career-deletion-choice input {
+  margin-top: 3px;
+  accent-color: #a33f3f;
+}
+
+.career-deletion-choice label > span {
+  display: grid;
+  gap: 3px;
+}
+
+.career-deletion-choice strong {
+  font-size: 0.72rem;
+}
+
+.career-deletion-choice small {
+  color: var(--career-muted);
+  font-size: 0.65rem;
+  line-height: 1.55;
+}
+
 .career-resume-assets {
   display: grid;
   gap: 18px;
@@ -3807,6 +3973,50 @@
   cursor: pointer;
   font-size: 0.7rem;
   font-weight: 720;
+}
+
+.career-resume-library__group {
+  display: grid;
+  gap: 10px;
+  padding: 14px 12px;
+  border-top: 1px solid var(--career-line);
+}
+
+.career-resume-library__group > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.career-resume-library__group > header p,
+.career-resume-library__group > header h3,
+.career-resume-library__empty {
+  margin: 0;
+}
+
+.career-resume-library__group > header p {
+  color: var(--career-muted);
+  font-size: 0.61rem;
+}
+
+.career-resume-library__group > header h3 {
+  margin-top: 2px;
+  font-size: 0.86rem;
+}
+
+.career-resume-library__group > header > span {
+  color: var(--career-muted);
+  font-size: 0.7rem;
+}
+
+.career-resume-library__group nav {
+  margin-inline: -12px;
+}
+
+.career-resume-library__empty {
+  color: var(--career-muted);
+  font-size: 0.7rem;
 }
 
 .career-resume-legacy-card {
@@ -5235,8 +5445,42 @@
     gap: 15px;
   }
 
-  .career-case-header > .career-button {
+  .career-case-header__actions,
+  .career-case-header__actions .career-button {
     width: 100%;
+  }
+
+  .career-case-header__actions {
+    flex-direction: column;
+  }
+
+  .career-asset-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .career-asset-actions .career-button {
+    width: 100%;
+  }
+
+  .career-deletion-dialog {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    max-height: min(92vh, 760px);
+    padding: 20px 16px;
+    border-radius: 16px 16px 0 0;
+    transform: none;
+  }
+
+  .career-deletion-choice-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .career-deletion-dialog > footer .career-button {
+    flex: 1;
   }
 
   .career-case-header h1 {
@@ -5759,6 +6003,16 @@
   .career-debrief-decision-result .career-button {
     width: 100%;
   }
+}
+
+.career-interview-session__identity {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+}
+
+.career-interview-session__identity .career-button {
+  margin-top: 4px;
 }
 
 @media (max-width: 380px) {

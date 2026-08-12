@@ -17,6 +17,14 @@ import type {
   CurrentResumeReviewResponse,
   DecideResumeReviewSuggestionRequest,
   DecideResumeReviewSuggestionResponse,
+  DeleteApplicationCaseRequest,
+  DeleteApplicationCaseResponse,
+  DeleteDebriefRequest,
+  DeleteDebriefResponse,
+  DeleteInterviewSessionRequest,
+  DeleteInterviewSessionResponse,
+  DeleteResumeDocumentRequest,
+  DeleteResumeDocumentResponse,
   GetCaseDebriefResponse,
   InterviewSessionDetail,
   LegacyResumeContentConversion,
@@ -114,6 +122,13 @@ export function createApplicationCase(
   });
 }
 
+export function deleteApplicationCase(caseId: string, request: DeleteApplicationCaseRequest) {
+  return apiRequest<DeleteApplicationCaseResponse>(
+    `/v1/application-cases/${encodeURIComponent(caseId)}`,
+    { method: "DELETE", body: request },
+  );
+}
+
 export interface ListApplicationCaseEventsInput {
   cursor?: string;
   limit?: number;
@@ -205,6 +220,13 @@ export function submitInterviewAnswer(
   );
 }
 
+export function deleteInterviewSession(sessionId: string, request: DeleteInterviewSessionRequest) {
+  return apiRequest<DeleteInterviewSessionResponse>(
+    `/v1/interview-sessions/${encodeURIComponent(sessionId)}`,
+    { method: "DELETE", body: request },
+  );
+}
+
 export function caseDebriefPath(caseId: string): string {
   return `/v1/application-cases/${encodeURIComponent(caseId)}/debrief`;
 }
@@ -238,6 +260,13 @@ export function confirmCaseDebrief(
     method: "POST",
     body: request,
     idempotencyKey,
+  });
+}
+
+export function deleteDebrief(debriefId: string, request: DeleteDebriefRequest) {
+  return apiRequest<DeleteDebriefResponse>(`/v1/debriefs/${encodeURIComponent(debriefId)}`, {
+    method: "DELETE",
+    body: request,
   });
 }
 
@@ -345,6 +374,13 @@ export function getResumeDocument(documentId: string, signal?: AbortSignal) {
   return apiRequest<ResumeDocument>(`/v1/resume-documents/${encodeURIComponent(documentId)}`, {
     signal,
   });
+}
+
+export function deleteResumeDocument(documentId: string, request: DeleteResumeDocumentRequest) {
+  return apiRequest<DeleteResumeDocumentResponse>(
+    `/v1/resume-documents/${encodeURIComponent(documentId)}`,
+    { method: "DELETE", body: request },
+  );
 }
 
 export function getLegacyResumeContentConversion(

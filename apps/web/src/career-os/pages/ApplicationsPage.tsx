@@ -5,7 +5,7 @@ import type {
 } from "@aijob/contracts";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   careerOsQueryKeys,
   createApplicationCase,
@@ -315,6 +315,7 @@ function PrivateJdDrawer({ open, onClose }: PrivateJdDrawerProps) {
 }
 
 export function ApplicationsPage() {
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [privateJdOpen, setPrivateJdOpen] = useState(false);
   const privateJdTriggerRef = useRef<HTMLButtonElement>(null);
@@ -392,6 +393,13 @@ export function ApplicationsPage() {
           导入私有 JD
         </button>
       </header>
+
+      {(location.state as { careerNotice?: string } | null)?.careerNotice ? (
+        <output className="career-resume-assets__notice">
+          <Icon name="check" size={18} />
+          <span>{(location.state as { careerNotice: string }).careerNotice}</span>
+        </output>
+      ) : null}
 
       <div className="career-view-toolbar" aria-label="求职项目视图工具栏" role="toolbar">
         <fieldset className="career-view-switcher">
