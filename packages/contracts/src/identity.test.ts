@@ -8,6 +8,7 @@ import {
   EmailIdentitySchema,
   EmailVerificationChallengeSchema,
   NormalizedEmailSchema,
+  SessionStatusSchema,
 } from "./identity.js";
 
 const timestamp = "2026-08-06T00:00:00.000Z";
@@ -146,6 +147,52 @@ describe("long-lived identity forward contracts", () => {
         createdAt: timestamp,
         updatedAt: timestamp,
         encryptedEmail: "must-not-leak",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("projects the active owner without exposing session credentials", () => {
+    expect(
+      SessionStatusSchema.parse({
+        authenticated: true,
+        owner: {
+          id: "owner-anonymous",
+          status: "active",
+          epoch: 1,
+          retentionMode: "anonymous_ttl",
+          retentionExpiresAt: timestamp,
+          accountId: null,
+          createdAt: timestamp,
+          lastSeenAt: timestamp,
+          deletedAt: null,
+        },
+        session: {
+          id: "session-1",
+          ownerEpoch: 1,
+          expiresAt: timestamp,
+        },
+      }).authenticated,
+    ).toBe(true);
+    expect(
+      SessionStatusSchema.safeParse({
+        authenticated: true,
+        owner: {
+          id: "owner-anonymous",
+          status: "active",
+          epoch: 1,
+          retentionMode: "anonymous_ttl",
+          retentionExpiresAt: timestamp,
+          accountId: null,
+          createdAt: timestamp,
+          lastSeenAt: timestamp,
+          deletedAt: null,
+        },
+        session: {
+          id: "session-1",
+          ownerEpoch: 1,
+          expiresAt: timestamp,
+          csrfTokenHash: "must-not-leak",
+        },
       }).success,
     ).toBe(false);
   });

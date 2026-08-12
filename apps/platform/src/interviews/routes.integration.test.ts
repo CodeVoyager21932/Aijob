@@ -5,6 +5,7 @@ import {
   ApplicationCaseMutationResponseSchema,
   ApplicationCaseRequirementsSchema,
   ApplicationCaseWithJobContextSchema,
+  CareerDataScopeResponseSchema,
   ConfirmCaseDebriefResponseSchema,
   CreateApplicationCaseResponseSchema,
   CreateInterviewSessionResponseSchema,
@@ -19,7 +20,7 @@ import {
   PrepareCaseDebriefResponseSchema,
   SubmitInterviewAnswerResponseSchema,
 } from "@aijob/contracts";
-import { createDatabase, type Database, migrateToLatest } from "@aijob/database";
+import { createDatabase, type Database, type JsonValue, migrateToLatest } from "@aijob/database";
 import type { FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -897,6 +898,63 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
     expect(deletedCase.relatedAssets.interviewSessions.detachedIds).toEqual(
       [createdBody.sessionId, secondSession.sessionId].sort(),
     );
+    if (createdCase.jobContext.kind !== "private") {
+      throw new Error("PRIVATE_CASE_CONTEXT_EXPECTED");
+    }
+    const pinnedSnapshotRevision = await db
+      .selectFrom("application.private_job_snapshot_revisions")
+      .selectAll()
+      .where("owner_id", "=", mainSession.context.ownerId)
+      .where("owner_epoch", "=", mainSession.context.ownerEpoch)
+      .where("snapshot_id", "=", createdCase.jobContext.snapshotId)
+      .where("content_revision", "=", 1)
+      .executeTakeFirstOrThrow();
+    await db
+      .insertInto("application.private_job_snapshot_revisions")
+      .values({
+        ...pinnedSnapshotRevision,
+        id: randomUUID(),
+        content_revision: 2,
+        requirement_set_revision: 2,
+        title: "较新的私有岗位标题",
+        requirements: JSON.stringify(pinnedSnapshotRevision.requirements) as unknown as JsonValue,
+        content_hash: "d".repeat(64),
+        created_at: new Date(),
+      })
+      .execute();
+    await db
+      .updateTable("application.private_job_snapshots")
+      .set({ current_content_revision: 2, current_requirement_set_revision: 2 })
+      .where("id", "=", createdCase.jobContext.snapshotId)
+      .where("owner_id", "=", mainSession.context.ownerId)
+      .execute();
+    const dataScopeResponse = await app.inject({
+      method: "GET",
+      url: "/v1/profile/data-scope",
+      headers,
+    });
+    expect(dataScopeResponse.statusCode).toBe(200);
+    expect(dataScopeResponse.headers["cache-control"]).toBe("no-store");
+    const dataScope = CareerDataScopeResponseSchema.parse(dataScopeResponse.json());
+    expect(dataScope.counts.detachedResumeDocuments).toBeGreaterThanOrEqual(1);
+    expect(dataScope.counts.detachedInterviewSessions).toBeGreaterThanOrEqual(2);
+    expect(dataScope.counts.detachedDebriefs).toBeGreaterThanOrEqual(1);
+    expect(dataScope.detachedAssets.map((asset) => asset.id)).toEqual(
+      expect.arrayContaining([
+        createdBody.sessionId,
+        secondSession.sessionId,
+        preparedBody.debrief.id,
+      ]),
+    );
+    expect(
+      dataScope.detachedAssets
+        .filter((asset) =>
+          [createdBody.sessionId, secondSession.sessionId, preparedBody.debrief.id].includes(
+            asset.id,
+          ),
+        )
+        .map((asset) => asset.title),
+    ).toEqual(["合成产品实习生", "合成产品实习生", "合成产品实习生"]);
 
     const deletedCaseReplay = await app.inject({
       method: "DELETE",
@@ -997,9 +1055,6 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
     });
     expect(deletedResumeReplay.json()).toEqual(resumeDeletion);
 
-    if (createdCase.jobContext.kind !== "private") {
-      throw new Error("PRIVATE_CASE_CONTEXT_EXPECTED");
-    }
     const privateSnapshot = await db
       .selectFrom("application.private_job_snapshots")
       .select("deleted_at")

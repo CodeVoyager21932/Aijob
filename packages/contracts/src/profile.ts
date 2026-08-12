@@ -248,6 +248,24 @@ export type PutSavedResumeEvidenceSelectionRequest = z.infer<
   typeof PutSavedResumeEvidenceSelectionRequestSchema
 >;
 
+export const ConfirmResumeProfileRequestSchema = z
+  .object({
+    facts: PutProfileFactsRequestSchema,
+    preferences: PutJobPreferencesRequestSchema,
+    evidence: PutResumeEvidenceRequestSchema,
+  })
+  .strict();
+export type ConfirmResumeProfileRequest = z.infer<typeof ConfirmResumeProfileRequestSchema>;
+
+export const ConfirmResumeProfileResponseSchema = z
+  .object({
+    factsRevision: ProfileFactRevisionSchema,
+    preferencesRevision: JobPreferenceRevisionSchema,
+    evidenceRevision: ResumeEvidenceRevisionSchema,
+  })
+  .strict();
+export type ConfirmResumeProfileResponse = z.infer<typeof ConfirmResumeProfileResponseSchema>;
+
 export const ResumeDocumentRevisionSchema = RevisionMetadataSchema.extend({
   resumeAnalysisId: IdentifierSchema.nullable(),
   schemaVersion: z.literal("resume-document-v1"),

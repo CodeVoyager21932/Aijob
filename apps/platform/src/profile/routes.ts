@@ -1,5 +1,6 @@
 import type { AppEnvironment } from "@aijob/config";
 import {
+  ConfirmResumeProfileRequestSchema,
   normalizeCityPreferences,
   PutJobPreferencesRequestSchema,
   PutProfileFactsRequestSchema,
@@ -13,6 +14,7 @@ import type { Kysely } from "kysely";
 import { z } from "zod";
 import { clearIdentityCookies, requireOwnerContext } from "../identity/fastify.js";
 import { ApiProblem, isApiProblem, sendApiProblem } from "../identity/http.js";
+import { getCareerDataScope } from "./data-scope-service.js";
 import {
   createDeletionReceipt,
   DELETION_RECEIPT_TTL_SECONDS,
@@ -20,6 +22,7 @@ import {
   requestOwnerDeletion,
 } from "./deletion-service.js";
 import {
+  confirmResumeProfile,
   getCurrentJobPreferences,
   getCurrentProfileFacts,
   getCurrentResumeDocument,
@@ -73,6 +76,49 @@ export function registerProfileRoutes(app: FastifyInstance, options: ProfileRout
           revision: 0,
           facts: [],
         },
+      );
+    } catch (error) {
+      return handleMutationError(error, request, reply);
+    }
+  });
+
+  app.get("/v1/profile/data-scope", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      return reply.send(await getCareerDataScope({ db: options.db, owner }));
+    } catch (error) {
+      return handleMutationError(error, request, reply);
+    }
+  });
+
+  app.put("/v1/profile/confirmation", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const body = ConfirmResumeProfileRequestSchema.parse(request.body);
+      const normalizedCities = normalizeCityPreferences(body.preferences.preferences.cities);
+      if (normalizedCities.mixedUnlimitedValue) {
+        throw new ApiProblem(
+          422,
+          "CITY_PREFERENCE_AMBIGUOUS",
+          "不限城市不能和具体城市同时选择",
+          "请选择“不限城市”，或只保留希望优先考虑的具体城市。",
+        );
+      }
+      return reply.send(
+        await confirmResumeProfile({
+          db: options.db,
+          owner,
+          request: {
+            ...body,
+            preferences: {
+              ...body.preferences,
+              preferences: {
+                ...body.preferences.preferences,
+                cities: normalizedCities.cities,
+              },
+            },
+          },
+        }),
       );
     } catch (error) {
       return handleMutationError(error, request, reply);

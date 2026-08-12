@@ -56,6 +56,24 @@ export const CareerOwnerSchema = z.discriminatedUnion("retentionMode", [
 ]);
 export type CareerOwner = z.infer<typeof CareerOwnerSchema>;
 
+export const SessionStatusSchema = z.discriminatedUnion("authenticated", [
+  z.object({ authenticated: z.literal(false) }).strict(),
+  z
+    .object({
+      authenticated: z.literal(true),
+      owner: CareerOwnerSchema,
+      session: z
+        .object({
+          id: IdentifierSchema,
+          ownerEpoch: z.number().int().positive(),
+          expiresAt: TimestampSchema,
+        })
+        .strict(),
+    })
+    .strict(),
+]);
+export type SessionStatus = z.infer<typeof SessionStatusSchema>;
+
 export const AccountStatusSchema = z.enum(["active", "deletion_pending", "deleted"]);
 export type AccountStatus = z.infer<typeof AccountStatusSchema>;
 

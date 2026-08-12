@@ -6,6 +6,7 @@ import {
   CSRF_COOKIE_NAME,
   CSRF_HEADER_NAME,
   installAnonymousIdentity,
+  OWNER_CONTEXT_HEADER_NAME,
   requireOwnerContext,
   SESSION_COOKIE_NAME,
 } from "./fastify.js";
@@ -63,6 +64,7 @@ describeWithDatabase("anonymous owner Fastify boundary", () => {
         headers: { host: "127.0.0.1:3000" },
       });
       expect(bootstrap.statusCode).toBe(200);
+      expect(bootstrap.headers[OWNER_CONTEXT_HEADER_NAME]).toBe(`${bootstrap.json().ownerId}:1`);
       const sessionToken = cookieValue(bootstrap.headers["set-cookie"], SESSION_COOKIE_NAME);
       const csrfToken = cookieValue(bootstrap.headers["set-cookie"], CSRF_COOKIE_NAME);
       expect(sessionToken).toBeTruthy();
@@ -187,7 +189,13 @@ describeWithDatabase("anonymous owner Fastify boundary", () => {
         payload: { inviteCode },
       });
       expect(accepted.statusCode).toBe(201);
-      expect(accepted.json()).toEqual({ authenticated: true });
+      expect(accepted.json()).toMatchObject({
+        authenticated: true,
+        owner: { retentionMode: "anonymous_ttl", accountId: null },
+        session: { ownerEpoch: 1 },
+      });
+      expect(JSON.stringify(accepted.json())).not.toContain("csrfTokenHash");
+      expect(JSON.stringify(accepted.json())).not.toContain("tokenHash");
       expect(accepted.headers["cache-control"]).toBe("no-store");
 
       const setCookie = accepted.headers["set-cookie"];
@@ -205,6 +213,7 @@ describeWithDatabase("anonymous owner Fastify boundary", () => {
         .where("token_hash", "=", hashOpaqueToken(sessionToken as string))
         .executeTakeFirstOrThrow();
       ownerIds.push(stored.owner_id);
+      expect(accepted.headers[OWNER_CONTEXT_HEADER_NAME]).toBe(`${stored.owner_id}:1`);
       expect(stored.token_hash).toBe(hashOpaqueToken(sessionToken as string));
       expect(stored.csrf_token_hash).toBe(hashOpaqueToken(csrfToken as string));
       expect(JSON.stringify(stored)).not.toContain(inviteCode);
@@ -215,7 +224,25 @@ describeWithDatabase("anonymous owner Fastify boundary", () => {
         url: "/v1/session",
         headers: { cookie },
       });
-      expect(authenticated.json()).toEqual({ authenticated: true });
+      expect(authenticated.json()).toMatchObject({
+        authenticated: true,
+        owner: { id: stored.owner_id, retentionMode: "anonymous_ttl" },
+        session: { ownerEpoch: 1 },
+      });
+      expect(authenticated.headers[OWNER_CONTEXT_HEADER_NAME]).toBe(`${stored.owner_id}:1`);
+
+      const repeatedSessionEntry = await app.inject({
+        method: "POST",
+        url: "/v1/session",
+        headers: { origin: acceptedOrigin, cookie },
+        payload: { inviteCode: "not-rechecked-for-an-active-session" },
+      });
+      expect(repeatedSessionEntry.statusCode).toBe(200);
+      expect(repeatedSessionEntry.json()).toMatchObject({
+        authenticated: true,
+        owner: { id: stored.owner_id, retentionMode: "anonymous_ttl" },
+        session: authenticated.json().session,
+      });
 
       const catalog = await app.inject({
         method: "GET",

@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type {
+  ConfirmResumeProfileRequest,
+  ConfirmResumeProfileResponse,
   JobPreference,
   JobPreferenceRevision,
   ProfileFact,
@@ -9,6 +11,7 @@ import type {
   ResumeEvidence,
   ResumeEvidenceRevision,
 } from "@aijob/contracts";
+import { ConfirmResumeProfileResponseSchema } from "@aijob/contracts";
 import type { Database, JsonValue } from "@aijob/database";
 import { type Kysely, sql } from "kysely";
 import { ApiProblem } from "../identity/http.js";
@@ -83,42 +86,52 @@ export async function putProfileFacts(input: {
   const now = input.now ?? new Date();
   return input.db.transaction().execute(async (transaction) => {
     await lockOwnerRevision(transaction, input.owner, "profile-facts");
-    const current = await getCurrentProfileFacts({
-      db: transaction,
-      ownerId: input.owner.ownerId,
-    });
-    const currentRevision = current?.revision ?? 0;
-    if (currentRevision !== input.expectedRevision) {
-      throw new ProfileRevisionConflict(currentRevision);
-    }
-    const revision = currentRevision + 1;
-    const id = randomUUID();
-    const contentHash = hashCanonicalJson(input.facts);
-    await transaction
-      .insertInto("profile.profile_fact_revisions")
-      .values({
-        id,
-        owner_id: input.owner.ownerId,
-        owner_epoch: input.owner.ownerEpoch,
-        revision,
-        base_revision: current?.revision ?? null,
-        facts: JSON.stringify(input.facts) as unknown as JsonValue,
-        content_hash: contentHash,
-        confirmed_at: now,
-        created_at: now,
-      })
-      .execute();
-    return {
-      id,
-      ownerId: input.owner.ownerId,
-      revision,
-      baseRevision: current?.revision ?? null,
-      contentHash,
-      confirmedAt: now.toISOString(),
-      createdAt: now.toISOString(),
-      facts: input.facts,
-    };
+    return writeProfileFactsRevision({ ...input, db: transaction, now });
   });
+}
+
+async function writeProfileFactsRevision(input: {
+  db: Kysely<Database>;
+  owner: OwnerContext;
+  expectedRevision: number;
+  facts: ProfileFact[];
+  now: Date;
+}): Promise<ProfileFactRevision> {
+  const current = await getCurrentProfileFacts({
+    db: input.db,
+    ownerId: input.owner.ownerId,
+  });
+  const currentRevision = current?.revision ?? 0;
+  if (currentRevision !== input.expectedRevision) {
+    throw new ProfileRevisionConflict(currentRevision);
+  }
+  const revision = currentRevision + 1;
+  const id = randomUUID();
+  const contentHash = hashCanonicalJson(input.facts);
+  await input.db
+    .insertInto("profile.profile_fact_revisions")
+    .values({
+      id,
+      owner_id: input.owner.ownerId,
+      owner_epoch: input.owner.ownerEpoch,
+      revision,
+      base_revision: current?.revision ?? null,
+      facts: JSON.stringify(input.facts) as unknown as JsonValue,
+      content_hash: contentHash,
+      confirmed_at: input.now,
+      created_at: input.now,
+    })
+    .execute();
+  return {
+    id,
+    ownerId: input.owner.ownerId,
+    revision,
+    baseRevision: current?.revision ?? null,
+    contentHash,
+    confirmedAt: input.now.toISOString(),
+    createdAt: input.now.toISOString(),
+    facts: input.facts,
+  };
 }
 
 export async function getCurrentJobPreferences(input: {
@@ -154,42 +167,52 @@ export async function putJobPreferences(input: {
   const now = input.now ?? new Date();
   return input.db.transaction().execute(async (transaction) => {
     await lockOwnerRevision(transaction, input.owner, "job-preferences");
-    const current = await getCurrentJobPreferences({
-      db: transaction,
-      ownerId: input.owner.ownerId,
-    });
-    const currentRevision = current?.revision ?? 0;
-    if (currentRevision !== input.expectedRevision) {
-      throw new ProfileRevisionConflict(currentRevision);
-    }
-    const revision = currentRevision + 1;
-    const id = randomUUID();
-    const contentHash = hashCanonicalJson(input.preferences);
-    await transaction
-      .insertInto("profile.job_preference_revisions")
-      .values({
-        id,
-        owner_id: input.owner.ownerId,
-        owner_epoch: input.owner.ownerEpoch,
-        revision,
-        base_revision: current?.revision ?? null,
-        preferences: JSON.stringify(input.preferences) as unknown as JsonValue,
-        content_hash: contentHash,
-        confirmed_at: now,
-        created_at: now,
-      })
-      .execute();
-    return {
-      id,
-      ownerId: input.owner.ownerId,
-      revision,
-      baseRevision: current?.revision ?? null,
-      contentHash,
-      confirmedAt: now.toISOString(),
-      createdAt: now.toISOString(),
-      preferences: input.preferences,
-    };
+    return writeJobPreferencesRevision({ ...input, db: transaction, now });
   });
+}
+
+async function writeJobPreferencesRevision(input: {
+  db: Kysely<Database>;
+  owner: OwnerContext;
+  expectedRevision: number;
+  preferences: JobPreference;
+  now: Date;
+}): Promise<JobPreferenceRevision> {
+  const current = await getCurrentJobPreferences({
+    db: input.db,
+    ownerId: input.owner.ownerId,
+  });
+  const currentRevision = current?.revision ?? 0;
+  if (currentRevision !== input.expectedRevision) {
+    throw new ProfileRevisionConflict(currentRevision);
+  }
+  const revision = currentRevision + 1;
+  const id = randomUUID();
+  const contentHash = hashCanonicalJson(input.preferences);
+  await input.db
+    .insertInto("profile.job_preference_revisions")
+    .values({
+      id,
+      owner_id: input.owner.ownerId,
+      owner_epoch: input.owner.ownerEpoch,
+      revision,
+      base_revision: current?.revision ?? null,
+      preferences: JSON.stringify(input.preferences) as unknown as JsonValue,
+      content_hash: contentHash,
+      confirmed_at: input.now,
+      created_at: input.now,
+    })
+    .execute();
+  return {
+    id,
+    ownerId: input.owner.ownerId,
+    revision,
+    baseRevision: current?.revision ?? null,
+    contentHash,
+    confirmedAt: input.now.toISOString(),
+    createdAt: input.now.toISOString(),
+    preferences: input.preferences,
+  };
 }
 
 export async function getCurrentResumeEvidence(input: {
@@ -332,6 +355,7 @@ function validateEvidenceReferences(
 
 export async function putResumeEvidence(input: {
   db: Kysely<Database>;
+  existingTransaction?: Kysely<Database>;
   owner: OwnerContext;
   expectedRevision: number;
   resumeAnalysisId: string | null;
@@ -341,7 +365,7 @@ export async function putResumeEvidence(input: {
 }): Promise<ResumeEvidenceRevision> {
   validateEvidenceReferences(input.resumeAnalysisId, input.evidence, input.document);
   const now = input.now ?? new Date();
-  return input.db.transaction().execute(async (transaction) => {
+  const execute = async (transaction: Kysely<Database>): Promise<ResumeEvidenceRevision> => {
     await lockOwnerRevision(transaction, input.owner, "resume-evidence");
     const current = await getCurrentResumeEvidence({
       db: transaction,
@@ -515,6 +539,54 @@ export async function putResumeEvidence(input: {
       documentRevisionId,
       evidence: input.evidence,
     };
+  };
+  return input.existingTransaction
+    ? execute(input.existingTransaction)
+    : input.db.transaction().execute(execute);
+}
+
+export async function confirmResumeProfile(input: {
+  db: Kysely<Database>;
+  owner: OwnerContext;
+  request: ConfirmResumeProfileRequest;
+  now?: Date;
+}): Promise<ConfirmResumeProfileResponse> {
+  validateEvidenceReferences(
+    input.request.evidence.resumeAnalysisId,
+    input.request.evidence.evidence,
+    input.request.evidence.document,
+  );
+  const now = input.now ?? new Date();
+  return input.db.transaction().execute(async (transaction) => {
+    // Keep the order stable so two confirmations cannot deadlock each other.
+    await lockOwnerRevision(transaction, input.owner, "job-preferences");
+    await lockOwnerRevision(transaction, input.owner, "profile-facts");
+    const factsRevision = await writeProfileFactsRevision({
+      db: transaction,
+      owner: input.owner,
+      expectedRevision: input.request.facts.expectedRevision,
+      facts: input.request.facts.facts,
+      now,
+    });
+    const preferencesRevision = await writeJobPreferencesRevision({
+      db: transaction,
+      owner: input.owner,
+      expectedRevision: input.request.preferences.expectedRevision,
+      preferences: input.request.preferences.preferences,
+      now,
+    });
+    const evidenceRevision = await putResumeEvidence({
+      db: input.db,
+      existingTransaction: transaction,
+      owner: input.owner,
+      ...input.request.evidence,
+      now,
+    });
+    return ConfirmResumeProfileResponseSchema.parse({
+      factsRevision,
+      preferencesRevision,
+      evidenceRevision,
+    });
   });
 }
 

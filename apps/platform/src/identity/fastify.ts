@@ -11,11 +11,13 @@ import {
   findActiveSession,
   hashOpaqueToken,
   type OwnerContext,
+  projectSessionStatus,
 } from "./session-repository.js";
 
 export const SESSION_COOKIE_NAME = "aijob_session";
 export const CSRF_COOKIE_NAME = "aijob_csrf";
 export const CSRF_HEADER_NAME = "x-csrf-token";
+export const OWNER_CONTEXT_HEADER_NAME = "x-aijob-owner-context";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -93,8 +95,7 @@ function shouldHandleIdentity(request: FastifyRequest): boolean {
 function isDeletionReceiptStatusRequest(request: FastifyRequest): boolean {
   return (
     request.method === "GET" &&
-    (request.url === "/v1/profile/deletion" ||
-      request.url.startsWith("/v1/profile/deletion?"))
+    (request.url === "/v1/profile/deletion" || request.url.startsWith("/v1/profile/deletion?"))
   );
 }
 
@@ -136,6 +137,10 @@ function setIdentityCookies(
     secure,
     expires: created.context.sessionExpiresAt,
   });
+  reply.header(
+    OWNER_CONTEXT_HEADER_NAME,
+    `${created.context.ownerId}:${created.context.ownerEpoch}`,
+  );
 }
 
 function inviteCodeAllowed(code: string, expectedHashes: readonly string[]): boolean {
@@ -209,6 +214,9 @@ export function installAnonymousIdentity(
       setIdentityCookies(reply, options.appEnv, created);
     }
     request.ownerContext = context;
+    if (context) {
+      reply.header(OWNER_CONTEXT_HEADER_NAME, `${context.ownerId}:${context.ownerEpoch}`);
+    }
 
     if (
       options.appEnv === "alpha" &&
@@ -275,14 +283,16 @@ export function installAnonymousIdentity(
   app.get("/v1/session", async (request, reply) => {
     reply.header("Cache-Control", "no-store");
     reply.header("Pragma", "no-cache");
-    return { authenticated: request.ownerContext !== null };
+    return projectSessionStatus({ db: options.db, context: request.ownerContext });
   });
 
   if (options.appEnv === "alpha") {
     app.post("/v1/session", async (request, reply) => {
       reply.header("Cache-Control", "no-store");
       reply.header("Pragma", "no-cache");
-      if (request.ownerContext) return { authenticated: true };
+      if (request.ownerContext) {
+        return projectSessionStatus({ db: options.db, context: request.ownerContext });
+      }
 
       const now = options.now?.() ?? new Date();
       const nowMs = now.getTime();
@@ -324,7 +334,9 @@ export function installAnonymousIdentity(
       const created = await createAnonymousSession({ db: options.db, now });
       request.ownerContext = created.context;
       setIdentityCookies(reply, options.appEnv, created);
-      return reply.code(201).send({ authenticated: true });
+      return reply
+        .code(201)
+        .send(await projectSessionStatus({ db: options.db, context: created.context }));
     });
   }
 }

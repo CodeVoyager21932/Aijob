@@ -1,4 +1,10 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import {
+  type CareerOwner,
+  CareerOwnerSchema,
+  type SessionStatus,
+  SessionStatusSchema,
+} from "@aijob/contracts";
 import type { Database } from "@aijob/database";
 import type { Kysely } from "kysely";
 
@@ -36,16 +42,74 @@ function createOpaqueToken(): string {
   return randomBytes(32).toString("base64url");
 }
 
+function toIso(value: Date | string): string {
+  return (value instanceof Date ? value : new Date(value)).toISOString();
+}
+
+export async function getCareerOwner(input: {
+  db: Kysely<Database>;
+  ownerId: string;
+  ownerEpoch: number;
+}): Promise<CareerOwner | null> {
+  const row = await input.db
+    .selectFrom("identity.owners as owner")
+    .leftJoin("identity.accounts as account", "account.owner_id", "owner.id")
+    .select([
+      "owner.id",
+      "owner.status",
+      "owner.epoch",
+      "owner.retention_mode",
+      "owner.retention_expires_at",
+      "owner.created_at",
+      "owner.last_seen_at",
+      "owner.deleted_at",
+      "account.id as account_id",
+    ])
+    .where("owner.id", "=", input.ownerId)
+    .where("owner.epoch", "=", input.ownerEpoch)
+    .executeTakeFirst();
+  if (!row) return null;
+  return CareerOwnerSchema.parse({
+    id: row.id,
+    status: row.status,
+    epoch: Number(row.epoch),
+    retentionMode: row.retention_mode,
+    retentionExpiresAt: row.retention_expires_at ? toIso(row.retention_expires_at) : null,
+    accountId: row.account_id,
+    createdAt: toIso(row.created_at),
+    lastSeenAt: toIso(row.last_seen_at),
+    deletedAt: row.deleted_at ? toIso(row.deleted_at) : null,
+  });
+}
+
+export async function projectSessionStatus(input: {
+  db: Kysely<Database>;
+  context: OwnerContext | null;
+}): Promise<SessionStatus> {
+  if (!input.context) return { authenticated: false };
+  const owner = await getCareerOwner({
+    db: input.db,
+    ownerId: input.context.ownerId,
+    ownerEpoch: input.context.ownerEpoch,
+  });
+  if (!owner) return { authenticated: false };
+  return SessionStatusSchema.parse({
+    authenticated: true,
+    owner,
+    session: {
+      id: input.context.sessionId,
+      ownerEpoch: input.context.ownerEpoch,
+      expiresAt: input.context.sessionExpiresAt.toISOString(),
+    },
+  });
+}
+
 export function isActiveOwnerEpochState(
   owner: OwnerLifecycleState | undefined,
   expectedEpoch: number,
   now: Date,
 ): boolean {
-  if (
-    !owner ||
-    owner.status !== "active" ||
-    Number(owner.epoch) !== expectedEpoch
-  ) {
+  if (!owner || owner.status !== "active" || Number(owner.epoch) !== expectedEpoch) {
     return false;
   }
   if (owner.retention_mode === "account_managed") return true;

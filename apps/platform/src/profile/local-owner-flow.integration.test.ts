@@ -9,17 +9,17 @@ import { createJobInsightRun } from "../insights/service.js";
 import type { ResumeAnalysisResult } from "../resume/analysis-service.js";
 import { getResumeAnalysis, submitResumeAnalysis } from "../resume/repository.js";
 import { runOneOwnerTask } from "../workers/owner-task-worker.js";
+import { getCareerDataScope } from "./data-scope-service.js";
 import {
   createDeletionReceipt,
   getOwnerDeletionByReceipt,
   requestOwnerDeletion,
 } from "./deletion-service.js";
 import {
+  confirmResumeProfile,
   getCurrentResumeDocument,
   ProfileRevisionConflict,
-  putJobPreferences,
   putProfileFacts,
-  putResumeEvidence,
   putSavedResumeEvidenceSelection,
 } from "./revision-repository.js";
 
@@ -182,36 +182,6 @@ describeWithDatabase("local owner resume, revisions and deletion flow", () => {
     });
     expect(result.candidateEvidence.length).toBeGreaterThan(0);
 
-    const facts = await putProfileFacts({
-      db,
-      owner,
-      expectedRevision: 0,
-      facts: [
-        { key: "current_student", value: true },
-        { key: "graduation_year", value: 2027 },
-      ],
-    });
-    expect(facts.revision).toBe(1);
-    await expect(
-      putProfileFacts({
-        db,
-        owner,
-        expectedRevision: 0,
-        facts: [{ key: "current_student", value: true }],
-      }),
-    ).rejects.toBeInstanceOf(ProfileRevisionConflict);
-
-    await putJobPreferences({
-      db,
-      owner,
-      expectedRevision: 0,
-      preferences: {
-        cities: ["深圳"],
-        jobFamilies: ["product"],
-        companyNames: [],
-        workModes: [],
-      },
-    });
     const candidate = result.candidateEvidence[0];
     if (!candidate) throw new Error("candidate evidence fixture missing");
     const evidence: ResumeEvidence = {
@@ -225,13 +195,98 @@ describeWithDatabase("local owner resume, revisions and deletion flow", () => {
       outcomes: candidate.outcomes,
       confirmed: true,
     };
-    await putResumeEvidence({
+    const confirmation = await confirmResumeProfile({
       db,
       owner,
-      expectedRevision: 0,
-      resumeAnalysisId: first.analysis.id,
-      document: result.document,
-      evidence: [evidence],
+      request: {
+        facts: {
+          expectedRevision: 0,
+          facts: [
+            { key: "current_student", value: true },
+            { key: "graduation_year", value: 2027 },
+          ],
+        },
+        preferences: {
+          expectedRevision: 0,
+          preferences: {
+            cities: ["深圳"],
+            jobFamilies: ["product"],
+            companyNames: [],
+            workModes: [],
+          },
+        },
+        evidence: {
+          expectedRevision: 0,
+          resumeAnalysisId: first.analysis.id,
+          document: result.document,
+          evidence: [evidence],
+        },
+      },
+    });
+    expect(confirmation.factsRevision.revision).toBe(1);
+    expect(confirmation.preferencesRevision.revision).toBe(1);
+    expect(confirmation.evidenceRevision.revision).toBe(1);
+    await expect(
+      confirmResumeProfile({
+        db,
+        owner,
+        request: {
+          facts: {
+            expectedRevision: 1,
+            facts: [{ key: "current_student", value: true }],
+          },
+          preferences: {
+            expectedRevision: 1,
+            preferences: {
+              cities: [],
+              jobFamilies: [],
+              companyNames: [],
+              workModes: [],
+            },
+          },
+          evidence: {
+            expectedRevision: 0,
+            resumeAnalysisId: null,
+            document: null,
+            evidence: [],
+          },
+        },
+      }),
+    ).rejects.toBeInstanceOf(ProfileRevisionConflict);
+    expect(
+      await db
+        .selectFrom("profile.profile_fact_revisions")
+        .select("id")
+        .where("owner_id", "=", owner.ownerId)
+        .execute(),
+    ).toHaveLength(1);
+    expect(
+      await db
+        .selectFrom("profile.job_preference_revisions")
+        .select("id")
+        .where("owner_id", "=", owner.ownerId)
+        .execute(),
+    ).toHaveLength(1);
+    await expect(
+      putProfileFacts({
+        db,
+        owner,
+        expectedRevision: 0,
+        facts: [{ key: "current_student", value: true }],
+      }),
+    ).rejects.toBeInstanceOf(ProfileRevisionConflict);
+    const dataScope = await getCareerDataScope({ db, owner });
+    expect(dataScope).toMatchObject({
+      owner: { id: owner.ownerId, retentionMode: "anonymous_ttl", accountId: null },
+      counts: {
+        currentFacts: 2,
+        currentPreferences: 1,
+        currentEvidence: 1,
+        resumeAnalysisMetadata: 1,
+        resumeAnalysisContentPendingDeletion: 0,
+      },
+      detachedAssets: [],
+      detachedAssetsTruncated: false,
     });
     const documentRevision = await db
       .selectFrom("profile.resume_document_revisions")

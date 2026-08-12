@@ -1,4 +1,5 @@
 export * from "./application-cases.js";
+export * from "./career-data-scope.js";
 export * from "./common.js";
 export * from "./decisions.js";
 export * from "./enums.js";
