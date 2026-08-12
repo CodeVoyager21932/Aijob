@@ -5,7 +5,11 @@ import type { Kysely } from "kysely";
 import type { OwnerTaskLease } from "../workers/owner-task-lease.js";
 import { withOwnerTaskLease } from "../workers/owner-task-lease.js";
 import { decryptResumePayload, encryptResumePayload } from "./crypto.js";
-import { parseResumeBuffer, parseResumeText } from "./parse.js";
+import {
+  parseResumeBuffer,
+  parseResumeText,
+  type ResumeParserSandboxOptions,
+} from "./parse.js";
 import {
   type PersonalInformationFinding,
   ResumeInputError,
@@ -471,6 +475,7 @@ export async function processResumeAnalysis(input: {
   lease: OwnerTaskLease;
   now?: Date;
   signal?: AbortSignal;
+  parserSandbox?: ResumeParserSandboxOptions;
 }): Promise<HydratedResumeAnalysisResult> {
   const now = input.now ?? new Date();
   const claimed = await withOwnerTaskLease(input.db, input.lease, async (transaction) => {
@@ -540,6 +545,7 @@ export async function processResumeAnalysis(input: {
             kind: analysis.input_kind as "pdf" | "docx",
             buffer: plaintext,
             ...(input.signal === undefined ? {} : { signal: input.signal }),
+            ...(input.parserSandbox === undefined ? {} : { sandbox: input.parserSandbox }),
           });
     const { result, findings } = buildAnalysisResult(text, input.analysisId);
     const extracted = encryptResumePayload(Buffer.from(text, "utf8"), input.encryptionKey);

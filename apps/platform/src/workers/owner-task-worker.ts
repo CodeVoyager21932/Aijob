@@ -202,6 +202,16 @@ async function dispatchTask(
         ownerEpoch: owner.ownerEpoch,
         encryptionKey: config.resumeEncryptionKey,
         lease,
+        ...(config.resumeParser
+          ? {
+              parserSandbox: {
+                mode: config.resumeParser.mode,
+                ...(config.resumeParser.containerImage
+                  ? { containerImage: config.resumeParser.containerImage }
+                  : {}),
+              },
+            }
+          : {}),
         ...(signal === undefined ? {} : { signal }),
       });
       return;

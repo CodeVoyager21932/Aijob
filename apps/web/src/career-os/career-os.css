@@ -6163,6 +6163,66 @@
   margin-top: 8px;
 }
 
+.career-data-claim {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(260px, 1.1fr);
+  gap: 28px;
+  align-items: start;
+  border: 1px solid color-mix(in srgb, var(--career-blue-deep) 30%, var(--career-line));
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--career-blue-soft) 32%, var(--career-paper));
+  padding: 22px;
+}
+
+.career-data-claim > div,
+.career-data-claim form {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.career-data-claim p,
+.career-data-claim h2,
+.career-data-claim span {
+  margin: 0;
+}
+
+.career-data-claim > div > p {
+  color: var(--career-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.career-data-claim h2 {
+  font-size: 1.12rem;
+}
+
+.career-data-claim span {
+  color: var(--career-muted);
+  line-height: 1.65;
+}
+
+.career-data-claim label {
+  font-weight: 700;
+}
+
+.career-data-claim input {
+  min-width: 0;
+  width: 100%;
+}
+
+.career-data-claim form > p[role="alert"] {
+  color: var(--career-red);
+  line-height: 1.5;
+}
+
+.career-data-claim .career-button,
+.career-data-claim output {
+  justify-self: start;
+}
+
 .career-data-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -6283,6 +6343,10 @@
 }
 
 @media (max-width: 900px) {
+  .career-data-claim {
+    grid-template-columns: 1fr;
+  }
+
   .career-data-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -6290,6 +6354,7 @@
 
 @media (max-width: 520px) {
   .career-data-retention,
+  .career-data-claim,
   .career-data-panel,
   .career-data-danger {
     padding: 17px;

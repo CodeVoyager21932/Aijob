@@ -54,7 +54,7 @@ export function ProductShell({ children }: PropsWithChildren) {
       <aside className="local-notice" role="note">
         <div className="product-shell local-notice__inner">
           <strong>证据优先</strong>
-          <span>{import.meta.env.MODE === "alpha" ? "匿名邀请会话" : "本机匿名会话"}</span>
+          <span>{import.meta.env.MODE === "alpha" ? "受邀邮箱会话" : "本机匿名会话"}</span>
           <span>未说明保持未知</span>
           <span>投递回到企业官方页面</span>
         </div>

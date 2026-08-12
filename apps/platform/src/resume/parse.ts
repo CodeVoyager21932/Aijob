@@ -7,9 +7,59 @@ const MIN_USEFUL_TEXT_CHARACTERS = 30;
 const MAX_PARSER_OUTPUT_BYTES = 1024 * 1024;
 const DEFAULT_PARSE_TIMEOUT_MS = 10_000;
 const PARSER_CHILD_PATH = fileURLToPath(new URL("./resume-parser-child.js", import.meta.url));
-const CHILD_ENVIRONMENT_ALLOWLIST = ["SYSTEMROOT", "WINDIR", "TEMP", "TMP", "TZ"] as const;
+const CHILD_ENVIRONMENT_ALLOWLIST = [
+  "SYSTEMROOT",
+  "WINDIR",
+  "TEMP",
+  "TMP",
+  "TZ",
+  "PATH",
+] as const;
 
 type ParserOperation = "parse-pdf" | "parse-docx" | "validate-docx";
+
+export interface ResumeParserSandboxOptions {
+  mode: "process" | "container";
+  containerImage?: string;
+  containerRuntimeCommand?: string;
+}
+
+const IMMUTABLE_CONTAINER_IMAGE = /^[^\s]+@sha256:[a-f0-9]{64}$/i;
+
+export function resumeParserContainerArguments(
+  image: string,
+  operation: ParserOperation,
+): string[] {
+  if (!IMMUTABLE_CONTAINER_IMAGE.test(image)) {
+    throw new Error("RESUME_PARSER_CONTAINER_IMAGE_IMMUTABLE_DIGEST_REQUIRED");
+  }
+  return [
+    "run",
+    "--rm",
+    "--interactive",
+    "--network",
+    "none",
+    "--read-only",
+    "--user",
+    "65532:65532",
+    "--cap-drop",
+    "ALL",
+    "--security-opt",
+    "no-new-privileges:true",
+    "--memory",
+    "256m",
+    "--memory-swap",
+    "256m",
+    "--cpus",
+    "0.50",
+    "--pids-limit",
+    "32",
+    "--tmpfs",
+    "/tmp:rw,noexec,nosuid,nodev,size=16m",
+    image,
+    operation,
+  ];
+}
 
 interface ParserSuccess {
   ok: true;
@@ -80,14 +130,22 @@ export async function runResumeParserProcess(input: {
   timeoutMs?: number;
   signal?: AbortSignal;
   childPath?: string;
+  sandbox?: ResumeParserSandboxOptions;
 }): Promise<string | undefined> {
   if (input.signal?.aborted) throw new Error("RESUME_PARSE_ABORTED");
   const timeoutMs = input.timeoutMs ?? DEFAULT_PARSE_TIMEOUT_MS;
+  const sandbox = input.sandbox ?? { mode: "process" };
+  const command =
+    sandbox.mode === "container" ? (sandbox.containerRuntimeCommand ?? "docker") : process.execPath;
+  const args =
+    sandbox.mode === "container"
+      ? resumeParserContainerArguments(sandbox.containerImage ?? "", input.operation)
+      : ["--max-old-space-size=192", input.childPath ?? PARSER_CHILD_PATH, input.operation];
 
   return new Promise((resolve, reject) => {
     const child = spawn(
-      process.execPath,
-      ["--max-old-space-size=192", input.childPath ?? PARSER_CHILD_PATH, input.operation],
+      command,
+      args,
       {
         env: resumeParserEnvironment(),
         stdio: ["pipe", "pipe", "pipe"],
@@ -194,12 +252,14 @@ export async function parseResumeBuffer(input: {
   buffer: Buffer;
   timeoutMs?: number;
   signal?: AbortSignal;
+  sandbox?: ResumeParserSandboxOptions;
 }): Promise<string> {
   const text = await runResumeParserProcess({
     operation: input.kind === "pdf" ? "parse-pdf" : "parse-docx",
     buffer: input.buffer,
     ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
     ...(input.signal === undefined ? {} : { signal: input.signal }),
+    ...(input.sandbox === undefined ? {} : { sandbox: input.sandbox }),
   });
   if (text === undefined) {
     throw new ResumeInputError("RESUME_PARSE_FAILED", "简历解析没有返回文本。");

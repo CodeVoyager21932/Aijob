@@ -1,10 +1,20 @@
-import { timingSafeEqual } from "node:crypto";
 import type { AppEnvironment } from "@aijob/config";
+import {
+  CompleteEmailVerificationRequestSchema,
+  CreateEmailVerificationChallengeRequestSchema,
+} from "@aijob/contracts";
 import type { Database } from "@aijob/database";
 import cookie from "@fastify/cookie";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Kysely } from "kysely";
 import { z } from "zod";
+import { ServiceError } from "../lib/service-error.js";
+import {
+  DisabledEmailVerificationDelivery,
+  type EmailVerificationDelivery,
+} from "./email-delivery.js";
+import { secureHexEqual } from "./email-crypto.js";
+import { EmailVerificationService } from "./email-verification-service.js";
 import { ApiProblem, sendApiProblem } from "./http.js";
 import {
   createAnonymousSession,
@@ -30,22 +40,14 @@ export interface AnonymousIdentityOptions {
   appEnv: AppEnvironment;
   host: string;
   acceptedOrigins?: readonly string[];
-  alphaInviteCodeHashes?: readonly string[];
+  identityMasterKey?: string;
+  invitedEmailHashes?: readonly string[];
+  emailDelivery?: EmailVerificationDelivery;
+  fixedVerificationCode?: string;
   now?: () => Date;
 }
 
-const AlphaInviteRequestSchema = z
-  .object({
-    inviteCode: z.string().trim().min(16).max(256),
-  })
-  .strict();
-const ALPHA_INVITE_FAILURE_WINDOW_MS = 15 * 60 * 1_000;
-const ALPHA_INVITE_MAX_FAILURES = 5;
-
-interface InviteFailureWindow {
-  startedAtMs: number;
-  failures: number;
-}
+const IdempotencyKeySchema = z.string().trim().min(1).max(200);
 
 function isSafeMethod(method: string): boolean {
   return method === "GET" || method === "HEAD" || method === "OPTIONS";
@@ -64,10 +66,12 @@ function isLoopbackHostname(hostname: string): boolean {
 function requestOriginAllowed(
   request: FastifyRequest,
   acceptedOrigins: readonly string[],
+  allowLoopbackFallback: boolean,
 ): boolean {
   const origin = request.headers.origin;
   if (!origin) return false;
   if (acceptedOrigins.includes(origin)) return true;
+  if (!allowLoopbackFallback) return false;
 
   try {
     const parsed = new URL(origin);
@@ -83,9 +87,7 @@ function requestOriginAllowed(
 }
 
 function tokenHashMatches(token: string, expectedHash: string): boolean {
-  const actual = Buffer.from(hashOpaqueToken(token), "hex");
-  const expected = Buffer.from(expectedHash, "hex");
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
+  return secureHexEqual(hashOpaqueToken(token), expectedHash);
 }
 
 function shouldHandleIdentity(request: FastifyRequest): boolean {
@@ -99,12 +101,16 @@ function isDeletionReceiptStatusRequest(request: FastifyRequest): boolean {
   );
 }
 
-function shouldSkipAutomaticBootstrap(request: FastifyRequest): boolean {
-  return isDeletionReceiptStatusRequest(request);
+function isEmailIdentityMutation(request: FastifyRequest): boolean {
+  return (
+    request.method === "POST" &&
+    (request.url === "/v1/email-verification-challenges" ||
+      request.url === "/v1/email-verification-challenges/complete")
+  );
 }
 
-function isAlphaSessionCreation(request: FastifyRequest, appEnv: AppEnvironment): boolean {
-  return appEnv === "alpha" && request.method === "POST" && request.url === "/v1/session";
+function shouldSkipAutomaticBootstrap(request: FastifyRequest): boolean {
+  return isDeletionReceiptStatusRequest(request) || isEmailIdentityMutation(request);
 }
 
 function isAlphaAnonymousReadAllowed(request: FastifyRequest): boolean {
@@ -126,7 +132,7 @@ function setIdentityCookies(
   reply.setCookie(SESSION_COOKIE_NAME, created.sessionToken, {
     path: "/",
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "strict",
     secure,
     expires: created.context.sessionExpiresAt,
   });
@@ -143,20 +149,12 @@ function setIdentityCookies(
   );
 }
 
-function inviteCodeAllowed(code: string, expectedHashes: readonly string[]): boolean {
-  let matched = false;
-  for (const expectedHash of expectedHashes) {
-    matched = tokenHashMatches(code, expectedHash) || matched;
-  }
-  return matched;
-}
-
 export function clearIdentityCookies(reply: FastifyReply, appEnv: AppEnvironment): void {
   const secure = cookieSecurity(appEnv);
   reply.clearCookie(SESSION_COOKIE_NAME, {
     path: "/",
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "strict",
     secure,
   });
   reply.clearCookie(CSRF_COOKIE_NAME, {
@@ -179,6 +177,47 @@ export function requireOwnerContext(request: FastifyRequest): OwnerContext {
   return request.ownerContext;
 }
 
+function assertCsrfToken(request: FastifyRequest): void {
+  const context = requireOwnerContext(request);
+  const csrfToken = request.headers[CSRF_HEADER_NAME];
+  if (typeof csrfToken !== "string" || !tokenHashMatches(csrfToken, context.csrfTokenHash)) {
+    throw new ApiProblem(
+      403,
+      "CSRF_REJECTED",
+      "安全校验失败",
+      "页面安全令牌已失效，请刷新后重试。",
+    );
+  }
+}
+
+function handleIdentityRouteError(
+  error: unknown,
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  if (error instanceof ApiProblem) return sendApiProblem(request, reply, error);
+  if (error instanceof ServiceError) {
+    return sendApiProblem(
+      request,
+      reply,
+      new ApiProblem(error.statusCode, error.code, "无法完成邮箱验证", error.message),
+    );
+  }
+  if (error instanceof z.ZodError) {
+    return sendApiProblem(
+      request,
+      reply,
+      new ApiProblem(
+        400,
+        "INVALID_EMAIL_VERIFICATION_REQUEST",
+        "邮箱验证请求格式不正确",
+        "请检查邮箱、验证码和请求编号后重试。",
+      ),
+    );
+  }
+  throw error;
+}
+
 /**
  * Install before product routes. `@fastify/cookie` is registered first so its
  * request/reply decorators are ready before the identity hook executes.
@@ -187,9 +226,28 @@ export function installAnonymousIdentity(
   app: FastifyInstance,
   options: AnonymousIdentityOptions,
 ): void {
-  const inviteFailures = new Map<string, InviteFailureWindow>();
+  const identityMasterKey =
+    options.identityMasterKey ?? hashOpaqueToken("aijob-local-test-identity-master-v1");
+  if (
+    (options.appEnv === "alpha" || options.appEnv === "production") &&
+    !options.identityMasterKey
+  ) {
+    throw new Error("IDENTITY_MASTER_KEY_REQUIRED");
+  }
+  const emailVerification = new EmailVerificationService({
+    db: options.db,
+    identityMasterKey,
+    invitedEmailHashes: options.invitedEmailHashes ?? [],
+    delivery: options.emailDelivery ?? new DisabledEmailVerificationDelivery(),
+    ...(options.fixedVerificationCode
+      ? { fixedVerificationCode: options.fixedVerificationCode }
+      : {}),
+    ...(options.now ? { now: options.now } : {}),
+  });
   app.register(cookie);
   app.decorateRequest("ownerContext", null);
+  const allowLoopbackOriginFallback =
+    options.appEnv === "local" || options.appEnv === "test";
 
   app.addHook("onRequest", async (request, reply) => {
     if (!shouldHandleIdentity(request)) return;
@@ -236,8 +294,14 @@ export function installAnonymousIdentity(
       );
     }
     if (isSafeMethod(request.method)) return;
-    if (isAlphaSessionCreation(request, options.appEnv)) {
-      if (!requestOriginAllowed(request, options.acceptedOrigins ?? [])) {
+    if (isEmailIdentityMutation(request)) {
+      if (
+        !requestOriginAllowed(
+          request,
+          options.acceptedOrigins ?? [],
+          allowLoopbackOriginFallback,
+        )
+      ) {
         return sendApiProblem(
           request,
           reply,
@@ -258,7 +322,13 @@ export function installAnonymousIdentity(
         new ApiProblem(401, "SESSION_REQUIRED", "需要有效的匿名会话", "请先刷新页面建立匿名会话。"),
       );
     }
-    if (!requestOriginAllowed(request, options.acceptedOrigins ?? [])) {
+    if (
+      !requestOriginAllowed(
+        request,
+        options.acceptedOrigins ?? [],
+        allowLoopbackOriginFallback,
+      )
+    ) {
       return sendApiProblem(
         request,
         reply,
@@ -286,57 +356,57 @@ export function installAnonymousIdentity(
     return projectSessionStatus({ db: options.db, context: request.ownerContext });
   });
 
-  if (options.appEnv === "alpha") {
-    app.post("/v1/session", async (request, reply) => {
-      reply.header("Cache-Control", "no-store");
-      reply.header("Pragma", "no-cache");
-      if (request.ownerContext) {
-        return projectSessionStatus({ db: options.db, context: request.ownerContext });
+  app.post("/v1/email-verification-challenges", async (request, reply) => {
+    reply.header("Cache-Control", "no-store");
+    reply.header("Pragma", "no-cache");
+    try {
+      const parsed = CreateEmailVerificationChallengeRequestSchema.parse(request.body);
+      if (parsed.purpose === "claim_owner") {
+        requireOwnerContext(request);
+        assertCsrfToken(request);
       }
+      const idempotencyKey = IdempotencyKeySchema.parse(request.headers["idempotency-key"]);
+      const challenge = await emailVerification.createChallenge({
+        request: parsed,
+        context: request.ownerContext,
+        idempotencyKey,
+      });
+      return reply.code(202).send(challenge);
+    } catch (error) {
+      return handleIdentityRouteError(error, request, reply);
+    }
+  });
 
-      const now = options.now?.() ?? new Date();
-      const nowMs = now.getTime();
-      const failureKey = request.ip;
-      const currentWindow = inviteFailures.get(failureKey);
-      if (
-        currentWindow &&
-        nowMs - currentWindow.startedAtMs < ALPHA_INVITE_FAILURE_WINDOW_MS &&
-        currentWindow.failures >= ALPHA_INVITE_MAX_FAILURES
-      ) {
-        throw new ApiProblem(
-          403,
-          "ALPHA_INVITE_REJECTED",
-          "访问凭证未通过校验",
-          "请确认访问凭证后稍后重试。",
-        );
+  app.post("/v1/email-verification-challenges/complete", async (request, reply) => {
+    reply.header("Cache-Control", "no-store");
+    reply.header("Pragma", "no-cache");
+    try {
+      const parsed = CompleteEmailVerificationRequestSchema.parse(request.body);
+      if (parsed.purpose === "claim_owner") {
+        requireOwnerContext(request);
+        assertCsrfToken(request);
       }
+      const completed = await emailVerification.completeChallenge({
+        request: parsed,
+        context: request.ownerContext,
+      });
+      request.ownerContext = completed.credentials.context;
+      setIdentityCookies(reply, options.appEnv, completed.credentials);
+      return reply.code(200).send(completed.session);
+    } catch (error) {
+      return handleIdentityRouteError(error, request, reply);
+    }
+  });
 
-      const parsed = AlphaInviteRequestSchema.safeParse(request.body);
-      const allowed =
-        parsed.success &&
-        inviteCodeAllowed(parsed.data.inviteCode, options.alphaInviteCodeHashes ?? []);
-      if (!allowed) {
-        const withinWindow =
-          currentWindow && nowMs - currentWindow.startedAtMs < ALPHA_INVITE_FAILURE_WINDOW_MS;
-        inviteFailures.set(failureKey, {
-          startedAtMs: withinWindow ? currentWindow.startedAtMs : nowMs,
-          failures: withinWindow ? currentWindow.failures + 1 : 1,
-        });
-        throw new ApiProblem(
-          403,
-          "ALPHA_INVITE_REJECTED",
-          "访问凭证未通过校验",
-          "请确认访问凭证后重试。",
-        );
-      }
-
-      inviteFailures.delete(failureKey);
-      const created = await createAnonymousSession({ db: options.db, now });
-      request.ownerContext = created.context;
-      setIdentityCookies(reply, options.appEnv, created);
-      return reply
-        .code(201)
-        .send(await projectSessionStatus({ db: options.db, context: created.context }));
-    });
-  }
+  app.delete("/v1/session", async (request, reply) => {
+    const context = requireOwnerContext(request);
+    await options.db
+      .updateTable("identity.owner_sessions")
+      .set({ revoked_at: options.now?.() ?? new Date() })
+      .where("id", "=", context.sessionId)
+      .where("owner_id", "=", context.ownerId)
+      .execute();
+    clearIdentityCookies(reply, options.appEnv);
+    return reply.code(204).send();
+  });
 }

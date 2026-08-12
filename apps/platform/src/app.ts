@@ -9,6 +9,10 @@ import { getInternalPreviewJob, listInternalPreviewJobs } from "./api/job-reposi
 import { registerApplicationCaseRoutes } from "./applications/routes.js";
 import { catalogRoutes } from "./catalog/routes.js";
 import { registerDecisionRoutes } from "./decisions/routes.js";
+import {
+  DisabledEmailVerificationDelivery,
+  FixtureEmailVerificationDelivery,
+} from "./identity/email-delivery.js";
 import { installAnonymousIdentity } from "./identity/fastify.js";
 import { isApiProblem, sendApiProblem } from "./identity/http.js";
 import { registerInsightRoutes } from "./insights/routes.js";
@@ -48,12 +52,23 @@ export function buildApp(input: { config: AppConfig; db: Kysely<Database> }): Fa
     disableRequestLogging: true,
   });
 
+  const emailDelivery =
+    input.config.identity.emailDeliveryMode === "fixture"
+      ? new FixtureEmailVerificationDelivery()
+      : new DisabledEmailVerificationDelivery();
   installAnonymousIdentity(app, {
     db: input.db,
     appEnv: input.config.appEnv,
     host: input.config.host,
     acceptedOrigins: input.config.identity.acceptedOrigins,
-    alphaInviteCodeHashes: input.config.identity.alphaInviteCodeHashes,
+    identityMasterKey:
+      input.config.identity.masterKey ??
+      sha256(`${input.config.resumeEncryptionKey}:identity-master-v1`),
+    invitedEmailHashes: input.config.identity.invitedEmailHashes ?? [],
+    emailDelivery,
+    ...(input.config.identity.fixtureVerificationCode
+      ? { fixedVerificationCode: input.config.identity.fixtureVerificationCode }
+      : {}),
   });
 
   app.addHook("onSend", async (request, reply, payload) => {
@@ -69,6 +84,7 @@ export function buildApp(input: { config: AppConfig; db: Kysely<Database> }): Fa
       "/v1/job-insight-runs",
       "/v1/application-cases",
       "/v1/session",
+      "/v1/email-verification-challenges",
     ];
     if (ownerScopedPrefixes.some((prefix) => request.url.startsWith(prefix))) {
       reply.header("Cache-Control", "no-store");

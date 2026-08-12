@@ -101,6 +101,7 @@ describe("long-lived identity forward contracts", () => {
       CompleteEmailVerificationRequestSchema.safeParse({
         purpose: "claim_owner",
         challengeId: "challenge-1",
+        email: "coco@example.com",
         verificationCode: "123456",
         expectedOwnerEpoch: 1,
       }).success,
@@ -109,6 +110,7 @@ describe("long-lived identity forward contracts", () => {
       CompleteEmailVerificationRequestSchema.safeParse({
         purpose: "claim_owner",
         challengeId: "challenge-1",
+        email: "coco@example.com",
         verificationCode: "12345a",
         expectedOwnerEpoch: 1,
       }).success,
@@ -117,6 +119,7 @@ describe("long-lived identity forward contracts", () => {
       CompleteEmailVerificationRequestSchema.safeParse({
         purpose: "change_email",
         challengeId: "challenge-1",
+        email: "coco@example.com",
         verificationCode: "123456",
         expectedOwnerEpoch: 1,
       }).success,

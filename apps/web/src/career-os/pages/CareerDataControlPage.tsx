@@ -14,6 +14,7 @@ import { clearDeletedOwnerCache } from "../../product/privacy-cache";
 import { clearJourneyState } from "../../product/session-state";
 import { AssetDeletionDialog } from "../components/AssetDeletionDialog";
 import { Icon } from "../components/Icon";
+import { OwnerClaimPanel } from "../components/OwnerClaimPanel";
 
 function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat("zh-CN", {
@@ -117,12 +118,21 @@ export function CareerDataControlPage() {
               <time dateTime={scope.owner.retentionExpiresAt ?? undefined}>
                 {formatDateTime(scope.owner.retentionExpiresAt ?? scope.sessionExpiresAt)}
               </time>{" "}
-              到期。邮箱账号与长期认领尚未在本地版本启用，因此这里不会把本机匿名数据写成“永久保存”。
+              到期。你可以在到期前验证邮箱并认领当前 owner；认领不会复制或替换已有职业资产。
             </span>
           )}
           <small>当前会话到期：{formatDateTime(scope.sessionExpiresAt)}</small>
         </div>
       </section>
+
+      {!accountManaged ? (
+        <OwnerClaimPanel
+          ownerEpoch={scope.owner.epoch}
+          onClaimed={() =>
+            queryClient.invalidateQueries({ queryKey: careerOsQueryKeys.dataScope })
+          }
+        />
+      ) : null}
 
       <section className="career-data-summary" aria-label="当前个人数据摘要">
         <AssetCountCard

@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { linkSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { isIP } from "node:net";
 import { dirname, resolve } from "node:path";
@@ -59,6 +59,10 @@ const HttpsUrlSchema = z
 const EncryptionKeySchema = z
   .string()
   .regex(/^[a-f0-9]{64}$/i, "RESUME_ENCRYPTION_KEY must be a 32-byte hex key");
+
+const IdentityMasterKeySchema = z
+  .string()
+  .regex(/^[a-f0-9]{64}$/i, "IDENTITY_MASTER_KEY must be a 32-byte hex key");
 
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/i, "Expected a SHA-256 hex digest");
 const HttpOriginSchema = z.string().refine(
@@ -163,6 +167,8 @@ const RawEnvironmentSchema = z
       .min(1)
       .max(10 * 1024 * 1024)
       .default(5 * 1024 * 1024),
+    RESUME_PARSER_MODE: z.enum(["process", "container"]).optional(),
+    RESUME_PARSER_CONTAINER_IMAGE: z.string().trim().min(1).optional(),
     ENABLE_AI: BooleanEnvironmentValueSchema,
     AI_BASE_URL: HttpsUrlSchema.optional(),
     AI_MODEL: z.string().trim().min(1).optional(),
@@ -172,10 +178,13 @@ const RawEnvironmentSchema = z
       .string()
       .optional()
       .transform((value) => commaSeparatedValues(value)),
-    ALPHA_INVITE_CODE_HASHES: z
+    IDENTITY_MASTER_KEY: IdentityMasterKeySchema.optional(),
+    ALPHA_INVITED_EMAIL_HASHES: z
       .string()
       .optional()
       .transform((value) => commaSeparatedValues(value)),
+    IDENTITY_EMAIL_DELIVERY_MODE: z.enum(["disabled", "fixture"]).default("disabled"),
+    IDENTITY_FIXTURE_VERIFICATION_CODE: z.string().regex(/^\d{6}$/).optional(),
   })
   .superRefine((environment, context) => {
     const permitsLocalCapabilities =
@@ -249,12 +258,34 @@ const RawEnvironmentSchema = z
       }
     }
 
-    for (const [index, digest] of environment.ALPHA_INVITE_CODE_HASHES.entries()) {
+    const parserMode =
+      environment.RESUME_PARSER_MODE ?? (permitsLocalCapabilities ? "process" : "container");
+    if (parserMode === "container") {
+      if (
+        !environment.RESUME_PARSER_CONTAINER_IMAGE ||
+        !/^[^\s]+@sha256:[a-f0-9]{64}$/i.test(environment.RESUME_PARSER_CONTAINER_IMAGE)
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["RESUME_PARSER_CONTAINER_IMAGE"],
+          message: "Container resume parser requires an immutable image@sha256 digest",
+        });
+      }
+    }
+    if (!permitsLocalCapabilities && parserMode !== "container") {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["RESUME_PARSER_MODE"],
+        message: "Alpha and production require the container resume parser",
+      });
+    }
+
+    for (const [index, digest] of environment.ALPHA_INVITED_EMAIL_HASHES.entries()) {
       if (!Sha256Schema.safeParse(digest).success) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ["ALPHA_INVITE_CODE_HASHES", index],
-          message: "Alpha invite codes must be configured as SHA-256 hex digests",
+          path: ["ALPHA_INVITED_EMAIL_HASHES", index],
+          message: "Alpha invited emails must be configured as keyed SHA-256 hex digests",
         });
       }
     }
@@ -267,11 +298,41 @@ const RawEnvironmentSchema = z
       });
     }
 
-    if (environment.APP_ENV === "alpha" && environment.ALPHA_INVITE_CODE_HASHES.length === 0) {
+    if (!permitsLocalCapabilities && environment.IDENTITY_MASTER_KEY === undefined) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ["ALPHA_INVITE_CODE_HASHES"],
-        message: "ALPHA_INVITE_CODE_HASHES is required in alpha",
+        path: ["IDENTITY_MASTER_KEY"],
+        message: "IDENTITY_MASTER_KEY is required in alpha and production",
+      });
+    }
+
+    if (environment.APP_ENV === "alpha" && environment.ALPHA_INVITED_EMAIL_HASHES.length === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["ALPHA_INVITED_EMAIL_HASHES"],
+        message: "ALPHA_INVITED_EMAIL_HASHES is required in alpha",
+      });
+    }
+
+    if (
+      (environment.APP_ENV === "alpha" || environment.APP_ENV === "production") &&
+      environment.IDENTITY_EMAIL_DELIVERY_MODE === "fixture"
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["IDENTITY_EMAIL_DELIVERY_MODE"],
+        message: "Fixture email delivery is forbidden in alpha and production",
+      });
+    }
+
+    if (
+      environment.IDENTITY_EMAIL_DELIVERY_MODE === "fixture" &&
+      environment.IDENTITY_FIXTURE_VERIFICATION_CODE === undefined
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["IDENTITY_FIXTURE_VERIFICATION_CODE"],
+        message: "IDENTITY_FIXTURE_VERIFICATION_CODE is required for fixture delivery",
       });
     }
   });
@@ -294,6 +355,12 @@ export const AppConfigSchema = z
       .int()
       .min(1)
       .max(10 * 1024 * 1024),
+    resumeParser: z
+      .object({
+        mode: z.enum(["process", "container"]),
+        containerImage: z.string().min(1).optional(),
+      })
+      .optional(),
     ai: z.object({
       enabled: z.boolean(),
       baseUrl: HttpsUrlSchema.optional(),
@@ -303,7 +370,13 @@ export const AppConfigSchema = z
     }),
     identity: z.object({
       acceptedOrigins: z.array(HttpOriginSchema),
-      alphaInviteCodeHashes: z.array(Sha256Schema),
+      // Retained only as a source-compatible empty field for existing test fixtures.
+      // Shared invite codes are no longer parsed or used by the identity boundary.
+      alphaInviteCodeHashes: z.array(Sha256Schema).default([]),
+      masterKey: IdentityMasterKeySchema.optional(),
+      invitedEmailHashes: z.array(Sha256Schema).optional(),
+      emailDeliveryMode: z.enum(["disabled", "fixture"]).optional(),
+      fixtureVerificationCode: z.string().regex(/^\d{6}$/).optional(),
     }),
     workspaceRoot: z.string().min(1),
   })
@@ -344,6 +417,9 @@ export const parseAppConfig = (
   const rootDirectory = resolve(options.rootDirectory ?? DEFAULT_WORKSPACE_ROOT);
   const parsed = RawEnvironmentSchema.parse(environment);
   const localCapabilitiesDefault = parsed.APP_ENV === "local" || parsed.APP_ENV === "test";
+  const resumeEncryptionKey =
+    parsed.RESUME_ENCRYPTION_KEY ??
+    (localCapabilitiesDefault ? loadOrCreateLocalEncryptionKey(rootDirectory) : undefined);
 
   const config = AppConfigSchema.parse({
     appEnv: parsed.APP_ENV,
@@ -365,10 +441,15 @@ export const parseAppConfig = (
       environment.ENABLE_LOCAL_MVP === undefined
         ? localCapabilitiesDefault
         : parsed.ENABLE_LOCAL_MVP,
-    resumeEncryptionKey:
-      parsed.RESUME_ENCRYPTION_KEY ??
-      (localCapabilitiesDefault ? loadOrCreateLocalEncryptionKey(rootDirectory) : undefined),
+    resumeEncryptionKey,
     resumeMaxBytes: parsed.RESUME_MAX_BYTES,
+    resumeParser: {
+      mode:
+        parsed.RESUME_PARSER_MODE ?? (localCapabilitiesDefault ? "process" : "container"),
+      ...(parsed.RESUME_PARSER_CONTAINER_IMAGE
+        ? { containerImage: parsed.RESUME_PARSER_CONTAINER_IMAGE }
+        : {}),
+    },
     ai: {
       enabled: parsed.ENABLE_AI,
       baseUrl: parsed.AI_BASE_URL,
@@ -378,7 +459,17 @@ export const parseAppConfig = (
     },
     identity: {
       acceptedOrigins: parsed.ACCEPTED_ORIGINS,
-      alphaInviteCodeHashes: parsed.ALPHA_INVITE_CODE_HASHES,
+      alphaInviteCodeHashes: [],
+      masterKey:
+        parsed.IDENTITY_MASTER_KEY ??
+        (localCapabilitiesDefault && resumeEncryptionKey
+          ? createHash("sha256")
+              .update(`aijob:identity-master-v1:${resumeEncryptionKey}`, "utf8")
+              .digest("hex")
+          : undefined),
+      invitedEmailHashes: parsed.ALPHA_INVITED_EMAIL_HASHES,
+      emailDeliveryMode: parsed.IDENTITY_EMAIL_DELIVERY_MODE,
+      fixtureVerificationCode: parsed.IDENTITY_FIXTURE_VERIFICATION_CODE,
     },
     workspaceRoot: rootDirectory,
   });
@@ -418,7 +509,8 @@ export const toSafeConfigLog = (
   };
   identity: {
     acceptedOrigins: readonly string[];
-    alphaInviteCodesConfigured: number;
+    invitedEmailsConfigured: number;
+    emailDeliveryMode: "disabled" | "fixture";
   };
 } => {
   return {
@@ -432,7 +524,8 @@ export const toSafeConfigLog = (
     },
     identity: {
       acceptedOrigins: config.identity.acceptedOrigins,
-      alphaInviteCodesConfigured: config.identity.alphaInviteCodeHashes.length,
+      invitedEmailsConfigured: config.identity.invitedEmailHashes?.length ?? 0,
+      emailDeliveryMode: config.identity.emailDeliveryMode ?? "disabled",
     },
   };
 };

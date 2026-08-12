@@ -15,6 +15,8 @@
 - `M4-3 一岗本地测试候选` 已通过[独立工程验收](evidence/product/career-os-v2/m4-3-one-job-local-candidate-acceptance-2026-08-12.md)：同一合成公共岗位 Case 已从 API 创建/重开、固定岗位版本、Requirements/Evidence、Resume/Review、DOCX、外链无写入、显式投递、模板面试、复盘确认和回流运行到选择性删除与全部 owner 删除；公共合成岗位保持存在。
 - `M4-4 工程与浏览器 Gate` 已通过[M4 工程与浏览器总验收](evidence/product/career-os-v2/m4-engineering-browser-gate-acceptance-2026-08-12.md)：1280/320、200% 等效视口、键盘/焦点、刷新/历史、404/409/API 恢复、旗标回退、DOCX/打印、零外联、懒加载、包体与全仓 750/750 均通过。
 - M4 决定为 **完成并进入 Private Alpha 准备**。这不是启动真实 Alpha 的授权；下一实现切片必须由 coco 单独决定，且不得绕过供给、服务器、身份、安全、G0/G1 与 G4 Gate。
+- coco 已授权并完成 `PA-1 离线身份与解析隔离候选`：共享邀请码替换为受邀邮箱 challenge，匿名 owner 可保持原资产完成认领；Alpha/Production 解析配置强制 digest 固定、无网络、非特权容器并失败关闭。验收见 [PA-1 离线候选证据](evidence/product/career-os-v2/pa-1-offline-identity-parser-candidate-acceptance-2026-08-12.md)。
+- PA-1 没有接入真实邮件供应商，也没有获取或运行真实解析镜像；服务器就绪 Gate 仍未通过。当前等待 coco 决定下一项准备工作。
 - 真实性、安全、隐私、供给和服务器要求继续由 [Private Alpha 与上线就绪 Gate](plans/private-alpha-readiness-gates.md) 守门，但该 Gate 不生成 M4 当前任务。
 
 ## 2. 当前快照
@@ -22,16 +24,16 @@
 | 项目 | 当前事实 |
 |---|---|
 | 更新日期 | 2026-08-12 |
-| 当前阶段 | Career OS 2.0 M1–M4 已完成；等待 coco 授权 Private Alpha 准备的具体切片 |
-| 当前唯一目标 | 暂无自动执行任务；保持 M4 通过基线，等待 coco 从 Private Alpha 就绪 Gate 中明确授权下一项准备工作 |
-| 工程基线 | M1–M4 已完成；M4 最终全仓回归 Config 17、Contracts 79、Database 54、Platform 459、Web 141，共 750/750；lint 445 files、typecheck、build、audit、全新隔离 PostgreSQL 与 diff check 通过 |
-| 前端基线 | `/settings/data` 已展示真实保留模式、完整资产范围与脱离资产管理；简历确认已原子化，会话边界不自动重放写入，未实现顶层入口已隐藏。主包 564.42 kB，数据设置 9.15 kB、面试 23.51 kB、简历编辑器 29.23 kB，重工作区仍为独立 lazy chunk |
+| 当前阶段 | M1–M4 已完成；PA-1 离线身份与解析隔离候选已完成，服务器就绪 Gate 仍未通过 |
+| 当前唯一目标 | 暂无自动执行任务；保持 PA-1 离线候选边界，等待 coco 明确授权下一项准备工作 |
+| 工程基线 | PA-1 最终全仓回归 Config 20、Contracts 79、Database 54、Platform 461、Web 142，共 756/756；lint 451 files、typecheck、build、audit、全新隔离 PostgreSQL 与 diff check 通过 |
+| 前端基线 | Alpha 受邀邮箱两步验证与匿名 owner 认领已形成离线浏览器候选；认领保持同一 owner/epoch 和资产。主包 566.69 kB，数据设置 12.05 kB、面试 23.51 kB、简历编辑器 29.23 kB，重工作区仍为独立 lazy chunk |
 | 当前产品证据 | E0：没有可复核目标用户行为证据 |
 | 可信供给 | 22 岗 / 3 家企业 / 3 个官方 ATS；公共与 Alpha 岗位均为 0 |
 | 当前 AI | 公开和远程环境关闭；M4 沿用确定性模板，不调用真实 AI |
 | 参与者验证 | 未开始；G0 为 0/2，G1 未开始 |
-| 当前下一决定 | 等待 coco 明确选择并授权 Private Alpha 准备的具体切片；不得因 M4 工程通过而自动访问真实来源、启动服务器或招募参与者 |
-| 时间盒 | M1–M4 已完成；后续时间盒尚未授权 |
+| 当前下一决定 | 等待 coco 明确选择下一项；不得因 PA-1 离线候选通过而接入真实邮件、获取镜像、部署服务器、访问真实来源或招募参与者 |
+| 时间盒 | PA-1 离线候选已完成；后续时间盒尚未授权 |
 
 岗位数量、工程测试、页面完成或 AI 调用都不能把产品证据从 E0 自动提升。
 
@@ -86,7 +88,7 @@ flowchart LR
 | Private Alpha 产品 | M1–M4 与完整一岗闭环通过 | **已通过本地合成工程 Gate**；不等于供给、服务器或用户 Gate 通过 |
 | 可信供给 | 100 家企业 / 1000 条活动可信实习岗位及既定 SME、职能、城市、人工来源分布 | 22 岗 / 3 家，未通过 |
 | 来源持续性 | 至少 3 个已准入确定性来源连续 7 天按 12 小时周期运行 | 0/3，未开始 |
-| 服务器就绪 | 邀请、邮箱身份、安全、隔离解析、备份恢复、监控和负载通过 | 未授权、未开始 |
+| 服务器就绪 | 邀请、邮箱身份、安全、隔离解析、备份恢复、监控和负载通过 | PA-1 离线候选已完成；真实邮件、解析镜像、HTTPS 部署、备份恢复、监控和负载均未通过 |
 | G0/G1 | 2 人协议校准和 6 人正式价值验证 | 未开始 |
 | G4 | 产品、供给、服务器、G0/G1、删除恢复和故障演练全部通过 | 未开始 |
 | 推广上线 | 至少 10000 条可信可见岗位，并覆盖产品、运营、技术、销售和 AI | 未开始 |

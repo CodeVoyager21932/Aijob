@@ -1,9 +1,9 @@
 # Aijob Career OS 当前交付计划
 
-- 状态：**Complete / M0–M4 已完成**
+- 状态：**Complete / M0–M4 与 PA-1 离线候选已完成**
 - 生效日期：2026-08-09
 - 决策者：coco
-- 当前里程碑：`M4 旧流程收口与测试候选` 已完成；Private Alpha 准备等待 coco 单独授权
+- 当前里程碑：`PA-1 离线身份与解析隔离候选` 已完成；下一项 Private Alpha 准备等待 coco 单独授权
 - 动态进度：[MVP 路线与当前决策面板](../06-mvp-roadmap.md)
 - 当前工程入口：[当前项目交接](../handoffs/current.md)
 - 后续完整性检查：[Private Alpha 与上线就绪 Gate](private-alpha-readiness-gates.md)
@@ -38,6 +38,8 @@ Aijob 要先形成一个由 coco 在本地完整体验、能够判断产品流�
 | M4 旧流程收口与测试候选 | 已完成 | 重复入口收口、删除和异常状态完整，一岗端到端可验收 | 已完成；[总验收证据](../evidence/product/career-os-v2/m4-engineering-browser-gate-acceptance-2026-08-12.md) |
 
 M0–M4 已全部完成。M4-4 在隔离合成数据上通过最终工程与浏览器 Gate；本计划不再生成后续实现任务。Private Alpha 的真实供给、服务器、身份、安全和参与者准备必须由 coco 另行授权，并以 [Private Alpha 与上线就绪 Gate](private-alpha-readiness-gates.md) 守门。
+
+M4 后 coco 单独授权的 PA-1 已形成[离线身份与解析隔离候选](../evidence/product/career-os-v2/pa-1-offline-identity-parser-candidate-acceptance-2026-08-12.md)。它不接真实邮件、不获取解析镜像、不部署服务器；这些条件仍由后续服务器 Gate 守门，本计划不自动生成下一切片。
 
 ### M1：真实 Case 工作台
 

@@ -10,7 +10,7 @@ describe("Private Alpha access gate", () => {
       </AlphaAccessGate>,
     );
     expect(html).toContain("product-ready");
-    expect(html).not.toContain("访问凭证");
+    expect(html).not.toContain("受邀邮箱");
   });
 
   it("does not render product content before the Alpha session check", () => {

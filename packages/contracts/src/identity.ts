@@ -174,6 +174,7 @@ export const CompleteEmailVerificationRequestSchema = z.discriminatedUnion("purp
     .object({
       purpose: z.literal("claim_owner"),
       challengeId: IdentifierSchema,
+      email: NormalizedEmailSchema,
       verificationCode: VerificationCodeSchema,
       expectedOwnerEpoch: z.number().int().positive(),
     })
@@ -182,6 +183,7 @@ export const CompleteEmailVerificationRequestSchema = z.discriminatedUnion("purp
     .object({
       purpose: z.literal("sign_in"),
       challengeId: IdentifierSchema,
+      email: NormalizedEmailSchema,
       verificationCode: VerificationCodeSchema,
     })
     .strict(),
@@ -189,6 +191,7 @@ export const CompleteEmailVerificationRequestSchema = z.discriminatedUnion("purp
     .object({
       purpose: z.literal("change_email"),
       challengeId: IdentifierSchema,
+      email: NormalizedEmailSchema,
       verificationCode: VerificationCodeSchema,
       expectedAccountRevision: RevisionSchema,
     })

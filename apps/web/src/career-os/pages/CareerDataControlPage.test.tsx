@@ -107,7 +107,8 @@ describe("Career data control truth", () => {
     const html = renderScope(scope("anonymous_ttl"));
     const visibleText = html.replace(/<[^>]+>/g, " ");
     expect(html).toContain("本机匿名兼容模式");
-    expect(html).toContain("邮箱账号与长期认领尚未在本地版本启用");
+    expect(html).toContain("用邮箱认领这个本机身份");
+    expect(html).toContain("认领不会复制或替换已有职业资产");
     expect(html).toContain("产品实习生");
     expect(html).toContain("前往简历资产管理");
     expect(html).not.toContain("最长保留 30 天");
@@ -119,5 +120,6 @@ describe("Career data control truth", () => {
     expect(html).toContain("长期账号管理");
     expect(html).toContain("没有固定自动到期日");
     expect(html).not.toContain("本机匿名兼容模式");
+    expect(html).not.toContain("用邮箱认领这个本机身份");
   });
 });

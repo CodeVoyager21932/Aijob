@@ -3,7 +3,10 @@ import {
   apiDownload,
   apiRequest,
   cookieValue,
-  createAlphaSession,
+  completeEmailVerification,
+  completeOwnerClaim,
+  createEmailVerificationChallenge,
+  createOwnerClaimChallenge,
   getSessionStatus,
   subscribeToSessionBoundary,
 } from "./client";
@@ -161,26 +164,125 @@ describe("product API client", () => {
     expect(new Headers(captured?.headers).get("x-csrf-token")).toBeNull();
   });
 
-  it("creates an Alpha session without requiring a pre-existing CSRF cookie", async () => {
+  it("requests and completes an Alpha email challenge without a pre-existing CSRF cookie", async () => {
     let captured: RequestInit | undefined;
+    const challenge = {
+      id: "challenge-alpha",
+      purpose: "sign_in",
+      status: "pending",
+      maskedEmail: "c***@example.test",
+      expiresAt: "2026-08-12T00:10:00.000Z",
+      retryAfterAt: "2026-08-12T00:01:00.000Z",
+      remainingAttempts: 5,
+    };
     vi.stubGlobal("document", { cookie: "" });
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         captured = init;
-        return new Response(JSON.stringify(sessionStatus), {
-          status: 201,
+        const response = String(input).endsWith("/complete") ? sessionStatus : challenge;
+        return new Response(JSON.stringify(response), {
+          status: 200,
           headers: { "Content-Type": "application/json" },
         });
       }),
     );
 
-    await expect(createAlphaSession("alpha-private-invite-code")).resolves.toEqual(sessionStatus);
+    await expect(
+      createEmailVerificationChallenge("coco@example.test", "alpha-request-1"),
+    ).resolves.toEqual(challenge);
     const headers = new Headers(captured?.headers);
     expect(captured?.method).toBe("POST");
     expect(captured?.credentials).toBe("same-origin");
     expect(headers.get("x-csrf-token")).toBeNull();
-    expect(captured?.body).toBe(JSON.stringify({ inviteCode: "alpha-private-invite-code" }));
+    expect(headers.get("Idempotency-Key")).toBe("alpha-request-1");
+    expect(captured?.body).toBe(
+      JSON.stringify({ purpose: "sign_in", email: "coco@example.test" }),
+    );
+
+    await expect(
+      completeEmailVerification({
+        challengeId: "challenge-alpha",
+        email: "coco@example.test",
+        verificationCode: "246810",
+      }),
+    ).resolves.toEqual(sessionStatus);
+    expect(captured?.body).toBe(
+      JSON.stringify({
+        purpose: "sign_in",
+        challengeId: "challenge-alpha",
+        email: "coco@example.test",
+        verificationCode: "246810",
+      }),
+    );
+  });
+
+  it("claims the current owner with CSRF and preserves the owner epoch", async () => {
+    const challenge = {
+      id: "challenge-claim",
+      purpose: "claim_owner",
+      status: "pending",
+      maskedEmail: "c***@example.test",
+      expiresAt: "2026-08-12T00:10:00.000Z",
+      retryAfterAt: "2026-08-12T00:01:00.000Z",
+      remainingAttempts: 5,
+    };
+    const claimedSession = {
+      ...sessionStatus,
+      owner: {
+        ...sessionStatus.owner,
+        retentionMode: "account_managed" as const,
+        retentionExpiresAt: null,
+        accountId: "account-local",
+      },
+    };
+    const requests: RequestInit[] = [];
+    vi.stubGlobal("document", { cookie: "aijob_csrf=claim-csrf" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        requests.push(init ?? {});
+        const response = String(input).endsWith("/complete") ? claimedSession : challenge;
+        return new Response(JSON.stringify(response), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+
+    await expect(
+      createOwnerClaimChallenge(
+        { email: "claim@example.test", expectedOwnerEpoch: 1 },
+        "claim-request-1",
+      ),
+    ).resolves.toEqual(challenge);
+    await expect(
+      completeOwnerClaim({
+        challengeId: "challenge-claim",
+        email: "claim@example.test",
+        verificationCode: "135790",
+        expectedOwnerEpoch: 1,
+      }),
+    ).resolves.toEqual(claimedSession);
+
+    expect(new Headers(requests[0]?.headers).get("x-csrf-token")).toBe("claim-csrf");
+    expect(new Headers(requests[0]?.headers).get("Idempotency-Key")).toBe("claim-request-1");
+    expect(requests[0]?.body).toBe(
+      JSON.stringify({
+        purpose: "claim_owner",
+        email: "claim@example.test",
+        expectedOwnerEpoch: 1,
+      }),
+    );
+    expect(requests[1]?.body).toBe(
+      JSON.stringify({
+        purpose: "claim_owner",
+        challengeId: "challenge-claim",
+        email: "claim@example.test",
+        verificationCode: "135790",
+        expectedOwnerEpoch: 1,
+      }),
+    );
   });
 
   it("recovers a read once across a session boundary", async () => {

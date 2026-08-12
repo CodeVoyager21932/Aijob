@@ -6,7 +6,7 @@ import {
   SessionStatusSchema,
 } from "@aijob/contracts";
 import type { Database } from "@aijob/database";
-import type { Kysely } from "kysely";
+import type { Kysely, Transaction } from "kysely";
 
 export const ANONYMOUS_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
 
@@ -33,6 +33,8 @@ export interface CreatedAnonymousSession {
   sessionToken: string;
   csrfToken: string;
 }
+
+type IdentityDb = Kysely<Database> | Transaction<Database>;
 
 export function hashOpaqueToken(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("hex");
@@ -173,6 +175,64 @@ export async function createAnonymousSession(input: {
   };
 }
 
+export async function issueOwnerSession(input: {
+  db: IdentityDb;
+  ownerId: string;
+  ownerEpoch: number;
+  now?: Date;
+  ttlMs?: number;
+  revokeExisting?: boolean;
+}): Promise<CreatedAnonymousSession> {
+  const now = input.now ?? new Date();
+  const expiresAt = new Date(now.getTime() + (input.ttlMs ?? ANONYMOUS_SESSION_TTL_MS));
+  const sessionId = randomUUID();
+  const sessionToken = createOpaqueToken();
+  const csrfToken = createOpaqueToken();
+  const tokenHash = hashOpaqueToken(sessionToken);
+  const csrfTokenHash = hashOpaqueToken(csrfToken);
+
+  if (input.revokeExisting ?? true) {
+    await input.db
+      .updateTable("identity.owner_sessions")
+      .set({ revoked_at: now })
+      .where("owner_id", "=", input.ownerId)
+      .where("revoked_at", "is", null)
+      .execute();
+  }
+
+  await input.db
+    .insertInto("identity.owner_sessions")
+    .values({
+      id: sessionId,
+      owner_id: input.ownerId,
+      owner_epoch: input.ownerEpoch,
+      token_hash: tokenHash,
+      csrf_token_hash: csrfTokenHash,
+      expires_at: expiresAt,
+      revoked_at: null,
+      last_seen_at: now,
+    })
+    .execute();
+  await input.db
+    .updateTable("identity.owners")
+    .set({ last_seen_at: now })
+    .where("id", "=", input.ownerId)
+    .where("epoch", "=", input.ownerEpoch)
+    .execute();
+
+  return {
+    context: {
+      ownerId: input.ownerId,
+      ownerEpoch: input.ownerEpoch,
+      sessionId,
+      sessionExpiresAt: expiresAt,
+      csrfTokenHash,
+    },
+    sessionToken,
+    csrfToken,
+  };
+}
+
 export async function findActiveSession(input: {
   db: Kysely<Database>;
   sessionToken: string;
@@ -252,7 +312,7 @@ export async function revokeOwnerSessions(input: {
 }
 
 export async function assertActiveOwnerEpoch(
-  db: Kysely<Database>,
+  db: IdentityDb,
   ownerId: string,
   ownerEpoch: number,
   now = new Date(),

@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 import { isLoopbackHost, parseAppConfig, toSafeConfigLog } from "./index.js";
 
 const explicitTestKey = "ab".repeat(32);
-const alphaInviteHash = "cd".repeat(32);
+const alphaInvitedEmailHash = "ef".repeat(32);
+const parserImage = `registry.example.test/aijob/resume-parser@sha256:${"34".repeat(32)}`;
 
 describe("internal capability network boundary", () => {
   it.each(["127.0.0.1", "127.0.0.42", "::1", "0:0:0:0:0:0:0:1"])(
@@ -97,10 +98,12 @@ describe("internal capability network boundary", () => {
         parseAppConfig({
           APP_ENV: appEnv,
           DATABASE_URL: "postgresql://aijob:aijob@db.example.test:5432/aijob",
+          RESUME_PARSER_CONTAINER_IMAGE: parserImage,
           ...(appEnv === "alpha"
             ? {
                 ACCEPTED_ORIGINS: "https://alpha.example.test",
-                ALPHA_INVITE_CODE_HASHES: alphaInviteHash,
+                IDENTITY_MASTER_KEY: explicitTestKey,
+                ALPHA_INVITED_EMAIL_HASHES: alphaInvitedEmailHash,
               }
             : {}),
         }),
@@ -111,10 +114,13 @@ describe("internal capability network boundary", () => {
           APP_ENV: appEnv,
           DATABASE_URL: "postgresql://aijob:aijob@db.example.test:5432/aijob",
           RESUME_ENCRYPTION_KEY: explicitTestKey,
+          IDENTITY_MASTER_KEY: explicitTestKey,
+          RESUME_PARSER_CONTAINER_IMAGE: parserImage,
           ...(appEnv === "alpha"
             ? {
                 ACCEPTED_ORIGINS: "https://alpha.example.test",
-                ALPHA_INVITE_CODE_HASHES: alphaInviteHash,
+                IDENTITY_MASTER_KEY: explicitTestKey,
+                ALPHA_INVITED_EMAIL_HASHES: alphaInvitedEmailHash,
               }
             : {}),
         }).resumeEncryptionKey,
@@ -122,7 +128,7 @@ describe("internal capability network boundary", () => {
     },
   );
 
-  it("requires exact HTTPS origins and hashed invite codes in alpha", () => {
+  it("requires exact HTTPS origins, identity keys and invited email hashes in alpha", () => {
     const base = {
       APP_ENV: "alpha",
       DATABASE_URL: "postgresql://aijob:aijob@db.example.test:5432/aijob",
@@ -134,19 +140,95 @@ describe("internal capability network boundary", () => {
       parseAppConfig({
         ...base,
         ACCEPTED_ORIGINS: "http://alpha.example.test/path",
-        ALPHA_INVITE_CODE_HASHES: "plaintext-code",
+        IDENTITY_MASTER_KEY: explicitTestKey,
+        ALPHA_INVITED_EMAIL_HASHES: "plaintext-email",
       }),
     ).toThrow();
 
     const config = parseAppConfig({
       ...base,
       ACCEPTED_ORIGINS: "https://alpha.example.test,https://alpha-alt.example.test",
-      ALPHA_INVITE_CODE_HASHES: `${alphaInviteHash},${"ef".repeat(32)}`,
+      IDENTITY_MASTER_KEY: explicitTestKey,
+      ALPHA_INVITED_EMAIL_HASHES: `${alphaInvitedEmailHash},${"12".repeat(32)}`,
+      RESUME_PARSER_CONTAINER_IMAGE: parserImage,
     });
-    expect(config.identity).toEqual({
+    expect(config.identity).toMatchObject({
       acceptedOrigins: ["https://alpha.example.test", "https://alpha-alt.example.test"],
-      alphaInviteCodeHashes: [alphaInviteHash, "ef".repeat(32)],
+      invitedEmailHashes: [alphaInvitedEmailHash, "12".repeat(32)],
+      emailDeliveryMode: "disabled",
+      masterKey: explicitTestKey,
     });
+  });
+
+  it("requires an independent identity master key in production", () => {
+    const base = {
+      APP_ENV: "production",
+      DATABASE_URL: "postgresql://aijob:aijob@db.example.test:5432/aijob",
+      RESUME_ENCRYPTION_KEY: explicitTestKey,
+      RESUME_PARSER_CONTAINER_IMAGE: parserImage,
+    } as const;
+    expect(() => parseAppConfig(base)).toThrow(
+      /IDENTITY_MASTER_KEY is required in alpha and production/,
+    );
+    expect(parseAppConfig({ ...base, IDENTITY_MASTER_KEY: "ef".repeat(32) }).identity.masterKey).toBe(
+      "ef".repeat(32),
+    );
+  });
+
+  it("allows fixture email only in local tests and requires a six-digit fixture code", () => {
+    expect(() =>
+      parseAppConfig({ APP_ENV: "test", IDENTITY_EMAIL_DELIVERY_MODE: "fixture" }),
+    ).toThrow(/IDENTITY_FIXTURE_VERIFICATION_CODE/);
+
+    const fixture = parseAppConfig({
+      APP_ENV: "test",
+      RESUME_ENCRYPTION_KEY: explicitTestKey,
+      RESUME_PARSER_CONTAINER_IMAGE: parserImage,
+      IDENTITY_EMAIL_DELIVERY_MODE: "fixture",
+      IDENTITY_FIXTURE_VERIFICATION_CODE: "246810",
+    });
+    expect(fixture.identity).toMatchObject({
+      emailDeliveryMode: "fixture",
+      fixtureVerificationCode: "246810",
+    });
+
+    expect(() =>
+      parseAppConfig({
+        APP_ENV: "alpha",
+        DATABASE_URL: "postgresql://aijob:aijob@db.example.test:5432/aijob",
+        RESUME_ENCRYPTION_KEY: explicitTestKey,
+        RESUME_PARSER_CONTAINER_IMAGE: parserImage,
+        IDENTITY_MASTER_KEY: explicitTestKey,
+        ACCEPTED_ORIGINS: "https://alpha.example.test",
+        ALPHA_INVITED_EMAIL_HASHES: alphaInvitedEmailHash,
+        IDENTITY_EMAIL_DELIVERY_MODE: "fixture",
+        IDENTITY_FIXTURE_VERIFICATION_CODE: "246810",
+      }),
+    ).toThrow(/Fixture email delivery is forbidden/);
+  });
+
+  it("requires an immutable container parser outside local/test", () => {
+    const base = {
+      APP_ENV: "alpha",
+      DATABASE_URL: "postgresql://aijob:aijob@db.example.test:5432/aijob",
+      RESUME_ENCRYPTION_KEY: explicitTestKey,
+      IDENTITY_MASTER_KEY: explicitTestKey,
+      ACCEPTED_ORIGINS: "https://alpha.example.test",
+      ALPHA_INVITED_EMAIL_HASHES: alphaInvitedEmailHash,
+    } as const;
+    expect(() => parseAppConfig({ ...base, RESUME_PARSER_MODE: "process" })).toThrow(
+      /Alpha and production require the container resume parser/,
+    );
+    expect(() =>
+      parseAppConfig({
+        ...base,
+        RESUME_PARSER_MODE: "container",
+        RESUME_PARSER_CONTAINER_IMAGE: "resume-parser:latest",
+      }),
+    ).toThrow(/immutable image@sha256 digest/);
+    expect(
+      parseAppConfig({ ...base, RESUME_PARSER_CONTAINER_IMAGE: parserImage }).resumeParser,
+    ).toEqual({ mode: "container", containerImage: parserImage });
   });
 
   it("creates and reuses one random workspace-local encryption key", () => {
@@ -189,15 +271,17 @@ describe("internal capability network boundary", () => {
       AI_MODEL: "example-model",
       AI_API_KEY: "provider-secret",
       ACCEPTED_ORIGINS: "https://alpha.example.test",
-      ALPHA_INVITE_CODE_HASHES: alphaInviteHash,
+      ALPHA_INVITED_EMAIL_HASHES: alphaInvitedEmailHash,
+      IDENTITY_FIXTURE_VERIFICATION_CODE: "246810",
     });
     const logged = JSON.stringify(toSafeConfigLog(config));
     expect(logged).not.toContain(explicitTestKey);
     expect(logged).not.toContain("provider-secret");
     expect(logged).not.toContain("api.example.test");
     expect(logged).not.toContain("example-model");
-    expect(logged).not.toContain(alphaInviteHash);
+    expect(logged).not.toContain(alphaInvitedEmailHash);
+    expect(logged).not.toContain("246810");
     expect(logged).toContain("providerConfigured");
-    expect(logged).toContain("alphaInviteCodesConfigured");
+    expect(logged).toContain("invitedEmailsConfigured");
   });
 });

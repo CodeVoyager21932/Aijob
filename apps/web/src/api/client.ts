@@ -1,4 +1,9 @@
-import { type SessionStatus, SessionStatusSchema } from "@aijob/contracts";
+import {
+  type EmailVerificationChallenge,
+  EmailVerificationChallengeSchema,
+  type SessionStatus,
+  SessionStatusSchema,
+} from "@aijob/contracts";
 
 const baseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 
@@ -272,24 +277,77 @@ export function getSessionStatus(signal?: AbortSignal): Promise<SessionStatus> {
   });
 }
 
-export async function createAlphaSession(
-  inviteCode: string,
+export async function createEmailVerificationChallenge(
+  email: string,
+  idempotencyKey: string,
+  signal?: AbortSignal,
+): Promise<EmailVerificationChallenge> {
+  const response = await fetch(`${baseUrl}/v1/email-verification-challenges`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey,
+    },
+    credentials: "same-origin",
+    body: JSON.stringify({ purpose: "sign_in", email }),
+    ...(signal ? { signal } : {}),
+  });
+  if (!response.ok) throw await readProblem(response);
+  return EmailVerificationChallengeSchema.parse(await response.json());
+}
+
+export async function completeEmailVerification(
+  input: { challengeId: string; email: string; verificationCode: string },
   signal?: AbortSignal,
 ): Promise<SessionStatus> {
-  const response = await fetch(`${baseUrl}/v1/session`, {
+  const response = await fetch(`${baseUrl}/v1/email-verification-challenges/complete`, {
     method: "POST",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
     },
     credentials: "same-origin",
-    body: JSON.stringify({ inviteCode }),
+    body: JSON.stringify({ purpose: "sign_in", ...input }),
     ...(signal ? { signal } : {}),
   });
   if (!response.ok) throw await readProblem(response);
   const status = SessionStatusSchema.parse(await response.json());
   recordSessionStatus(status);
   return status;
+}
+
+export function createOwnerClaimChallenge(
+  input: { email: string; expectedOwnerEpoch: number },
+  idempotencyKey: string,
+  signal?: AbortSignal,
+): Promise<EmailVerificationChallenge> {
+  return apiRequest<EmailVerificationChallenge>("/v1/email-verification-challenges", {
+    method: "POST",
+    body: { purpose: "claim_owner", ...input },
+    idempotencyKey,
+    signal,
+  }).then((challenge) => EmailVerificationChallengeSchema.parse(challenge));
+}
+
+export function completeOwnerClaim(
+  input: {
+    challengeId: string;
+    email: string;
+    verificationCode: string;
+    expectedOwnerEpoch: number;
+  },
+  signal?: AbortSignal,
+): Promise<SessionStatus> {
+  return apiRequest<SessionStatus>("/v1/email-verification-challenges/complete", {
+    method: "POST",
+    body: { purpose: "claim_owner", ...input },
+    signal,
+  }).then((response) => {
+    const status = SessionStatusSchema.parse(response);
+    recordSessionStatus(status);
+    return status;
+  });
 }
 
 export function fileDownloadUrl(path: string): string {

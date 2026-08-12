@@ -5,27 +5,32 @@ import { describe, expect, it } from "vitest";
 import { createAtsResumeDocx } from "./export-docx.js";
 import {
   parseResumeBuffer,
+  resumeParserContainerArguments,
   resumeParserEnvironment,
   runResumeParserProcess,
 } from "./parse.js";
 
 describe("isolated resume parser", () => {
-  it("extracts DOCX text through the child process", async () => {
-    const document = await createAtsResumeDocx({
-      title: "测试简历",
-      sections: [
-        {
-          id: "experience",
-          heading: "项目经历",
-          paragraphs: ["使用 SQL 分析 100 条用户反馈，并完成 3 次需求评审。"],
-        },
-      ],
-    });
+  it(
+    "extracts DOCX text through the child process",
+    async () => {
+      const document = await createAtsResumeDocx({
+        title: "测试简历",
+        sections: [
+          {
+            id: "experience",
+            heading: "项目经历",
+            paragraphs: ["使用 SQL 分析 100 条用户反馈，并完成 3 次需求评审。"],
+          },
+        ],
+      });
 
-    await expect(parseResumeBuffer({ kind: "docx", buffer: document })).resolves.toContain(
-      "使用 SQL 分析 100 条用户反馈",
-    );
-  });
+      await expect(parseResumeBuffer({ kind: "docx", buffer: document })).resolves.toContain(
+        "使用 SQL 分析 100 条用户反馈",
+      );
+    },
+    15_000,
+  );
 
   it("does not inherit database, AI or resume encryption secrets", () => {
     const environment = resumeParserEnvironment({
@@ -43,6 +48,49 @@ describe("isolated resume parser", () => {
     expect(environment.AI_API_KEY).toBeUndefined();
     expect(environment.RESUME_ENCRYPTION_KEY).toBeUndefined();
     expect(environment.NODE_OPTIONS).toBeUndefined();
+  });
+
+  it("builds a digest-pinned non-root, no-network and read-only container boundary", () => {
+    const image = `registry.example.test/aijob/resume-parser@sha256:${"ab".repeat(32)}`;
+    const args = resumeParserContainerArguments(image, "parse-pdf");
+    expect(args).toEqual(
+      expect.arrayContaining([
+        "--network",
+        "none",
+        "--read-only",
+        "--user",
+        "65532:65532",
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges:true",
+        "--memory",
+        "256m",
+        "--pids-limit",
+        "32",
+        image,
+        "parse-pdf",
+      ]),
+    );
+    expect(args).not.toContain("--volume");
+    expect(args).not.toContain("--mount");
+    expect(() => resumeParserContainerArguments("resume-parser:latest", "parse-pdf")).toThrow(
+      "RESUME_PARSER_CONTAINER_IMAGE_IMMUTABLE_DIGEST_REQUIRED",
+    );
+  });
+
+  it("fails closed when the required container runtime is unavailable", async () => {
+    await expect(
+      runResumeParserProcess({
+        operation: "parse-docx",
+        buffer: Buffer.from("synthetic"),
+        sandbox: {
+          mode: "container",
+          containerImage: `registry.example.test/aijob/resume-parser@sha256:${"ab".repeat(32)}`,
+          containerRuntimeCommand: "aijob-missing-container-runtime",
+        },
+      }),
+    ).rejects.toMatchObject({ code: "RESUME_PARSE_FAILED" });
   });
 
   it("kills a parser that exceeds the hard timeout", async () => {

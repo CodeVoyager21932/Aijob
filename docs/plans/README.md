@@ -5,10 +5,11 @@
 ## 当前执行状态
 
 - [Career OS 当前交付计划](career-os-current-delivery-plan.md)：M0–M4 已完成，保留里程碑、顺序和退出条件作为交付记录。
-- [MVP 路线与当前决策面板](../06-mvp-roadmap.md)：记录当前无自动执行任务、真实分母、Gate 状态和等待 coco 授权的下一决定；它是动态进度的最高事实源。
+- [PA-1 离线身份与解析隔离候选验收](../evidence/product/career-os-v2/pa-1-offline-identity-parser-candidate-acceptance-2026-08-12.md)：记录已授权离线候选、浏览器/工程 Gate 与未通过的真实邮件、解析镜像和服务器边界。
+- [MVP 路线与当前决策面板](../06-mvp-roadmap.md)：记录当前无自动执行任务、真实分母、Gate 状态和等待 coco 下一决定；它是动态进度的最高事实源。
 - [当前项目交接](../handoffs/current.md)：记录当前分支、工程基线、未提交状态、代码入口和本轮执行清单。
 
-当前没有已授权的后续实现计划。不得从后续 Gate、历史计划或旧验收记录自行生成 Private Alpha 任务。
+PA-1 离线候选已完成；当前没有已授权的后续实现计划。不得从后续 Gate、历史计划或旧验收记录自行生成 Private Alpha 任务。
 
 ## 后续验收门
 
