@@ -1,12 +1,24 @@
 import { randomUUID } from "node:crypto";
 import type { AppConfig } from "@aijob/config";
 import {
+  ApplicationCaseCommandResponseSchema,
+  ApplicationCaseMutationResponseSchema,
+  ApplicationCaseRequirementsSchema,
+  ApplicationCaseWithJobContextSchema,
+  CareerDataScopeResponseSchema,
+  ConfirmCaseDebriefResponseSchema,
+  CreateApplicationCaseResponseSchema,
+  CreateInterviewSessionResponseSchema,
   CreateResumeDocumentResponseSchema,
   CreateResumeReviewResponseSchema,
   CurrentResumeDocumentSchema,
   CurrentResumeReviewResponseSchema,
+  DeleteApplicationCaseResponseSchema,
   DecideResumeReviewSuggestionResponseSchema,
   DeleteResumeDocumentResponseSchema,
+  GetCaseDebriefResponseSchema,
+  PrepareCaseDebriefResponseSchema,
+  ProfileDeletionSchema,
   LegacyResumeContentConversionSchema,
   ListResumeDocumentContentRevisionsResponseSchema,
   ListResumeDocumentLayoutRevisionsResponseSchema,
@@ -15,6 +27,7 @@ import {
   PutResumeDocumentLayoutRevisionResponseSchema,
   ResumeDocumentSchema,
   ResumeEvidenceRevisionSchema,
+  SubmitInterviewAnswerResponseSchema,
 } from "@aijob/contracts";
 import { createDatabase, type Database, migrateToLatest } from "@aijob/database";
 import type { FastifyInstance } from "fastify";
@@ -22,7 +35,11 @@ import type { Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "../app.js";
 import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME, SESSION_COOKIE_NAME } from "../identity/fastify.js";
-import { createAnonymousSession, type OwnerContext } from "../identity/session-repository.js";
+import {
+  createAnonymousSession,
+  findActiveSession,
+  type OwnerContext,
+} from "../identity/session-repository.js";
 import { runOneOwnerTask } from "../workers/owner-task-worker.js";
 
 const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
@@ -67,6 +84,12 @@ interface ResumeFixture {
   evidenceId: string;
   sectionId: string;
   blockId: string;
+}
+
+interface M4CompleteFlowCandidate {
+  caseId: string;
+  resumeDocumentId: string;
+  resumeDocumentRevision: number;
 }
 
 async function seedResumeFixture(input: {
@@ -215,7 +238,10 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
   const publicVersionV2Id = randomUUID();
   const publicRequirementV1Id = randomUUID();
   const publicRequirementV2Id = randomUUID();
-  const publicCaseId = randomUUID();
+  let publicCaseId = "";
+  let m4Candidate: M4CompleteFlowCandidate | null = null;
+  let ownerDeletionId: string | null = null;
+  const publicRequirementItemV1Id = "m4-public-requirement-research";
   const noEvidenceCaseId = randomUUID();
   const privateSnapshotId = randomUUID();
   const privateSnapshotRevisionId = randomUUID();
@@ -412,7 +438,33 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
             id: version.requirementSetId,
             published_job_version_id: version.id,
             schema_version: "resume-document-fixture-v1",
-            requirements: JSON.stringify([]),
+            requirements: JSON.stringify(
+              version.id === publicVersionV1Id
+                ? [
+                    {
+                      id: publicRequirementItemV1Id,
+                      kind: "experience",
+                      operator: "contains",
+                      expectedValue: ["user research"],
+                      sourceText: "Complete a synthetic user-research project.",
+                      evidenceRefs: [`${version.sourceRevisionId}#requirements`],
+                      sourceSpan: { start: 0, end: 43, excerptHash: "1".repeat(64) },
+                      necessity: "required",
+                    },
+                  ]
+                : [
+                    {
+                      id: "m4-public-requirement-delivery",
+                      kind: "experience",
+                      operator: "contains",
+                      expectedValue: ["product delivery"],
+                      sourceText: "Complete a synthetic product-delivery project.",
+                      evidenceRefs: [`${version.sourceRevisionId}#requirements`],
+                      sourceSpan: { start: 0, end: 46, excerptHash: "2".repeat(64) },
+                      necessity: "required",
+                    },
+                  ],
+            ),
             content_hash: version.hash,
           })
           .execute();
@@ -424,7 +476,7 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       }
       await transaction
         .updateTable("catalog.published_jobs")
-        .set({ current_version_id: publicVersionV2Id, public_version_id: publicVersionV2Id })
+        .set({ current_version_id: publicVersionV1Id, public_version_id: publicVersionV1Id })
         .where("id", "=", publicJobId)
         .execute();
 
@@ -469,25 +521,6 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       await transaction
         .insertInto("application.application_cases")
         .values([
-          {
-            id: publicCaseId,
-            owner_id: mainSession.context.ownerId,
-            owner_epoch: mainSession.context.ownerEpoch,
-            job_context_kind: "public",
-            published_job_id: publicJobId,
-            published_job_version_id: publicVersionV1Id,
-            requirement_set_id: publicRequirementV1Id,
-            private_job_snapshot_id: null,
-            job_context_revision: 1,
-            stage: "interested",
-            outcome: null,
-            revision: 1,
-            creation_idempotency_key: `public-case-${publicCaseId}`,
-            creation_request_hash: "e".repeat(64),
-            expires_at: null,
-            ended_at: null,
-            deleted_at: null,
-          },
           {
             id: privateCaseId,
             owner_id: mainSession.context.ownerId,
@@ -566,6 +599,27 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
     if (ownerIds.length > 0) {
       await db.deleteFrom("task_queue.tasks").where("owner_id", "in", ownerIds).execute();
       await db
+        .deleteFrom("application.debrief_item_decisions")
+        .where("owner_id", "in", ownerIds)
+        .execute();
+      await db
+        .deleteFrom("application.debrief_confirmations")
+        .where("owner_id", "in", ownerIds)
+        .execute();
+      await db.deleteFrom("application.debriefs").where("owner_id", "in", ownerIds).execute();
+      await db
+        .deleteFrom("application.interview_feedback")
+        .where("owner_id", "in", ownerIds)
+        .execute();
+      await db
+        .deleteFrom("application.interview_turns")
+        .where("owner_id", "in", ownerIds)
+        .execute();
+      await db
+        .deleteFrom("application.interview_sessions")
+        .where("owner_id", "in", ownerIds)
+        .execute();
+      await db
         .deleteFrom("profile.resume_review_decisions")
         .where("owner_id", "in", ownerIds)
         .execute();
@@ -584,6 +638,15 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
         .where("kind", "=", "case_derived")
         .execute();
       await db.deleteFrom("profile.resume_documents").where("owner_id", "in", ownerIds).execute();
+      await db
+        .deleteFrom("application.case_requirement_evidence_links")
+        .where("owner_id", "in", ownerIds)
+        .execute();
+      await db.deleteFrom("application.case_questions").where("owner_id", "in", ownerIds).execute();
+      await db
+        .deleteFrom("application.case_requirement_states")
+        .where("owner_id", "in", ownerIds)
+        .execute();
       await db
         .deleteFrom("profile.resume_evidence_revisions")
         .where("owner_id", "in", ownerIds)
@@ -606,7 +669,15 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
         .deleteFrom("application.private_job_snapshots")
         .where("owner_id", "in", ownerIds)
         .execute();
+      await db.deleteFrom("decision.job_decisions").where("owner_id", "in", ownerIds).execute();
       await db.deleteFrom("identity.owner_sessions").where("owner_id", "in", ownerIds).execute();
+      if (ownerDeletionId) {
+        await db
+          .deleteFrom("decision_feedback_audit.audit_events")
+          .where("subject_id", "=", ownerDeletionId)
+          .execute();
+      }
+      await db.deleteFrom("decision.owner_deletions").where("owner_id", "in", ownerIds).execute();
       await db.deleteFrom("identity.owners").where("id", "in", ownerIds).execute();
     }
 
@@ -819,6 +890,71 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
 
   it("creates public and private Case-derived documents from same-owner pinned inputs", async () => {
     const mainHeaders = sessionHeaders(mainSession);
+    const createPublicCaseRequest = {
+      jobContext: {
+        kind: "public" as const,
+        publishedJobId: publicJobId,
+        publishedJobVersionId: publicVersionV1Id,
+      },
+    };
+    const createdPublicCaseResponse = await app.inject({
+      method: "POST",
+      url: "/v1/application-cases",
+      headers: { ...mainHeaders, "idempotency-key": `m4-public-case-${randomUUID()}` },
+      payload: createPublicCaseRequest,
+    });
+    expect(
+      createdPublicCaseResponse.statusCode,
+      JSON.stringify(createdPublicCaseResponse.json()),
+    ).toBe(201);
+    const createdPublicCase = CreateApplicationCaseResponseSchema.parse(
+      createdPublicCaseResponse.json(),
+    );
+    expect(createdPublicCase.created).toBe(true);
+    publicCaseId = createdPublicCase.applicationCase.id;
+    expect(createdPublicCase.applicationCase).toMatchObject({
+      revision: 1,
+      jobContext: {
+        kind: "public",
+        publishedJobId: publicJobId,
+        publishedJobVersionId: publicVersionV1Id,
+        requirementSetId: publicRequirementV1Id,
+      },
+      jobDisplay: { title: "Synthetic product internship v1" },
+    });
+
+    const reopenedPublicCaseResponse = await app.inject({
+      method: "POST",
+      url: "/v1/application-cases",
+      headers: { ...mainHeaders, "idempotency-key": `m4-public-case-reopen-${randomUUID()}` },
+      payload: createPublicCaseRequest,
+    });
+    expect(reopenedPublicCaseResponse.statusCode).toBe(200);
+    expect(CreateApplicationCaseResponseSchema.parse(reopenedPublicCaseResponse.json())).toEqual({
+      applicationCase: createdPublicCase.applicationCase,
+      created: false,
+    });
+
+    await db
+      .updateTable("catalog.published_jobs")
+      .set({ current_version_id: publicVersionV2Id, public_version_id: publicVersionV2Id })
+      .where("id", "=", publicJobId)
+      .executeTakeFirstOrThrow();
+    const pinnedPublicCase = ApplicationCaseWithJobContextSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/application-cases/${publicCaseId}`,
+          headers: mainHeaders,
+        })
+      ).json(),
+    );
+    expect(pinnedPublicCase).toMatchObject({
+      id: publicCaseId,
+      jobContext: { publishedJobVersionId: publicVersionV1Id },
+      jobDisplay: { title: "Synthetic product internship v1" },
+    });
+
     const pinnedEvidenceResponse = await app.inject({
       method: "GET",
       url: `/v1/profile/evidence/${mainResume.evidenceRevisionId}`,
@@ -1533,6 +1669,75 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       },
     );
 
+    const editedPublicReviewResponse = await app.inject({
+      method: "POST",
+      url: `/v1/resume-documents/${publicCreated.resumeDocument.id}/reviews`,
+      headers: { ...mainHeaders, "idempotency-key": `edited-public-review-${randomUUID()}` },
+      payload: { expectedRevision: manuallyEditedPublicBody.documentRevision, mode: "template" },
+    });
+    expect(
+      editedPublicReviewResponse.statusCode,
+      JSON.stringify(editedPublicReviewResponse.json()),
+    ).toBe(202);
+    const editedPublicReview = CreateResumeReviewResponseSchema.parse(
+      editedPublicReviewResponse.json(),
+    );
+    expect(
+      await runOneOwnerTask({ db, config: config(), workerId: "review-worker-edited-public" }),
+    ).toBe(true);
+    const editablePublicReview = CurrentResumeReviewResponseSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/resume-documents/${publicCreated.resumeDocument.id}/review`,
+          headers: mainHeaders,
+        })
+      ).json(),
+    );
+    expect(editablePublicReview.review?.reviewRun.id).toBe(editedPublicReview.review.reviewRun.id);
+    const editablePublicSuggestion = editablePublicReview.review?.suggestions[0];
+    if (!editablePublicSuggestion) throw new Error("EDITABLE_PUBLIC_SUGGESTION_MISSING");
+    const editedPublicResponse = await app.inject({
+      method: "POST",
+      url: `/v1/resume-documents/${publicCreated.resumeDocument.id}/reviews/${editedPublicReview.review.reviewRun.id}/suggestions/${editablePublicSuggestion.id}/decisions`,
+      headers: mainHeaders,
+      payload: {
+        expectedRevision: editablePublicSuggestion.revision,
+        idempotencyKey: randomUUID(),
+        decision: "edited",
+        editedText: "Synthetic user-confirmed expression for the fixed public job version.",
+        evidenceIds: [mainResume.evidenceId],
+      },
+    });
+    expect(editedPublicResponse.statusCode, JSON.stringify(editedPublicResponse.json())).toBe(200);
+    const editedPublic = DecideResumeReviewSuggestionResponseSchema.parse(
+      editedPublicResponse.json(),
+    );
+    expect(editedPublic).toMatchObject({
+      decision: {
+        decision: "edited",
+        editedText: "Synthetic user-confirmed expression for the fixed public job version.",
+        resultContentRevisionId: expect.any(String),
+      },
+      suggestion: { decision: "edited", revision: 2 },
+      documentRevision: manuallyEditedPublicBody.documentRevision + 1,
+      contentRevision: {
+        content: {
+          sections: [
+            {
+              blocks: [
+                {
+                  id: mainResume.blockId,
+                  text: "Synthetic user-confirmed expression for the fixed public job version.",
+                  evidenceIds: [mainResume.evidenceId],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+
     const crossOwnerReview = await app.inject({
       method: "GET",
       url: `/v1/resume-documents/${publicCreated.resumeDocument.id}/review`,
@@ -1609,6 +1814,12 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       .executeTakeFirstOrThrow();
     expect(deletedReviewRow.status).toBe("deleted");
     expect(deletedReviewRow.deleted_at).not.toBeNull();
+
+    m4Candidate = {
+      caseId: publicCaseId,
+      resumeDocumentId: publicCreated.resumeDocument.id,
+      resumeDocumentRevision: editedPublic.documentRevision,
+    };
   });
 
   it("converts legacy V1 without writes and appends immutable base content/layout revisions", async () => {
@@ -2162,4 +2373,458 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
         .execute(),
     ).rejects.toThrow("IMMUTABLE_PROFILE_REVISION");
   });
+
+  it("completes one synthetic public Case through confirmed backflow and owner deletion", async () => {
+    const candidate = m4Candidate;
+    if (!candidate) throw new Error("M4_COMPLETE_FLOW_CANDIDATE_MISSING");
+    const headers = sessionHeaders(mainSession);
+
+    const initialCaseResponse = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${candidate.caseId}`,
+      headers,
+    });
+    expect(initialCaseResponse.statusCode).toBe(200);
+    const initialCase = ApplicationCaseWithJobContextSchema.parse(initialCaseResponse.json());
+    expect(initialCase).toMatchObject({
+      id: candidate.caseId,
+      revision: 2,
+      stage: "interested",
+      jobContext: {
+        kind: "public",
+        publishedJobId: publicJobId,
+        publishedJobVersionId: publicVersionV1Id,
+        requirementSetId: publicRequirementV1Id,
+      },
+      jobDisplay: { title: "Synthetic product internship v1" },
+    });
+    if (initialCase.jobContext.kind !== "public") {
+      throw new Error("M4_PUBLIC_CASE_CONTEXT_EXPECTED");
+    }
+
+    const requirementsResponse = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${candidate.caseId}/requirements`,
+      headers,
+    });
+    expect(requirementsResponse.statusCode, JSON.stringify(requirementsResponse.json())).toBe(200);
+    const requirements = ApplicationCaseRequirementsSchema.parse(requirementsResponse.json());
+    expect(requirements).toMatchObject({
+      caseId: candidate.caseId,
+      revision: 2,
+      requirementContext: { kind: "public", requirementSetId: publicRequirementV1Id },
+    });
+    expect(requirements.requirements.map(({ id }) => id)).toEqual([publicRequirementItemV1Id]);
+
+    const stateResponse = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${candidate.caseId}/requirements/${publicRequirementItemV1Id}`,
+      headers,
+      payload: {
+        expectedRevision: 2,
+        state: "confirmed",
+        userNote: "Confirmed only against the synthetic evidence fixture.",
+      },
+    });
+    expect(stateResponse.statusCode, JSON.stringify(stateResponse.json())).toBe(200);
+    expect(ApplicationCaseMutationResponseSchema.parse(stateResponse.json())).toMatchObject({
+      caseRevision: 3,
+      event: { sequence: 3, eventType: "requirement_state_changed" },
+    });
+
+    const evidenceLinkResponse = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${candidate.caseId}/requirements/${publicRequirementItemV1Id}/evidence-links`,
+      headers,
+      payload: {
+        expectedRevision: 3,
+        evidenceRevisionId: mainResume.evidenceRevisionId,
+        evidenceIds: [mainResume.evidenceId],
+      },
+    });
+    expect(evidenceLinkResponse.statusCode, JSON.stringify(evidenceLinkResponse.json())).toBe(200);
+    expect(ApplicationCaseMutationResponseSchema.parse(evidenceLinkResponse.json())).toMatchObject({
+      caseRevision: 4,
+      event: {
+        sequence: 4,
+        eventType: "requirement_evidence_changed",
+        eventData: { linkedEvidenceIds: [mainResume.evidenceId], removedEvidenceIds: [] },
+      },
+    });
+
+    const requirementsAfterConfirmation = ApplicationCaseRequirementsSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/application-cases/${candidate.caseId}/requirements`,
+          headers,
+        })
+      ).json(),
+    );
+    expect(requirementsAfterConfirmation).toMatchObject({
+      revision: 4,
+      states: [
+        {
+          requirementId: publicRequirementItemV1Id,
+          state: "confirmed",
+          userNote: "Confirmed only against the synthetic evidence fixture.",
+          persisted: true,
+        },
+      ],
+      evidenceLinks: [
+        {
+          requirementId: publicRequirementItemV1Id,
+          evidenceRevisionId: mainResume.evidenceRevisionId,
+          evidenceId: mainResume.evidenceId,
+          removedAt: null,
+        },
+      ],
+    });
+
+    const eventCountBeforeExternalLink = await db
+      .selectFrom("application.case_events")
+      .select(({ fn }) => fn.countAll<number>().as("count"))
+      .where("case_id", "=", candidate.caseId)
+      .executeTakeFirstOrThrow();
+    expect(initialCase.jobContext.officialUrl).toContain(".example.test/jobs/1/apply");
+    const externalLinkRead = ApplicationCaseWithJobContextSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/application-cases/${candidate.caseId}`,
+          headers,
+        })
+      ).json(),
+    );
+    expect(externalLinkRead).toMatchObject({ revision: 4, stage: "interested" });
+    const eventCountAfterExternalLink = await db
+      .selectFrom("application.case_events")
+      .select(({ fn }) => fn.countAll<number>().as("count"))
+      .where("case_id", "=", candidate.caseId)
+      .executeTakeFirstOrThrow();
+    expect(Number(eventCountAfterExternalLink.count)).toBe(
+      Number(eventCountBeforeExternalLink.count),
+    );
+
+    const manualApplicationResponse = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${candidate.caseId}/manual-applications`,
+      headers: { ...headers, "idempotency-key": `m4-manual-application-${randomUUID()}` },
+      payload: { expectedRevision: 4 },
+    });
+    expect(
+      manualApplicationResponse.statusCode,
+      JSON.stringify(manualApplicationResponse.json()),
+    ).toBe(200);
+    expect(
+      ApplicationCaseCommandResponseSchema.parse(manualApplicationResponse.json()),
+    ).toMatchObject({
+      event: {
+        sequence: 5,
+        eventType: "manual_application_recorded",
+        eventData: { fromStage: "interested", toStage: "applied" },
+      },
+    });
+    expect(
+      ApplicationCaseWithJobContextSchema.parse(
+        (
+          await app.inject({
+            method: "GET",
+            url: `/v1/application-cases/${candidate.caseId}`,
+            headers,
+          })
+        ).json(),
+      ),
+    ).toMatchObject({ revision: 5, stage: "applied" });
+
+    const interviewResponse = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${candidate.caseId}/interview-sessions`,
+      headers: { ...headers, "idempotency-key": `m4-interview-${randomUUID()}` },
+      payload: { expectedCaseRevision: 5 },
+    });
+    expect(interviewResponse.statusCode, JSON.stringify(interviewResponse.json())).toBe(201);
+    const interview = CreateInterviewSessionResponseSchema.parse(interviewResponse.json());
+    expect(interview.firstQuestion.requirementIds).toContain(publicRequirementItemV1Id);
+    expect(interview.firstQuestion.evidenceIds).toEqual([]);
+
+    let interviewRevision = 1;
+    let interviewCompleted = false;
+    for (let answerIndex = 0; answerIndex < 10 && !interviewCompleted; answerIndex += 1) {
+      const answerResponse = await app.inject({
+        method: "POST",
+        url: `/v1/application-cases/${candidate.caseId}/interview-sessions/${interview.sessionId}/answers`,
+        headers: { ...headers, "idempotency-key": `m4-answer-${answerIndex}-${randomUUID()}` },
+        payload: {
+          expectedRevision: interviewRevision,
+          answer: `Synthetic answer ${answerIndex + 1}, limited to confirmed fixture facts.`,
+        },
+      });
+      expect(answerResponse.statusCode, JSON.stringify(answerResponse.json())).toBe(200);
+      const answer = SubmitInterviewAnswerResponseSchema.parse(answerResponse.json());
+      interviewRevision = answer.appliedRevision;
+      interviewCompleted = answer.completed;
+    }
+    expect(interviewCompleted).toBe(true);
+
+    const debriefResponse = await app.inject({
+      method: "PUT",
+      url: `/v1/application-cases/${candidate.caseId}/debrief`,
+      headers: { ...headers, "idempotency-key": `m4-debrief-${randomUUID()}` },
+      payload: {
+        interviewSessionId: interview.sessionId,
+        expectedSessionRevision: interviewRevision,
+      },
+    });
+    expect(debriefResponse.statusCode, JSON.stringify(debriefResponse.json())).toBe(201);
+    const preparedDebrief = PrepareCaseDebriefResponseSchema.parse(debriefResponse.json());
+    expect(preparedDebrief).toMatchObject({
+      debrief: {
+        caseId: candidate.caseId,
+        interviewSessionId: interview.sessionId,
+        evidenceRevisionId: mainResume.evidenceRevisionId,
+        status: "draft",
+        revision: 1,
+      },
+      feedback: { generatorMode: "template" },
+    });
+    expect(preparedDebrief.debrief.expressionIssues.length).toBeGreaterThan(0);
+
+    const itemDecisions = [
+      ...preparedDebrief.debrief.expressionIssues.map((item) => ({
+        itemKind: "expression_issue" as const,
+        itemId: item.id,
+        decision: "accepted" as const,
+        editedText: null,
+      })),
+      ...preparedDebrief.debrief.evidenceGaps.map((item) => ({
+        itemKind: "evidence_gap" as const,
+        itemId: item.id,
+        decision: "accepted" as const,
+        editedText: null,
+      })),
+    ];
+    const confirmationResponse = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${candidate.caseId}/debrief/confirmations`,
+      headers: { ...headers, "idempotency-key": `m4-confirmation-${randomUUID()}` },
+      payload: { expectedDebriefRevision: 1, itemDecisions },
+    });
+    expect(confirmationResponse.statusCode, JSON.stringify(confirmationResponse.json())).toBe(201);
+    const confirmedDebrief = ConfirmCaseDebriefResponseSchema.parse(confirmationResponse.json());
+    expect(confirmedDebrief).toMatchObject({
+      debrief: { caseId: candidate.caseId, status: "confirmed", revision: 2 },
+      confirmation: { basedOnDebriefRevision: 1 },
+    });
+    expect(confirmedDebrief.itemDecisions).toHaveLength(itemDecisions.length);
+
+    const confirmedDebriefRead = GetCaseDebriefResponseSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/application-cases/${candidate.caseId}/debrief`,
+          headers,
+        })
+      ).json(),
+    );
+    expect(confirmedDebriefRead.debrief).toEqual(confirmedDebrief.debrief);
+    expect(confirmedDebriefRead.itemDecisions).toEqual(confirmedDebrief.itemDecisions);
+
+    const backflowRequirements = ApplicationCaseRequirementsSchema.parse(
+      (
+        await app.inject({
+          method: "GET",
+          url: `/v1/application-cases/${candidate.caseId}/requirements`,
+          headers,
+        })
+      ).json(),
+    );
+    expect(backflowRequirements).toMatchObject({
+      revision: 6,
+      states: [{ requirementId: publicRequirementItemV1Id, state: "confirmed" }],
+      evidenceLinks: [{ evidenceId: mainResume.evidenceId, removedAt: null }],
+    });
+    const backflowResumeResponse = await app.inject({
+      method: "GET",
+      url: `/v1/resume-documents/${candidate.resumeDocumentId}`,
+      headers,
+    });
+    expect(backflowResumeResponse.statusCode).toBe(200);
+    const backflowResume = ResumeDocumentSchema.parse(backflowResumeResponse.json());
+    expect(backflowResume).toMatchObject({
+      id: candidate.resumeDocumentId,
+      caseId: candidate.caseId,
+      revision: candidate.resumeDocumentRevision,
+      currentContentRevisionId: expect.any(String),
+      currentLayoutRevisionId: expect.any(String),
+    });
+    if (!backflowResume.currentContentRevisionId || !backflowResume.currentLayoutRevisionId) {
+      throw new Error("M4_BACKFLOW_RESUME_REVISIONS_MISSING");
+    }
+    const finalDocxResponse = await app.inject({
+      method: "GET",
+      url:
+        `/v1/resume-documents/${candidate.resumeDocumentId}/docx?` +
+        new URLSearchParams({
+          contentRevisionId: backflowResume.currentContentRevisionId,
+          layoutRevisionId: backflowResume.currentLayoutRevisionId,
+        }).toString(),
+      headers,
+    });
+    expect(finalDocxResponse.statusCode).toBe(200);
+    expect(finalDocxResponse.headers["cache-control"]).toBe("no-store");
+    expect(finalDocxResponse.rawPayload.subarray(0, 2).toString()).toBe("PK");
+
+    const caseDeleteResponse = await app.inject({
+      method: "DELETE",
+      url: `/v1/application-cases/${candidate.caseId}`,
+      headers,
+      payload: {
+        expectedRevision: 6,
+        resumeDocuments: "detach",
+        interviewSessions: "detach",
+        debriefs: "detach",
+      },
+    });
+    expect(caseDeleteResponse.statusCode, JSON.stringify(caseDeleteResponse.json())).toBe(200);
+    const deletedCase = DeleteApplicationCaseResponseSchema.parse(caseDeleteResponse.json());
+    expect(deletedCase).toMatchObject({
+      caseId: candidate.caseId,
+      revision: 7,
+      relatedAssets: {
+        resumeDocuments: { deletedIds: [], detachedIds: [candidate.resumeDocumentId] },
+        interviewSessions: { deletedIds: [], detachedIds: [interview.sessionId] },
+        debriefs: { deletedIds: [], detachedIds: [preparedDebrief.debrief.id] },
+      },
+      privateJobSnapshotRetained: false,
+    });
+
+    const detachedScopeResponse = await app.inject({
+      method: "GET",
+      url: "/v1/profile/data-scope",
+      headers,
+    });
+    expect(detachedScopeResponse.statusCode).toBe(200);
+    const detachedScope = CareerDataScopeResponseSchema.parse(detachedScopeResponse.json());
+    expect(detachedScope.counts.detachedResumeDocuments).toBeGreaterThanOrEqual(1);
+    expect(detachedScope.detachedAssets.map(({ id }) => id)).toEqual(
+      expect.arrayContaining([interview.sessionId, preparedDebrief.debrief.id]),
+    );
+    expect(
+      await db
+        .selectFrom("profile.resume_documents")
+        .select(["case_id", "detached_from_case_id", "deleted_at"])
+        .where("id", "=", candidate.resumeDocumentId)
+        .where("owner_id", "=", mainSession.context.ownerId)
+        .executeTakeFirstOrThrow(),
+    ).toMatchObject({ case_id: null, detached_from_case_id: candidate.caseId, deleted_at: null });
+
+    const lateTaskId = randomUUID();
+    await db
+      .insertInto("task_queue.tasks")
+      .values({
+        id: lateTaskId,
+        task_type: "match_run",
+        owner_id: mainSession.context.ownerId,
+        owner_epoch: mainSession.context.ownerEpoch,
+        payload: JSON.stringify({ runId: randomUUID() }),
+        idempotency_key: `m4-owner-delete-late-task:${lateTaskId}`,
+        status: "queued",
+        attempt: 0,
+        max_attempts: 3,
+        available_at: new Date(),
+        backoff_policy: JSON.stringify({ kind: "fixed", seconds: 1 }),
+        lease_owner: null,
+        lease_until: null,
+        heartbeat_at: null,
+        fencing_token: 0,
+        last_error_code: null,
+        last_error_summary: null,
+        completed_at: null,
+      })
+      .execute();
+
+    const ownerDeletionResponse = await app.inject({
+      method: "DELETE",
+      url: "/v1/profile",
+      headers,
+    });
+    expect(ownerDeletionResponse.statusCode, JSON.stringify(ownerDeletionResponse.json())).toBe(
+      202,
+    );
+    expect(ownerDeletionResponse.headers["cache-control"]).toBe("no-store");
+    const ownerDeletion = ProfileDeletionSchema.parse(ownerDeletionResponse.json());
+    ownerDeletionId = ownerDeletion.id;
+    expect(ownerDeletion.status).toBe("queued");
+    expect(await findActiveSession({ db, sessionToken: mainSession.sessionToken })).toBeNull();
+    expect(
+      await db
+        .selectFrom("task_queue.tasks")
+        .select(["status", "last_error_code"])
+        .where("id", "=", lateTaskId)
+        .executeTakeFirstOrThrow(),
+    ).toMatchObject({ status: "dead", last_error_code: "OWNER_EPOCH_STALE" });
+
+    expect(
+      await runOneOwnerTask({
+        db,
+        config: config(),
+        workerId: `m4-owner-deletion-${mainSession.context.ownerId}`,
+      }),
+    ).toBe(true);
+    expect(
+      await db
+        .selectFrom("decision.owner_deletions")
+        .select(["status", "failure_code", "completed_at"])
+        .where("id", "=", ownerDeletion.id)
+        .executeTakeFirstOrThrow(),
+    ).toMatchObject({ status: "succeeded", failure_code: null, completed_at: expect.any(Date) });
+
+    const personalTableCounts = await Promise.all([
+      db
+        .selectFrom("application.application_cases")
+        .select(({ fn }) => fn.countAll<number>().as("count"))
+        .where("owner_id", "=", mainSession.context.ownerId)
+        .executeTakeFirstOrThrow(),
+      db
+        .selectFrom("profile.resume_documents")
+        .select(({ fn }) => fn.countAll<number>().as("count"))
+        .where("owner_id", "=", mainSession.context.ownerId)
+        .executeTakeFirstOrThrow(),
+      db
+        .selectFrom("application.interview_sessions")
+        .select(({ fn }) => fn.countAll<number>().as("count"))
+        .where("owner_id", "=", mainSession.context.ownerId)
+        .executeTakeFirstOrThrow(),
+      db
+        .selectFrom("application.debriefs")
+        .select(({ fn }) => fn.countAll<number>().as("count"))
+        .where("owner_id", "=", mainSession.context.ownerId)
+        .executeTakeFirstOrThrow(),
+      db
+        .selectFrom("decision.job_decisions")
+        .select(({ fn }) => fn.countAll<number>().as("count"))
+        .where("owner_id", "=", mainSession.context.ownerId)
+        .executeTakeFirstOrThrow(),
+    ]);
+    expect(personalTableCounts.map(({ count }) => Number(count))).toEqual([0, 0, 0, 0, 0]);
+    const deletedOwner = await db
+      .selectFrom("identity.owners")
+      .select(["status", "epoch", "deleted_at"])
+      .where("id", "=", mainSession.context.ownerId)
+      .executeTakeFirstOrThrow();
+    expect(deletedOwner).toMatchObject({ status: "deleted", deleted_at: expect.any(Date) });
+    expect(Number(deletedOwner.epoch)).toBe(mainSession.context.ownerEpoch + 1);
+    expect(
+      await db
+        .selectFrom("catalog.published_jobs")
+        .select(["id", "current_version_id", "public_version_id"])
+        .where("id", "=", publicJobId)
+        .executeTakeFirstOrThrow(),
+    ).toEqual({
+      id: publicJobId,
+      current_version_id: publicVersionV2Id,
+      public_version_id: publicVersionV2Id,
+    });
+  }, 30_000);
 });
