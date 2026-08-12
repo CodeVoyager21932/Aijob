@@ -34,7 +34,7 @@ describe("environment route boundary", () => {
   it("registers preview routes in local mode", async () => {
     const app = buildApp({ config: config(), db: unusedDb });
     try {
-      expect(app.printRoutes()).toContain("internal-preview/jobs");
+      expect(app.hasRoute({ method: "GET", url: "/v1/internal-preview/jobs" })).toBe(true);
     } finally {
       await app.close();
     }
@@ -50,7 +50,7 @@ describe("environment route boundary", () => {
       db: unusedDb,
     });
     try {
-      expect(app.printRoutes()).not.toContain("internal-preview/jobs");
+      expect(app.hasRoute({ method: "GET", url: "/v1/internal-preview/jobs" })).toBe(false);
       const response = await app.inject({ method: "GET", url: "/v1/internal-preview/jobs" });
       expect(response.statusCode).toBe(401);
       expect(response.headers["content-type"]).toContain("application/problem+json");

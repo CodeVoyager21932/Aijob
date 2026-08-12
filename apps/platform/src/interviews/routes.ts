@@ -1,6 +1,8 @@
 import {
   ConfirmCaseDebriefRequestSchema,
   CreateInterviewSessionRequestSchema,
+  DeleteDebriefRequestSchema,
+  DeleteInterviewSessionRequestSchema,
   ListInterviewSessionsQuerySchema,
   PrepareCaseDebriefRequestSchema,
   SubmitInterviewAnswerRequestSchema,
@@ -12,6 +14,7 @@ import { z } from "zod";
 import { requireOwnerContext } from "../identity/fastify.js";
 import { ApiProblem, sendApiProblem } from "../identity/http.js";
 import { ServiceError } from "../lib/service-error.js";
+import { deleteDebrief, deleteInterviewSession } from "../career-assets/deletion-service.js";
 import { confirmCaseDebrief, getCaseDebrief, prepareCaseDebrief } from "./debrief-service.js";
 import {
   createInterviewSession,
@@ -24,6 +27,8 @@ const CaseParamsSchema = z.object({ caseId: z.string().uuid() }).strict();
 const SessionParamsSchema = z
   .object({ caseId: z.string().uuid(), sessionId: z.string().uuid() })
   .strict();
+const RootSessionParamsSchema = z.object({ sessionId: z.string().uuid() }).strict();
+const DebriefParamsSchema = z.object({ debriefId: z.string().uuid() }).strict();
 const IdempotencyKeySchema = z.string().trim().min(1).max(200);
 
 function requireIdempotencyKey(headers: Record<string, unknown>): string {
@@ -190,4 +195,40 @@ export function registerInterviewRoutes(
       }
     },
   );
+
+  app.delete("/v1/interview-sessions/:sessionId", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { sessionId } = RootSessionParamsSchema.parse(request.params);
+      const body = DeleteInterviewSessionRequestSchema.parse(request.body);
+      return reply.send(
+        await deleteInterviewSession({
+          db: options.db,
+          owner,
+          sessionId,
+          request: body,
+        }),
+      );
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.delete("/v1/debriefs/:debriefId", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { debriefId } = DebriefParamsSchema.parse(request.params);
+      const body = DeleteDebriefRequestSchema.parse(request.body);
+      return reply.send(
+        await deleteDebrief({
+          db: options.db,
+          owner,
+          debriefId,
+          request: body,
+        }),
+      );
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
 }

@@ -9,6 +9,10 @@ import {
   CreateApplicationCaseResponseSchema,
   CreateInterviewSessionResponseSchema,
   CreateResumeDocumentResponseSchema,
+  DeleteApplicationCaseResponseSchema,
+  DeleteDebriefResponseSchema,
+  DeleteInterviewSessionResponseSchema,
+  DeleteResumeDocumentResponseSchema,
   GetCaseDebriefResponseSchema,
   InterviewSessionDetailSchema,
   ListInterviewSessionsResponseSchema,
@@ -817,5 +821,191 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
       payload: confirmationRequest,
     });
     expect(missingConfirmationCsrf.statusCode).toBe(403);
+
+    const crossOwnerRootDelete = await app.inject({
+      method: "DELETE",
+      url: `/v1/interview-sessions/${secondSession.sessionId}`,
+      headers: sessionHeaders(otherSession),
+      payload: { expectedRevision: 3 },
+    });
+    expect(crossOwnerRootDelete.statusCode).toBe(404);
+    expect(crossOwnerRootDelete.json()).toMatchObject({ code: "INTERVIEW_SESSION_NOT_FOUND" });
+
+    const staleSessionDelete = await app.inject({
+      method: "DELETE",
+      url: `/v1/interview-sessions/${secondSession.sessionId}`,
+      headers,
+      payload: { expectedRevision: 2 },
+    });
+    expect(staleSessionDelete.statusCode).toBe(409);
+    expect(staleSessionDelete.json()).toMatchObject({
+      code: "INTERVIEW_SESSION_REVISION_CONFLICT",
+    });
+
+    const missingDeleteCsrf = await app.inject({
+      method: "DELETE",
+      url: `/v1/application-cases/${createdCase.id}`,
+      headers: headersWithoutCsrf,
+      payload: {
+        expectedRevision: 6,
+        resumeDocuments: "detach",
+        interviewSessions: "detach",
+        debriefs: "detach",
+      },
+    });
+    expect(missingDeleteCsrf.statusCode).toBe(403);
+
+    const staleCaseDelete = await app.inject({
+      method: "DELETE",
+      url: `/v1/application-cases/${createdCase.id}`,
+      headers,
+      payload: {
+        expectedRevision: 5,
+        resumeDocuments: "detach",
+        interviewSessions: "detach",
+        debriefs: "detach",
+      },
+    });
+    expect(staleCaseDelete.statusCode).toBe(409);
+    expect(staleCaseDelete.json()).toMatchObject({ code: "APPLICATION_CASE_REVISION_CONFLICT" });
+
+    const caseDeleteRequest = {
+      expectedRevision: 6,
+      resumeDocuments: "detach" as const,
+      interviewSessions: "detach" as const,
+      debriefs: "detach" as const,
+    };
+    const deletedCaseResponse = await app.inject({
+      method: "DELETE",
+      url: `/v1/application-cases/${createdCase.id}`,
+      headers,
+      payload: caseDeleteRequest,
+    });
+    expect(deletedCaseResponse.statusCode, JSON.stringify(deletedCaseResponse.json())).toBe(200);
+    expect(deletedCaseResponse.headers["cache-control"]).toBe("no-store");
+    const deletedCase = DeleteApplicationCaseResponseSchema.parse(deletedCaseResponse.json());
+    expect(deletedCase).toMatchObject({
+      caseId: createdCase.id,
+      revision: 7,
+      relatedAssets: {
+        resumeDocuments: { deletedIds: [], detachedIds: [derivedDocument.id] },
+        interviewSessions: { deletedIds: [] },
+        debriefs: { deletedIds: [], detachedIds: [preparedBody.debrief.id] },
+      },
+      privateJobSnapshotRetained: true,
+    });
+    expect(deletedCase.relatedAssets.interviewSessions.detachedIds).toEqual(
+      [createdBody.sessionId, secondSession.sessionId].sort(),
+    );
+
+    const deletedCaseReplay = await app.inject({
+      method: "DELETE",
+      url: `/v1/application-cases/${createdCase.id}`,
+      headers,
+      payload: caseDeleteRequest,
+    });
+    expect(deletedCaseReplay.statusCode).toBe(200);
+    expect(deletedCaseReplay.json()).toEqual(deletedCase);
+    const conflictingCaseReplay = await app.inject({
+      method: "DELETE",
+      url: `/v1/application-cases/${createdCase.id}`,
+      headers,
+      payload: { ...caseDeleteRequest, resumeDocuments: "delete" },
+    });
+    expect(conflictingCaseReplay.statusCode).toBe(409);
+    expect(conflictingCaseReplay.json()).toMatchObject({
+      code: "APPLICATION_CASE_DELETION_REPLAY_CONFLICT",
+    });
+
+    const deletedCaseRead = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${createdCase.id}`,
+      headers,
+    });
+    expect(deletedCaseRead.statusCode).toBe(404);
+    const remainingRequirementRows = await db
+      .selectFrom("application.case_requirement_states")
+      .select(({ fn }) => fn.countAll<number>().as("count"))
+      .where("owner_id", "=", mainSession.context.ownerId)
+      .where("case_id", "=", createdCase.id)
+      .executeTakeFirstOrThrow();
+    expect(Number(remainingRequirementRows.count)).toBe(0);
+
+    const deletedFirstSession = await app.inject({
+      method: "DELETE",
+      url: `/v1/interview-sessions/${createdBody.sessionId}`,
+      headers,
+      payload: { expectedRevision: 4 },
+    });
+    expect(deletedFirstSession.statusCode).toBe(200);
+    expect(DeleteInterviewSessionResponseSchema.parse(deletedFirstSession.json())).toMatchObject({
+      sessionId: createdBody.sessionId,
+      revision: 5,
+    });
+    const deletedSecondSession = await app.inject({
+      method: "DELETE",
+      url: `/v1/interview-sessions/${secondSession.sessionId}`,
+      headers,
+      payload: { expectedRevision: 4 },
+    });
+    expect(deletedSecondSession.statusCode).toBe(200);
+    const secondSessionDeletion = DeleteInterviewSessionResponseSchema.parse(
+      deletedSecondSession.json(),
+    );
+    expect(secondSessionDeletion).toMatchObject({
+      sessionId: secondSession.sessionId,
+      revision: 5,
+    });
+    const deletedSecondSessionReplay = await app.inject({
+      method: "DELETE",
+      url: `/v1/interview-sessions/${secondSession.sessionId}`,
+      headers,
+      payload: { expectedRevision: 4 },
+    });
+    expect(deletedSecondSessionReplay.json()).toEqual(secondSessionDeletion);
+
+    const deletedDebrief = await app.inject({
+      method: "DELETE",
+      url: `/v1/debriefs/${preparedBody.debrief.id}`,
+      headers,
+      payload: { expectedRevision: 3 },
+    });
+    expect(deletedDebrief.statusCode).toBe(200);
+    expect(DeleteDebriefResponseSchema.parse(deletedDebrief.json())).toMatchObject({
+      debriefId: preparedBody.debrief.id,
+      revision: 4,
+    });
+
+    const deletedResume = await app.inject({
+      method: "DELETE",
+      url: `/v1/resume-documents/${derivedDocument.id}`,
+      headers,
+      payload: { expectedRevision: 2 },
+    });
+    expect(deletedResume.statusCode, JSON.stringify(deletedResume.json())).toBe(200);
+    const resumeDeletion = DeleteResumeDocumentResponseSchema.parse(deletedResume.json());
+    expect(resumeDeletion).toMatchObject({
+      documentId: derivedDocument.id,
+      revision: 3,
+      deletedReviewRunIds: [],
+    });
+    const deletedResumeReplay = await app.inject({
+      method: "DELETE",
+      url: `/v1/resume-documents/${derivedDocument.id}`,
+      headers,
+      payload: { expectedRevision: 2 },
+    });
+    expect(deletedResumeReplay.json()).toEqual(resumeDeletion);
+
+    if (createdCase.jobContext.kind !== "private") {
+      throw new Error("PRIVATE_CASE_CONTEXT_EXPECTED");
+    }
+    const privateSnapshot = await db
+      .selectFrom("application.private_job_snapshots")
+      .select("deleted_at")
+      .where("id", "=", createdCase.jobContext.snapshotId)
+      .where("owner_id", "=", mainSession.context.ownerId)
+      .executeTakeFirstOrThrow();
+    expect(privateSnapshot.deleted_at).not.toBeNull();
   }, 30_000);
 });

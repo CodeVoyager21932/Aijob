@@ -7,6 +7,8 @@ import {
   CreateResumeReviewRequestSchema,
   CurrentResumeReviewResponseSchema,
   DecideResumeReviewSuggestionRequestSchema,
+  DeleteResumeDocumentRequestSchema,
+  DeleteResumeDocumentResponseSchema,
   LegacyResumeContentConversionSchema,
   ListResumeDocumentContentRevisionsResponseSchema,
   ListResumeDocumentLayoutRevisionsResponseSchema,
@@ -761,6 +763,31 @@ describe("Resume Document V2 contracts", () => {
       ResumeReviewRunSchema.safeParse({
         ...reviewRun,
         jobContext: { ...reviewRun.jobContext, ownerId: randomUUID() },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("keeps single-document deletion revision guarded and auditable", () => {
+    expect(DeleteResumeDocumentRequestSchema.parse({ expectedRevision: 3 })).toEqual({
+      expectedRevision: 3,
+    });
+    expect(
+      DeleteResumeDocumentRequestSchema.safeParse({ expectedRevision: 3, cascade: true }).success,
+    ).toBe(false);
+    expect(
+      DeleteResumeDocumentResponseSchema.safeParse({
+        documentId: ids.document,
+        revision: 4,
+        deletedAt: "2026-08-12T08:00:00.000Z",
+        deletedReviewRunIds: [ids.reviewRun],
+      }).success,
+    ).toBe(true);
+    expect(
+      DeleteResumeDocumentResponseSchema.safeParse({
+        documentId: ids.document,
+        revision: 4,
+        deletedAt: "2026-08-12T08:00:00.000Z",
+        deletedReviewRunIds: [ids.reviewRun, ids.reviewRun],
       }).success,
     ).toBe(false);
   });

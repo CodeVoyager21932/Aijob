@@ -6,6 +6,7 @@ import {
   CurrentResumeDocumentSchema,
   CurrentResumeReviewResponseSchema,
   DecideResumeReviewSuggestionResponseSchema,
+  DeleteResumeDocumentResponseSchema,
   LegacyResumeContentConversionSchema,
   ListResumeDocumentContentRevisionsResponseSchema,
   ListResumeDocumentLayoutRevisionsResponseSchema,
@@ -1449,7 +1450,8 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       },
     });
     expect(editedResponse.statusCode, JSON.stringify(editedResponse.json())).toBe(200);
-    expect(DecideResumeReviewSuggestionResponseSchema.parse(editedResponse.json())).toMatchObject({
+    const edited = DecideResumeReviewSuggestionResponseSchema.parse(editedResponse.json());
+    expect(edited).toMatchObject({
       decision: { decision: "edited", editedText: "用户确认后的岗位表达" },
       suggestion: { decision: "edited", revision: 2 },
       contentRevision: {
@@ -1544,6 +1546,69 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       headers: sessionHeaders(otherSession),
     });
     expect(crossOwnerRead.statusCode).toBe(404);
+
+    const crossOwnerDelete = await app.inject({
+      method: "DELETE",
+      url: `/v1/resume-documents/${privateCreated.resumeDocument.id}`,
+      headers: sessionHeaders(otherSession),
+      payload: { expectedRevision: edited.documentRevision },
+    });
+    expect(crossOwnerDelete.statusCode).toBe(404);
+    expect(crossOwnerDelete.json()).toMatchObject({ code: "RESUME_DOCUMENT_NOT_FOUND" });
+
+    const staleDelete = await app.inject({
+      method: "DELETE",
+      url: `/v1/resume-documents/${privateCreated.resumeDocument.id}`,
+      headers: mainHeaders,
+      payload: { expectedRevision: edited.documentRevision - 1 },
+    });
+    expect(staleDelete.statusCode).toBe(409);
+    expect(staleDelete.json()).toMatchObject({ code: "RESUME_DOCUMENT_REVISION_CONFLICT" });
+
+    const { [CSRF_HEADER_NAME]: _deleteCsrf, ...headersWithoutDeleteCsrf } = mainHeaders;
+    const missingDeleteCsrf = await app.inject({
+      method: "DELETE",
+      url: `/v1/resume-documents/${privateCreated.resumeDocument.id}`,
+      headers: headersWithoutDeleteCsrf,
+      payload: { expectedRevision: edited.documentRevision },
+    });
+    expect(missingDeleteCsrf.statusCode).toBe(403);
+
+    const deletedResponse = await app.inject({
+      method: "DELETE",
+      url: `/v1/resume-documents/${privateCreated.resumeDocument.id}`,
+      headers: mainHeaders,
+      payload: { expectedRevision: edited.documentRevision },
+    });
+    expect(deletedResponse.statusCode, JSON.stringify(deletedResponse.json())).toBe(200);
+    expect(deletedResponse.headers["cache-control"]).toBe("no-store");
+    const deleted = DeleteResumeDocumentResponseSchema.parse(deletedResponse.json());
+    expect(deleted).toMatchObject({
+      documentId: privateCreated.resumeDocument.id,
+      revision: edited.documentRevision + 1,
+      deletedReviewRunIds: [privateReviewCreated.review.reviewRun.id],
+    });
+    const deletedReplay = await app.inject({
+      method: "DELETE",
+      url: `/v1/resume-documents/${privateCreated.resumeDocument.id}`,
+      headers: mainHeaders,
+      payload: { expectedRevision: edited.documentRevision },
+    });
+    expect(deletedReplay.json()).toEqual(deleted);
+    const deletedRead = await app.inject({
+      method: "GET",
+      url: `/v1/resume-documents/${privateCreated.resumeDocument.id}`,
+      headers: mainHeaders,
+    });
+    expect(deletedRead.statusCode).toBe(404);
+    const deletedReviewRow = await db
+      .selectFrom("profile.resume_review_runs")
+      .select(["status", "deleted_at"])
+      .where("id", "=", privateReviewCreated.review.reviewRun.id)
+      .where("owner_id", "=", mainSession.context.ownerId)
+      .executeTakeFirstOrThrow();
+    expect(deletedReviewRow.status).toBe("deleted");
+    expect(deletedReviewRow.deleted_at).not.toBeNull();
   });
 
   it("converts legacy V1 without writes and appends immutable base content/layout revisions", async () => {

@@ -919,6 +919,28 @@ export const CreateResumeDocumentResponseSchema = z
   .strict();
 export type CreateResumeDocumentResponse = z.infer<typeof CreateResumeDocumentResponseSchema>;
 
+export const DeleteResumeDocumentRequestSchema = z
+  .object({
+    expectedRevision: RevisionSchema,
+  })
+  .strict();
+export type DeleteResumeDocumentRequest = z.infer<typeof DeleteResumeDocumentRequestSchema>;
+
+export const DeleteResumeDocumentResponseSchema = z
+  .object({
+    documentId: UuidSchema,
+    revision: RevisionSchema,
+    deletedAt: TimestampSchema,
+    deletedReviewRunIds: z
+      .array(UuidSchema)
+      .max(500)
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: "Deleted review run IDs must be unique",
+      }),
+  })
+  .strict();
+export type DeleteResumeDocumentResponse = z.infer<typeof DeleteResumeDocumentResponseSchema>;
+
 export const ResumeDocumentContentSchema = ResumeSemanticContentSchema;
 export type ResumeDocumentContent = ResumeSemanticContent;
 

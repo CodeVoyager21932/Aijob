@@ -2,6 +2,7 @@ import {
   CreateResumeDocumentRequestSchema,
   CreateResumeReviewRequestSchema,
   DecideResumeReviewSuggestionRequestSchema,
+  DeleteResumeDocumentRequestSchema,
   LegacyResumeDocumentSourceIdSchema,
   ListResumeDocumentsQuerySchema,
   PutResumeDocumentContentRevisionRequestSchema,
@@ -18,6 +19,7 @@ import { z } from "zod";
 import { requireOwnerContext } from "../identity/fastify.js";
 import { ApiProblem, sendApiProblem } from "../identity/http.js";
 import { ServiceError } from "../lib/service-error.js";
+import { deleteResumeDocument } from "../career-assets/deletion-service.js";
 import { exportResumeDocumentDocx } from "./export-service.js";
 import {
   createResumeReview,
@@ -297,6 +299,24 @@ export function registerResumeDocumentRoutes(
         );
       }
       return reply.send(resumeDocument);
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.delete("/v1/resume-documents/:documentId", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { documentId } = ResumeDocumentIdSchema.parse(request.params);
+      const body = DeleteResumeDocumentRequestSchema.parse(request.body);
+      return reply.send(
+        await deleteResumeDocument({
+          db: options.db,
+          owner,
+          documentId,
+          request: body,
+        }),
+      );
     } catch (error) {
       return handleError(error, request, reply);
     }

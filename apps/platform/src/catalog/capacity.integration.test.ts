@@ -184,6 +184,9 @@ describeWithDatabase("single-PostgreSQL 1000-job capacity regression", () => {
             })),
           )
           .execute();
+        await sql`ANALYZE ingestion.source_job_records, ingestion.source_job_revisions`.execute(
+          transaction,
+        );
 
         const repository = createCatalogRepository({ db: transaction, enableLocalMvp: true });
         const companyCatalog = await repository.search(
@@ -499,6 +502,20 @@ describeWithDatabase("single-PostgreSQL 1000-job capacity regression", () => {
         )
         WHERE job.id = fixture.published_job_id::uuid
       `.execute(db);
+      await sql`
+        ANALYZE
+          source_control.organizations,
+          source_control.sources,
+          source_control.source_policy_versions,
+          source_control.source_runtime_states,
+          ingestion.source_job_records,
+          ingestion.source_job_revisions,
+          catalog.published_jobs,
+          catalog.published_job_versions,
+          catalog.published_job_version_revision_links,
+          catalog.job_requirement_sets,
+          catalog.job_condition_projections
+      `.execute(db);
 
       const repository = createCatalogRepository({ db, enableLocalMvp: true });
       const catalogItems = [];
@@ -585,15 +602,13 @@ describeWithDatabase("single-PostgreSQL 1000-job capacity regression", () => {
       expect(arrays[0]).toHaveLength(1_000);
       expect(arrays[1]).toHaveLength(1_000);
       expect(arrays[2]).toHaveLength(1_000);
-      expect(
-        new Set((arrays[0] as string[]).map((candidateId) => candidateId)).size,
-      ).toBe(1_000);
+      expect(new Set((arrays[0] as string[]).map((candidateId) => candidateId)).size).toBe(1_000);
       const queuedTasks = await db
-          .selectFrom("task_queue.tasks")
-          .select(({ fn }) => fn.countAll<number>().as("count"))
-          .where("owner_id", "=", ownerId)
-          .where("task_type", "=", "recommendation_run")
-          .executeTakeFirstOrThrow();
+        .selectFrom("task_queue.tasks")
+        .select(({ fn }) => fn.countAll<number>().as("count"))
+        .where("owner_id", "=", ownerId)
+        .where("task_type", "=", "recommendation_run")
+        .executeTakeFirstOrThrow();
       expect(Number(queuedTasks.count)).toBe(1);
     } finally {
       if (ownerId) {
@@ -655,7 +670,10 @@ describeWithDatabase("single-PostgreSQL 1000-job capacity regression", () => {
         .execute();
       await db.deleteFrom("catalog.published_job_versions").where("id", "in", versionIds).execute();
       await db.deleteFrom("catalog.published_jobs").where("id", "in", publishedJobIds).execute();
-      await db.deleteFrom("ingestion.review_items").where("revision_id", "in", revisionIds).execute();
+      await db
+        .deleteFrom("ingestion.review_items")
+        .where("revision_id", "in", revisionIds)
+        .execute();
       await db
         .deleteFrom("ingestion.source_job_revision_evidence")
         .where("revision_id", "in", revisionIds)
@@ -667,20 +685,50 @@ describeWithDatabase("single-PostgreSQL 1000-job capacity regression", () => {
       await db.deleteFrom("ingestion.source_job_records").where("id", "in", recordIds).execute();
       await db
         .deleteFrom("source_control.source_runtime_states")
-        .where("source_id", "in", sources.map((source) => source.id))
+        .where(
+          "source_id",
+          "in",
+          sources.map((source) => source.id),
+        )
         .execute();
       await db
         .deleteFrom("source_control.source_policy_versions")
-        .where("source_id", "in", sources.map((source) => source.id))
+        .where(
+          "source_id",
+          "in",
+          sources.map((source) => source.id),
+        )
         .execute();
       await db
         .deleteFrom("source_control.sources")
-        .where("id", "in", sources.map((source) => source.id))
+        .where(
+          "id",
+          "in",
+          sources.map((source) => source.id),
+        )
         .execute();
       await db
         .deleteFrom("source_control.organizations")
-        .where("id", "in", organizations.map((organization) => organization.id))
+        .where(
+          "id",
+          "in",
+          organizations.map((organization) => organization.id),
+        )
         .execute();
+      await sql`
+        ANALYZE
+          source_control.organizations,
+          source_control.sources,
+          source_control.source_policy_versions,
+          source_control.source_runtime_states,
+          ingestion.source_job_records,
+          ingestion.source_job_revisions,
+          catalog.published_jobs,
+          catalog.published_job_versions,
+          catalog.published_job_version_revision_links,
+          catalog.job_requirement_sets,
+          catalog.job_condition_projections
+      `.execute(db);
     }
   }, 120_000);
 });

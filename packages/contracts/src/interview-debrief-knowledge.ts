@@ -246,6 +246,22 @@ export const SubmitInterviewAnswerResponseSchema = z
   });
 export type SubmitInterviewAnswerResponse = z.infer<typeof SubmitInterviewAnswerResponseSchema>;
 
+export const DeleteInterviewSessionRequestSchema = z
+  .object({
+    expectedRevision: RevisionSchema,
+  })
+  .strict();
+export type DeleteInterviewSessionRequest = z.infer<typeof DeleteInterviewSessionRequestSchema>;
+
+export const DeleteInterviewSessionResponseSchema = z
+  .object({
+    sessionId: UuidSchema,
+    revision: RevisionSchema,
+    deletedAt: TimestampSchema,
+  })
+  .strict();
+export type DeleteInterviewSessionResponse = z.infer<typeof DeleteInterviewSessionResponseSchema>;
+
 export const InterviewFeedbackCategorySchema = z.enum([
   "relevance",
   "structure",
@@ -607,6 +623,22 @@ export const PrepareCaseDebriefResponseSchema = z
     }
   });
 export type PrepareCaseDebriefResponse = z.infer<typeof PrepareCaseDebriefResponseSchema>;
+
+export const DeleteDebriefRequestSchema = z
+  .object({
+    expectedRevision: RevisionSchema,
+  })
+  .strict();
+export type DeleteDebriefRequest = z.infer<typeof DeleteDebriefRequestSchema>;
+
+export const DeleteDebriefResponseSchema = z
+  .object({
+    debriefId: UuidSchema,
+    revision: RevisionSchema,
+    deletedAt: TimestampSchema,
+  })
+  .strict();
+export type DeleteDebriefResponse = z.infer<typeof DeleteDebriefResponseSchema>;
 
 export const KnowledgeClipSchema = z
   .object({

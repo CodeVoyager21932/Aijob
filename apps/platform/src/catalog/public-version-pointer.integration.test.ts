@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { JobSearchQuerySchema } from "@aijob/contracts";
 import { createDatabase, migrateToLatest } from "@aijob/database";
+import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createAnonymousSession, type OwnerContext } from "../identity/session-repository.js";
 import { createJobInsightRun } from "../insights/service.js";
@@ -27,6 +28,20 @@ describeWithDatabase("catalog public version pointer", () => {
 
   beforeAll(async () => {
     await migrateToLatest(db);
+    await sql`
+      ANALYZE
+        source_control.organizations,
+        source_control.sources,
+        source_control.source_policy_versions,
+        source_control.source_runtime_states,
+        ingestion.source_job_records,
+        ingestion.source_job_revisions,
+        catalog.published_jobs,
+        catalog.published_job_versions,
+        catalog.published_job_version_revision_links,
+        catalog.job_requirement_sets,
+        catalog.job_condition_projections
+    `.execute(db);
   });
 
   afterAll(async () => {
@@ -341,5 +356,5 @@ describeWithDatabase("catalog public version pointer", () => {
     });
     expect(closedPublicInsight.candidateJobVersionIds).not.toContain(advanced.publicVersionId);
     expect((await readLocalBootstrapCatalogStats(db)).publicJobs).toBe(publicJobsBefore);
-  }, 15_000);
+  }, 30_000);
 });

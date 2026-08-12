@@ -1,6 +1,7 @@
 import {
   CreateApplicationCaseWithJobContextRequestSchema,
   CreateCaseQuestionRequestSchema,
+  DeleteApplicationCaseRequestSchema,
   ListApplicationCaseEventsQuerySchema,
   ListApplicationCasesQuerySchema,
   PutCaseRequirementEvidenceLinksRequestSchema,
@@ -17,6 +18,7 @@ import { z } from "zod";
 import { requireOwnerContext } from "../identity/fastify.js";
 import { ApiProblem, sendApiProblem } from "../identity/http.js";
 import { ServiceError } from "../lib/service-error.js";
+import { deleteApplicationCase } from "../career-assets/deletion-service.js";
 import {
   createApplicationCase,
   createApplicationCaseQuestion,
@@ -127,6 +129,24 @@ export function registerApplicationCaseRoutes(
         );
       }
       return reply.send(applicationCase);
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.delete("/v1/application-cases/:caseId", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { caseId } = ParamsSchema.parse(request.params);
+      const body = DeleteApplicationCaseRequestSchema.parse(request.body);
+      return reply.send(
+        await deleteApplicationCase({
+          db: options.db,
+          owner,
+          caseId,
+          request: body,
+        }),
+      );
     } catch (error) {
       return handleError(error, request, reply);
     }

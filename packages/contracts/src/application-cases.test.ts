@@ -21,6 +21,8 @@ import {
   CreateApplicationCaseResponseSchema,
   CreateApplicationCaseWithJobContextRequestSchema,
   CreateCaseQuestionRequestSchema,
+  DeleteApplicationCaseRequestSchema,
+  DeleteApplicationCaseResponseSchema,
   InterviewModeSchema,
   JobContextSchema,
   LegacyApplicationCaseEventSchema,
@@ -879,6 +881,61 @@ describe("ApplicationCase contracts", () => {
         updatedAt: "2026-08-05T00:00:00.000Z",
         id: ids.case,
         ownerId: ids.owner,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("keeps Case deletion choices explicit and its result non-overlapping", () => {
+    expect(
+      DeleteApplicationCaseRequestSchema.parse({
+        expectedRevision: 4,
+        resumeDocuments: "detach",
+        interviewSessions: "delete",
+        debriefs: "detach",
+      }),
+    ).toEqual({
+      expectedRevision: 4,
+      resumeDocuments: "detach",
+      interviewSessions: "delete",
+      debriefs: "detach",
+    });
+    expect(
+      DeleteApplicationCaseRequestSchema.safeParse({
+        expectedRevision: 4,
+        resumeDocuments: "keep",
+        interviewSessions: "delete",
+        debriefs: "detach",
+      }).success,
+    ).toBe(false);
+
+    const resumeDocumentId = randomUUID();
+    expect(
+      DeleteApplicationCaseResponseSchema.safeParse({
+        caseId: ids.case,
+        revision: 5,
+        deletedAt: "2026-08-12T08:00:00.000Z",
+        relatedAssets: {
+          resumeDocuments: { deletedIds: [], detachedIds: [resumeDocumentId] },
+          interviewSessions: { deletedIds: [randomUUID()], detachedIds: [] },
+          debriefs: { deletedIds: [], detachedIds: [] },
+        },
+        privateJobSnapshotRetained: true,
+      }).success,
+    ).toBe(true);
+    expect(
+      DeleteApplicationCaseResponseSchema.safeParse({
+        caseId: ids.case,
+        revision: 5,
+        deletedAt: "2026-08-12T08:00:00.000Z",
+        relatedAssets: {
+          resumeDocuments: {
+            deletedIds: [resumeDocumentId],
+            detachedIds: [resumeDocumentId],
+          },
+          interviewSessions: { deletedIds: [], detachedIds: [] },
+          debriefs: { deletedIds: [], detachedIds: [] },
+        },
+        privateJobSnapshotRetained: false,
       }).success,
     ).toBe(false);
   });

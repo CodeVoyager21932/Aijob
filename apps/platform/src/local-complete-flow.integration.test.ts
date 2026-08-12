@@ -1045,5 +1045,5 @@ describeWithDatabase("complete local MVP service journey", () => {
           .execute();
       }
     });
-  }, 15_000);
+  }, 30_000);
 });

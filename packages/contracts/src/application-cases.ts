@@ -1118,3 +1118,60 @@ export const ApplicationCaseMutationResponseSchema = z
   })
   .strict();
 export type ApplicationCaseMutationResponse = z.infer<typeof ApplicationCaseMutationResponseSchema>;
+
+export const CaseAssetDispositionSchema = z.enum(["delete", "detach"]);
+export type CaseAssetDisposition = z.infer<typeof CaseAssetDispositionSchema>;
+
+export const DeleteApplicationCaseRequestSchema = z
+  .object({
+    expectedRevision: RevisionSchema,
+    resumeDocuments: CaseAssetDispositionSchema,
+    interviewSessions: CaseAssetDispositionSchema,
+    debriefs: CaseAssetDispositionSchema,
+  })
+  .strict();
+export type DeleteApplicationCaseRequest = z.infer<typeof DeleteApplicationCaseRequestSchema>;
+
+const DeletedOrDetachedAssetIdsSchema = z
+  .object({
+    deletedIds: z
+      .array(UuidSchema)
+      .max(500)
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: "Deleted asset IDs must be unique",
+      }),
+    detachedIds: z
+      .array(UuidSchema)
+      .max(500)
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: "Detached asset IDs must be unique",
+      }),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const deletedIds = new Set(value.deletedIds);
+    if (value.detachedIds.some((id) => deletedIds.has(id))) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["detachedIds"],
+        message: "An asset cannot be both deleted and detached",
+      });
+    }
+  });
+
+export const DeleteApplicationCaseResponseSchema = z
+  .object({
+    caseId: UuidSchema,
+    revision: RevisionSchema,
+    deletedAt: TimestampSchema,
+    relatedAssets: z
+      .object({
+        resumeDocuments: DeletedOrDetachedAssetIdsSchema,
+        interviewSessions: DeletedOrDetachedAssetIdsSchema,
+        debriefs: DeletedOrDetachedAssetIdsSchema,
+      })
+      .strict(),
+    privateJobSnapshotRetained: z.boolean(),
+  })
+  .strict();
+export type DeleteApplicationCaseResponse = z.infer<typeof DeleteApplicationCaseResponseSchema>;

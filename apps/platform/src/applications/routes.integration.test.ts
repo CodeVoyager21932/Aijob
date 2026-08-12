@@ -6,6 +6,7 @@ import {
   ApplicationCaseMutationResponseSchema,
   ApplicationCaseRequirementsSchema,
   CreateApplicationCaseResponseSchema,
+  DeleteApplicationCaseResponseSchema,
   ListApplicationCaseEventsResponseSchema,
   ListApplicationCasesResponseSchema,
 } from "@aijob/contracts";
@@ -1352,6 +1353,69 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       { sequence: 4, event_type: "stage_transitioned" },
       { sequence: 5, event_type: "stage_transitioned" },
     ]);
+
+    const crossOwnerCaseDelete = await app.inject({
+      method: "DELETE",
+      url: `/v1/application-cases/${privateBody.applicationCase.id}`,
+      headers: sessionHeaders(secondSession),
+      payload: {
+        expectedRevision: 3,
+        resumeDocuments: "delete",
+        interviewSessions: "delete",
+        debriefs: "delete",
+      },
+    });
+    expect(crossOwnerCaseDelete.statusCode).toBe(404);
+    expect(crossOwnerCaseDelete.json()).toMatchObject({ code: "APPLICATION_CASE_NOT_FOUND" });
+
+    const privateCaseDeleteRequest = {
+      expectedRevision: 3,
+      resumeDocuments: "delete" as const,
+      interviewSessions: "delete" as const,
+      debriefs: "delete" as const,
+    };
+    const missingCaseDeleteCsrf = await app.inject({
+      method: "DELETE",
+      url: `/v1/application-cases/${privateBody.applicationCase.id}`,
+      headers: headersWithoutCsrf,
+      payload: privateCaseDeleteRequest,
+    });
+    expect(missingCaseDeleteCsrf.statusCode).toBe(403);
+
+    const privateCaseDeletedResponse = await app.inject({
+      method: "DELETE",
+      url: `/v1/application-cases/${privateBody.applicationCase.id}`,
+      headers,
+      payload: privateCaseDeleteRequest,
+    });
+    expect(privateCaseDeletedResponse.statusCode).toBe(200);
+    const privateCaseDeleted = DeleteApplicationCaseResponseSchema.parse(
+      privateCaseDeletedResponse.json(),
+    );
+    expect(privateCaseDeleted).toMatchObject({
+      caseId: privateBody.applicationCase.id,
+      revision: 4,
+      relatedAssets: {
+        resumeDocuments: { deletedIds: [], detachedIds: [] },
+        interviewSessions: { deletedIds: [], detachedIds: [] },
+        debriefs: { deletedIds: [], detachedIds: [] },
+      },
+      privateJobSnapshotRetained: false,
+    });
+    const privateCaseDeleteReplay = await app.inject({
+      method: "DELETE",
+      url: `/v1/application-cases/${privateBody.applicationCase.id}`,
+      headers,
+      payload: privateCaseDeleteRequest,
+    });
+    expect(privateCaseDeleteReplay.json()).toEqual(privateCaseDeleted);
+    const deletedSnapshot = await db
+      .selectFrom("application.private_job_snapshots")
+      .select("deleted_at")
+      .where("id", "=", privateSnapshotId)
+      .where("owner_id", "=", firstSession.context.ownerId)
+      .executeTakeFirstOrThrow();
+    expect(deletedSnapshot.deleted_at).not.toBeNull();
   }, 40_000);
 
   it("records an application only through an explicit Case command and exposes its timeline", async () => {

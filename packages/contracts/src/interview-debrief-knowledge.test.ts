@@ -7,6 +7,10 @@ import {
   CreateInterviewSessionResponseSchema,
   DebriefConfirmationSchema,
   DebriefSchema,
+  DeleteDebriefRequestSchema,
+  DeleteDebriefResponseSchema,
+  DeleteInterviewSessionRequestSchema,
+  DeleteInterviewSessionResponseSchema,
   GetCaseDebriefResponseSchema,
   InterviewFeedbackSchema,
   InterviewSessionDetailSchema,
@@ -512,5 +516,31 @@ describe("Interview, Debrief and Knowledge contracts", () => {
         createdAt: timestamp,
       }).knowledgeClipId,
     ).toBe(ids.clip);
+  });
+
+  it("revision-guards individual Interview and Debrief deletion", () => {
+    expect(DeleteInterviewSessionRequestSchema.parse({ expectedRevision: 2 })).toEqual({
+      expectedRevision: 2,
+    });
+    expect(DeleteDebriefRequestSchema.parse({ expectedRevision: 1 })).toEqual({
+      expectedRevision: 1,
+    });
+    expect(
+      DeleteInterviewSessionResponseSchema.safeParse({
+        sessionId: ids.session,
+        revision: 3,
+        deletedAt: timestamp,
+      }).success,
+    ).toBe(true);
+    expect(
+      DeleteDebriefResponseSchema.safeParse({
+        debriefId: ids.debrief,
+        revision: 2,
+        deletedAt: timestamp,
+      }).success,
+    ).toBe(true);
+    expect(
+      DeleteDebriefRequestSchema.safeParse({ expectedRevision: 1, deleteSession: true }).success,
+    ).toBe(false);
   });
 });
