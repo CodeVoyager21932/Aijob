@@ -35,9 +35,9 @@ Aijob 要先形成一个由 coco 在本地完整体验、能够判断产品流�
 | M1 真实 Case 工作台 | 2.5–3 日 | Case/要求读取与写入真实内部状态，岗位简历读取真实修订 | 已完成；[验收证据](../evidence/product/career-os-v2/m1-real-case-workspace-acceptance-2026-08-09.md) |
 | M2 专业简历闭环 | 2–3 日 | 简历解析确认、结构编辑、章节调整、逐条建议、两模板和导出进入同一 OS | 已完成；[验收证据](../evidence/product/career-os-v2/m2-professional-resume-acceptance-2026-08-11.md) |
 | M3 投递与持续改进 | 2–3 日 | 手动投递记录、模板文字面试、结构化反馈和复盘回流 | 已完成；[验收证据](../evidence/product/career-os-v2/m3-workflow-acceptance-2026-08-12.md) |
-| M4 旧流程收口与测试候选 | 修正后剩余 2.75–3.25 日 | 重复入口收口、删除和异常状态完整，一岗端到端可验收 | **当前唯一目标；M4-1 执行中** |
+| M4 旧流程收口与测试候选 | 剩余 2.25–2.75 日 | 重复入口收口、删除和异常状态完整，一岗端到端可验收 | **当前唯一目标；M4-2A 执行中** |
 
-当前剩余工作量基线为 2.75–3.25 个有效开发日。M4-0 只读审计发现原时间盒漏算了 ADR-0031 已批准的单项删除/选择性级联、真实 owner 保留模式和旧并行写入隔离；修正没有新增未来产品范围。每个切片结束后重估，不以继续铺设未来后端来延长阶段。
+当前剩余工作量基线为 2.25–2.75 个有效开发日。M4-0 只读审计修正了原时间盒，M4-1 已完成旧并行写入隔离；剩余工作只覆盖 ADR-0031 已批准的单项删除/选择性级联、真实 owner 保留模式和测试候选。每个切片结束后重估，不以继续铺设未来后端来延长阶段。
 
 ### M1：真实 Case 工作台
 
@@ -89,8 +89,8 @@ Aijob 要先形成一个由 coco 在本地完整体验、能够判断产品流�
 状态：**当前唯一目标**。M4-0 审计与修正后的固定串行执行如下；详细矩阵见 [M4-0 旧入口与一岗闭环差异审计](career-os-m4-legacy-entry-and-one-job-gap-audit-2026-08-12.md)：
 
 1. `M4-0`（已完成）：确认 `/resume` 是新 OS 仍依赖的共享解析/确认入口，旧 Tailoring 必须保留只读；定位 V2 下旧并行写入、匿名 30 天兼容 TTL 与长期文案冲突、单项删除未接入和简历确认部分写。
-2. `M4-1`（当前，0.5 日）：隔离旧写边界。V2 下 JobDetail 只保留岗位事实、外链和 Case 创建；Recommendation/Insight 为零请求兼容说明；旧 Tailoring 只读；`/resume` 出口进入 `/resumes`；旧数据 URL 进入新设置。旗标关闭保持原状。
-3. `M4-2A`（1–1.5 日）：复用现有 Schema 完成 Case、Resume、Interview、Debrief 单项删除和 Case 选择性级联/脱离，不增加 migration。
+2. `M4-1`（已完成）：V2 下 JobDetail 只保留岗位事实、外链和 Case 创建；Recommendation/Insight 为零请求兼容说明；旧 Tailoring 只读；`/resume` 出口与旧数据 URL 进入新 OS。验收见 [M4-1 兼容入口与写边界](../evidence/product/career-os-v2/m4-1-legacy-write-boundary-acceptance-2026-08-12.md)。
+3. `M4-2A`（当前，1–1.5 日）：复用现有 Schema 完成 Case、Resume、Interview、Debrief 单项删除和 Case 选择性级联/脱离，不增加 migration。
 4. `M4-2B`（0.5–0.75 日）：数据设置展示真实保留模式和完整范围；补简历确认原子提交、会话失效恢复，清理开发阶段标签与未实现主导航。
 5. `M4-3`（0.5 日）：用合成 Case 贯通要求、岗位简历、Review、DOCX/打印、外链、显式投递、模板面试、复盘回流、选择性删除和全部个人数据删除。
 6. `M4-4`（0.25–0.5 日）：完成全仓与浏览器 Gate，形成独立测试候选证据包，再决定继续 Private Alpha 准备、修改、回退或停止。

@@ -9,7 +9,8 @@
 - M3 完整合成链已经从显式投递、模板面试、反馈复盘运行到逐项确认和 Requirements/Resume 回流；最终全仓 725/725、1280/640/320、并发冲突、真实 404、焦点返回、旗标回退与包体检查通过。
 - M3 Gate 修复了 Requirement 检查器关闭后仍保留深链参数、导致移动抽屉重新打开的当前闭环缺口；没有扩展 Knowledge、真实 AI、真实来源或未来服务。
 - `M4-0 旧入口与一岗闭环差异审计` 已完成，证据见[旧入口与一岗闭环差异审计](plans/career-os-m4-legacy-entry-and-one-job-gap-audit-2026-08-12.md)。结论不是统一删除旧页：`/resume` 仍是唯一解析/确认入口，旧 Tailoring 必须保留只读历史；真正冲突是 V2 下仍可写旧 Match/Decision/Tailoring，以及数据保留和单项删除没有接入现有长期资产契约。
-- M4-0 决定为 **修改后继续**：当前唯一切片切换为 `M4-1 兼容入口与写边界`。先阻断旧并行写入并保持旗标回退，再执行单项删除、真实保留模式和错误恢复；不得直接删除旧字段、历史内容或旗标回退路径。
+- `M4-1 兼容入口与写边界` 已通过[独立工程验收](evidence/product/career-os-v2/m4-1-legacy-write-boundary-acceptance-2026-08-12.md)：V2 岗位详情不再启用旧 Match/Decision/Tailoring/外链跟踪，Recommendation/Insight 为零请求兼容页，旧 Tailoring 只读，简历出口与数据 URL 已进入新 OS；旗标关闭的旧流程不变。
+- M4-1 决定为 **继续**：当前唯一切片切换为 `M4-2A 单项删除与选择性级联`。只复用既有墓碑、脱离守卫、owner epoch、revision 和 PostgreSQL 事务接真实删除；不得新增 migration，也不得提前做 M4-2B 的账号/保留模式或错误恢复。
 - 真实性、安全、隐私、供给和服务器要求继续由 [Private Alpha 与上线就绪 Gate](plans/private-alpha-readiness-gates.md) 守门，但该 Gate 不生成 M4 当前任务。
 
 ## 2. 当前快照
@@ -18,15 +19,15 @@
 |---|---|
 | 更新日期 | 2026-08-12 |
 | 当前阶段 | Career OS 2.0 M4 旧流程收口与测试候选 |
-| 当前唯一目标 | `M4-1 兼容入口与写边界`：V2 下保留岗位事实、外链、Case 创建及 `/resume` 解析确认，停止旧 Match/Decision/Tailoring/Recommendation/Insight 新写入；旧 Tailoring 只读，旧数据 URL 无损进入新设置，旗标关闭行为不变 |
+| 当前唯一目标 | `M4-2A 单项删除与选择性级联`：为 Case、Resume、Interview、Debrief 接 owner-protected、幂等且 revision-safe 的单项删除；删除 Case 时逐类选择派生资产同时删除或脱离，删除后刷新、重登和迟到任务不得复活 |
 | 工程基线 | M1、M2、M3 已完成；M3 最终全仓串行回归 Config 17、Contracts 71、Database 54、Platform 458、Web 125，共 725/725；lint 432 files、typecheck、build、audit、隔离 PostgreSQL 与浏览器总 Gate 通过 |
 | 前端基线 | `/resumes` 与 Case `resume` 复用 Resume V2；Case `application`、`interview`、`debrief` 已形成真实连续闭环；主包 558.27 kB，面试/复盘 20.98 kB、要求 12.92 kB、简历编辑器 29.23 kB，均为独立 lazy chunk |
 | 当前产品证据 | E0：没有可复核目标用户行为证据 |
 | 可信供给 | 22 岗 / 3 家企业 / 3 个官方 ATS；公共与 Alpha 岗位均为 0 |
 | 当前 AI | 公开和远程环境关闭；M4 沿用确定性模板，不调用真实 AI |
 | 参与者验证 | 未开始；G0 为 0/2，G1 未开始 |
-| 当前下一决定 | 完成 M4-1 focused 工程与旗标回退检查后，只选择继续 M4-2A、修改、回退或停止；不得用页面隐藏冒充删除已经实现 |
-| 时间盒 | M4-0 已完成；修正后 M4 剩余约 2.75–3.25 个有效开发日，M4-1 为 0.5 日 |
+| 当前下一决定 | 完成 M4-2A PostgreSQL 集成、Web 选择确认和删除后不复活检查后，只选择继续 M4-2B、修改、回退或停止；不得用物理级联或页面隐藏代替用户选择 |
+| 时间盒 | M4-0、M4-1 已完成；M4 剩余约 2.25–2.75 个有效开发日，M4-2A 为 1–1.5 日 |
 
 岗位数量、工程测试、页面完成或 AI 调用都不能把产品证据从 E0 自动提升。
 
@@ -61,8 +62,8 @@ flowchart LR
 ### 固定串行切片
 
 - [x] `M4-0 旧入口与一岗闭环差异审计`（已完成）：确认 `/resume` 必须保留为共享解析/确认入口，旧 Tailoring 保留只读；定位 V2 下旧并行写入、匿名 30 天兼容 TTL 与长期文案冲突、单项删除未接 API/UI、简历确认部分写和用户可见开发标签。
-- [ ] `M4-1 兼容入口与写边界`（当前，0.5 日）：V2 下停止 JobDetail 的旧 Match/Decision/Tailoring/外链跟踪写入；Recommendation/Insight 变为零请求兼容说明；旧 Tailoring 只读；`/resume` 完成出口进入 `/resumes`；旧数据 URL 进入新设置。旗标关闭行为保持不变。
-- [ ] `M4-2A 单项删除与选择性级联`（1–1.5 日）：复用现有 `deleted_at`、detach guard 和 owner epoch，为 Case、Resume、Interview、Debrief 接 owner-protected 删除；Case 删除逐项选择删除或脱离派生资产。
+- [x] `M4-1 兼容入口与写边界`（已完成）：V2 岗位详情停止旧 Match/Decision/Tailoring/外链跟踪，Recommendation/Insight 为零请求兼容说明，旧 Tailoring 只读，`/resume` 出口与旧数据 URL 已进入新 OS；Web 131/131 和旗标回退策略通过。
+- [ ] `M4-2A 单项删除与选择性级联`（当前，1–1.5 日）：复用现有 `deleted_at`、detach guard 和 owner epoch，为 Case、Resume、Interview、Debrief 接 owner-protected 删除；Case 删除逐项选择删除或脱离派生资产。
 - [ ] `M4-2B 数据真相与错误恢复`（0.5–0.75 日）：设置页展示真实 owner retention mode/expiry 与完整数据范围；补简历确认原子提交、会话失效恢复，并清理用户可见的 M1/M2/M3/Phase/PoC 标签和未实现主导航。
 - [ ] `M4-3 一岗本地测试候选`（0.5 日）：使用一个合成 Case 贯通要求、岗位简历、Review、DOCX/打印、外链交接、显式投递、模板面试、复盘回流、选择性删除和全部个人数据删除。
 - [ ] `M4-4 工程与浏览器 Gate`（0.25–0.5 日）：运行全仓、1280/320、200% 等效、键盘/焦点、刷新/历史、旗标回退、控制台和包体检查，形成 M4 独立测试候选证据。
