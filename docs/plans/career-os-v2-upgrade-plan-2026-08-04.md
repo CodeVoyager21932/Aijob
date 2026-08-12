@@ -10,7 +10,7 @@
 
 1. [MVP 路线与当前决策面板](../06-mvp-roadmap.md)
 2. [当前项目交接](../handoffs/current.md)
-3. [Career OS 当前交付计划](career-os-current-delivery-plan.md)
+3. [Career OS 前台体验收敛当前交付计划](career-os-current-delivery-plan.md)
 4. [Private Alpha 与上线就绪 Gate](private-alpha-readiness-gates.md)
 
 旧计划全文仅供追溯：[历史归档](archive/career-os-v2-upgrade-plan-2026-08-04.md)。

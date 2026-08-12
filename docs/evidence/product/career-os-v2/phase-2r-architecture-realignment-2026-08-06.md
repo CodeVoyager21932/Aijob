@@ -5,8 +5,8 @@
 - 产品基线：OS 2.0 初版，而不是最初 Aijob
 - 当前决定：Phase 2R 契约审查就绪；进入 `Phase 2A-Forward-Contract`，未批准 025–027
 - 上位决策：[ADR-0031](../../../decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md)
-- 契约矩阵：[Phase 2R 契约与迁移影响矩阵](../../../plans/career-os-phase-2r-contract-and-migration-impact-matrix-2026-08-06.md)
-- 前向修复设计：[Phase 2A 前向修复契约与隔离 PostgreSQL 测试设计](../../../plans/career-os-phase-2a-forward-contract-and-isolated-db-test-design-2026-08-06.md)
+- 契约矩阵：[历史 Phase 2R 契约与迁移影响矩阵](../../../plans/archive/career-os-phase-2r-contract-and-migration-impact-matrix-2026-08-06.md)
+- 前向修复设计：[历史 Phase 2A 前向修复契约与隔离 PostgreSQL 测试设计](../../../plans/archive/career-os-phase-2a-forward-contract-and-isolated-db-test-design-2026-08-06.md)
 
 ## 1. 目的
 
@@ -44,7 +44,7 @@
 5. 完成事件、布局和审查 Schema 的 strict 定义。
 6. 完成旧路由兼容、唯一真源和迁移 023/024 前向修复评估。
 
-上述范围已经细化为可审查的联合类型、删除矩阵、Review 状态机、strict Schema、旧路由矩阵和迁移影响矩阵；详见[契约与迁移影响矩阵](../../../plans/career-os-phase-2r-contract-and-migration-impact-matrix-2026-08-06.md)。Phase 2R 文档 Gate 已满足，前向修复契约和隔离数据库测试设计已形成；实施仍需通过独立的 023F/024F 证据 Gate。
+上述范围已经细化为可审查的联合类型、删除矩阵、Review 状态机、strict Schema、旧路由矩阵和迁移影响矩阵；详见[历史契约与迁移影响矩阵](../../../plans/archive/career-os-phase-2r-contract-and-migration-impact-matrix-2026-08-06.md)。Phase 2R 文档 Gate 已满足，前向修复契约和隔离数据库测试设计已形成；实施仍需通过独立的 023F/024F 证据 Gate。
 
 ## 6. 不做的事情
 

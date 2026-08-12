@@ -8,7 +8,7 @@
 
 ## 1. 验收范围
 
-本轮只审查既有 Schema、owner 生命周期、任务队列、Resume V1、旧决定和 HTTP 安全契约，并形成 [Phase 2 领域契约与迁移设计](../../../plans/career-os-phase-2-domain-contract-and-migration-design-2026-08-05.md)。没有创建迁移、修改数据库或接入真实业务数据。
+本轮只审查既有 Schema、owner 生命周期、任务队列、Resume V1、旧决定和 HTTP 安全契约，并形成[历史 Phase 2 领域契约与迁移设计](../../../plans/archive/career-os-phase-2-domain-contract-and-migration-design-2026-08-05.md)。没有创建迁移、修改数据库或接入真实业务数据。
 
 排除项：真实招聘来源、真实 AI、服务器、真实简历、`.claude/`、`.data/`、密钥、令牌、本地数据库和下载文件。
 

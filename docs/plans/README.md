@@ -1,45 +1,38 @@
 # Aijob 计划索引
 
-本目录把“当前执行路线”“未来验收门”和“历史设计记录”分开。任何新任务都不得从历史计划、归档文件或旧验收记录中选择下一项工作。
+本目录严格区分“当前执行计划”“后续验收 Gate”和“历史归档”。新任务只能从路线图、当前交接与当前执行计划共同指向的唯一切片开始。
 
-## 当前执行状态
+## 当前执行
 
-- [Career OS 当前交付计划](career-os-current-delivery-plan.md)：M0–M4 已完成，保留里程碑、顺序和退出条件作为交付记录。
-- [PA-1 离线身份与解析隔离候选验收](../evidence/product/career-os-v2/pa-1-offline-identity-parser-candidate-acceptance-2026-08-12.md)：记录已授权离线候选、浏览器/工程 Gate 与未通过的真实邮件、解析镜像和服务器边界。
-- [MVP 路线与当前决策面板](../06-mvp-roadmap.md)：记录当前无自动执行任务、真实分母、Gate 状态和等待 coco 下一决定；它是动态进度的最高事实源。
-- [当前项目交接](../handoffs/current.md)：记录当前分支、工程基线、未提交状态、代码入口和本轮执行清单。
+- [Career OS 前台体验收敛计划](career-os-current-delivery-plan.md)：当前唯一活动计划；coco 已批准整个用户前台高保真收敛，当前切片为 UX-0，产品代码尚未实施。
+- [MVP 路线与当前决策面板](../06-mvp-roadmap.md)：当前阶段、真实分母、Gate 和下一决定的最高动态事实源。
+- [当前项目交接](../handoffs/current.md)：当前分支、工程基线、当前切片、代码入口和安全边界。
 
-PA-1 离线候选已完成；当前没有已授权的后续实现计划。不得从后续 Gate、历史计划或旧验收记录自行生成 Private Alpha 任务。
+## 后续验收 Gate
 
-## 后续验收门
+- [Private Alpha 与上线就绪 Gate](private-alpha-readiness-gates.md)：只回答进入真实参与者测试和推广上线前不能遗漏什么；不得从中生成当前 UX 任务。
 
-- [Private Alpha 与上线就绪 Gate](private-alpha-readiness-gates.md)：只回答进入真实参与者测试和推广上线前不能遗漏什么，不提供当前任务顺序。
+## 历史归档
 
-## 已完成的设计记录
+所有已完成、被取代或只用于解释既有实现的计划统一列在[历史计划归档](archive/README.md)。其中包括：
 
-- [M4-0 旧入口与一岗闭环差异审计](career-os-m4-legacy-entry-and-one-job-gap-audit-2026-08-12.md)
-- [M3 投递、文字面试与复盘集成边界](career-os-m3-application-interview-integration-boundary-2026-08-11.md)
-- [M2 专业简历闭环复用与集成边界](career-os-m2-resume-integration-boundary-2026-08-09.md)
-- [Phase 2 领域契约与迁移设计](career-os-phase-2-domain-contract-and-migration-design-2026-08-05.md)
-- [Phase 2R 契约与迁移影响矩阵](career-os-phase-2r-contract-and-migration-impact-matrix-2026-08-06.md)
-- [Phase 2A 前向修复与隔离测试设计](career-os-phase-2a-forward-contract-and-isolated-db-test-design-2026-08-06.md)
-- [R2 UI/UX 视觉参考与设计方向](r2-ui-ux-reference-direction-2026-07-29.md)
+- M0–M4 与 PA-1 已完成交付计划
+- M2/M3/M4 集成设计与差距审计
+- Phase 2/2R/2A 契约与迁移设计
+- R2 UI/UX 旧视觉方向
+- G2 收束和旧 G4-first 严格总计划
 
-这些文件用于解释既有代码和决策，不能覆盖当前路线图或交接。
-
-## 历史与废止计划
-
-- [已废止的 Career OS 2.0 → Private Alpha 严格开发总计划](archive/career-os-v2-upgrade-plan-2026-08-04.md)
-- [历史 G2 收束执行计划](g2-closeout-plan-2026-07-26.md)
+归档正文中的“当前”“下一步”“授权”“时间盒”和历史分母只描述当时时点，不得覆盖现行路线。
 
 旧路径 [career-os-v2-upgrade-plan-2026-08-04.md](career-os-v2-upgrade-plan-2026-08-04.md) 仅为兼容历史链接的废止路标。
 
 ## 事实源与冲突处理
 
 1. 当前阶段、目标和下一决定：`docs/06-mvp-roadmap.md`。
-2. 当前分支、工作树和执行入口：`docs/handoffs/current.md`。
-3. 不可静默改变的架构决定：ADR。
-4. 里程碑定义与时间盒：当前交付计划。
-5. 历史设计、验收与归档：只作证据和上下文。
+2. 当前分支、工程基线和执行入口：`docs/handoffs/current.md`。
+3. 当前切片、顺序和退出条件：`docs/plans/career-os-current-delivery-plan.md`。
+4. 不可静默改变的架构与产品决定：ADR。
+5. Private Alpha 完整条件：`private-alpha-readiness-gates.md`，只守门。
+6. 历史设计、验收与归档：只作证据和上下文。
 
-若活动文档与历史文件冲突，必须更新或标记活动文档中的冲突；不得回退到历史计划继续执行。
+若活动文档与 Git、运行状态或彼此冲突，先记录并复核；不得静默选择，也不得回到历史计划继续执行。

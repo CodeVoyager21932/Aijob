@@ -6,7 +6,9 @@
 >
 > 上位事实源：[ADR-0030](../../../decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md)、[当前交付计划](../../../plans/career-os-current-delivery-plan.md)
 
-当前新路线的工程证据依次见 [M1 真实 Case 工作台](m1-real-case-workspace-acceptance-2026-08-09.md)、[M2 专业简历闭环](m2-professional-resume-acceptance-2026-08-11.md)、[M3-1 显式投递记录](m3-1-explicit-application-acceptance-2026-08-11.md)、[M3-2 确定性文字面试](m3-2-deterministic-interview-acceptance-2026-08-11.md)、[M3-3 反馈与复盘](m3-3-feedback-debrief-acceptance-2026-08-11.md)、[M3-4 用户确认回流](m3-4-user-confirmed-backflow-acceptance-2026-08-11.md)、[M3 总验收](m3-workflow-acceptance-2026-08-12.md)、[M4-1 兼容入口与写边界](m4-1-legacy-write-boundary-acceptance-2026-08-12.md)和 [M4-2A 单项删除与选择性级联](m4-2a-selective-deletion-acceptance-2026-08-12.md)。这些证据取代本目录历史 Phase 2B 验收中的“下一步”，但不删除历史工程事实；当前唯一目标只由动态路线与当前交接确定。
+> 当前状态：M1–M4 与 PA-1 已完成并归档；coco 已批准整个用户前台进行高保真体验收敛，当前唯一切片为 `UX-0 视觉契约与基线`。本目录各历史验收中的“继续”“下一唯一切片”和等待决定只记录当时时点，不得生成当前任务。
+
+已完成工程路线的证据依次见 [M1 真实 Case 工作台](m1-real-case-workspace-acceptance-2026-08-09.md)、[M2 专业简历闭环](m2-professional-resume-acceptance-2026-08-11.md)、[M3 总验收](m3-workflow-acceptance-2026-08-12.md)、[M4 工程与浏览器总验收](m4-engineering-browser-gate-acceptance-2026-08-12.md)和 [PA-1 离线候选](pa-1-offline-identity-parser-candidate-acceptance-2026-08-12.md)。这些证据保留历史工程事实，但不覆盖[动态路线](../../../06-mvp-roadmap.md)、[当前交付计划](../../../plans/career-os-current-delivery-plan.md)或[当前交接](../../../handoffs/current.md)。
 
 长期架构修正以 [ADR-0031](../../../decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md) 和 [Phase 2R 对齐报告](phase-2r-architecture-realignment-2026-08-06.md) 为准；本目录的概念图仍只约束布局、信息层级和交互关系，不覆盖长期生命周期、私有 JD 或 Resume Review 数据契约。
 

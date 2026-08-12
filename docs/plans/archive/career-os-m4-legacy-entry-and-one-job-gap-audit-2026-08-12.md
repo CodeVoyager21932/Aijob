@@ -1,10 +1,12 @@
 # M4-0 旧入口与一岗闭环差异审计
 
+> 【历史归档】M4-0 及其后续 M4 切片均已完成。本文只保存当时的差距证据，不提供当前任务。
+
 - 日期：2026-08-12
 - 状态：**已完成，只读审计**
-- 决定：**修改后继续 M4-1**
-- 上位事实源：[MVP 路线与当前决策面板](../06-mvp-roadmap.md)
-- 稳定边界：[ADR-0030](../decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md)、[ADR-0031](../decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md)
+- 历史决定：**修改后继续 M4-1（已完成）**
+- 当前事实源：[MVP 路线与当前决策面板](../../06-mvp-roadmap.md)、[当前交付计划](../career-os-current-delivery-plan.md)
+- 稳定边界：[ADR-0030](../../decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md)、[ADR-0031](../../decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md)
 
 本审计只读取路由、前端调用、Platform 服务、迁移和既有测试，没有启动前后端、数据库或浏览器，没有修改业务行为，也没有访问真实招聘来源、真实 AI、真实简历、邮件或服务器。
 

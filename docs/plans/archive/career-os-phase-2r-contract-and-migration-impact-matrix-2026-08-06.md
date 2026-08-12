@@ -1,12 +1,14 @@
 # Phase 2R 契约与迁移影响矩阵
 
+> 【历史归档】本文只保存 Phase 2R 当时的影响矩阵，不提供当前任务。
+
 - 日期：2026-08-06
 - 状态：**Historical / 已完成并由 migrations 025–030 落地，不是当前任务队列**
 - 适用基线：Aijob OS 2.0 初版
-- 上位决策：[ADR-0031](../decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md)
-- 当前执行计划：[Career OS 当前交付计划](career-os-current-delivery-plan.md)
+- 上位决策：[ADR-0031](../../decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md)
+- 当前执行计划：[Career OS 当前交付计划](../career-os-current-delivery-plan.md)
 - 历史上位计划：[已废止的 Private Alpha 严格开发总计划](career-os-v2-upgrade-plan-2026-08-04.md)
-- 对应证据：[Phase 2R 架构对齐报告](../evidence/product/career-os-v2/phase-2r-architecture-realignment-2026-08-06.md)
+- 对应证据：[Phase 2R 架构对齐报告](../../evidence/product/career-os-v2/phase-2r-architecture-realignment-2026-08-06.md)
 
 本文是 Phase 2R 当时的实现前契约。其决定已由 migrations 025–030 和对应验收落实；正文保留历史语境，不得据此重新启动 Phase 2A 或选择下一任务。
 

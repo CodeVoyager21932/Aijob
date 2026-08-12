@@ -1,120 +1,113 @@
-# Aijob Career OS 当前交付计划
+# Aijob Career OS 前台体验收敛当前交付计划
 
-- 状态：**Complete / M0–M4 与 PA-1 离线候选已完成**
-- 生效日期：2026-08-09
-- 决策者：coco
-- 当前里程碑：`PA-1 离线身份与解析隔离候选` 已完成；下一项 Private Alpha 准备等待 coco 单独授权
+- 状态：**Active / 已由 coco 批准，尚未开始产品代码实施**
+- 生效日期：2026-08-12
+- 当前分支：`codex/career-os-ux-convergence`
+- 当前切片：`UX-0 视觉契约与基线`
 - 动态进度：[MVP 路线与当前决策面板](../06-mvp-roadmap.md)
-- 当前工程入口：[当前项目交接](../handoffs/current.md)
-- 后续完整性检查：[Private Alpha 与上线就绪 Gate](private-alpha-readiness-gates.md)
+- 工程入口：[当前项目交接](../handoffs/current.md)
+- 上一轮归档：[M0–M4 与 PA-1 交付计划](archive/career-os-m0-m4-pa1-delivery-plan-2026-08-12.md)
+- 后续守门：[Private Alpha 与上线就绪 Gate](private-alpha-readiness-gates.md)
 
-本计划取代旧的“先铺完全部 Phase 2/3/4，再形成可用闭环”的执行顺序。旧计划中的真实性、安全、隐私和发布门槛继续有效，但不再决定当前任务。
+## 1. 当前目标
 
-## 1. 当前交付目标
+把现有 Case、Requirements、Resume V2、Review、投递、面试、复盘、删除和离线身份能力，收敛为一个视觉统一、路径自然、可逐页验收的 Career OS 用户前台。
 
-Aijob 要先形成一个由 coco 在本地完整体验、能够判断产品流程是否成立的 Career OS 2.0 测试版本：
+三张 Career OS 概念图是布局、信息层级和交互关系的高保真目标，不是业务字段或事实来源。当前工作不是重新建设后端闭环，也不是只给现有页面换颜色；它要解决以下已确认问题：
 
-```text
-可信岗位或 owner 私有 JD
-→ 创建或重新打开岗位 Case
-→ 核对 JD 要求与已确认经历证据
-→ 形成并调整岗位专属简历
-→ 导出并前往官方页面手动投递
-→ 记录投递状态
-→ 进行模板文字面试与复盘
-→ 回到证据和简历继续改进
-```
+- 静态原型与后来接入真实能力的页面没有持续保持视觉保真。
+- `WorkspaceShell` 与旧 `ProductShell` 的用户体验仍明显割裂。
+- 岗位发现、简历解析/确认等旧能力虽然保留，却没有自然融入新 OS 旅程。
+- 当前页面信息密度、层级和成品感与 coco 批准的概念方向存在明显差距。
 
-“本地可测试”不等于 Private Alpha 或公开上线。真实来源扩容、真实 AI、服务器、邮箱验证和参与者招募均由后续 Gate 单独授权。
+固定产品语义不变：不输出匹配百分比或“匹配良好/中/差”；证据状态只使用`已有证据 / 证据待补充 / 用户尚未确认`。
 
-## 2. 交付里程碑
+## 2. 已锁定设计决定
 
-| 里程碑 | 时间盒 | 用户可见结果 | 状态 |
+- **视觉目标**：对三张概念图做高保真升级，保留专业桌面工作台的结构、密度和交互关系，并统一 Aijob 品牌细节。
+- **交付方式**：逐页形成可操作成品、逐页浏览器验收，不做一次性大爆炸重写。
+- **旧能力处置**：自然嵌入新 OS；旧 URL 只承担兼容或历史只读，不形成第二套显眼产品入口。
+- **完成边界**：覆盖整个用户前台，不只三张核心页面；内部研究与采集页面不进入本轮视觉重做。
+- **验收数据**：隔离合成满态与真实空态分别验收；合成数据不得冒充真实岗位、供给或用户价值。
+- **视觉气质**：高密度、克制、可信的专业求职驾驶舱；不使用营销式大 Hero、玻璃拟态、装饰性渐变或悬浮 AI 助手。
+
+## 3. 串行里程碑
+
+| 切片 | 时间盒 | 用户可见结果 | 状态 |
 |---|---:|---|---|
-| M0 核心地基冻结 | 已完成 | Phase 1B 静态工作台，以及 Case、Requirement、Resume V2 的 owner-protected API | 已完成 |
-| M1 真实 Case 工作台 | 2.5–3 日 | Case/要求读取与写入真实内部状态，岗位简历读取真实修订 | 已完成；[验收证据](../evidence/product/career-os-v2/m1-real-case-workspace-acceptance-2026-08-09.md) |
-| M2 专业简历闭环 | 2–3 日 | 简历解析确认、结构编辑、章节调整、逐条建议、两模板和导出进入同一 OS | 已完成；[验收证据](../evidence/product/career-os-v2/m2-professional-resume-acceptance-2026-08-11.md) |
-| M3 投递与持续改进 | 2–3 日 | 手动投递记录、模板文字面试、结构化反馈和复盘回流 | 已完成；[验收证据](../evidence/product/career-os-v2/m3-workflow-acceptance-2026-08-12.md) |
-| M4 旧流程收口与测试候选 | 已完成 | 重复入口收口、删除和异常状态完整，一岗端到端可验收 | 已完成；[总验收证据](../evidence/product/career-os-v2/m4-engineering-browser-gate-acceptance-2026-08-12.md) |
+| UX-0 视觉契约与基线 | 0.5 日 | 路由/状态矩阵、视觉 token、概念图对照表、满态与空态验收夹具 | **当前，尚未实施** |
+| UX-1 统一 Shell | 1–1.5 日 | 所有 V2 路由使用统一侧栏、工具栏、画布、检查器和状态组件 | 待 UX-0 Gate |
+| UX-2 申请看板与 Peek | 1–1.5 日 | 五阶段看板、紧凑 Case 卡片、真实 Peek 与私有 JD 抽屉 | 待 UX-1 Gate |
+| UX-3 Case 与 JD 能力 | 1–1.5 日 | 统一 Case Header、六标签、要求分组和右侧要求检查器 | 待 UX-2 Gate |
+| UX-4 简历资产与 Resume Studio | 2–2.5 日 | 资产库以及结构/文稿/建议三栏岗位简历工作室 | 待 UX-3 Gate |
+| UX-5 岗位发现与简历导入融合 | 1–1.5 日 | 岗位目录、岗位详情、简历解析/确认自然进入新 OS | 待 UX-4 Gate |
+| UX-6 其余完整前台 | 1.5–2 日 | 今日、概览、投递、面试、复盘、设置、访问与错误页统一 | 待 UX-5 Gate |
+| UX-7 总体验 Gate | 0.5–1 日 | 全前台视觉、功能、可访问性、性能和离线边界总验收 | 待 UX-6 Gate |
 
-M0–M4 已全部完成。M4-4 在隔离合成数据上通过最终工程与浏览器 Gate；本计划不再生成后续实现任务。Private Alpha 的真实供给、服务器、身份、安全和参与者准备必须由 coco 另行授权，并以 [Private Alpha 与上线就绪 Gate](private-alpha-readiness-gates.md) 守门。
+总时间盒约 9–12 个有效开发日。每个切片只能在上一切片完成浏览器可见验收后开始；每次只作“继续、修改、回退、停止”之一。
 
-M4 后 coco 单独授权的 PA-1 已形成[离线身份与解析隔离候选](../evidence/product/career-os-v2/pa-1-offline-identity-parser-candidate-acceptance-2026-08-12.md)。它不接真实邮件、不获取解析镜像、不部署服务器；这些条件仍由后续服务器 Gate 守门，本计划不自动生成下一切片。
+## 4. 页面与交互契约
 
-### M1：真实 Case 工作台
+### 申请看板
 
-状态：**已完成**。实现与 Gate 结果见 [M1 独立验收证据](../evidence/product/career-os-v2/m1-real-case-workspace-acceptance-2026-08-09.md)；本节保留稳定范围定义，不再生成下一任务。
+- 桌面使用五阶段看板和右侧 Peek；移动端使用阶段切换、单列卡片和全屏 Peek。
+- 列表/看板、阶段、城市、排序和当前 Peek 保持 URL 可恢复。
+- 卡片只显示真实 Case 已有字段；不为了视觉丰满伪造公司、截止日期、任务或匹配结论。
+- 不把拖拽作为阶段写入入口；业务阶段仍由显式用户动作推进。
 
-用户任务：从离线岗位夹具或 owner 私有 JD 创建/重新打开 Case，刷新后继续核对要求并打开对应岗位简历。
+### JD 能力
 
-固定交付：
+- 保留统一 `CaseHeader`、六个局部标签、阶段进度和固定岗位版本提示。
+- 要求分成硬条件、职责能力、未知待确认，每项保留官方原句、来源和证据状态。
+- 右侧检查器集中处理状态、备注、证据关联和待确认问题。
+- revision 409 保留本地草稿、读取新版本并要求用户再次确认，不自动重放 mutation。
 
-- `/applications` 使用现有 Case 列表和创建接口，不再把静态 Case 当业务真源。
-- `/applications/:caseId/*` 从 Case 详情恢复公共或私有 JobContext、阶段和固定岗位版本。
-- `requirements` 读取并修改三态、备注、证据关联和未知问题，保留 URL 检查器状态。
-- `resume` 读取对应的 Case 派生 Resume Document 及当前内容/布局修订；编辑和优化留到 M2。
-- 加载、空、非法 Case、404、409、过期会话和重试有明确界面。
-- 现有静态数据只保留为测试/回退夹具，不在正常会话伪装业务持久化。
+### 简历工作室
 
-退出条件：创建与幂等重开、刷新/前进/后退、要求写入、简历读取、owner 隔离、1280/320、键盘和功能旗标回退均通过。
+- 左侧为结构、证据和版本；中间为 A4 文稿；右侧为要求、证据和审阅建议。
+- 基础简历与岗位简历复用同一编辑框架，但保持不同事实上下文和不可变修订。
+- 建议只能接受、编辑后采用或拒绝；不得自动写入或引用未确认事实。
+- 移动端使用“结构 / 文稿 / 建议”模式切换，不强行压缩三栏。
 
-### M2：专业简历闭环
+### 其余用户前台
 
-状态：**已完成**。实现与 Gate 结果见 [M2 独立验收证据](../evidence/product/career-os-v2/m2-professional-resume-acceptance-2026-08-11.md)；本节保留稳定范围定义，不再生成下一任务。
+- 岗位发现、岗位详情、简历导入/确认、今日、投递、面试、复盘、数据设置与 Alpha 访问全部进入同一视觉语言。
+- V2 开启时，简历导入/确认使用 `/resumes/import*` 规范路由；旧 `/resume*` 只作兼容入口。
+- `/recommendations`、`/insights` 继续为零请求兼容说明；旧 Tailoring 继续历史只读。
+- V2 关闭时，旧 `ProductShell`、旧 URL 和回退行为必须保持可用。
 
-- 复用旧简历解析、事实确认、tailoring 和 DOCX 能力，不建设第二套解析器。
-- `/resumes` 成为基础简历资产入口；Case `resume` 成为岗位派生编辑器。
-- 支持章节增删、上下移动、内容删减与增强表达；首轮不用通用富文本和拖拽作为唯一操作。
-- 建议只能逐条接受、编辑后采用或拒绝，并保留原修订和证据引用。
-- 首个测试候选只使用确定性模板或模拟 provider；真实国产模型接入不阻塞 M2。
+## 5. 实现边界
 
-### M3：投递与持续改进
+- 以现有 `WorkspaceShell` 为 V2 唯一用户外壳；不建设第二套新 Shell。
+- 原则上复用现有 API、Contracts 和数据库，不新增 migration、数据库、Redis、向量库、队列、认证体系或 AI SDK。
+- 看板首屏只读取 Case 列表；Peek 选中后才按需读取详情。不得为每张卡片产生 N+1 请求。
+- Resume Editor、Interview 和数据设置继续独立 lazy load。
+- 样式按 token、Shell、看板、Case、Resume、流程页拆分，避免继续扩张单个全局样式文件。
+- 不引入第三方 UI 框架、外部字体、CDN 或新的远程运行依赖。
 
-状态：**已完成**。实现与 Gate 结果见 [M3 独立总验收证据](../evidence/product/career-os-v2/m3-workflow-acceptance-2026-08-12.md)；本节保留稳定范围定义，不再生成下一任务。
+## 6. Gate 与验收
 
-- 打开官方链接不自动标记已投递，投递状态必须由用户明确写入。
-- 按界面实际需要实现最小 Interview Session/Turn、模板反馈与 Debrief API。
-- 问题、反馈和复盘只能引用固定岗位版本和用户已确认事实，不创造经历。
-- Knowledge、真实 AI 任务和跨 Case 智能生成不进入 M3。
+每个核心页面必须覆盖满态、真实空态、Loading、API 失败/重试、404、409、会话恢复、删除后不可读、刷新、深链和前进/后退。
 
-固定串行切片：
+浏览器固定验证：
 
-1. `M3-0`（已完成）：复核既有 decisions、Case events、Interview/Debrief 契约和占位界面，形成[最小复用矩阵与 focused 基线](career-os-m3-application-interview-integration-boundary-2026-08-11.md)。
-2. `M3-1`（已完成）：完成用户显式投递记录与 Case 时间线；打开官方链接永不自动写入。见 [M3-1 独立验收证据](../evidence/product/career-os-v2/m3-1-explicit-application-acceptance-2026-08-11.md)。
-3. `M3-2`（已完成）：完成固定岗位版本、固定 Resume/证据修订的确定性文字面试 Session/Turn；不接真实 AI，不提前实现反馈与复盘。见 [M3-2 独立验收证据](../evidence/product/career-os-v2/m3-2-deterministic-interview-acceptance-2026-08-11.md)。
-4. `M3-3`（已完成）：完成用户显式生成的结构化反馈与复盘，只输出表达问题、证据缺口和练习计划。见 [M3-3 独立验收证据](../evidence/product/career-os-v2/m3-3-feedback-debrief-acceptance-2026-08-11.md)。
-5. `M3-4`（已完成）：由用户逐项采用、编辑、拒绝或稍后处理后明确确认复盘，再通过受控入口去补证据或修改岗位简历；确认本身不创造或覆盖经历。见 [M3-4 独立验收证据](../evidence/product/career-os-v2/m3-4-user-confirmed-backflow-acceptance-2026-08-11.md)。
-6. `M3-5`（已完成）：全仓与浏览器总 Gate 通过，决定继续 M4。
+- 1536 CSS px：与概念图逐项对照结构、密度和交互关系。
+- 1280 CSS px：完整桌面主路径。
+- 320 CSS px 与 200% 等效视口：无页面级水平滚动，内容正确重排。
+- 键盘、可见焦点、抽屉/对话框焦点约束与关闭后焦点返回。
+- 控制台无新增 warning/error，网络只访问 loopback。
+- 看板和 Case 首屏不加载 Resume Editor/Interview。
+- Web 主包相对 PA-1 的 566.69 kB 基线增长不超过 10 kB；超出必须拆包或回退。
+- DOCX、打印、删除、离线会话和 `VITE_CAREER_OS_V2=false` 回退不得退化。
 
-### M4：旧流程收口与测试候选
+总 Gate 运行与改动相称的 focused tests，以及全仓 lint、typecheck、全新 `aijob_*_test_*` 隔离 PostgreSQL、全部测试、build、audit 和 diff check。
 
-状态：**已完成**。M4-0 审计与修正后的固定串行执行如下；详细矩阵见 [M4-0 旧入口与一岗闭环差异审计](career-os-m4-legacy-entry-and-one-job-gap-audit-2026-08-12.md)：
+## 7. 固定排除与证据边界
 
-1. `M4-0`（已完成）：确认 `/resume` 是新 OS 仍依赖的共享解析/确认入口，旧 Tailoring 必须保留只读；定位 V2 下旧并行写入、匿名 30 天兼容 TTL 与长期文案冲突、单项删除未接入和简历确认部分写。
-2. `M4-1`（已完成）：V2 下 JobDetail 只保留岗位事实、外链和 Case 创建；Recommendation/Insight 为零请求兼容说明；旧 Tailoring 只读；`/resume` 出口与旧数据 URL 进入新 OS。验收见 [M4-1 兼容入口与写边界](../evidence/product/career-os-v2/m4-1-legacy-write-boundary-acceptance-2026-08-12.md)。
-3. `M4-2A`（已完成）：复用现有 Schema 完成 Case、Resume、Interview、Debrief 单项删除和 Case 选择性级联/脱离，没有增加 migration。验收见 [M4-2A 单项删除与选择性级联](../evidence/product/career-os-v2/m4-2a-selective-deletion-acceptance-2026-08-12.md)。
-4. `M4-2B`（已完成）：数据设置展示真实保留模式、完整范围和已脱离 Case 的资产；简历确认原子提交、会话失效恢复、开发阶段标签与未实现主导航均已收口。验收见 [M4-2B 数据真相与错误恢复](../evidence/product/career-os-v2/m4-2b-data-truth-and-recovery-acceptance-2026-08-12.md)。
-5. `M4-3`（已完成）：同一合成公共 Case 已贯通要求、岗位简历、Review、DOCX、外链无副作用、显式投递、模板面试、复盘回流、选择性删除和全部个人数据删除。验收见 [M4-3 一岗本地测试候选](../evidence/product/career-os-v2/m4-3-one-job-local-candidate-acceptance-2026-08-12.md)。
-6. `M4-4`（已完成）：全仓 750/750 与 1280/320、200% 等效、错误恢复、旗标回退、DOCX/打印、控制台/网络、懒加载和包体 Gate 通过。验收见 [M4 工程与浏览器总验收](../evidence/product/career-os-v2/m4-engineering-browser-gate-acceptance-2026-08-12.md)。
+- 不访问真实招聘来源、真实 AI、真实邮件、服务器、参与者或真实简历。
+- 不获取外部解析镜像，不启动供给扩容或 Private Alpha 参与者工作。
+- 不读取、修改、暂存、覆盖、清理或提交 `.claude/`、`.data/`、密钥、令牌、真实简历原文、本地业务数据库、下载产物或截图。
+- 不把合成满态、工程通过或视觉完成计为真实岗位供给、用户价值或 Private Alpha 就绪。
+- 产品证据在获得可复核目标用户行为前保持 E0。
 
-M4 决定为 **完成并进入 Private Alpha 准备**。这不是自动启动真实 Alpha 的授权；下一切片等待 coco 明确选择。
-
-M4 不做 G4 前 contract migration，不删除无法证明已迁移的历史内容，不移除 `VITE_CAREER_OS_V2` 回退路径，也不实现 Knowledge、真实 AI、真实来源、邮箱、服务器或参与者能力。
-
-## 3. 执行纪律
-
-- 单人/单 Agent 同时只允许一个里程碑中的一个纵向切片 `in_progress`。
-- 每个切片必须产生浏览器可见的用户进展；当前界面不调用的未来服务不得提前实现。
-- Schema 无法表达当前行为时才做最小 additive forward repair；G4 前不做 contract migration。
-- 小切片运行相关测试；每个 M1–M4 里程碑结束运行全仓 lint、typecheck、隔离 PostgreSQL 测试、build、audit 与浏览器 Gate。
-- 每次只作“继续、修改、回退、停止”之一，并更新路线图、交接和独立验收证据。
-- `VITE_CAREER_OS_V2` 继续作为紧急回退开关；回退不得删除新数据。
-
-## 4. 不可降低的边界
-
-- PostgreSQL 继续是唯一查询和任务真源；不新增数据库、Redis、向量库、消息总线或第二套认证。
-- Case 固定岗位版本；要求、证据、偏好分开；AI 不得创造事实或自动劝退。
-- 私有 JD、简历与职业资产只对 owner 可见，不进入公共目录或跨用户共享。
-- 原文件和临时解析最长 24 小时；确认后的职业资产默认长期保留，并提供用户主动单项和全部删除。
-- 用户始终回到官方页面手动投递；不自动填写、模拟登录或批量投递。
-- 当前不访问真实招聘来源、真实 AI、邮件、服务器、参与者数据或真实简历。
+Private Alpha 的供给、服务器、安全和参与者条件继续由[就绪 Gate](private-alpha-readiness-gates.md)守门；该 Gate 不得覆盖本计划的当前 UX 切片。

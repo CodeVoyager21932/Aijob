@@ -1,23 +1,25 @@
-# 当前项目交接：Private Alpha 岗位可信度纠偏
+# 【历史归档】项目交接：Private Alpha 岗位可信度纠偏
+
+> 本文只保存 2026-08-03 时点事实，其中的“当前唯一目标”和来源授权均已被后续路线取代，不提供当前任务。当前执行见[现行交接](../current.md)。
 
 > 交接日期：2026-08-03
 >
 > 当前工作分支：`codex/g2-1000-alpha-supply`（从最新 `origin/main` 建立；不得覆盖并行中的规模化供给实现改动）
 >
-> 动态事实源：[MVP 路线与当前决策面板](../06-mvp-roadmap.md)
+> 动态事实源：[MVP 路线与当前决策面板](../../06-mvp-roadmap.md)
 >
-> 工程与发现证据：[Private Alpha 官方来源资格硬门](../evidence/ingestion/private-alpha-official-source-gate-2026-08-03.md)、[Private Alpha 容量审计](../evidence/ingestion/private-alpha-capacity-audit-2026-08-03.md)、[G2 终局重新验收报告](../evidence/g2/g2-reacceptance-2026-07-30.md)、[自动刷新首轮扩展观察](../evidence/ingestion/source-refresh-first-rollout-observation-2026-08-02.md)、[空库恢复演练](../evidence/g2/local-bootstrap-drill-2026-07-30.md)、[供给检查点](../evidence/g2/supply-checkpoint-2026-07-30.md)
+> 工程与发现证据：[Private Alpha 官方来源资格硬门](../../evidence/ingestion/private-alpha-official-source-gate-2026-08-03.md)、[Private Alpha 容量审计](../../evidence/ingestion/private-alpha-capacity-audit-2026-08-03.md)、[G2 终局重新验收报告](../../evidence/g2/g2-reacceptance-2026-07-30.md)、[自动刷新首轮扩展观察](../../evidence/ingestion/source-refresh-first-rollout-observation-2026-08-02.md)、[空库恢复演练](../../evidence/g2/local-bootstrap-drill-2026-07-30.md)、[供给检查点](../../evidence/g2/supply-checkpoint-2026-07-30.md)
 
 ## 最新执行增量（2026-08-03）
 
-- [ADR-0029](../decisions/0029-official-source-catalog-trust-boundary.md) 已接受：企业官网和官网确认的官方 ATS 是用户目录唯一岗位真源；高校、政府、公众号及其他二手页面统一为 `discovery_only`。
+- [ADR-0029](../../decisions/0029-official-source-catalog-trust-boundary.md) 已接受：企业官网和官网确认的官方 ATS 是用户目录唯一岗位真源；高校、政府、公众号及其他二手页面统一为 `discovery_only`。
 - 系统审查发现运行目录实际为 152 条岗位、30 家企业，其中高校来源 38 条/17 家；另有 3 条测试岗位、7 条空职责岗位、14 条来源冲突岗位。只有 12 条为 `fresh`，150/152 条仍有未关闭复核项。
 - 中央资格门已落地：迁移 019/020 统一拦截非官网、测试作用域、未登记配置、来源陈旧、岗位未在当前周期复核、硬冲突和字段缺失；目录、匹配、推荐、洞察、优化及 Worker 共用同一资格投影。
-- [ADR-0023](../decisions/0023-enforce-runtime-and-database-role-boundaries.md) 已接受；迁移 021/022 建立五个运行角色、任务 RLS、原始抓取数据隔离和 match worker 完成 owner 删除所需的列级最小权限。Alpha/Production 强制五个独立数据库 URL。
+- [ADR-0023](../../decisions/0023-enforce-runtime-and-database-role-boundaries.md) 已接受；迁移 021/022 建立五个运行角色、任务 RLS、原始抓取数据隔离和 match worker 完成 owner 删除所需的列级最小权限。Alpha/Production 强制五个独立数据库 URL。
 - Alpha 邀请入口已落实为哈希凭证、精确 HTTPS Origin、失败限流和 Secure/HttpOnly 会话；后端所有产品读取 API 同步要求会话，不能绕过前端直接读取目录。PDF/DOCX 改由受限子进程解析。
 - 100 家/1000 岗 PostgreSQL 容量回归已证明目录遍历、版本核验、同一候选集合幂等入队及 1000 个候选/要求集/新鲜度快照完整冻结；前端只分批渲染，不截断候选集合。
 - 本机自动刷新总开关保持关闭；单来源纠偏通过 `source:refresh-now <source-key> --wait --confirm-live` 复用真实计划队列临时执行。北森试点、候选探测和其他新来源扩容继续暂停。
-- [ADR-0028](../decisions/0028-capacity-first-private-alpha-supply.md) 已接受，主线从逐家高校单页改为容量型来源族；`40/400`、`70/700`、`100/1000` 都是最低检查点而非精确企业数。
+- [ADR-0028](../../decisions/0028-capacity-first-private-alpha-supply.md) 已接受，主线从逐家高校单页改为容量型来源族；`40/400`、`70/700`、`100/1000` 都是最低检查点而非精确企业数。
 - `config/source-candidates.json` 已升级至 v4；`source:batch-plan` 与新增的零网络 `source:candidate-audit` 统一输出动态分母、容量、SME、职能、城市与人工来源缺口。
 - 纠偏前规划器 231/149/29 与运行目录 152/30 都是历史待清洗事实。干净 `aijob_alpha` 为 22 条岗位、3 家企业、3 个官方 ATS 来源：先临三维 9、卧安机器人 5、灵明光子 8；SME 2 家/14 岗，人工、Alpha 和公共岗位均为 0。开发库 14/2 不再作为验收分母。
 - 北森适配器已能通过配置新增租户；当前审计没有 `capacity` 就绪候选，因此没有进行未经授权的真实来源族试点。
@@ -27,22 +29,22 @@
 
 ## 1. 当前唯一目标
 
-coco 已通过 [ADR-0029](../decisions/0029-official-source-catalog-trust-boundary.md) 修正岗位事实源，高校等二手页面只能用于发现企业方向。P0/P1 可信度纠偏已完成代码与干净库收口。**当前唯一目标是冻结并提交本轮纠偏结果，然后按 ADR-0028 恢复容量优先的企业官网/官方 ATS 来源族扩容，从 22 岗/3 家可信分母推进 100/1000。** 产品证据保持 `E0`，G0/G1 和其他外部用户测试继续暂停。
+coco 已通过 [ADR-0029](../../decisions/0029-official-source-catalog-trust-boundary.md) 修正岗位事实源，高校等二手页面只能用于发现企业方向。P0/P1 可信度纠偏已完成代码与干净库收口。**当前唯一目标是冻结并提交本轮纠偏结果，然后按 ADR-0028 恢复容量优先的企业官网/官方 ATS 来源族扩容，从 22 岗/3 家可信分母推进 100/1000。** 产品证据保持 `E0`，G0/G1 和其他外部用户测试继续暂停。
 
 2026-07-26 coco 作出四项决定并已全部执行：
 
 1. **审批包 02 修订为纯 SME 版并批准**（硕方、鲸驰寰宇、神谷文化、红海云、鹏扶，米哈游移入批次 05）。执行结果：4 家完成核验、契约冻结、真实低频探测与首批导入（硕方 5、其余各 1，全部 0 拒绝、重复探测幂等不触网）；**鹏扶按预设暂停**——页面主体为上海鹏扶投资管理有限公司（台账误记法人名），同页两个投递邮箱域名 `pengfu.tech`/`pengfu.fund` 均无主体证据且互相矛盾。
-2. **方案 A 落地为 [ADR-0021](../decisions/0021-compress-large-company-quota-and-publish-sme-gap.md)**：无 `small/medium` 规模证据企业单家目录配额压缩至 10 条（有证据企业维持 30），择优保留 ADR-0020 双优先轨道，缺口公开分母。迁移 016 建立确定性配额选择表，物化择优、目录/洞察读取过滤与 `/v1/jobs` `companyQuotaGaps` 已上线；普渡 30→10、慧策 30→10、帆软 18→10、腾讯 14→10，共压缩 52 条（版本与修订历史完整保留）。
+2. **方案 A 落地为 [ADR-0021](../../decisions/0021-compress-large-company-quota-and-publish-sme-gap.md)**：无 `small/medium` 规模证据企业单家目录配额压缩至 10 条（有证据企业维持 30），择优保留 ADR-0020 双优先轨道，缺口公开分母。迁移 016 建立确定性配额选择表，物化择优、目录/洞察读取过滤与 `/v1/jobs` `companyQuotaGaps` 已上线；普渡 30→10、慧策 30→10、帆软 18→10、腾讯 14→10，共压缩 52 条（版本与修订历史完整保留）。
 3. **千寻智能/万境千寻人工快照批次执行**：两条台账记录实为同品牌（Spirit AI），合并为单一来源 `spirit-ai-feishu-manual`（飞书 ATS 站点主体千寻智能（杭州）科技有限公司，目录展示品牌名"千寻智能"）。按 ADR-0016 人工浏览器读取职位列表第一页 10 岗（页面自身调用的公开接口响应），7 条含完整职责与任职要求进入零网络快照导入（`request_count=0`、重放幂等）；3 条无任职要求正文的岗位按最低字段要求排除留痕。
 4. **放弃窗口 ≤6 天的 5 家**（壳牌、恒丰、开源证券、汉腾、巨一）。
 
-2026-07-26 深夜，coco 进一步批准 [ADR-0022](../decisions/0022-plan-batch-preauthorization-and-delegated-spot-checks.md)：批次 03–06 按计划预授权，抽检由执行方自检自审并逐批留档；鹏扶不补位。coco 不再逐批审批或审阅报告，唯一保留的人工卡点为 P7 G2 终局判定。
+2026-07-26 深夜，coco 进一步批准 [ADR-0022](../../decisions/0022-plan-batch-preauthorization-and-delegated-spot-checks.md)：批次 03–06 按计划预授权，抽检由执行方自检自审并逐批留档；鹏扶不补位。coco 不再逐批审批或审阅报告，唯一保留的人工卡点为 P7 G2 终局判定。
 
 2026-07-29，P0 已按该治理口径完成：台账事实已修正；批次 02 的 15 条岗位由执行方逐条自审，15/15 通过；硕方扩至 6 条；千寻前三页公开列表共 30 条，按“实习 + 职责与任职要求均完整”纳入 22 条，排除 4 条缺字段实习与 4 条正式岗位；目录物化为总供给 177、可见 113、15 家企业。
 
-同日完成 [R1 架构与组件系统性审视](../evidence/r1/architecture-review-2026-07-29.md)：直接修复 owner task 过期租约与最大尝试、删除事务旧任务冻结、24 小时删除回执、Problem Details 媒体类型、browser-only 双重拒绝、特殊用途 IP、绝对超时和物理请求预算；运行时/数据库角色边界与来源 descriptor/run mode 仅形成 [ADR-0023](../decisions/0023-enforce-runtime-and-database-role-boundaries.md)、[ADR-0024](../decisions/0024-unify-source-adapter-descriptors-and-run-modes.md) 提案。R1 未访问真实来源、未改变产品边界、未进入 R2 或后续来源批次。
+同日完成 [R1 架构与组件系统性审视](../../evidence/r1/architecture-review-2026-07-29.md)：直接修复 owner task 过期租约与最大尝试、删除事务旧任务冻结、24 小时删除回执、Problem Details 媒体类型、browser-only 双重拒绝、特殊用途 IP、绝对超时和物理请求预算；运行时/数据库角色边界与来源 descriptor/run mode 仅形成 [ADR-0023](../../decisions/0023-enforce-runtime-and-database-role-boundaries.md)、[ADR-0024](../../decisions/0024-unify-source-adapter-descriptors-and-run-modes.md) 提案。R1 未访问真实来源、未改变产品边界、未进入 R2 或后续来源批次。
 
-同日 coco 审核通过 [R2 UI/UX 视觉方向](../plans/r2-ui-ux-reference-direction-2026-07-29.md)，R2 随后正式启动并完成。执行方保存七个正式页面 1280 基线，建立独立“向阳生长”产品作用域和米白/群青/杏黄/竹青/朱橙 token，完成 `/jobs` 高保真切片、岗位详情证据阅读以及简历/推荐/洞察/优化/数据控制的共享视觉推广。中文编辑式首屏、方向快捷筛选、配额旁注、单列岗位比较、100→113 条明确后续加载、次级安全状态和真实 320px 结构均已通过浏览器检查；未来手机端所需 token、语义顺序和 Grid/Flex 重排能力保留。详情见 [R2 `jobs` 实施记录](../evidence/r2/jobs-high-fidelity-slice-2026-07-29.md)与 [R2 收口记录](../evidence/r2/ui-ux-closeout-2026-07-29.md)。
+同日 coco 审核通过[历史 R2 UI/UX 视觉方向](../../plans/archive/r2-ui-ux-reference-direction-2026-07-29.md)，R2 随后正式启动并完成。执行方保存七个正式页面 1280 基线，建立独立“向阳生长”产品作用域和米白/群青/杏黄/竹青/朱橙 token，完成 `/jobs` 高保真切片、岗位详情证据阅读以及简历/推荐/洞察/优化/数据控制的共享视觉推广。中文编辑式首屏、方向快捷筛选、配额旁注、单列岗位比较、100→113 条明确后续加载、次级安全状态和真实 320px 结构均已通过浏览器检查；未来手机端所需 token、语义顺序和 Grid/Flex 重排能力保留。详情见 [R2 `jobs` 实施记录](../../evidence/r2/jobs-high-fidelity-slice-2026-07-29.md)与 [R2 收口记录](../../evidence/r2/ui-ux-closeout-2026-07-29.md)。
 
 关键核验事实（批次 02）：
 
@@ -101,8 +103,8 @@ coco 已通过 [ADR-0029](../decisions/0029-official-source-catalog-trust-bounda
 - 2026-07-31 批次 07-02 工程门：隔离库全量 406 项测试（platform 313、web 57、config 16、contracts 15、database 5）、全仓 TypeScript、生产构建、`pnpm lint`（280 文件）与 `git diff --check` 通过。
 - 2026-07-31 批次 07-03 工程门：隔离库全量 412 项测试（platform 319、web 57、config 16、contracts 15、database 5）、全仓 TypeScript、生产构建、`pnpm lint`（281 文件）与 `git diff --check` 通过。
 - 2026-08-01 自动刷新基础设施初始工程门：隔离库全量 457 项测试（platform 363、web 57、config 16、contracts 15、database 6）、全仓 TypeScript、生产构建、`pnpm lint`（300 文件）与 `git diff --check` 通过；该时点总开关保持关闭，未访问真实来源。
-- 2026-08-01 灰度、全量排期与竞态加固后工程门：隔离库全量 460 项测试（platform 366、web 57、config 16、contracts 15、database 6）、全仓 TypeScript、生产构建、`pnpm lint`（300 文件）与 `git diff --check` 通过。工程门未访问真实来源；真实灰度仅访问三家授权来源。详见[验收记录](../evidence/ingestion/source-refresh-automation-2026-08-01.md)。
-- 2026-08-02 合并前工程门：隔离库全量 460/460、全仓 TypeScript、生产构建、`pnpm lint`（300 文件）与 `git diff --check` 再次通过；工程命令未访问真实来源。同期计划运行观察独立记录在[首轮扩展证据](../evidence/ingestion/source-refresh-first-rollout-observation-2026-08-02.md)。
+- 2026-08-01 灰度、全量排期与竞态加固后工程门：隔离库全量 460 项测试（platform 366、web 57、config 16、contracts 15、database 6）、全仓 TypeScript、生产构建、`pnpm lint`（300 文件）与 `git diff --check` 通过。工程门未访问真实来源；真实灰度仅访问三家授权来源。详见[验收记录](../../evidence/ingestion/source-refresh-automation-2026-08-01.md)。
+- 2026-08-02 合并前工程门：隔离库全量 460/460、全仓 TypeScript、生产构建、`pnpm lint`（300 文件）与 `git diff --check` 再次通过；工程命令未访问真实来源。同期计划运行观察独立记录在[首轮扩展证据](../../evidence/ingestion/source-refresh-first-rollout-observation-2026-08-02.md)。
 - GitHub CI 已配置一次性 PostgreSQL 16 测试服务，预迁移后强制设置 `AIJOB_TEST_DATABASE_URL`，因此 PR 与 `main` 的工程门不再静默跳过 20 个数据库集成测试文件；CI 显式关闭来源探测、本地预览与 AI。PR 分支只由 `pull_request` 触发，合并后由 `main` push 复验，避免同一提交重复运行两套检查。
 
 ## 3. 当前未完成项

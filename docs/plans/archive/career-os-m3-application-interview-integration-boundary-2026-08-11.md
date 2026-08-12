@@ -1,10 +1,12 @@
 # M3 投递、文字面试与复盘集成边界
 
+> 【历史归档】本文只解释 M3 当时的集成边界，不提供当前任务或后续切片。
+
 - 日期：2026-08-11
 - 分支：`codex/career-os-phase-1`
 - 审查基线：`8d125fd docs(evidence): accept m2 professional resume workflow`
 - 状态：**M3 已完成；仅作历史设计与实现边界记录**
-- 当前任务仍以 [MVP 路线](../06-mvp-roadmap.md) 与[当前交接](../handoffs/current.md)为准
+- 当前任务只看[MVP 路线](../../06-mvp-roadmap.md)、[现行计划](../career-os-current-delivery-plan.md)与[当前交接](../../handoffs/current.md)
 
 ## 1. 结论
 
@@ -105,4 +107,4 @@ M3-4：
 | 数据环境 | 随机 `aijob_m3_baseline_test_*` 隔离库；结束后已删除 |
 | 服务状态 | 前后端未启动；PostgreSQL 容器与 Docker Desktop 验证后再次停止 |
 
-M3-0 没有修改业务代码、Schema 或依赖；该结论随后由 M3-1 至 M3-5 的纵向实现与总 Gate 验证。M3-4 为逐项选择的不可变、原子保存增加 migration 032；M3 总验收见 [投递与持续改进总验收](../evidence/product/career-os-v2/m3-workflow-acceptance-2026-08-12.md)。M3 已结束，本设计记录不再生成下一任务；当前目标只由路线图与交接确定。
+M3-0 没有修改业务代码、Schema 或依赖；该结论随后由 M3-1 至 M3-5 的纵向实现与总 Gate 验证。M3-4 为逐项选择的不可变、原子保存增加 migration 032；M3 总验收见 [投递与持续改进总验收](../../evidence/product/career-os-v2/m3-workflow-acceptance-2026-08-12.md)。M3 已结束，本设计记录不再生成下一任务；当前目标只由路线图与交接确定。

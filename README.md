@@ -1,6 +1,6 @@
 # Aijob：可信官方岗位驱动的求职 OS
 
-> 2026-08-12：M1–M4 已完成；coco 随后授权的 PA-1 已形成[离线身份与解析隔离候选](docs/evidence/product/career-os-v2/pa-1-offline-identity-parser-candidate-acceptance-2026-08-12.md)。真实邮件、解析镜像、服务器、供给和参与者 Gate 仍未通过；当前没有自动执行的下一任务。
+> 2026-08-12：M1–M4 与 PA-1 离线候选已经完成。coco 已批准[Career OS 前台体验收敛计划](docs/plans/career-os-current-delivery-plan.md)，当前唯一切片为 `UX-0 视觉契约与基线`，产品代码尚未实施。真实邮件、解析镜像、服务器、供给和参与者 Gate 仍未通过。
 
 这是一个待验证的产品项目，面向**未来 30 天真实投递实习岗位、已有中文简历、近期使用过多个官方渠道的中国大陆在校生**。它只把企业官方招聘网站和经企业官网确认的官方 ATS 中当前存在的具体岗位整理为可追溯信息；高校就业网站、政府页面、公众号和其他二手页面只用于发现企业及其官网方向。系统依据用户确认过的约束与经历证据，帮助用户完成投递、暂缓或放弃的高质量决定，最终回到企业官网或官方 ATS 投递。
 
@@ -11,15 +11,15 @@
 | 项目 | 当前值 |
 |---|---|
 | 快照日期 | 2026-08-12 |
-| 当前阶段 | M1–M4 已完成；PA-1 离线身份与解析隔离候选已完成。真实邮件、解析镜像与服务器 Gate 通过前，G0/G1 继续暂停 |
+| 当前阶段 | Career OS 用户前台体验收敛已获批准；当前只执行 UX-0 视觉契约与基线。M1–M4 与 PA-1 保留为工程基线，真实邮件、解析镜像与服务器 Gate 通过前，G0/G1 继续暂停 |
 | 当前范围 | 干净验收库 `aijob_alpha` 为 22 条可信可见活动岗位、3 家企业、3 个官方 ATS 来源；距离硬门槛仍缺 978 岗、97 家。SME 为 2/3 家、14/22 岗，人工来源为 0；Alpha 与公共岗位均为 0。开发库 14/2 及纠偏前 231/149/29 只保留为历史运行事实 |
 | 协议校准 | 尚未开始；供给硬门槛和服务器就绪 Gate 通过后，只有 coco 明确启动才做 2 人校准；历史可核验记录仍为 0/2 |
 | 正式实验 | 暂停；供给硬门槛、服务器就绪 Gate 与 G0 通过后再做 6 人正式任务和 72 小时回访 |
 | 历史研究样本 | 5 条本地产品/运营岗位；不等于完整 MVP 目录 |
 | 当前证据 | E0：尚无可复核目标用户行为证据，两个产品假设均未判定 |
-| 当前实现策略 | 保留现有 PostgreSQL、模块化单体、可信来源门和受控 AI 边界；以 Case 工作台为唯一业务真源，私有 JD 仅 owner 可见。M4 已把兼容入口、删除、数据真相、会话恢复与同一合成公共 Case 收束为通过浏览器总 Gate 的本地候选；不因此自动启动真实 Alpha |
+| 当前实现策略 | 不重做已通过的一岗后端闭环；在现有 Case、Requirements、Resume V2、Review、投递、面试、复盘和删除能力上统一用户前台。三张概念图作为布局、信息层级和交互关系的高保真目标，旧岗位与简历能力自然嵌入新 OS；逐页 Gate，不因此启动真实 Alpha |
 | 来源发现进度 | 已按 ADR-0019 完成 1000/1000 家企业/机构审查记录；34 个来源配置中 12 个为 canonical（7 个活动确定性、2 个浏览器提醒、3 个硬冲突暂停），22 个高校等来源均降级为 `discovery_only`。当前审计没有 `capacity` 就绪候选 |
-| 工程切片 | PA-1 最终回归 Config 20、Contracts 79、Database 54、Platform 461、Web 142，共 756/756；lint 451、typecheck、build、audit 与 diff check 通过。主包 566.69 kB；邮箱身份只完成离线候选，真实邮件/解析镜像/服务器、真实 AI、真实来源和 contract migration 均未实施，公共版本仍为 0 |
+| 工程切片 | PA-1 最终回归 Config 20、Contracts 79、Database 54、Platform 461、Web 142，共 756/756；lint 451、typecheck、build、audit 与 diff check 通过。UX 产品代码尚未实施；主包 566.69 kB 作为新体验计划的性能基线。真实邮件/解析镜像/服务器、真实 AI、真实来源和 contract migration 均未实施，公共版本仍为 0 |
 | AI 状态 | Review、Interview、Feedback 与 Debrief 均必须与用户确认事实分离；公开环境继续关闭，M4 沿用确定性模板，不调用真实 AI |
 
 以上内容只用于帮助首次阅读者定位本次文档基线。后续动态阶段、样本进度、Gate 状态和下一决策日期只更新到 [MVP 路线与当前决策面板](docs/06-mvp-roadmap.md)；如有差异，以该面板为准。
@@ -66,16 +66,16 @@ pnpm ai:configure
 
 该命令只填写接口地址、模型和 API Key；配置保存在 Git 已忽略的 `.data/ai-provider.local.json`。填写或替换配置后重启 `pnpm dev`。需要验收真实接口时再运行 `pnpm ai:smoke`，这不是日常配置步骤。前端没有读取或修改供应商配置的接口；未来线上部署只替换后端配置来源，不改岗位推荐和简历优化链路。
 
-然后打开 <http://127.0.0.1:5173/jobs> 使用原产品闭环。简历入口为 <http://127.0.0.1:5173/resume>，推荐为 <http://127.0.0.1:5173/recommendations>，岗位洞察为 <http://127.0.0.1:5173/insights>，数据删除为 <http://127.0.0.1:5173/data-control>。`/research/*` 仅保留为历史研究原型，`/internal-preview/jobs` 用于内部字段复核。
+旧 `ProductShell` 仍由 `VITE_CAREER_OS_V2=false` 保留为紧急回退，不是当前体验收敛目标。旧 `/resume*` 目前仍承担简历解析与确认，UX-5 会在不改变后端真源的前提下把它自然嵌入新 OS；`/recommendations`、`/insights` 只保留零请求兼容说明，旧 Tailoring 只读。`/research/*` 与 `/internal-preview/*` 是内部或历史页面，不进入本轮用户前台视觉重做。
 
-Career OS 2.0 工作台默认关闭。确保本地 PostgreSQL 与 Platform 已启动，并在启动开发进程前显式打开旗标，即可在 <http://127.0.0.1:5173/applications> 使用真实 Case 工作台；正常会话不再回退到仓库静态 Case，也不会访问真实招聘来源或真实 AI：
+`VITE_CAREER_OS_V2` 回退旗标继续保留。进行当前 UX 基线或实现验收时，在启动开发进程前显式开启它，即可从 <http://127.0.0.1:5173/today> 进入当前 Career OS；正常会话使用真实本地 Case API，不回退到仓库静态 Case，也不会访问真实招聘来源或真实 AI：
 
 ```powershell
 $env:VITE_CAREER_OS_V2 = "true"
 pnpm dev
 ```
 
-未设置或设置为其他值时继续使用原 `ProductShell`；有效开启值只有 `1`、`true` 和 `on`（忽略大小写与首尾空格）。
+未设置或设置为其他值时继续使用旧 `ProductShell` 回退；有效开启值只有 `1`、`true` 和 `on`（忽略大小写与首尾空格）。
 
 `source:probe` 仍用于来源首次核验、范围变化和暂停恢复等人工操作。按 ADR-0026 显式配置的确定性来源可在本机自动刷新：首次运行 `pnpm source:refresh-enable` 开启本地总开关，`pnpm source:refresh-status` 查看最近运行、下次到期、失败、快照待办和小时容量，`pnpm source:refresh-now [source-key]` 按同一队列和预算安排一次到期任务，`pnpm source:refresh-disable` 立即停止创建新网络任务。Worker 和状态命令只认 Git 中显式配置的来源键，开发库孤立测试记录不会进入调度。当前任一活动来源仍采用 24/168 小时策略时，小时上限保持 3；达到 `40/400` 并把全部活动确定性来源统一切换为 12 小时后，小时上限才按 `min(12, max(3, ceil(来源数 / 12) + 1))` 动态计算。110 个虚拟来源的离线验证上限为每小时 11 家，仍保持全局单并发和逐来源安全预算。日常测试、CI、构建、Alpha 和 Production 不调用真实招聘站。停止本地数据库可运行 `pnpm infra:down`。
 

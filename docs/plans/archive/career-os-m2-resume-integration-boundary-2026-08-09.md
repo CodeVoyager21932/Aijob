@@ -1,8 +1,10 @@
 # M2 专业简历闭环：复用与集成边界
 
+> 【历史归档】本文只解释 M2 当时的复用与实现边界，不提供当前任务。当前执行见[现行计划](../career-os-current-delivery-plan.md)和[当前交接](../../handoffs/current.md)。
+
 > 状态：M2-0 已完成的支持性设计记录；M2-4 已按可复现权限冲突完成前向修正
 >
-> 上位事实源：[MVP 路线与当前决策面板](../06-mvp-roadmap.md)、[Career OS 当前交付计划](career-os-current-delivery-plan.md)
+> 上位事实源：[MVP 路线与当前决策面板](../../06-mvp-roadmap.md)、[Career OS 当前交付计划](../career-os-current-delivery-plan.md)
 >
 > 本文只回答“现有能力如何进入 M2、哪些边界不能跨越”，不定义新的里程碑，也不得提供 M2 之后的下一任务。
 

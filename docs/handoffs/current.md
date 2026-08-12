@@ -1,67 +1,89 @@
-# 当前项目交接：PA-1 离线候选已完成
+# 当前项目交接：Career OS 前台体验收敛已获批准
 
 > 交接日期：2026-08-12
 >
-> 当前分支：`codex/career-os-pa-1`
+> 当前分支：`codex/career-os-ux-convergence`
 >
-> 分支起点：`aa4cf75 test(web): accept m4 engineering browser gate`
+> 分支起点：`d03219f feat(identity): add pa1 offline access candidate`
 >
-> 精确 HEAD 以 `git log -1` 为准。
+> 精确 HEAD 与工作树以 `git log -1`、`git status` 为准。
 
 动态事实源：[MVP 路线图](../06-mvp-roadmap.md)
 
-最新验收：[PA-1 离线身份与解析隔离候选](../evidence/product/career-os-v2/pa-1-offline-identity-parser-candidate-acceptance-2026-08-12.md)
+当前执行计划：[Career OS 前台体验收敛计划](../plans/career-os-current-delivery-plan.md)
 
-后续守门清单：[Private Alpha 与上线就绪 Gate](../plans/private-alpha-readiness-gates.md)
+上一轮交接：[PA-1 离线候选完成交接](archive/career-os-pa1-complete-2026-08-12.md)
 
 ## 1. 当前决定
 
-M1–M4 已完成；coco 授权的 PA-1 已在严格离线边界内形成身份与解析隔离候选。
+coco 已确认现有前端与三张 Career OS 概念图存在明显视觉与整合差距，并批准整个用户前台进行高保真体验收敛。
 
-**完成 PA-1 离线候选，等待 coco 决定下一项准备工作。**
+**当前唯一目标是按 UX-0 至 UX-7 串行完成 Career OS 用户前台体验收敛；第一切片为 UX-0 视觉契约与基线，产品代码尚未实施。**
 
-这不是服务器就绪或 Private Alpha 就绪：真实邮件供应商、实际 digest 解析镜像、HTTPS 部署、备份恢复、监控和负载仍未通过。
+不得继续从 PA-1、旧 M4、历史 Phase 2、旧 R2、供给扩容或 Private Alpha Gate 自动选择任务。
 
-## 2. 已通过工程基线
+## 2. 可信工程与产品基线
 
-- 共享邀请码不再用于访问控制；受邀邮箱 challenge 使用 PostgreSQL 持久化过期、重试、错误次数与一次消费状态。
-- 邮箱查找值、验证码、幂等请求和 session/CSRF 只保存 keyed hash；邮箱可恢复值使用 AES-256-GCM 加密，不进入普通日志或响应。
-- 匿名 owner 可在数据设置验证邮箱并认领；同一 owner/epoch 和已有职业资产保持不变，会话 token 轮换，保留模式改为 `account_managed`。
-- Alpha Cookie 为 Secure/HttpOnly（session）/SameSite=Strict；mutation 保持精确 Origin 与 CSRF；未受邀邮箱返回同形响应但不投递。
-- Alpha/Production 解析配置只接受 digest 固定容器；命令边界无网络、只读、非 root、丢弃 capabilities、限制内存/CPU/pids、无 mounts，缺少 runtime/image 时失败关闭。
-- 浏览器通过受邀登录、错误码焦点恢复、刷新会话、320 px 无横向溢出、键盘焦点、匿名 owner 认领与 token 轮换；所有请求只到 loopback。
-- 最终全仓：Config 20、Contracts 79、Database 54、Platform 461、Web 142，共 **756/756**。
-- `pnpm lint` 451 files、`pnpm typecheck`、`pnpm build`、`pnpm audit:ci` 和 `git diff --check` 通过。
-- Web main 566.69 kB；Resume Editor 29.23 kB、Interview 23.51 kB、数据设置 12.05 kB，重工作区继续 lazy load。
-
-## 3. 主要代码入口
-
-- `apps/platform/src/identity/email-verification-service.ts`：challenge、邀请资格、错误次数、认领/登录与一次消费。
-- `apps/platform/src/identity/email-crypto.ts`：邮箱 HMAC、验证码/request hash 与 AES-GCM。
-- `apps/platform/src/identity/fastify.ts`：Cookie、Origin、CSRF、Alpha 未登录边界与身份路由。
-- `apps/platform/src/resume/parse.ts`：解析器容器参数、最小环境、超时/abort 与失败关闭。
-- `apps/web/src/components/AlphaAccessGate.tsx`：受邀邮箱两步访问入口。
-- `apps/web/src/career-os/components/OwnerClaimPanel.tsx`：匿名 owner 认领入口。
-- `apps/web/scripts/pa1-browser-gate.cjs` 与 `pa1-owner-claim-browser-gate.cjs`：离线浏览器 Gate。
-
-## 4. 未通过与风险
-
-- 真实邮件投递、退信/投诉处理和供应商合规未开始；远程 delivery 当前为 disabled。
-- 本机没有获准取得的 digest 固定解析镜像；只证明容器命令、安全参数、配置强制和失败关闭，未证明实际镜像解析。
-- 服务器最小角色实跑、HTTPS、密钥引用、备份恢复、监控、回滚与 20 并发负载未开始。
+- M1–M4 已完成，一岗合成闭环与工程/浏览器 Gate 已通过。
+- PA-1 离线身份与解析隔离候选已完成；最终全仓 Config 20、Contracts 79、Database 54、Platform 461、Web 142，共 756/756。
+- `pnpm lint` 451 files、typecheck、build、audit、隔离 PostgreSQL 和 diff check 已通过。
+- Web main 566.69 kB；Resume Editor 29.23 kB、Interview 23.51 kB、数据设置 12.05 kB，重工作区保持 lazy load。
 - 产品证据仍为 E0；可信供给仍为 22 岗 / 3 家企业 / 3 个官方 ATS，公共与 Alpha 岗位均为 0。
-- main chunk 既有大于 500 kB warning 仍存在；审计仍有 1 个已登记忽略的开发链 high。
+- 工程闭环、合成满态和视觉验收均不得冒充用户价值、真实供给或 Private Alpha 就绪。
 
-## 5. 固定排除与数据安全
+### 当前本机运行状态（2026-08-12 核验）
 
-- 未经新授权，不接真实邮件/AI/招聘来源/服务器/参与者，不获取外部解析镜像，不使用真实简历或业务数据库。
-- 不新增数据库/migration/Redis/向量库/第二套队列/第二套认证/AI SDK；不做 G4 前 contract migration，不移除 `VITE_CAREER_OS_V2`。
-- 不读取、修改、暂存、覆盖、清理或提交 `.claude/`、`.data/`、密钥、令牌、真实简历原文、下载产物或截图。
-- 自动化测试、构建和 Alpha/Production 不访问真实招聘站；公共目录在来源准入前保持为空是正确行为。
+- `127.0.0.1:3000`、`127.0.0.1:5173`、`127.0.0.1:5432` 当前均在监听。
+- 项目容器 `aijob-local-postgres-1` 当前为 healthy，映射本机 5432。
+- 前后端与 PostgreSQL 是 coco 此前明确开启的本地开发实例，不是远程服务器或 Private Alpha 环境。
+- 运行边界继续保持离线：不得访问真实招聘来源、真实 AI、真实邮件、真实简历或远程服务器；如运行配置或网络记录与此冲突，先停止相关动作并报告。
+- 本次文档归档不停止现有服务；后续 UX-0 可在不写业务数据的前提下用现有实例读取页面基线。
 
-## 6. 下个任务接手清单
+## 3. 已锁定的 UX 方向
 
-1. 依次阅读 `AGENTS.md`、README、路线图、本交接、计划索引、当前交付计划与 PA-1 证据。
-2. 核对实际分支、HEAD、远端、工作树、容器和 3000/5173/5432 端口；冲突先报告。
-3. 当前没有自动下一任务；只有 coco 明确授权后才创建独立 `codex/` 分支继续。
-4. 新测试仍使用全新且匹配 `aijob_*_test_*` 的隔离库，只写合成数据，结束后精确清理并停止服务。
+- 三张概念图是布局、信息层级和交互关系的高保真目标。
+- 交付方式为逐页可见验收，不一次重写全站。
+- 旧岗位发现、简历解析/确认等能力自然嵌入新 OS；旧 URL 只作兼容或历史只读。
+- 完成边界覆盖整个用户前台，包括今日、岗位、看板、Case、简历、投递、面试、复盘、设置和访问页。
+- 隔离合成满态与真实空态分别验收；不内置可冒充真实业务的演示模式。
+- 证据状态只允许`已有证据 / 证据待补充 / 用户尚未确认`；不显示匹配等级或百分比。
+
+## 4. 当前切片 UX-0
+
+UX-0 只形成后续实施所需的可复核基线：
+
+1. 固定全部用户路由、页面状态和旧能力处置矩阵。
+2. 将三张概念图拆成采用项、拒绝项和响应式规则。
+3. 固定视觉 token、信息密度、焦点、抽屉和检查器契约。
+4. 记录 1536、1280、320 和 200% 等效视口的现状基线。
+5. 设计只使用隔离合成数据的满态验收夹具，并单独保留真实空态。
+6. 形成 UX-0 证据后只作继续、修改、回退或停止之一，再决定 UX-1。
+
+UX-0 不重做页面、不新增后端能力、不访问外部系统。
+
+## 5. 主要代码入口
+
+- `apps/web/src/App.tsx`：V2/旧路由、Shell 与兼容边界。
+- `apps/web/src/career-os/WorkspaceShell.tsx`：统一 V2 外壳、导航与 Peek。
+- `apps/web/src/career-os/career-os.css`：当前视觉 token 和页面样式基线。
+- `apps/web/src/career-os/pages/ApplicationsPage.tsx`：申请看板与私有 JD 入口。
+- `apps/web/src/career-os/pages/CaseWorkspacePage.tsx`：Case Header、标签和工作区路由。
+- `apps/web/src/career-os/pages/CaseRequirementsWorkspace.tsx`：JD 能力与要求检查器。
+- `apps/web/src/career-os/pages/CaseResumeWorkspace.tsx` 与 `components/ResumeDocumentEditor.tsx`：岗位简历与三栏工作室。
+- `apps/web/src/pages/JobListPage.tsx`、`JobDetailPage.tsx`、`ResumePage.tsx`、`ResumeConfirmPage.tsx`：需要自然嵌入新 OS 的旧用户能力。
+
+## 6. 固定排除与数据安全
+
+- 不访问真实招聘来源、真实 AI、真实邮件、服务器、参与者或真实简历，不获取外部解析镜像。
+- 不新增数据库/migration/Redis/向量库/队列/第二套认证/AI SDK，不移除 `VITE_CAREER_OS_V2`。
+- 不读取、修改、暂存、覆盖、清理或提交 `.claude/`、`.data/`、密钥、令牌、真实简历原文、本地业务数据库、下载产物或截图。
+- 测试数据库必须全新且匹配 `aijob_*_test_*`，只写合成数据，结束后精确清理。
+- Private Alpha Gate 只用于守门，不得从中生成当前 UX 任务。
+
+## 7. 新任务接手检查
+
+1. 依次阅读 `AGENTS.md`、README、路线图、本交接、计划索引和当前 UX 交付计划。
+2. 核对实际分支、HEAD、远端跟踪、工作树、最近提交、容器和 3000/5173/5432 端口；冲突先报告。
+3. 确认当前只执行 UX-0；不得跳到 UX-1 或其他页面实现。
+4. 若服务已经运行，只能在现有本地离线边界内用于只读基线；不得因此访问外部来源。
+5. 每个切片完成后同步更新路线图、交接和独立体验证据。

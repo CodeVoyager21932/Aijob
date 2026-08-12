@@ -3,7 +3,7 @@
 - 状态：accepted
 - 日期：2026-07-26
 - 决策者：coco
-- 关联：[ADR-0017](0017-local-sme-expansion-and-official-account-boundary.md)、[ADR-0021](0021-compress-large-company-quota-and-publish-sme-gap.md)、[G2 收束执行计划](../plans/g2-closeout-plan-2026-07-26.md)、[分层收录清单](../evidence/ingestion/import-candidate-list-2026-07-26.md)
+- 关联：[ADR-0017](0017-local-sme-expansion-and-official-account-boundary.md)、[ADR-0021](0021-compress-large-company-quota-and-publish-sme-gap.md)、[历史 G2 收束执行计划](../plans/archive/g2-closeout-plan-2026-07-26.md)、[分层收录清单](../evidence/ingestion/import-candidate-list-2026-07-26.md)
 - 替代：调整 [ADR-0017](0017-local-sme-expansion-and-official-account-boundary.md) 第 4 条的逐批审批方式与"后续动作"中的人工抽检执行方式；其余边界继续有效
 - 后续调整：[ADR-0025](0025-extend-g2-sme-company-cap-and-batch-authorization.md) 将相同治理方式延续到批次 07+，并增加 40 家停止线
 
@@ -15,7 +15,7 @@ ADR-0017 第 4 条要求每批最多评估 5 家、由 coco 明确批准后才�
 
 ## 决定
 
-1. **计划即批量预授权**：coco 批准 [G2 收束执行计划](../plans/g2-closeout-plan-2026-07-26.md) 即视为批准批次 03–06 按计划冻结的名单、请求预算与暂停条件依序执行受控只读技术核验与首批导入（每家 ≤5 条）。名单变更、新增批次（07 及以后）、目录目标修订仍需 coco 单独决定。
+1. **计划即批量预授权（历史规则）**：coco 当时批准[历史 G2 收束执行计划](../plans/archive/g2-closeout-plan-2026-07-26.md)，即视为批准批次 03–06 按计划冻结的名单、请求预算与暂停条件依序执行受控只读技术核验与首批导入（每家 ≤5 条）。该授权已经随 G2 完成而结束，不授权当前或未来来源访问；名单变更、新增批次和目录目标修订仍需 coco 单独决定。
 2. **委托抽检与自审**：每批首批导入后，由执行方逐条比对目录记录与官方原页（标题、公司主体、要求原文、申请链可用性、截止/发布时间、实习标记），出具带原文对照的抽检报告。coco 于 2026-07-26 进一步决定**不逐批审阅报告**：审核一并委托执行方（自检自审、从严把关），自审通过后即可提额；报告仍逐批产出并留档，coco 可随时追溯抽查，发现失实即收回本授权。自审发现问题时按整改或暂停处理，不影响同批其他来源。
 3. **暂停条件（命中即暂停该家并留痕，无需请示）**：登录墙或验证码；动态签名或令牌；投递邮箱域名无法核验主体归属；页面主体与台账主体不一致且无法佐证；无法形成确定性可解析结构；robots 或页面明示禁止且无替代载体。
 4. 每批仍产出与批次 01/02 同等的审批包级证据（执行记录 + 抽检报告）；ADR-0017 的其余边界（公众号与企业邮箱白名单、公司规模证据口径、`pending_review` 仅限本机、单批 ≤5 家）与 ADR-0021 配额规则全部不变。
