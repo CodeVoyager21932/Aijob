@@ -3,13 +3,11 @@ import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/rea
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
+  confirmResumeProfile,
   getProfileEvidence,
   getProfileFacts,
   getProfilePreferences,
   getResumeAnalysis,
-  putProfileEvidence,
-  putProfileFacts,
-  putProfilePreferences,
 } from "../api/product";
 import { resumeCompletionPath } from "../career-os/legacy-compatibility";
 import {
@@ -156,24 +154,29 @@ export function ResumeConfirmPage() {
         companyNames: [],
         workModes: [],
       };
-      const factsRevision = await putProfileFacts({
-        expectedRevision: factsQuery.data.revision,
-        facts: confirmedFacts,
+      const confirmation = await confirmResumeProfile({
+        facts: {
+          expectedRevision: factsQuery.data.revision,
+          facts: confirmedFacts,
+        },
+        preferences: {
+          expectedRevision: preferencesQuery.data.revision,
+          preferences,
+        },
+        evidence: {
+          expectedRevision: evidenceQuery.data.revision,
+          resumeAnalysisId: analysisId,
+          document: result?.document ?? null,
+          evidence: confirmedEvidence,
+        },
       });
-      queryClient.setQueryData(["product", "profile", "facts"], factsRevision);
-      const preferencesRevision = await putProfilePreferences({
-        expectedRevision: preferencesQuery.data.revision,
-        preferences,
-      });
-      queryClient.setQueryData(["product", "profile", "preferences"], preferencesRevision);
-      const evidenceRevision = await putProfileEvidence({
-        expectedRevision: evidenceQuery.data.revision,
-        resumeAnalysisId: analysisId,
-        document: result?.document ?? null,
-        evidence: confirmedEvidence,
-      });
-      queryClient.setQueryData(["product", "profile", "evidence"], evidenceRevision);
-      return { factsRevision, preferencesRevision, evidenceRevision };
+      queryClient.setQueryData(["product", "profile", "facts"], confirmation.factsRevision);
+      queryClient.setQueryData(
+        ["product", "profile", "preferences"],
+        confirmation.preferencesRevision,
+      );
+      queryClient.setQueryData(["product", "profile", "evidence"], confirmation.evidenceRevision);
+      return confirmation;
     },
     onSuccess: () => {
       removeConfirmedResumeAnalysisCache(queryClient, analysisId);

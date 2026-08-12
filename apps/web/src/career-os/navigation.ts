@@ -12,8 +12,6 @@ export const workspaceNavigation: WorkspaceNavigationItem[] = [
   { to: "/jobs", label: "发现岗位", icon: "search" },
   { to: "/applications", label: "我的求职", icon: "briefcase" },
   { to: "/resumes", label: "简历资产", icon: "document" },
-  { to: "/interviews", label: "面试训练", icon: "interview" },
-  { to: "/knowledge", label: "经验库", icon: "book" },
 ];
 
 export interface BreadcrumbItem {
@@ -26,8 +24,6 @@ const routeLabels = new Map([
   ["/jobs", "发现岗位"],
   ["/applications", "我的求职"],
   ["/resumes", "简历资产"],
-  ["/interviews", "面试训练"],
-  ["/knowledge", "经验库"],
   ["/settings/data", "数据与设置"],
 ]);
 

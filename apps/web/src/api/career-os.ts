@@ -3,6 +3,7 @@ import type {
   ApplicationCaseMutationResponse,
   ApplicationCaseRequirements,
   ApplicationCaseWithJobContext,
+  CareerDataScopeResponse,
   ConfirmCaseDebriefRequest,
   ConfirmCaseDebriefResponse,
   CreateApplicationCaseResponse,
@@ -62,6 +63,7 @@ export const careerOsQueryKeys = {
   evidence: ["career-os", "profile", "evidence"] as const,
   evidenceRevision: (evidenceRevisionId: string) =>
     ["career-os", "profile", "evidence", evidenceRevisionId] as const,
+  dataScope: ["career-os", "profile", "data-scope"] as const,
   resumeDocumentLists: ["career-os", "resume-documents", "list"] as const,
   resumeDocuments: (filters: { kind?: "base" | "case_derived"; caseId?: string } = {}) =>
     [
@@ -87,6 +89,10 @@ export const careerOsQueryKeys = {
     ["career-os", "application-cases", caseId, "interview-sessions", sessionId] as const,
   caseDebrief: (caseId: string) => ["career-os", "application-cases", caseId, "debrief"] as const,
 };
+
+export function getCareerDataScope(signal?: AbortSignal) {
+  return apiRequest<CareerDataScopeResponse>("/v1/profile/data-scope", { signal });
+}
 
 export interface ListApplicationCasesInput {
   cursor?: string;

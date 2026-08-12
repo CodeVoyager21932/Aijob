@@ -8,6 +8,7 @@ import {
   interviewSessionListPath,
   resumeDocumentDocxPath,
   resumeDocumentListPath,
+  careerOsQueryKeys,
 } from "./career-os";
 
 describe("Career OS API paths", () => {
@@ -66,5 +67,9 @@ describe("Career OS API paths", () => {
     expect(resumeDocumentDocxPath({ documentId, contentRevisionId, layoutRevisionId })).toBe(
       `/v1/resume-documents/${documentId}/docx?contentRevisionId=${contentRevisionId}&layoutRevisionId=${layoutRevisionId}`,
     );
+  });
+
+  it("keeps the complete data scope under the owner profile namespace", () => {
+    expect(careerOsQueryKeys.dataScope).toEqual(["career-os", "profile", "data-scope"]);
   });
 });

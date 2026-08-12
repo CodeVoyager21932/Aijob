@@ -405,7 +405,7 @@ export function CaseInterviewWorkspace({
           <Icon name="interview" />
         </span>
         <div>
-          <p>M3 · 确定性文字练习</p>
+          <p>确定性文字练习</p>
           <h2 id="interview-guardrail-title">只根据固定 JD 和通用模板提问</h2>
           <p>
             当前不调用

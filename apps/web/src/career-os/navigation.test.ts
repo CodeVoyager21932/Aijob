@@ -8,8 +8,6 @@ describe("Career OS workspace navigation", () => {
       "发现岗位",
       "我的求职",
       "简历资产",
-      "面试训练",
-      "经验库",
     ]);
   });
 

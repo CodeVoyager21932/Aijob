@@ -200,7 +200,7 @@ export function CaseResumeWorkspace({
           <Icon name="document" />
         </span>
         <div>
-          <p>M2 · 岗位派生</p>
+          <p>岗位派生简历</p>
           <h2 id="resume-prerequisite-title">
             {ready ? "创建这份岗位派生简历" : "请先准备并确认基础简历"}
           </h2>

@@ -20,7 +20,7 @@ export function CareerOsHomePage() {
       <header className="career-page-heading career-page-heading--today">
         <div>
           <h1 id="today-title">今日</h1>
-          <p>M1 仅展示真实求职项目，不生成站外提醒。</p>
+          <p>这里只展示真实求职项目，不生成站外提醒。</p>
         </div>
         <Link className="career-button career-button--primary" to="/applications">
           查看我的求职

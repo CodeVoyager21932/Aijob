@@ -324,7 +324,7 @@ export function CaseRequirementsWorkspace({
       <div className="career-case-detail-layout__main">
         <header className="career-workspace-heading">
           <div>
-            <p>M1 · 真实 Case 数据</p>
+            <p>真实岗位要求</p>
             <h2>逐项理解岗位要求</h2>
             <span>岗位原文、用户状态、已确认证据和未知项始终分开保存。</span>
           </div>

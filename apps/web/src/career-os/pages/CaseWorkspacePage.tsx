@@ -117,7 +117,7 @@ function CaseOverview({ applicationCase }: { applicationCase: ApplicationCaseWit
             <article>
               <span>偏好</span>
               <strong>尚未在当前工作区核对</strong>
-              <small>M1 不使用静态偏好结论</small>
+              <small>偏好仍需在当前求职项目中核对</small>
             </article>
           </div>
         </section>

@@ -86,7 +86,7 @@ export function DebriefConfirmationPanel({
     <section className="career-debrief-confirmation" aria-labelledby="debrief-confirmation-title">
       <header>
         <div>
-          <p>M3 · 用户确认回流</p>
+          <p>复盘确认</p>
           <h3 id="debrief-confirmation-title">
             {confirmed ? "本次复盘已由你确认" : "逐项决定是否采用"}
           </h3>

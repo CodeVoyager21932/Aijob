@@ -200,7 +200,7 @@ export function ResumeAssetsPage() {
     <section className="career-resume-assets" aria-labelledby="resume-assets-title">
       <header className="career-resume-assets__hero">
         <div>
-          <p>职业资产 · M2</p>
+          <p>职业资产</p>
           <h1 id="resume-assets-title">一份可信基础，服务每个岗位版本</h1>
           <span>
             基础简历保存你的长期职业资产；岗位简历只在真实 Case 中派生，不会反向覆盖这里。

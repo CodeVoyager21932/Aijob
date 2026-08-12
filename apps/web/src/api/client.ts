@@ -1,3 +1,5 @@
+import { type SessionStatus, SessionStatusSchema } from "@aijob/contracts";
+
 const baseUrl = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 
 export class ProductApiError extends Error {
@@ -39,17 +41,43 @@ function currentCsrfToken(): string | null {
 }
 
 let sessionBootstrapPromise: Promise<void> | null = null;
+let knownOwnerKey: string | null = null;
+const sessionBoundaryListeners = new Set<() => void>();
+const OWNER_CONTEXT_HEADER_NAME = "x-aijob-owner-context";
+
+export function subscribeToSessionBoundary(listener: () => void): () => void {
+  sessionBoundaryListeners.add(listener);
+  return () => sessionBoundaryListeners.delete(listener);
+}
+
+function recordOwnerKey(nextOwnerKey: string | null, forceNotify = false): boolean {
+  const changed = knownOwnerKey !== null && knownOwnerKey !== nextOwnerKey;
+  knownOwnerKey = nextOwnerKey;
+  if (!forceNotify && !changed) return false;
+  for (const listener of sessionBoundaryListeners) listener();
+  return true;
+}
+
+function recordSessionStatus(status: SessionStatus, forceNotify = false): boolean {
+  const nextOwnerKey = status.authenticated ? `${status.owner.id}:${status.owner.epoch}` : null;
+  return recordOwnerKey(nextOwnerKey, forceNotify);
+}
+
+async function requestSessionStatus(): Promise<SessionStatus> {
+  const response = await fetch(`${baseUrl}/v1/session`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    credentials: "same-origin",
+  });
+  if (!response.ok) throw await readProblem(response);
+  return SessionStatusSchema.parse(await response.json());
+}
 
 async function ensureSessionBootstrap(): Promise<void> {
   if (currentCsrfToken()) return;
   if (!sessionBootstrapPromise) {
     sessionBootstrapPromise = (async () => {
-      const response = await fetch(`${baseUrl}/v1/session`, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-        credentials: "same-origin",
-      });
-      if (!response.ok) throw await readProblem(response);
+      recordSessionStatus(await requestSessionStatus());
     })().finally(() => {
       sessionBootstrapPromise = null;
     });
@@ -105,15 +133,30 @@ export interface ApiRequestOptions {
   headers?: HeadersInit;
 }
 
-export interface SessionStatus {
-  authenticated: boolean;
-}
-
 function isMutation(method: string): boolean {
   return method !== "GET" && method !== "HEAD" && method !== "OPTIONS";
 }
 
-export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+function isSessionBoundaryProblem(error: ProductApiError): boolean {
+  return error.code === "SESSION_REQUIRED" || error.code === "CSRF_REJECTED";
+}
+
+async function recoverSessionBoundary(forceNotify: boolean): Promise<boolean> {
+  try {
+    const status = await requestSessionStatus();
+    recordSessionStatus(status, forceNotify);
+    return status.authenticated;
+  } catch {
+    recordSessionStatus({ authenticated: false }, forceNotify);
+    return false;
+  }
+}
+
+async function apiRequestInternal<T>(
+  path: string,
+  options: ApiRequestOptions,
+  recoveryAttempted: boolean,
+): Promise<T> {
   const method = options.method ?? "GET";
   if (typeof document !== "undefined" && path !== "/v1/session" && !currentCsrfToken()) {
     await ensureSessionBootstrap();
@@ -143,9 +186,32 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     ...(body ? { body } : {}),
     ...(options.signal ? { signal: options.signal } : {}),
   });
-  if (!response.ok) throw await readProblem(response);
+  const responseOwnerKey = response.headers.get(OWNER_CONTEXT_HEADER_NAME);
+  const boundaryNotified = responseOwnerKey ? recordOwnerKey(responseOwnerKey) : false;
+  if (!response.ok) {
+    const problem = await readProblem(response);
+    if (!recoveryAttempted && isSessionBoundaryProblem(problem)) {
+      const recovered = await recoverSessionBoundary(!boundaryNotified);
+      if (recovered && !isMutation(method)) {
+        return apiRequestInternal<T>(path, options, true);
+      }
+      if (recovered && isMutation(method)) {
+        throw new ProductApiError(
+          "本机会话已经更新。系统没有自动重放刚才的修改，请核对页面内容后再次提交。",
+          409,
+          "SESSION_RECOVERED_RETRY_REQUIRED",
+          problem.correlationId,
+        );
+      }
+    }
+    throw problem;
+  }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
+}
+
+export function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  return apiRequestInternal<T>(path, options, false);
 }
 
 export interface ApiDownload {
@@ -163,7 +229,11 @@ function downloadFileName(contentDisposition: string | null): string | null {
   }
 }
 
-export async function apiDownload(path: string, signal?: AbortSignal): Promise<ApiDownload> {
+async function apiDownloadInternal(
+  path: string,
+  signal: AbortSignal | undefined,
+  recoveryAttempted: boolean,
+): Promise<ApiDownload> {
   if (typeof document !== "undefined" && !currentCsrfToken()) {
     await ensureSessionBootstrap();
   }
@@ -175,15 +245,31 @@ export async function apiDownload(path: string, signal?: AbortSignal): Promise<A
     credentials: "same-origin",
     ...(signal ? { signal } : {}),
   });
-  if (!response.ok) throw await readProblem(response);
+  const responseOwnerKey = response.headers.get(OWNER_CONTEXT_HEADER_NAME);
+  const boundaryNotified = responseOwnerKey ? recordOwnerKey(responseOwnerKey) : false;
+  if (!response.ok) {
+    const problem = await readProblem(response);
+    if (!recoveryAttempted && isSessionBoundaryProblem(problem)) {
+      const recovered = await recoverSessionBoundary(!boundaryNotified);
+      if (recovered) return apiDownloadInternal(path, signal, true);
+    }
+    throw problem;
+  }
   return {
     blob: await response.blob(),
     fileName: downloadFileName(response.headers.get("Content-Disposition")),
   };
 }
 
+export function apiDownload(path: string, signal?: AbortSignal): Promise<ApiDownload> {
+  return apiDownloadInternal(path, signal, false);
+}
+
 export function getSessionStatus(signal?: AbortSignal): Promise<SessionStatus> {
-  return apiRequest<SessionStatus>("/v1/session", { signal });
+  return apiRequest<SessionStatus>("/v1/session", { signal }).then((status) => {
+    recordSessionStatus(status);
+    return status;
+  });
 }
 
 export async function createAlphaSession(
@@ -201,7 +287,9 @@ export async function createAlphaSession(
     ...(signal ? { signal } : {}),
   });
   if (!response.ok) throw await readProblem(response);
-  return (await response.json()) as SessionStatus;
+  const status = SessionStatusSchema.parse(await response.json());
+  recordSessionStatus(status);
+  return status;
 }
 
 export function fileDownloadUrl(path: string): string {

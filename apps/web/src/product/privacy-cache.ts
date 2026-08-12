@@ -13,3 +13,7 @@ export function removeConfirmedResumeAnalysisCache(
 export function clearDeletedOwnerCache(queryClient: QueryClient): void {
   queryClient.clear();
 }
+
+export function clearSessionBoundaryCache(queryClient: QueryClient): void {
+  queryClient.getQueryCache().clear();
+}

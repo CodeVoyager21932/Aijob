@@ -1,5 +1,6 @@
-import { MAX_RECOMMENDATION_CANDIDATES } from "@aijob/contracts";
 import type {
+  ConfirmResumeProfileRequest,
+  ConfirmResumeProfileResponse,
   CreateJobInsightRunRequest,
   CreateMatchRunRequest,
   CreateRecommendationRunRequest,
@@ -24,6 +25,7 @@ import type {
   ResumeExport,
   ResumeTailoringRun,
 } from "@aijob/contracts";
+import { MAX_RECOMMENDATION_CANDIDATES } from "@aijob/contracts";
 import { apiRequest, createIdempotencyKey } from "./client";
 
 export interface ResumeAnalysisResultPayload {
@@ -303,6 +305,13 @@ export function getProfileEvidence(signal?: AbortSignal) {
 
 export function putProfileEvidence(body: PutResumeEvidenceRequest) {
   return apiRequest<ResumeEvidenceRevision>("/v1/profile/evidence", {
+    method: "PUT",
+    body,
+  });
+}
+
+export function confirmResumeProfile(body: ConfirmResumeProfileRequest) {
+  return apiRequest<ConfirmResumeProfileResponse>("/v1/profile/confirmation", {
     method: "PUT",
     body,
   });

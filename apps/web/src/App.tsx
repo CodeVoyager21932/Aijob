@@ -1,9 +1,9 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { legacySurfaceMode } from "./career-os/legacy-compatibility";
 import { AlphaAccessGate } from "./components/AlphaAccessGate";
 import { AppShell } from "./components/AppShell";
 import { ProductShell } from "./components/ProductShell";
-import { legacySurfaceMode } from "./career-os/legacy-compatibility";
 import {
   shouldEnableCareerOsV2,
   shouldEnableInternalSurfaces,
@@ -50,9 +50,9 @@ const ResumeAssetsPage = lazy(() =>
     default: module.ResumeAssetsPage,
   })),
 );
-const CareerOsPlaceholderPage = lazy(() =>
-  import("./career-os/pages/CareerOsPlaceholderPage").then((module) => ({
-    default: module.CareerOsPlaceholderPage,
+const CareerDataControlPage = lazy(() =>
+  import("./career-os/pages/CareerDataControlPage").then((module) => ({
+    default: module.CareerDataControlPage,
   })),
 );
 const LegacyCompatibilityPage = lazy(() =>
@@ -109,9 +109,7 @@ export function App() {
             <Route path="/applications/:caseId/:tab" element={<CaseWorkspacePage />} />
             <Route path="/resumes" element={<ResumeAssetsPage />} />
             <Route path="/resumes/:documentId" element={<ResumeAssetsPage />} />
-            <Route path="/interviews" element={<CareerOsPlaceholderPage surface="interviews" />} />
-            <Route path="/knowledge" element={<CareerOsPlaceholderPage surface="knowledge" />} />
-            <Route path="/settings/data" element={<DataControlPage />} />
+            <Route path="/settings/data" element={<CareerDataControlPage />} />
             <Route path="/settings/data/deletion" element={<DeletionStatusPage />} />
           </>
         ) : null}

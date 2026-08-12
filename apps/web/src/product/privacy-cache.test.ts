@@ -1,6 +1,10 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
-import { clearDeletedOwnerCache, removeConfirmedResumeAnalysisCache } from "./privacy-cache";
+import {
+  clearDeletedOwnerCache,
+  clearSessionBoundaryCache,
+  removeConfirmedResumeAnalysisCache,
+} from "./privacy-cache";
 
 describe("owner privacy cache", () => {
   it("removes confirmed resume analysis text without discarding the new profile revisions", () => {
@@ -33,5 +37,19 @@ describe("owner privacy cache", () => {
 
     expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
     expect(queryClient.getMutationCache().getAll()).toHaveLength(0);
+  });
+
+  it("drops old owner queries without erasing the failed mutation draft", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(["career-os", "application-cases"], { ownerId: "old-owner" });
+    queryClient.getMutationCache().build(queryClient, {
+      mutationKey: ["career-os", "save-requirement"],
+      mutationFn: async () => ({ draft: "keep for explicit retry" }),
+    });
+
+    clearSessionBoundaryCache(queryClient);
+
+    expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
+    expect(queryClient.getMutationCache().getAll()).toHaveLength(1);
   });
 });

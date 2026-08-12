@@ -67,7 +67,9 @@ export function ResumeBlockInspector({
         </dl>
       </section>
       <section className="career-inspector__section">
-        <p className="career-inspector__copy">M1 不提供接受、编辑、拒绝、AI 建议或导出操作。</p>
+        <p className="career-inspector__copy">
+          当前检查器只展示真实区块、证据与来源，不会自动改写内容。
+        </p>
       </section>
     </ContextInspectorFrame>
   );
