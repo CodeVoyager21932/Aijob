@@ -14,6 +14,7 @@
 
 ## 已完成的设计记录
 
+- [M4-0 旧入口与一岗闭环差异审计](career-os-m4-legacy-entry-and-one-job-gap-audit-2026-08-12.md)
 - [M3 投递、文字面试与复盘集成边界](career-os-m3-application-interview-integration-boundary-2026-08-11.md)
 - [M2 专业简历闭环复用与集成边界](career-os-m2-resume-integration-boundary-2026-08-09.md)
 - [Phase 2 领域契约与迁移设计](career-os-phase-2-domain-contract-and-migration-design-2026-08-05.md)
