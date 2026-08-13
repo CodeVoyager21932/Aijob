@@ -154,6 +154,53 @@ export const ResumeEvidenceTypeSchema = z.enum([
 ]);
 export type ResumeEvidenceType = z.infer<typeof ResumeEvidenceTypeSchema>;
 
+export const ResumeAnalysisCandidateFactSchema = ProfileFactSchema.and(
+  z.object({ confirmed: z.literal(false) }),
+);
+
+export const ResumeAnalysisCandidateEvidenceSchema = z.object({
+  id: UuidSchema,
+  sourceBlockId: UuidSchema,
+  section: z.string().trim().min(1).max(100),
+  evidenceType: ResumeEvidenceTypeSchema,
+  statement: z.string().trim().min(1).max(2_000),
+  skills: z.array(z.string().trim().min(1)).max(50),
+  outcomes: z.array(z.string().trim().min(1)).max(20),
+  confirmed: z.literal(false),
+});
+
+export const ResumeAnalysisResultSchema = z.object({
+  version: z.literal("resume-analysis-v2"),
+  redactedText: z.string().max(200_000),
+  document: ResumeDocumentInputSchema,
+  candidateFacts: z.array(ResumeAnalysisCandidateFactSchema).max(100),
+  candidateEvidence: z.array(ResumeAnalysisCandidateEvidenceSchema).max(500),
+});
+export type ResumeAnalysisResult = z.infer<typeof ResumeAnalysisResultSchema>;
+
+export const LegacyResumeAnalysisResultSchema = z.object({
+  version: z.literal("resume-analysis-v1"),
+  redactedText: z.string().max(200_000),
+  candidateFacts: z.array(ResumeAnalysisCandidateFactSchema).max(100),
+  candidateEvidence: z.array(
+    z.object({
+      id: IdentifierSchema,
+      section: z.string().trim().min(1).max(100),
+      originalText: z.string().trim().min(1).max(10_000),
+      claim: z.string().trim().min(1).max(2_000),
+      skills: z.array(z.string().trim().min(1)).max(50),
+      outcomes: z.array(z.string().trim().min(1)).max(20),
+      confirmed: z.literal(false),
+    }),
+  ),
+});
+export type LegacyResumeAnalysisResult = z.infer<typeof LegacyResumeAnalysisResultSchema>;
+
+export const ResumeAnalysisViewSchema = ResumeAnalysisSchema.extend({
+  result: z.union([ResumeAnalysisResultSchema, LegacyResumeAnalysisResultSchema]).nullable(),
+});
+export type ResumeAnalysisView = z.infer<typeof ResumeAnalysisViewSchema>;
+
 export const ResumeEvidenceSchema = z.object({
   id: IdentifierSchema,
   resumeAnalysisId: IdentifierSchema.nullable(),
@@ -206,6 +253,51 @@ export const ResumeEvidenceRevisionSchema = RevisionMetadataSchema.extend({
   evidence: z.array(z.union([ResumeEvidenceSchema, LegacyResumeEvidenceSchema])).max(500),
 });
 export type ResumeEvidenceRevision = z.infer<typeof ResumeEvidenceRevisionSchema>;
+
+export const EmptyProfileFactsSchema = z
+  .object({
+    revision: z.literal(0),
+    facts: z.tuple([]),
+  })
+  .strict();
+export type EmptyProfileFacts = z.infer<typeof EmptyProfileFactsSchema>;
+
+export const EmptyProfilePreferencesSchema = z
+  .object({
+    revision: z.literal(0),
+    preferences: z.null(),
+  })
+  .strict();
+export type EmptyProfilePreferences = z.infer<typeof EmptyProfilePreferencesSchema>;
+
+export const EmptyProfileEvidenceSchema = z
+  .object({
+    revision: z.literal(0),
+    resumeAnalysisId: z.null(),
+    schemaVersion: z.literal("resume-evidence-v2"),
+    documentRevisionId: z.null(),
+    evidence: z.tuple([]),
+  })
+  .strict();
+export type EmptyProfileEvidence = z.infer<typeof EmptyProfileEvidenceSchema>;
+
+export const CurrentProfileFactsSchema = z.union([
+  ProfileFactRevisionSchema,
+  EmptyProfileFactsSchema,
+]);
+export type CurrentProfileFacts = z.infer<typeof CurrentProfileFactsSchema>;
+
+export const CurrentProfilePreferencesSchema = z.union([
+  JobPreferenceRevisionSchema,
+  EmptyProfilePreferencesSchema,
+]);
+export type CurrentProfilePreferences = z.infer<typeof CurrentProfilePreferencesSchema>;
+
+export const CurrentProfileEvidenceSchema = z.union([
+  ResumeEvidenceRevisionSchema,
+  EmptyProfileEvidenceSchema,
+]);
+export type CurrentProfileEvidence = z.infer<typeof CurrentProfileEvidenceSchema>;
 
 export const ResumeEvidenceRevisionIdSchema = z
   .object({

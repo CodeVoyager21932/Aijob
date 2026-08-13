@@ -31,6 +31,18 @@ export function getWorkspaceBreadcrumbs(pathname: string): BreadcrumbItem[] {
   const directLabel = routeLabels.get(pathname);
   if (directLabel) return [{ label: directLabel }];
 
+  if (pathname === "/jobs/recommended" || /^\/jobs\/recommended\/[^/]+$/.test(pathname)) {
+    return [{ label: "发现岗位", to: "/jobs" }, { label: "证据推荐" }];
+  }
+
+  if (pathname === "/jobs/insights" || /^\/jobs\/insights\/[^/]+$/.test(pathname)) {
+    return [{ label: "发现岗位", to: "/jobs" }, { label: "岗位洞察" }];
+  }
+
+  if (/^\/jobs\/[^/]+$/.test(pathname)) {
+    return [{ label: "发现岗位", to: "/jobs" }, { label: "岗位详情" }];
+  }
+
   const caseMatch = pathname.match(/^\/applications\/([^/]+)\/([^/]+)$/);
   if (caseMatch) {
     const activeTab = caseTabs.find((tab) => tab.value === caseMatch[2]);
@@ -41,15 +53,22 @@ export function getWorkspaceBreadcrumbs(pathname: string): BreadcrumbItem[] {
     ];
   }
 
+  if (/^\/resumes\/import\/confirm\/[^/]+$/.test(pathname)) {
+    return [
+      { label: "简历资产", to: "/resumes" },
+      { label: "准备简历", to: "/resumes/import" },
+      { label: "确认资料" },
+    ];
+  }
+
+  if (pathname === "/resumes/import") {
+    return [{ label: "简历资产", to: "/resumes" }, { label: "准备简历" }];
+  }
+
   if (/^\/resumes\/[^/]+$/.test(pathname)) {
     return [{ label: "简历资产", to: "/resumes" }, { label: "基础简历" }];
   }
 
-  const legacyLabels = new Map([
-    ["/insights", "岗位洞察"],
-    ["/resume", "简历与画像"],
-    ["/recommendations", "我的推荐"],
-    ["/data-control", "数据控制"],
-  ]);
+  const legacyLabels = new Map([["/data-control", "数据控制"]]);
   return [{ label: legacyLabels.get(pathname) ?? "Aijob" }];
 }

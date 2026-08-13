@@ -51,6 +51,7 @@ export function ResumeConfirmPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const careerOsV2Enabled = shouldEnableCareerOsV2({ flag: import.meta.env.VITE_CAREER_OS_V2 });
+  const resumeImportPath = careerOsV2Enabled ? "/resumes/import" : "/resume";
   const [selectedEvidence, setSelectedEvidence] = useState<Set<string>>(new Set());
   const [manualFacts, setManualFacts] = useState(initialManualFacts);
   const [cities, setCities] = useState("");
@@ -207,7 +208,7 @@ export function ResumeConfirmPage() {
       <ProductEmpty
         title="这份 PDF 没有可提取文本"
         action={
-          <Link className="button button--primary" to="/resume">
+          <Link className="button button--primary" to={resumeImportPath}>
             改用粘贴文本
           </Link>
         }
@@ -222,7 +223,7 @@ export function ResumeConfirmPage() {
         title="简历解析失败"
         error={new Error(analysisQuery.data.failureCode || "请重新提交简历。")}
         action={
-          <Link className="button button--primary" to="/resume">
+          <Link className="button button--primary" to={resumeImportPath}>
             重新提交
           </Link>
         }
@@ -234,7 +235,7 @@ export function ResumeConfirmPage() {
       <ProductEmpty
         title="这次旧版解析仅保留只读查看"
         action={
-          <Link className="button button--primary" to="/resume">
+          <Link className="button button--primary" to={resumeImportPath}>
             重新解析为原子证据
           </Link>
         }
@@ -262,7 +263,7 @@ export function ResumeConfirmPage() {
   }
 
   return (
-    <>
+    <div className={careerOsV2Enabled ? "career-profile-confirm" : undefined}>
       {careerOsV2Enabled ? null : <JourneySteps current={2} />}
       <header className="product-hero">
         <div>
@@ -516,7 +517,7 @@ export function ResumeConfirmPage() {
           <ProductError title="资料没有保存成功" error={saveMutation.error} />
         ) : null}
       </form>
-    </>
+    </div>
   );
 }
 

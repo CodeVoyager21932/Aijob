@@ -12,8 +12,8 @@ describe("Career OS legacy compatibility policy", () => {
 
   it("gives every duplicate V2 surface one explicit non-writing disposition", () => {
     expect(legacySurfaceMode(true, "job_detail_actions")).toBe("case_only");
-    expect(legacySurfaceMode(true, "recommendations")).toBe("compatibility");
-    expect(legacySurfaceMode(true, "insights")).toBe("compatibility");
+    expect(legacySurfaceMode(true, "recommendations")).toBe("redirect");
+    expect(legacySurfaceMode(true, "insights")).toBe("redirect");
     expect(legacySurfaceMode(true, "resume_tailoring")).toBe("read_only");
     expect(legacySurfaceMode(true, "data_control")).toBe("redirect");
   });

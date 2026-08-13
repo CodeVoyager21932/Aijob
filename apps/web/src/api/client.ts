@@ -67,7 +67,7 @@ function currentCsrfToken(): string | null {
   return cookieValue(document.cookie, "aijob_csrf");
 }
 
-let sessionBootstrapPromise: Promise<void> | null = null;
+let sessionBootstrapPromise: Promise<SessionStatus> | null = null;
 let knownOwnerKey: string | null = null;
 const sessionBoundaryListeners = new Set<() => void>();
 let sessionBoundaryGeneration = 0;
@@ -92,26 +92,29 @@ function recordSessionStatus(status: SessionStatus, forceNotify = false): boolea
   return recordOwnerKey(nextOwnerKey, forceNotify);
 }
 
-async function requestSessionStatus(): Promise<SessionStatus> {
+async function requestSessionStatus(signal?: AbortSignal): Promise<SessionStatus> {
   const response = await fetch(`${baseUrl}/v1/session`, {
     method: "GET",
     headers: { Accept: "application/json" },
     credentials: "same-origin",
+    ...(signal ? { signal } : {}),
   });
   if (!response.ok) throw await readProblem(response);
   return readValidatedJson(response, SessionStatusSchema);
 }
 
-async function ensureSessionBootstrap(): Promise<void> {
-  if (currentCsrfToken()) return;
+async function ensureSessionBootstrap(): Promise<SessionStatus> {
   if (!sessionBootstrapPromise) {
-    sessionBootstrapPromise = (async () => {
-      recordSessionStatus(await requestSessionStatus());
-    })().finally(() => {
-      sessionBootstrapPromise = null;
-    });
+    sessionBootstrapPromise = requestSessionStatus()
+      .then((status) => {
+        recordSessionStatus(status);
+        return status;
+      })
+      .finally(() => {
+        sessionBootstrapPromise = null;
+      });
   }
-  await sessionBootstrapPromise;
+  return sessionBootstrapPromise;
 }
 
 async function readProblem(response: Response): Promise<ProductApiError> {
@@ -296,10 +299,8 @@ export function apiDownload(path: string, signal?: AbortSignal): Promise<ApiDown
 }
 
 export function getSessionStatus(signal?: AbortSignal): Promise<SessionStatus> {
-  return apiRequest<SessionStatus>("/v1/session", {
-    signal,
-    responseSchema: SessionStatusSchema,
-  }).then((status) => {
+  if (!currentCsrfToken()) return ensureSessionBootstrap();
+  return requestSessionStatus(signal).then((status) => {
     recordSessionStatus(status);
     return status;
   });

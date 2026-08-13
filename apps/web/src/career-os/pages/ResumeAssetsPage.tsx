@@ -206,7 +206,7 @@ export function ResumeAssetsPage() {
             基础简历保存你的长期职业资产；岗位简历只在真实 Case 中派生，不会反向覆盖这里。
           </span>
         </div>
-        <Link className="career-button career-button--primary" to="/resume">
+        <Link className="career-button career-button--primary" to="/resumes/import">
           <Icon name="document" size={17} />
           准备或更新简历
         </Link>
@@ -402,7 +402,7 @@ export function ResumeAssetsPage() {
             ) : (
               <>
                 <p>还没有经过你确认的简历来源。</p>
-                <Link className="career-button career-button--quiet" to="/resume">
+                <Link className="career-button career-button--quiet" to="/resumes/import">
                   解析并确认简历
                 </Link>
               </>
@@ -519,7 +519,7 @@ export function ResumeAssetsPage() {
               </span>
               <strong>先建立你的第一份基础简历</strong>
               <p>解析结果不会直接成为事实；只有你确认的结构化内容才会进入职业资产。</p>
-              <Link className="career-button career-button--primary" to="/resume">
+              <Link className="career-button career-button--primary" to="/resumes/import">
                 解析并确认简历
               </Link>
             </div>

@@ -1,10 +1,10 @@
 # Career OS 端到端体验与系统契约
 
-> 状态：Active / UX-0 端到端实施契约正在纠正
+> 状态：Active / UX-0 基线已接受，OS-1 与 OS-2 触达范围已关闭
 >
 > 生效日期：2026-08-13
 >
-> 当前验收状态：视觉/交互规则、端到端领域归属和六个结构性接缝的字段级静态草案已经形成；逐项代码反证、Review migration 的 legacy/new-write 兼容断言与四视口当前运行基线仍须按 [UX-0 证据](evidence/product/career-os-v2/ux-0-end-to-end-contract-and-baseline-2026-08-13.md)完成。在这些缺口关闭前不得进入 OS-1。
+> 当前验收状态：UX-0 代码反证、Review migration 兼容断言与四视口基线已完成；OS-1 系统外壳/运行契约和 OS-2 资料/可信岗位入口也已通过各自五项 Gate。下一候选切片为 OS-3，尚未实施；见 [OS-2 证据](evidence/product/career-os-v2/os-2-profile-and-trusted-job-entry-acceptance-2026-08-13.md)。
 >
 > 动态任务只看 [MVP 路线](06-mvp-roadmap.md)、[当前交接](handoffs/current.md)和[当前交付计划](plans/career-os-current-delivery-plan.md)。本文固定设计规则，不生成新的任务顺序。
 
@@ -60,19 +60,19 @@ flowchart LR
 
 | 用户能力 | 当前系统事实 | 当前判定 | 负责切片 |
 |---|---|---|---|
-| session / owner / CSRF / 不重放 | Platform 与 API client 有基础，页面回接不统一 | `R/A` | OS-1、OS-7 |
-| 岗位检索、facet、详情 | 后端主体存在；Web URL 恢复与排序未完整对齐 | `R/A/E`；推荐/洞察归入该旅程 | OS-2 |
+| session / owner / CSRF / 不重放 | OS-1 已统一 Shell/session boundary；OS-2 已关闭首次页面并发 session 创建多个 owner 的风险，mutation 仍不重放 | `R/A` 触达范围已关闭 | OS-1、OS-2；OS-7 总验 |
+| 岗位检索、facet、详情 | OS-2 已接入规范工作台、筛选 URL、刷新/深链/历史恢复、unknown 与失败重试 | `R/A/E` 触达范围已关闭 | OS-2 已关闭 |
 | Case 创建、固定版本、删除 | 主体存在；transition、diff/upgrade 未进入完整 V2 交互 | `R/A` | OS-3、OS-4 |
 | 看板列表、筛选、计数 | API 只有 stage/cursor/limit；Web 对已加载子集做 city/sort | `E`：Case list + board read model，无语义 migration | OS-3 |
 | Requirements / Evidence / Questions | 三证据状态、revision、owner 语义存在 | `R/A` | OS-4 |
 | 三轴匹配 | immutable run 存在；但创建/Worker 只接受当前目录版本，不能直接处理 Case 固定旧版本 | `E`：Case-scoped adapter + `case_pinned` 任务上下文；按固定版本、requirement set 与资料修订查回，不加 Case 外键 | OS-4 |
-| 推荐 | run 已冻结候选/要求/新鲜度；V2 只显示兼容说明，旧页由浏览器拉取候选 | `E`：在现有 RecommendationRun 资源下增加按搜索创建和岗位投影 view，规范入口归入 `/jobs` | OS-2 |
-| JD 市场洞察 | scope 聚合存在；不是单 Case Requirements | `A`：规范入口归入 `/jobs/insights*`，明确排除 Case JD 面板 | OS-2 |
-| 简历导入/确认 | 后端主体存在；规范 `/resumes/import*` 缺失 | `R/A` | OS-2 |
+| 推荐 | OS-2 已在现有 RecommendationRun 下实现服务器按搜索创建与固定岗位投影 view，事务内冻结候选/要求/新鲜度/资料 | `E` 已关闭：规范入口归入 `/jobs/recommended*`，无第二种 Run 或 migration | OS-2 已关闭 |
+| JD 市场洞察 | scope 聚合继续与单 Case Requirements 分离；规范表单与持久 Run 深链已接入 | `A` 已关闭：归入 `/jobs/insights*`，明确排除 Case JD 面板 | OS-2 已关闭 |
+| 简历导入/确认 | 后端主体已由规范 `/resumes/import*` 承接，资料当前态与一次性确认响应使用共享 runtime schema | `R/A` 已关闭 | OS-2 已关闭 |
 | Resume V2 / Review / DOCX | 主体存在；当前模板 Review 未读取固定 Requirements，Finding/Suggestion 无 requirement 引用 | `E + M`：固定岗位要求进入 template/AI 生成链并持久引用；同时收敛草稿、错误与响应式 | OS-5 |
 | 旧 Tailoring / 受控 AI | Tailoring 有低层 provider/去标识化能力；Review 预留 mode 但请求/Worker 只实现 template，Run 缺 provenance/failure | `E + M`：新写入统一归 Resume Review，v1/v2 兼容的最小 expand migration；旧 Tailoring 只读 | OS-5 |
 | 投递 / 面试 / 复盘 / 删除 | 后端主体与现有 V2 主路径存在 | `R/A` | OS-6 |
-| 完整浏览器夹具 | Platform 集成测试存在；无完整真实 API UX runner | `E`（测试基础设施） | UX-0、OS-7 |
+| 完整浏览器夹具 | OS-1/OS-2 已有真实 API、隔离 PostgreSQL 与四视口 runner；后续仍需逐切片扩展并由 OS-7 总验 | `E`（测试基础设施）触达范围已关闭 | UX-0、OS-1、OS-2；OS-7 总验 |
 
 详细代码证据和当前判定见 [UX-0 端到端审计](evidence/product/career-os-v2/ux-0-end-to-end-contract-and-baseline-2026-08-13.md)，字段级请求、响应、Problem 与断言见 [UX-0 页面—系统—证据追踪矩阵](plans/career-os-ux-0-end-to-end-traceability-matrix.md)。
 
@@ -187,8 +187,8 @@ Career OS 是一个**高密度、克制、可信的专业求职驾驶舱**：像
 | `/applications/:caseId/:tab` | Case 六标签唯一工作区 | `tab`；各页只增加必要选中项 | OS-4、OS-5、OS-6 |
 | `/resumes` | 简历资产首页 | 来源提示、当前选择 | OS-5 |
 | `/resumes/:documentId` | 基础或派生简历工作室 | `documentId`、`block`、工作模式 | OS-5 |
-| `/resumes/import` | **新增规范前台路由**，承接现有 `/resume` 能力 | 输入模式，不把原文放 URL | OS-2 |
-| `/resumes/import/confirm/:analysisId` | **新增规范前台路由**，承接现有确认能力 | `analysisId`、确认步骤 | OS-2 |
+| `/resumes/import` | **规范前台路由已接入**，承接现有 `/resume` 能力 | 输入模式，不把原文放 URL | OS-2 已关闭 |
+| `/resumes/import/confirm/:analysisId` | **规范确认路由已接入**，承接现有确认能力 | `analysisId`、确认步骤 | OS-2 已关闭 |
 | `/resume`、`/resume/confirm/:analysisId` | 兼容入口，重定向或委托规范路由；旗标关闭时保持旧行为 | 保留旧参数 | OS-2 |
 | `/recommendations` | V2 兼容重定向 `/jobs/recommended`；V2=false 保留旧页 | 无 | OS-2、OS-6 |
 | `/insights` | V2 兼容重定向 `/jobs/insights`；V2=false 保留旧页 | 无 | OS-2、OS-6 |
@@ -202,7 +202,7 @@ Career OS 是一个**高密度、克制、可信的专业求职驾驶舱**：像
 ### 5.3 懒加载契约
 
 - `WorkspaceShell` 可独立加载，但进入 V2 后 Shell 不能因单个页面 chunk 失败而整页消失。
-- 岗位目录、旧导入/确认和历史 Tailoring 在 V2 中应按路由 lazy load，不能继续全部进入主包。
+- 岗位目录、规范导入/确认和历史 Tailoring 在 V2 中按路由 lazy load，不能重新并入主包。
 - 看板与 Case 概览首屏不得加载 Resume Editor、Interview 或数据设置。
 - 每个路由 chunk 失败时在 Shell 内显示可重试错误，不落入空白页。
 
@@ -245,14 +245,14 @@ Career OS 是一个**高密度、克制、可信的专业求职驾驶舱**：像
 
 | 已知差距 | 不得在 UX-0 顺手修复 | 负责切片 |
 |---|---|---|
-| V2 404 回到 ProductShell、没有路由级 Error Boundary | 是 | OS-1 |
-| Overlay 缺少统一焦点约束、Esc、背景 inert 和可靠返焦 | 是 | OS-1 |
+| V2 404 回到 ProductShell、没有路由级 Error Boundary | 是 | OS-1 已关闭 |
+| Overlay 缺少统一焦点约束、Esc、背景 inert 和可靠返焦 | 是 | OS-1 已关闭 |
 | Case list 只支持 stage/cursor，Web 对已加载子集做 city/sort；Peek 404 静默关闭、五列与 Peek 尺寸冲突 | 是 | OS-3 |
 | transition、job-version diff/upgrade 已在 Platform 但未完整接入 Web；Requirement 桌面检查器不能真实收起 | 是 | OS-3、OS-4 |
 | 三轴 matching run 没有 V2 Case 可恢复入口，现有 Worker 又拒绝 Case 固定旧版本 | 是 | 已选 Case-scoped adapter + `case_pinned` 任务上下文；OS-4 实施 |
 | Resume Studio 草稿可能丢失；Review 未读取固定 Requirements、无 requirement 引用，controlled_ai 与 provenance 也未实现 | 是 | 已选 Review 唯一新写入 + v1/v2 最小 expand migration；OS-5 实施 |
-| recommendation / insights 在 V2 仅兼容说明；`/resumes/import*` 缺失、岗位筛选不进 URL | 是 | 已选归入规范 `/jobs/*`；OS-2 实施 |
-| 今日、岗位详情、设置、旧只读页的错误语义不一致 | 是 | OS-2、OS-6 |
+| recommendation / insights 在 V2 仅兼容说明；`/resumes/import*` 缺失、岗位筛选不进 URL | 是 | OS-2 已关闭：规范 `/jobs*` 与 `/resumes/import*` 已接入 |
+| 今日、岗位详情、设置、旧只读页的错误语义不一致 | 是 | 岗位详情触达范围由 OS-2 关闭；其余归 OS-6 |
 | 通用 `apiRequest<T>` 对多数业务响应不做运行时 schema 解析 | 是 | 随 OS-1–OS-6 触达端点修正；OS-7 总验 |
 | 刷新部署、全路由键盘、性能和回退总验证 | 是 | OS-7 |
 

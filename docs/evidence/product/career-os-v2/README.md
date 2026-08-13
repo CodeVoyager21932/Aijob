@@ -6,9 +6,9 @@
 >
 > 上位事实源：[ADR-0030](../../../decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md)、[当前交付计划](../../../plans/career-os-current-delivery-plan.md)
 
-> 当前状态：M1–M4 与 PA-1 已完成并归档；UX-0 审计与 OS-1 系统外壳/运行契约均已关闭。OS-1 已同步完成 Platform 读冲突修复、唯一 WorkspaceShell、路由/错误、统一 overlay/focus、真实 session 状态与触达响应 runtime schema；决定为“完成 OS-1，进入 OS-2 准备”。OS-2 尚未实施，等待 coco 指令。本目录各历史验收中的“继续”“下一唯一切片”和等待决定只记录当时时点，不得生成当前任务。
+> 当前状态：M1–M4 与 PA-1 已完成并归档；UX-0、OS-1 与 OS-2 五项 Gate 均已关闭。OS-2 已同步完成规范岗位目录/详情、服务器派生推荐、市场洞察、简历导入/确认、Case 创建、URL 恢复与对应 owner/session/runtime schema Gate；决定为“完成 OS-2，进入 OS-3 准备”。OS-3 尚未实施，等待 coco 指令。本目录各历史验收中的“继续”“下一唯一切片”和等待决定只记录当时时点，不得生成当前任务。
 
-当前体验证据见 [OS-1 系统外壳与运行契约验收](os-1-system-shell-and-runtime-contract-acceptance-2026-08-13.md)；其上游基线为 [UX-0 端到端契约与基线审计](ux-0-end-to-end-contract-and-baseline-2026-08-13.md)。OS-1 关闭不等于 OS-2–OS-7、真实供给、用户价值或 Private Alpha 已通过。
+当前体验证据见 [OS-2 资料准备与可信岗位入口验收](os-2-profile-and-trusted-job-entry-acceptance-2026-08-13.md)；其上游为 [OS-1 系统外壳与运行契约验收](os-1-system-shell-and-runtime-contract-acceptance-2026-08-13.md)和 [UX-0 端到端契约与基线审计](ux-0-end-to-end-contract-and-baseline-2026-08-13.md)。OS-2 关闭不等于 OS-3–OS-7、真实供给、用户价值或 Private Alpha 已通过。
 
 已完成工程路线的证据依次见 [M1 真实 Case 工作台](m1-real-case-workspace-acceptance-2026-08-09.md)、[M2 专业简历闭环](m2-professional-resume-acceptance-2026-08-11.md)、[M3 总验收](m3-workflow-acceptance-2026-08-12.md)、[M4 工程与浏览器总验收](m4-engineering-browser-gate-acceptance-2026-08-12.md)和 [PA-1 离线候选](pa-1-offline-identity-parser-candidate-acceptance-2026-08-12.md)。这些证据保留历史工程事实，但不覆盖[动态路线](../../../06-mvp-roadmap.md)、[当前交付计划](../../../plans/career-os-current-delivery-plan.md)或[当前交接](../../../handoffs/current.md)。
 

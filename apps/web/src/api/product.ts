@@ -3,12 +3,17 @@ import type {
   ConfirmResumeProfileResponse,
   CreateJobInsightRunRequest,
   CreateMatchRunRequest,
+  CreateRecommendationRunFromSearchRequest,
   CreateRecommendationRunRequest,
   CreateResumeTailoringRequest,
+  CurrentProfileEvidence,
+  CurrentProfileFacts,
+  CurrentProfilePreferences,
   CurrentResumeDocument,
   JobDecision,
   JobDetail,
   JobInsightRun,
+  JobRecommendationRunView,
   JobPreferenceRevision,
   JobSearchResponse,
   MatchRun,
@@ -21,98 +26,35 @@ import type {
   PutSavedResumeEvidenceSelectionRequest,
   PutTailoringSegmentRequest,
   RecommendationRun,
+  LegacyResumeAnalysisResult,
+  ResumeAnalysisResult,
+  ResumeAnalysisView,
   ResumeEvidenceRevision,
   ResumeExport,
   ResumeTailoringRun,
 } from "@aijob/contracts";
-import { MAX_RECOMMENDATION_CANDIDATES } from "@aijob/contracts";
+import {
+  ConfirmResumeProfileResponseSchema,
+  CurrentProfileEvidenceSchema,
+  CurrentProfileFactsSchema,
+  CurrentProfilePreferencesSchema,
+  CurrentResumeDocumentSchema,
+  JobDetailSchema,
+  JobInsightRunSchema,
+  JobRecommendationRunViewSchema,
+  JobSearchResponseSchema,
+  MatchRunSchema,
+  MAX_RECOMMENDATION_CANDIDATES,
+  ProfileFactRevisionSchema,
+  RecommendationRunSchema,
+  ResumeAnalysisViewSchema,
+  ResumeEvidenceRevisionSchema,
+  JobPreferenceRevisionSchema,
+} from "@aijob/contracts";
 import { apiRequest, createIdempotencyKey } from "./client";
 
-export interface ResumeAnalysisResultPayload {
-  version: "resume-analysis-v2";
-  redactedText: string;
-  document: {
-    schemaVersion: "resume-document-v1";
-    sections: Array<{
-      id: string;
-      ordinal: number;
-      title: string;
-      blocks: Array<{ id: string; ordinal: number; text: string }>;
-    }>;
-  };
-  candidateFacts: Array<Record<string, unknown> & { key: string; confirmed: false }>;
-  candidateEvidence: Array<{
-    id: string;
-    sourceBlockId: string;
-    section: string;
-    evidenceType:
-      | "education"
-      | "internship"
-      | "project"
-      | "campus"
-      | "competition"
-      | "volunteer"
-      | "skill"
-      | "certificate"
-      | "other";
-    statement: string;
-    skills: string[];
-    outcomes: string[];
-    confirmed: false;
-  }>;
-}
-
-export interface LegacyResumeAnalysisResultPayload {
-  version: "resume-analysis-v1";
-  redactedText: string;
-  candidateFacts: Array<Record<string, unknown> & { key: string; confirmed: false }>;
-  candidateEvidence: Array<{
-    id: string;
-    section: string;
-    originalText: string;
-    claim: string;
-    skills: string[];
-    outcomes: string[];
-    confirmed: false;
-  }>;
-}
-
-export interface ResumeAnalysisView {
-  id: string;
-  ownerId: string;
-  inputKind: "pdf" | "docx" | "pasted_text";
-  status: "queued" | "processing" | "needs_input" | "succeeded" | "failed" | "deleted";
-  piiFindings: Array<{
-    kind: "phone" | "email" | "national_id" | "address" | "other";
-    count: number;
-  }>;
-  requiresPrivacyConfirmation: boolean;
-  purgeAfter: string;
-  confirmedAt: string | null;
-  purgedAt: string | null;
-  failureCode: string | null;
-  createdAt: string;
-  updatedAt: string;
-  result: ResumeAnalysisResultPayload | LegacyResumeAnalysisResultPayload | null;
-}
-
-export interface EmptyProfileFacts {
-  revision: 0;
-  facts: [];
-}
-
-export interface EmptyProfilePreferences {
-  revision: 0;
-  preferences: null;
-}
-
-export interface EmptyProfileEvidence {
-  revision: 0;
-  resumeAnalysisId: null;
-  schemaVersion: "resume-evidence-v2";
-  documentRevisionId: null;
-  evidence: [];
-}
+export type ResumeAnalysisResultPayload = ResumeAnalysisResult;
+export type LegacyResumeAnalysisResultPayload = LegacyResumeAnalysisResult;
 
 function appendList(params: URLSearchParams, key: string, values: string[]) {
   if (values.length > 0) params.set(key, values.join(","));
@@ -137,7 +79,7 @@ export interface JobFilters {
   sourceTypes: string[];
   freshness: string;
   includeUnknownHardConditions: boolean;
-  cursor?: string;
+  cursor?: string | undefined;
 }
 
 export function jobSearchPath(filters: JobFilters): string {
@@ -170,7 +112,10 @@ export function jobSearchPath(filters: JobFilters): string {
 }
 
 export function getJobs(filters: JobFilters, signal?: AbortSignal) {
-  return apiRequest<JobSearchResponse>(jobSearchPath(filters), { signal });
+  return apiRequest<JobSearchResponse>(jobSearchPath(filters), {
+    signal,
+    responseSchema: JobSearchResponseSchema,
+  });
 }
 
 export async function collectRecommendationCandidateJobs(
@@ -230,7 +175,10 @@ export function recommendationCandidateVersionIds(items: JobSearchResponse["item
 }
 
 export function getJob(jobId: string, signal?: AbortSignal) {
-  return apiRequest<JobDetail>(`/v1/jobs/${encodeURIComponent(jobId)}`, { signal });
+  return apiRequest<JobDetail>(`/v1/jobs/${encodeURIComponent(jobId)}`, {
+    signal,
+    responseSchema: JobDetailSchema,
+  });
 }
 
 export function createJobInsightRun(body: CreateJobInsightRunRequest) {
@@ -238,12 +186,14 @@ export function createJobInsightRun(body: CreateJobInsightRunRequest) {
     method: "POST",
     body,
     idempotencyKey: createIdempotencyKey("job-insight"),
+    responseSchema: JobInsightRunSchema,
   });
 }
 
 export function getJobInsightRun(id: string, signal?: AbortSignal) {
   return apiRequest<JobInsightRun>(`/v1/job-insight-runs/${encodeURIComponent(id)}`, {
     signal,
+    responseSchema: JobInsightRunSchema,
   });
 }
 
@@ -252,6 +202,7 @@ export function submitResumeText(text: string) {
     method: "POST",
     body: { inputKind: "pasted_text", text },
     idempotencyKey: createIdempotencyKey("resume-text"),
+    responseSchema: ResumeAnalysisViewSchema,
   });
 }
 
@@ -262,18 +213,21 @@ export function submitResumeFile(file: File) {
     method: "POST",
     body,
     idempotencyKey: createIdempotencyKey("resume-file"),
+    responseSchema: ResumeAnalysisViewSchema,
   });
 }
 
 export function getResumeAnalysis(id: string, signal?: AbortSignal) {
   return apiRequest<ResumeAnalysisView>(`/v1/resume-analyses/${encodeURIComponent(id)}`, {
     signal,
+    responseSchema: ResumeAnalysisViewSchema,
   });
 }
 
 export function getProfileFacts(signal?: AbortSignal) {
-  return apiRequest<ProfileFactRevision | EmptyProfileFacts>("/v1/profile/facts", {
+  return apiRequest<CurrentProfileFacts>("/v1/profile/facts", {
     signal,
+    responseSchema: CurrentProfileFactsSchema,
   });
 }
 
@@ -281,12 +235,14 @@ export function putProfileFacts(body: PutProfileFactsRequest) {
   return apiRequest<ProfileFactRevision>("/v1/profile/facts", {
     method: "PUT",
     body,
+    responseSchema: ProfileFactRevisionSchema,
   });
 }
 
 export function getProfilePreferences(signal?: AbortSignal) {
-  return apiRequest<JobPreferenceRevision | EmptyProfilePreferences>("/v1/profile/preferences", {
+  return apiRequest<CurrentProfilePreferences>("/v1/profile/preferences", {
     signal,
+    responseSchema: CurrentProfilePreferencesSchema,
   });
 }
 
@@ -294,12 +250,14 @@ export function putProfilePreferences(body: PutJobPreferencesRequest) {
   return apiRequest<JobPreferenceRevision>("/v1/profile/preferences", {
     method: "PUT",
     body,
+    responseSchema: JobPreferenceRevisionSchema,
   });
 }
 
 export function getProfileEvidence(signal?: AbortSignal) {
-  return apiRequest<ResumeEvidenceRevision | EmptyProfileEvidence>("/v1/profile/evidence", {
+  return apiRequest<CurrentProfileEvidence>("/v1/profile/evidence", {
     signal,
+    responseSchema: CurrentProfileEvidenceSchema,
   });
 }
 
@@ -307,6 +265,7 @@ export function putProfileEvidence(body: PutResumeEvidenceRequest) {
   return apiRequest<ResumeEvidenceRevision>("/v1/profile/evidence", {
     method: "PUT",
     body,
+    responseSchema: ResumeEvidenceRevisionSchema,
   });
 }
 
@@ -314,17 +273,22 @@ export function confirmResumeProfile(body: ConfirmResumeProfileRequest) {
   return apiRequest<ConfirmResumeProfileResponse>("/v1/profile/confirmation", {
     method: "PUT",
     body,
+    responseSchema: ConfirmResumeProfileResponseSchema,
   });
 }
 
 export function getProfileDocument(signal?: AbortSignal) {
-  return apiRequest<CurrentResumeDocument>("/v1/profile/document", { signal });
+  return apiRequest<CurrentResumeDocument>("/v1/profile/document", {
+    signal,
+    responseSchema: CurrentResumeDocumentSchema,
+  });
 }
 
 export function putSavedResumeEvidenceSelection(body: PutSavedResumeEvidenceSelectionRequest) {
   return apiRequest<ResumeEvidenceRevision>("/v1/profile/evidence-selection", {
     method: "PUT",
     body,
+    responseSchema: ResumeEvidenceRevisionSchema,
   });
 }
 
@@ -333,12 +297,14 @@ export function createMatchRun(body: CreateMatchRunRequest) {
     method: "POST",
     body,
     idempotencyKey: createIdempotencyKey("match"),
+    responseSchema: MatchRunSchema,
   });
 }
 
 export function getMatchRun(id: string, signal?: AbortSignal) {
   return apiRequest<MatchRun>(`/v1/match-runs/${encodeURIComponent(id)}`, {
     signal,
+    responseSchema: MatchRunSchema,
   });
 }
 
@@ -347,13 +313,34 @@ export function createRecommendationRun(body: CreateRecommendationRunRequest) {
     method: "POST",
     body,
     idempotencyKey: createIdempotencyKey("recommendation"),
+    responseSchema: RecommendationRunSchema,
   });
 }
 
 export function getRecommendationRun(id: string, signal?: AbortSignal) {
   return apiRequest<RecommendationRun>(`/v1/recommendation-runs/${encodeURIComponent(id)}`, {
     signal,
+    responseSchema: RecommendationRunSchema,
   });
+}
+
+export function createRecommendationRunFromSearch(
+  body: CreateRecommendationRunFromSearchRequest,
+  idempotencyKey: string,
+) {
+  return apiRequest<JobRecommendationRunView>("/v1/recommendation-runs/from-search", {
+    method: "POST",
+    body,
+    idempotencyKey,
+    responseSchema: JobRecommendationRunViewSchema,
+  });
+}
+
+export function getRecommendationRunView(id: string, signal?: AbortSignal) {
+  return apiRequest<JobRecommendationRunView>(
+    `/v1/recommendation-runs/${encodeURIComponent(id)}/view`,
+    { signal, responseSchema: JobRecommendationRunViewSchema },
+  );
 }
 
 export function getJobDecisions(signal?: AbortSignal) {

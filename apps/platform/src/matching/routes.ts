@@ -1,5 +1,6 @@
 import {
   CreateMatchRunRequestSchema,
+  CreateRecommendationRunFromSearchRequestSchema,
   CreateRecommendationRunRequestSchema,
 } from "@aijob/contracts";
 import type { Database } from "@aijob/database";
@@ -11,9 +12,11 @@ import { ApiProblem, sendApiProblem } from "../identity/http.js";
 import { ServiceError } from "../lib/service-error.js";
 import {
   enqueueMatchRun,
+  enqueueRecommendationRunFromSearch,
   enqueueRecommendationRun,
   getMatchRun,
   getRecommendationRun,
+  getRecommendationRunView,
 } from "./service.js";
 
 const ParamsSchema = z.object({ runId: z.string().trim().min(1) });
@@ -48,6 +51,26 @@ function handleError(
     );
   }
   throw error;
+}
+
+function handleRecommendationScopeError(
+  error: unknown,
+  request: Parameters<typeof sendApiProblem>[0],
+  reply: Parameters<typeof sendApiProblem>[1],
+) {
+  if (error instanceof z.ZodError) {
+    return sendApiProblem(
+      request,
+      reply,
+      new ApiProblem(
+        400,
+        "INVALID_RECOMMENDATION_SCOPE",
+        "推荐筛选条件格式不正确",
+        "请检查岗位筛选条件后重试。",
+      ),
+    );
+  }
+  return handleError(error, request, reply);
 }
 
 export function registerMatchingRoutes(
@@ -109,6 +132,23 @@ export function registerMatchingRoutes(
     }
   });
 
+  app.post("/v1/recommendation-runs/from-search", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const body = CreateRecommendationRunFromSearchRequestSchema.parse(request.body);
+      const result = await enqueueRecommendationRunFromSearch(
+        options.db,
+        owner,
+        body,
+        idempotencyKey(request.headers),
+        { enableLocalMvp: options.enableLocalMvp },
+      );
+      return reply.code(202).send(result);
+    } catch (error) {
+      return handleRecommendationScopeError(error, request, reply);
+    }
+  });
+
   app.get("/v1/recommendation-runs/:runId", async (request, reply) => {
     const owner = requireOwnerContext(request);
     const { runId } = ParamsSchema.parse(request.params);
@@ -128,5 +168,30 @@ export function registerMatchingRoutes(
       );
     }
     return reply.send(result);
+  });
+
+  app.get("/v1/recommendation-runs/:runId/view", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { runId } = ParamsSchema.parse(request.params);
+      const result = await getRecommendationRunView(options.db, owner, runId, {
+        enableLocalMvp: options.enableLocalMvp,
+      });
+      if (!result) {
+        return sendApiProblem(
+          request,
+          reply,
+          new ApiProblem(
+            404,
+            "RECOMMENDATION_RUN_NOT_FOUND",
+            "没有找到这次岗位推荐",
+            "任务不存在、已被删除，或不属于当前匿名会话。",
+          ),
+        );
+      }
+      return reply.send(result);
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
   });
 }

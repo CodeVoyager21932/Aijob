@@ -195,7 +195,7 @@ export function RequirementInspector({
           <div className="career-inspector-empty">
             <Icon name="question" size={18} />
             <p>还没有可关联的已确认证据。三态和备注仍可保存。</p>
-            <Link to="/resume">先确认简历证据</Link>
+            <Link to="/resumes/import">先确认简历证据</Link>
           </div>
         )}
       </section>

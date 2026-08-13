@@ -1,16 +1,20 @@
 import { randomUUID } from "node:crypto";
 import {
+  type CreateRecommendationRunFromSearchRequest,
+  CreateRecommendationRunFromSearchRequestSchema,
   type CreateRecommendationRunRequest,
   CreateRecommendationRunRequestSchema,
   fieldValueSchema,
   JobFamilySchema,
   JobPreferenceSchema,
+  type JobRecommendationRunView,
+  JobRecommendationRunViewSchema,
   JobRequirementSchema,
+  MAX_RECOMMENDATION_CANDIDATES,
   type MatchRun,
   type MatchRunResult,
   MatchRunResultSchema,
   MatchRunSchema,
-  MAX_RECOMMENDATION_CANDIDATES,
   ProfileFactSchema,
   type RecommendationCatalogState,
   type RecommendationRun,
@@ -20,10 +24,19 @@ import {
 import type { Database, JsonValue } from "@aijob/database";
 import { type Kysely, type Selectable, sql, type Transaction } from "kysely";
 import { z } from "zod";
+import {
+  createCatalogRepository,
+  getImmutableRecommendationJobProjections,
+} from "../catalog/repository.js";
 import { assertActiveOwnerEpoch, type OwnerScope } from "../identity/session-repository.js";
 import { hashCanonicalJson } from "../lib/canonical-json.js";
 import { lockOwnerIdempotencyKey } from "../lib/idempotency.js";
 import { ServiceError } from "../lib/service-error.js";
+import {
+  getCurrentJobPreferences,
+  getCurrentProfileFacts,
+  getCurrentResumeEvidence,
+} from "../profile/revision-repository.js";
 import type { OwnerTaskLease } from "../workers/owner-task-lease.js";
 import { withOwnerTaskLease } from "../workers/owner-task-lease.js";
 import { CAPABILITY_DICTIONARY_VERSION } from "./capabilities.js";
@@ -50,6 +63,7 @@ type RecommendationCandidateFreshnessSnapshot = z.infer<
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 type OwnerContext = OwnerScope;
 type MatchRunRow = Selectable<Database["matching.match_runs"]>;
+type RecommendationRunRow = Selectable<Database["matching.recommendation_runs"]>;
 
 const StringFieldSchema = fieldValueSchema(z.string().trim().min(1));
 const StringListFieldSchema = fieldValueSchema(z.array(z.string().trim().min(1)).min(1));
@@ -344,11 +358,7 @@ export async function getMatchRun(
   return row ? mapMatchRun(row) : null;
 }
 
-async function loadMatchInputs(
-  db: DbExecutor,
-  run: MatchRunRow,
-  options: MatchCatalogOptions,
-) {
+async function loadMatchInputs(db: DbExecutor, run: MatchRunRow, options: MatchCatalogOptions) {
   const [requirementSet, factRevision, preferenceRevision, evidenceRevision, jobVersion] =
     await Promise.all([
       db
@@ -539,6 +549,7 @@ const FrozenRequirementSetSchema = z.object({
   publishedJobVersionId: z.string().trim().min(1),
   requirementSetId: z.string().trim().min(1),
 });
+type FrozenRequirementSet = z.infer<typeof FrozenRequirementSetSchema>;
 
 function parseFrozenRequirementSets(
   row: Selectable<Database["matching.recommendation_runs"]>,
@@ -630,7 +641,7 @@ interface RecommendationCatalogContext {
 
 async function recommendationCatalogContext(
   db: DbExecutor,
-  row: Selectable<Database["matching.recommendation_runs"]>,
+  row: RecommendationRunRow,
   enableLocalMvp: boolean,
 ): Promise<RecommendationCatalogContext> {
   const candidateIds = parseRecommendationCandidateIds(row);
@@ -740,6 +751,67 @@ async function recommendationCatalogContext(
   return { runState, itemStates, snapshots };
 }
 
+async function insertRecommendationRunAndTask(
+  transaction: Transaction<Database>,
+  owner: OwnerContext,
+  input: {
+    request: CreateRecommendationRunRequest;
+    candidateSnapshots: RecommendationCandidateFreshnessSnapshot[];
+    frozenRequirementSets: FrozenRequirementSet[];
+    resumeDocumentRevisionId: string | null;
+    requestHash: string;
+    idempotencyKey: string;
+  },
+): Promise<RecommendationRunRow> {
+  const id = randomUUID();
+  const created = await transaction
+    .insertInto("matching.recommendation_runs")
+    .values({
+      id,
+      owner_id: owner.ownerId,
+      owner_epoch: owner.ownerEpoch,
+      profile_fact_revision_id: input.request.profileFactRevisionId,
+      preference_revision_id: input.request.preferenceRevisionId,
+      evidence_revision_id: input.request.evidenceRevisionId,
+      candidate_job_version_ids: json(input.request.candidateJobVersionIds),
+      candidate_freshness_snapshots: json(input.candidateSnapshots),
+      candidate_requirement_set_ids: json(input.frozenRequirementSets),
+      resume_document_revision_id: input.resumeDocumentRevisionId,
+      candidate_set_hash: hashCanonicalJson(input.request.candidateJobVersionIds),
+      strategy_version: RECOMMENDATION_STRATEGY_VERSION,
+      status: "queued",
+      request_hash: input.requestHash,
+      idempotency_key: input.idempotencyKey,
+      failure_code: null,
+      completed_at: null,
+    })
+    .returningAll()
+    .executeTakeFirstOrThrow();
+  await transaction
+    .insertInto("task_queue.tasks")
+    .values({
+      id: randomUUID(),
+      task_type: "recommendation_run",
+      owner_id: owner.ownerId,
+      owner_epoch: owner.ownerEpoch,
+      payload: json({ runId: id }),
+      idempotency_key: `owner:${owner.ownerId}:recommendation:${input.idempotencyKey}`,
+      status: "queued",
+      attempt: 0,
+      max_attempts: 3,
+      available_at: new Date(),
+      backoff_policy: json({ kind: "exponential", baseSeconds: 2, maxSeconds: 30 }),
+      lease_owner: null,
+      lease_until: null,
+      heartbeat_at: null,
+      last_error_code: null,
+      last_error_summary: null,
+      completed_at: null,
+    })
+    .execute();
+  return created;
+}
+
 export async function enqueueRecommendationRun(
   db: Kysely<Database>,
   owner: OwnerContext,
@@ -756,7 +828,6 @@ export async function enqueueRecommendationRun(
     candidateJobVersionIds: [...new Set(parsedRequest.candidateJobVersionIds)].sort(),
   };
   const requestHash = hashCanonicalJson(normalizedRequest);
-  const candidateSetHash = hashCanonicalJson(normalizedRequest.candidateJobVersionIds);
   const row = await db.transaction().execute(async (transaction) => {
     await lockOwnerIdempotencyKey(transaction, {
       ownerId: owner.ownerId,
@@ -807,7 +878,6 @@ export async function enqueueRecommendationRun(
       );
     }
 
-    const id = randomUUID();
     const frozenRequirementSets = normalizedRequest.candidateJobVersionIds.map(
       (publishedJobVersionId) => ({
         publishedJobVersionId,
@@ -821,55 +891,188 @@ export async function enqueueRecommendationRun(
       .where("id", "=", parsedRequest.evidenceRevisionId)
       .where("owner_id", "=", owner.ownerId)
       .executeTakeFirstOrThrow();
-    const created = await transaction
-      .insertInto("matching.recommendation_runs")
-      .values({
-        id,
-        owner_id: owner.ownerId,
-        owner_epoch: owner.ownerEpoch,
-        profile_fact_revision_id: parsedRequest.profileFactRevisionId,
-        preference_revision_id: parsedRequest.preferenceRevisionId,
-        evidence_revision_id: parsedRequest.evidenceRevisionId,
-        candidate_job_version_ids: json(normalizedRequest.candidateJobVersionIds),
-        candidate_freshness_snapshots: json(candidateSnapshots),
-        candidate_requirement_set_ids: json(frozenRequirementSets),
-        resume_document_revision_id: evidenceRevision.document_revision_id,
-        candidate_set_hash: candidateSetHash,
-        strategy_version: RECOMMENDATION_STRATEGY_VERSION,
-        status: "queued",
-        request_hash: requestHash,
-        idempotency_key: idempotencyKey,
-        failure_code: null,
-        completed_at: null,
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
-    await transaction
-      .insertInto("task_queue.tasks")
-      .values({
-        id: randomUUID(),
-        task_type: "recommendation_run",
-        owner_id: owner.ownerId,
-        owner_epoch: owner.ownerEpoch,
-        payload: json({ runId: id }),
-        idempotency_key: `owner:${owner.ownerId}:recommendation:${idempotencyKey}`,
-        status: "queued",
-        attempt: 0,
-        max_attempts: 3,
-        available_at: new Date(),
-        backoff_policy: json({ kind: "exponential", baseSeconds: 2, maxSeconds: 30 }),
-        lease_owner: null,
-        lease_until: null,
-        heartbeat_at: null,
-        last_error_code: null,
-        last_error_summary: null,
-        completed_at: null,
-      })
-      .execute();
-    return created;
+    return insertRecommendationRunAndTask(transaction, owner, {
+      request: normalizedRequest,
+      candidateSnapshots,
+      frozenRequirementSets,
+      resumeDocumentRevisionId: evidenceRevision.document_revision_id,
+      requestHash,
+      idempotencyKey,
+    });
   });
   const context = await recommendationCatalogContext(db, row, options.enableLocalMvp);
   return mapRecommendationRun(row, [], context.runState);
+}
+
+function recommendationInputChanged(previousHash: string, requestHash: string): never {
+  throw new ServiceError(
+    409,
+    "RECOMMENDATION_INPUT_CHANGED",
+    previousHash === requestHash
+      ? "岗位候选或已确认资料在推荐创建期间发生了变化，请刷新后重试。"
+      : "同一个幂等键对应的筛选条件、候选岗位或已确认资料已经变化，请刷新后重试。",
+  );
+}
+
+function retryableRecommendationCreationError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: unknown; constraint?: unknown };
+  if (candidate.code === "40001") return true;
+  return (
+    candidate.code === "23505" &&
+    candidate.constraint === "recommendation_runs_owner_id_idempotency_key_key"
+  );
+}
+
+async function executeRepeatableRecommendationCreation<T>(
+  db: Kysely<Database>,
+  operation: (transaction: Transaction<Database>) => Promise<T>,
+): Promise<T> {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      return await db.transaction().setIsolationLevel("repeatable read").execute(operation);
+    } catch (error) {
+      if (!retryableRecommendationCreationError(error)) throw error;
+      if (attempt === 3) {
+        throw new ServiceError(
+          503,
+          "RECOMMENDATION_CREATE_RETRY_EXHAUSTED",
+          "岗位目录或已确认资料正在更新，请稍后重新生成推荐。",
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, attempt * 5));
+    }
+  }
+  throw new Error("RECOMMENDATION_CREATE_RETRY_UNREACHABLE");
+}
+
+export async function enqueueRecommendationRunFromSearch(
+  db: Kysely<Database>,
+  owner: OwnerContext,
+  request: CreateRecommendationRunFromSearchRequest,
+  idempotencyKey: string,
+  options: RecommendationCatalogOptions,
+): Promise<JobRecommendationRunView> {
+  if (!idempotencyKey.trim()) {
+    throw new ServiceError(400, "IDEMPOTENCY_KEY_REQUIRED", "创建推荐任务时必须提供幂等键。");
+  }
+  const parsedRequest = CreateRecommendationRunFromSearchRequestSchema.parse(request);
+  const adapterKey = `from-search:${idempotencyKey}`;
+  const row = await executeRepeatableRecommendationCreation(db, async (transaction) => {
+    await lockOwnerIdempotencyKey(transaction, {
+      ownerId: owner.ownerId,
+      scope: "recommendation-run",
+      idempotencyKey: adapterKey,
+    });
+    await assertActiveOwnerEpoch(transaction, owner.ownerId, owner.ownerEpoch);
+    const [facts, preferences, evidence] = await Promise.all([
+      getCurrentProfileFacts({ db: transaction, ownerId: owner.ownerId }),
+      getCurrentJobPreferences({ db: transaction, ownerId: owner.ownerId }),
+      getCurrentResumeEvidence({ db: transaction, ownerId: owner.ownerId }),
+    ]);
+    if (!facts || !preferences || !evidence) {
+      throw new ServiceError(
+        422,
+        "RECOMMENDATION_PROFILE_INCOMPLETE",
+        "请先确认求职事实、岗位偏好和经历证据，再生成推荐。",
+      );
+    }
+    const candidates = await createCatalogRepository({
+      db: transaction,
+      enableLocalMvp: options.enableLocalMvp,
+    }).collectRecommendationCandidates(parsedRequest.scope, MAX_RECOMMENDATION_CANDIDATES);
+    if (candidates.length === 0) {
+      throw new ServiceError(
+        422,
+        "RECOMMENDATION_CANDIDATES_EMPTY",
+        "当前筛选条件下没有可用于推荐的可信岗位。",
+      );
+    }
+    if (candidates.length > MAX_RECOMMENDATION_CANDIDATES) {
+      throw new ServiceError(
+        422,
+        "RECOMMENDATION_CANDIDATE_LIMIT_EXCEEDED",
+        `当前筛选条件下的岗位超过 ${MAX_RECOMMENDATION_CANDIDATES} 条，请缩小范围后重试。`,
+      );
+    }
+    const candidateJobVersionIds = candidates.map(({ publishedJobVersionId }) => {
+      if (!publishedJobVersionId) {
+        throw new ServiceError(
+          422,
+          "RECOMMENDATION_CANDIDATES_EMPTY",
+          "当前筛选条件下没有完成要求拆解的可信岗位。",
+        );
+      }
+      return publishedJobVersionId;
+    });
+    const input: CreateRecommendationRunRequest = {
+      profileFactRevisionId: facts.id,
+      preferenceRevisionId: preferences.id,
+      evidenceRevisionId: evidence.id,
+      candidateJobVersionIds,
+    };
+    const normalizedInput = {
+      ...input,
+      candidateJobVersionIds: [...new Set(candidateJobVersionIds)].sort(),
+    };
+    const requestHash = hashCanonicalJson({ scope: parsedRequest.scope, input: normalizedInput });
+    const previous = await transaction
+      .selectFrom("matching.recommendation_runs")
+      .selectAll()
+      .where("owner_id", "=", owner.ownerId)
+      .where("idempotency_key", "=", adapterKey)
+      .executeTakeFirst();
+    if (previous) {
+      if (previous.request_hash !== requestHash) {
+        recommendationInputChanged(previous.request_hash, requestHash);
+      }
+      return previous;
+    }
+    await assertProfileInputs(transaction, owner, input);
+    const existingCandidates = await transaction
+      .selectFrom("catalog.published_job_versions")
+      .select(["id", "active_requirement_set_id"])
+      .where("id", "in", normalizedInput.candidateJobVersionIds)
+      .execute();
+    if (
+      existingCandidates.length !== normalizedInput.candidateJobVersionIds.length ||
+      existingCandidates.some(({ active_requirement_set_id }) => !active_requirement_set_id)
+    ) {
+      throw new ServiceError(
+        409,
+        "RECOMMENDATION_INPUT_CHANGED",
+        "岗位候选在推荐创建期间发生了变化，请刷新后重试。",
+      );
+    }
+    const candidateSnapshots = await currentCatalogCandidateSnapshots(
+      transaction,
+      normalizedInput.candidateJobVersionIds,
+      options.enableLocalMvp,
+    );
+    if (candidateSnapshots.length !== normalizedInput.candidateJobVersionIds.length) {
+      throw new ServiceError(
+        409,
+        "RECOMMENDATION_INPUT_CHANGED",
+        "岗位目录在推荐创建期间发生了变化，请刷新后重试。",
+      );
+    }
+    const frozenRequirementSets = normalizedInput.candidateJobVersionIds.map(
+      (publishedJobVersionId) => ({
+        publishedJobVersionId,
+        requirementSetId: existingCandidates.find(({ id }) => id === publishedJobVersionId)
+          ?.active_requirement_set_id as string,
+      }),
+    );
+    return insertRecommendationRunAndTask(transaction, owner, {
+      request: normalizedInput,
+      candidateSnapshots,
+      frozenRequirementSets,
+      resumeDocumentRevisionId: evidence.documentRevisionId,
+      requestHash,
+      idempotencyKey: adapterKey,
+    });
+  });
+  return recommendationView(db, row, owner, options);
 }
 
 async function recommendationItems(
@@ -962,6 +1165,71 @@ export async function getRecommendationRun(
     await recommendationItems(db, owner.ownerId, row.id, context),
     context.runState,
   );
+}
+
+async function recommendationView(
+  db: DbExecutor,
+  row: RecommendationRunRow,
+  owner: OwnerContext,
+  options: RecommendationCatalogOptions,
+): Promise<JobRecommendationRunView> {
+  const context = await recommendationCatalogContext(db, row, options.enableLocalMvp);
+  const run = mapRecommendationRun(
+    row,
+    await recommendationItems(db, owner.ownerId, row.id, context),
+    context.runState,
+  );
+  if (run.status !== "succeeded") {
+    return JobRecommendationRunViewSchema.parse({
+      schemaVersion: "job-recommendation-run-view-v1",
+      run,
+      jobs: [],
+    });
+  }
+  const projections = await getImmutableRecommendationJobProjections(
+    db,
+    run.items.map(({ publishedJobVersionId }) => publishedJobVersionId),
+  );
+  const jobs = run.items.map((item) => {
+    const projection = projections.get(item.publishedJobVersionId);
+    if (!projection) {
+      throw new ServiceError(
+        409,
+        "RECOMMENDATION_INPUT_CHANGED",
+        "本次推荐固定的岗位版本已经不可读取，请重新生成推荐。",
+      );
+    }
+    return {
+      ordinal: item.ordinal,
+      ...projection,
+      display: {
+        ...projection.display,
+        lastVerifiedAt: item.lastVerifiedAt,
+      },
+      catalogState: item.catalogState,
+    };
+  });
+  return JobRecommendationRunViewSchema.parse({
+    schemaVersion: "job-recommendation-run-view-v1",
+    run,
+    jobs,
+  });
+}
+
+export async function getRecommendationRunView(
+  db: Kysely<Database>,
+  owner: OwnerContext,
+  runId: string,
+  options: RecommendationCatalogOptions,
+): Promise<JobRecommendationRunView | null> {
+  const row = await db
+    .selectFrom("matching.recommendation_runs")
+    .selectAll()
+    .where("id", "=", runId)
+    .where("owner_id", "=", owner.ownerId)
+    .where("owner_epoch", "=", owner.ownerEpoch)
+    .executeTakeFirst();
+  return row ? recommendationView(db, row, owner, options) : null;
 }
 
 export async function processRecommendationRun(

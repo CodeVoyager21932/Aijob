@@ -18,4 +18,20 @@ describe("Career OS workspace navigation", () => {
       ),
     ).toEqual(["我的求职", "求职项目", "JD能力"]);
   });
+
+  it("keeps canonical job and resume deep links inside their workspace", () => {
+    expect(getWorkspaceBreadcrumbs("/jobs/recommended/run-one")).toEqual([
+      { label: "发现岗位", to: "/jobs" },
+      { label: "证据推荐" },
+    ]);
+    expect(getWorkspaceBreadcrumbs("/jobs/insights/run-one")).toEqual([
+      { label: "发现岗位", to: "/jobs" },
+      { label: "岗位洞察" },
+    ]);
+    expect(getWorkspaceBreadcrumbs("/resumes/import/confirm/analysis-one")).toEqual([
+      { label: "简历资产", to: "/resumes" },
+      { label: "准备简历", to: "/resumes/import" },
+      { label: "确认资料" },
+    ]);
+  });
 });

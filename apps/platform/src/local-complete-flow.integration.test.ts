@@ -1,18 +1,27 @@
 import { randomUUID } from "node:crypto";
 import type { AppConfig } from "@aijob/config";
-import type { JobRequirement, ResumeEvidence } from "@aijob/contracts";
+import {
+  JobRecommendationRunViewSchema,
+  type JobRequirement,
+  type ResumeEvidence,
+} from "@aijob/contracts";
 import { createDatabase, type Database, migrateToLatest } from "@aijob/database";
+import type { FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { buildApp } from "./app.js";
 import { lockLocalCatalogMaterialization } from "./catalog/materialize.js";
 import { putJobDecision } from "./decisions/service.js";
+import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME, SESSION_COOKIE_NAME } from "./identity/fastify.js";
 import { createAnonymousSession } from "./identity/session-repository.js";
 import { createJobInsightRun } from "./insights/service.js";
 import {
   enqueueMatchRun,
   enqueueRecommendationRun,
+  enqueueRecommendationRunFromSearch,
   getMatchRun,
   getRecommendationRun,
+  getRecommendationRunView,
 } from "./matching/service.js";
 import {
   putJobPreferences,
@@ -63,7 +72,17 @@ const unknown = JSON.stringify({
   reason: "source_not_stated",
 });
 
+function sessionHeaders(session: { sessionToken: string; csrfToken: string }) {
+  return {
+    host: "127.0.0.1:3000",
+    origin: "http://127.0.0.1:3000",
+    cookie: `${SESSION_COOKIE_NAME}=${session.sessionToken}; ${CSRF_COOKIE_NAME}=${session.csrfToken}`,
+    [CSRF_HEADER_NAME]: session.csrfToken,
+  };
+}
+
 describeWithDatabase("complete local MVP service journey", () => {
+  let app: FastifyInstance;
   let db: Kysely<Database>;
   const ids = {
     organization: randomUUID(),
@@ -77,10 +96,13 @@ describeWithDatabase("complete local MVP service journey", () => {
     skillRequirement: `skill-${randomUUID()}`,
   };
   let ownerId: string | undefined;
+  let otherOwnerId: string | undefined;
 
   beforeAll(async () => {
     db = createDatabase(databaseUrl as string);
     await migrateToLatest(db);
+    app = buildApp({ config: config(), db });
+    await app.ready();
     const now = new Date();
     await db
       .insertInto("source_control.organizations")
@@ -297,6 +319,7 @@ describeWithDatabase("complete local MVP service journey", () => {
   });
 
   afterAll(async () => {
+    await app.close();
     if (ownerId) {
       await db.deleteFrom("matching.resume_exports").where("owner_id", "=", ownerId).execute();
       await db.deleteFrom("matching.job_insight_runs").where("owner_id", "=", ownerId).execute();
@@ -331,6 +354,10 @@ describeWithDatabase("complete local MVP service journey", () => {
       await db.deleteFrom("task_queue.tasks").where("owner_id", "=", ownerId).execute();
       await db.deleteFrom("identity.owner_sessions").where("owner_id", "=", ownerId).execute();
       await db.deleteFrom("identity.owners").where("id", "=", ownerId).execute();
+    }
+    if (otherOwnerId) {
+      await db.deleteFrom("identity.owner_sessions").where("owner_id", "=", otherOwnerId).execute();
+      await db.deleteFrom("identity.owners").where("id", "=", otherOwnerId).execute();
     }
     await db.transaction().execute(async (transaction) => {
       await lockLocalCatalogMaterialization(transaction);
@@ -573,6 +600,135 @@ describeWithDatabase("complete local MVP service journey", () => {
           },
         });
         expect(await getMatchRun(db, owner, match.id, { enableLocalMvp: false })).toBeNull();
+
+        const [searchRecommendation, concurrentSearchRecommendation] = await Promise.all([
+          enqueueRecommendationRunFromSearch(
+            db,
+            owner,
+            { scope: { keyword: "产品实习生", includeUnknownHardConditions: true } },
+            `search-recommendation-${ids.organization}`,
+            { enableLocalMvp: true },
+          ),
+          enqueueRecommendationRunFromSearch(
+            db,
+            owner,
+            { scope: { keyword: "产品实习生", includeUnknownHardConditions: true } },
+            `search-recommendation-${ids.organization}`,
+            { enableLocalMvp: true },
+          ),
+        ]);
+        expect(searchRecommendation).toMatchObject({
+          schemaVersion: "job-recommendation-run-view-v1",
+          run: { status: "queued" },
+          jobs: [],
+        });
+        expect(concurrentSearchRecommendation.run.id).toBe(searchRecommendation.run.id);
+        await expect(
+          enqueueRecommendationRunFromSearch(
+            db,
+            owner,
+            { scope: { cities: ["深圳"], includeUnknownHardConditions: true } },
+            `search-recommendation-${ids.organization}`,
+            { enableLocalMvp: true },
+          ),
+        ).rejects.toMatchObject({ code: "RECOMMENDATION_INPUT_CHANGED" });
+        await drainUntil(
+          async () =>
+            (
+              await getRecommendationRunView(db, owner, searchRecommendation.run.id, {
+                enableLocalMvp: true,
+              })
+            )?.run.status === "succeeded",
+        );
+        expect(
+          await getRecommendationRunView(db, owner, searchRecommendation.run.id, {
+            enableLocalMvp: true,
+          }),
+        ).toMatchObject({
+          run: {
+            id: searchRecommendation.run.id,
+            status: "succeeded",
+            items: [{ publishedJobVersionId: ids.publishedVersion }],
+          },
+          jobs: [
+            {
+              publishedJobId: ids.publishedJob,
+              publishedJobVersionId: ids.publishedVersion,
+              display: {
+                title: "产品实习生",
+                companyName: "本地流程测试公司",
+                sourceName: "本地流程测试招聘页",
+              },
+              officialUrl: `https://careers.example.test/jobs/${ids.sourceRecord}/apply`,
+              catalogState: "current",
+            },
+          ],
+        });
+
+        const recommendationHeaders = {
+          ...sessionHeaders(session),
+          "idempotency-key": `search-recommendation-${ids.organization}`,
+        };
+        const replayedSearchRecommendation = await app.inject({
+          method: "POST",
+          url: "/v1/recommendation-runs/from-search",
+          headers: recommendationHeaders,
+          payload: {
+            scope: { keyword: "产品实习生", includeUnknownHardConditions: true },
+          },
+        });
+        expect(replayedSearchRecommendation.statusCode).toBe(202);
+        expect(replayedSearchRecommendation.headers["cache-control"]).toBe("no-store");
+        expect(
+          JobRecommendationRunViewSchema.parse(replayedSearchRecommendation.json()).run.id,
+        ).toBe(searchRecommendation.run.id);
+
+        const ownRecommendationView = await app.inject({
+          method: "GET",
+          url: `/v1/recommendation-runs/${searchRecommendation.run.id}/view`,
+          headers: sessionHeaders(session),
+        });
+        expect(ownRecommendationView.statusCode).toBe(200);
+        expect(JobRecommendationRunViewSchema.parse(ownRecommendationView.json()).run.id).toBe(
+          searchRecommendation.run.id,
+        );
+
+        const invalidRecommendationScope = await app.inject({
+          method: "POST",
+          url: "/v1/recommendation-runs/from-search",
+          headers: {
+            ...sessionHeaders(session),
+            "idempotency-key": `invalid-scope-${ids.organization}`,
+          },
+          payload: { scope: { cursor: "browser-cursor" } },
+        });
+        expect(invalidRecommendationScope.statusCode).toBe(400);
+        expect(invalidRecommendationScope.json()).toMatchObject({
+          code: "INVALID_RECOMMENDATION_SCOPE",
+        });
+
+        const changedRecommendationInput = await app.inject({
+          method: "POST",
+          url: "/v1/recommendation-runs/from-search",
+          headers: recommendationHeaders,
+          payload: { scope: { cities: ["深圳"], includeUnknownHardConditions: true } },
+        });
+        expect(changedRecommendationInput.statusCode).toBe(409);
+        expect(changedRecommendationInput.json()).toMatchObject({
+          code: "RECOMMENDATION_INPUT_CHANGED",
+        });
+
+        const otherSession = await createAnonymousSession({ db });
+        otherOwnerId = otherSession.context.ownerId;
+        const crossOwnerRecommendationView = await app.inject({
+          method: "GET",
+          url: `/v1/recommendation-runs/${searchRecommendation.run.id}/view`,
+          headers: sessionHeaders(otherSession),
+        });
+        expect(crossOwnerRecommendationView.statusCode).toBe(404);
+        expect(crossOwnerRecommendationView.json()).toMatchObject({
+          code: "RECOMMENDATION_RUN_NOT_FOUND",
+        });
 
         const recommendationRequest = {
           profileFactRevisionId: facts.id,

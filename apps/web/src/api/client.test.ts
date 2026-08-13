@@ -95,6 +95,38 @@ describe("product API client", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
+  it("shares the first session bootstrap with an explicit session query and protected reads", async () => {
+    const documentState = { cookie: "" };
+    let sessionRequests = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/v1/session")) {
+        sessionRequests += 1;
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        documentState.cookie = "aijob_csrf=bootstrapped-token";
+        return new Response(JSON.stringify(sessionStatus), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    vi.stubGlobal("document", documentState);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const [session] = await Promise.all([
+      getSessionStatus(),
+      apiRequest("/v1/first"),
+      apiRequest("/v1/second"),
+    ]);
+
+    expect(session).toEqual(sessionStatus);
+    expect(sessionRequests).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it("surfaces stable problem details", async () => {
     vi.stubGlobal(
       "fetch",

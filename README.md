@@ -1,6 +1,6 @@
 # Aijob：可信官方岗位驱动的求职 OS
 
-> 2026-08-13：M1–M4、PA-1、UX-0 与 OS-1 已完成。当前执行[Career OS 前后端同步改进计划](docs/plans/career-os-current-delivery-plan.md)：OS-1 已同步关闭唯一 WorkspaceShell、路由/错误、统一 overlay/focus、真实 session 状态、触达响应 runtime schema，并修复真实隔离库 Gate 复现的 Requirements 并发读冲突。下一切片是 OS-2，尚未实施，等待 coco 指令；真实邮件、解析镜像、服务器、供给和参与者 Gate 仍未通过。
+> 2026-08-13：M1–M4、PA-1、UX-0、OS-1 与 OS-2 已完成。当前执行[Career OS 前后端同步改进计划](docs/plans/career-os-current-delivery-plan.md)：OS-2 已同步关闭资料准备、岗位目录/详情、规范推荐与洞察、Case 创建、简历导入确认和 URL 恢复。下一候选切片是 OS-3，尚未实施，等待 coco 指令；真实邮件、解析镜像、服务器、供给和参与者 Gate 仍未通过。
 
 这是一个待验证的产品项目，面向**未来 30 天真实投递实习岗位、已有中文简历、近期使用过多个官方渠道的中国大陆在校生**。它只把企业官方招聘网站和经企业官网确认的官方 ATS 中当前存在的具体岗位整理为可追溯信息；高校就业网站、政府页面、公众号和其他二手页面只用于发现企业及其官网方向。系统依据用户确认过的约束与经历证据，帮助用户完成投递、暂缓或放弃的高质量决定，最终回到企业官网或官方 ATS 投递。
 
@@ -11,15 +11,15 @@
 | 项目 | 当前值 |
 |---|---|
 | 快照日期 | 2026-08-13 |
-| 当前阶段 | Career OS 前后端同步改进；UX-0 审计 Gate 与 OS-1 系统外壳/运行契约已关闭，OS-2 资料准备与可信岗位入口是下一切片且尚未实施。M1–M4 与 PA-1 保留为工程基线，真实邮件、解析镜像与服务器 Gate 通过前，G0/G1 继续暂停 |
+| 当前阶段 | Career OS 前后端同步改进；UX-0、OS-1 与 OS-2 五项 Gate 已关闭，OS-3 申请看板与 Case 命令是下一候选切片且尚未实施。M1–M4 与 PA-1 保留为工程基线，真实邮件、解析镜像与服务器 Gate 通过前，G0/G1 继续暂停 |
 | 当前范围 | 干净验收库 `aijob_alpha` 为 22 条可信可见活动岗位、3 家企业、3 个官方 ATS 来源；距离硬门槛仍缺 978 岗、97 家。SME 为 2/3 家、14/22 岗，人工来源为 0；Alpha 与公共岗位均为 0。开发库 14/2 及纠偏前 231/149/29 只保留为历史运行事实 |
 | 协议校准 | 尚未开始；供给硬门槛和服务器就绪 Gate 通过后，只有 coco 明确启动才做 2 人校准；历史可核验记录仍为 0/2 |
 | 正式实验 | 暂停；供给硬门槛、服务器就绪 Gate 与 G0 通过后再做 6 人正式任务和 72 小时回访 |
 | 历史研究样本 | 5 条本地产品/运营岗位；不等于完整 MVP 目录 |
 | 当前证据 | E0：尚无可复核目标用户行为证据，两个产品假设均未判定 |
-| 当前实现策略 | 不默认后端已匹配，也不无依据重做。UX-0 已把每个用户动作绑定到 Contracts、Platform 模块、PostgreSQL 事实、权限/并发/删除语义和真实测试；OS-1 已按同一纵向切片同步修改 Platform 与 Web，后续继续逐切片关闭。三张概念图作为布局、信息层级和交互关系的高保真目标；旧 Matching、Recommendation、Insights、Tailoring 只有从规范路径可用、刷新可恢复且事实可追溯时才算自然融入；不因此启动真实 Alpha |
+| 当前实现策略 | 不默认后端已匹配，也不无依据重做。UX-0 已把每个用户动作绑定到 Contracts、Platform 模块、PostgreSQL 事实、权限/并发/删除语义和真实测试；OS-1 与 OS-2 已按纵向切片同步修改 Contracts、Platform 与 Web，后续继续逐切片关闭。三张概念图作为布局、信息层级和交互关系的高保真目标；Recommendation 与 Insights 已从规范岗位路径可用，Matching 固定版本和 Review v2 仍待后续切片；不因此启动真实 Alpha |
 | 来源发现进度 | 已按 ADR-0019 完成 1000/1000 家企业/机构审查记录；34 个来源配置中 12 个为 canonical（7 个活动确定性、2 个浏览器提醒、3 个硬冲突暂停），22 个高校等来源均降级为 `discovery_only`。当前审计没有 `capacity` 就绪候选 |
-| 工程切片 | OS-1 最终回归 Config 20、Contracts 79、Database 54、Platform 461、Web 145，共 759/759；lint 457 files、typecheck、build、audit 与 diff check 通过。主包 567.51 kB，较 PA-1 基线增加 0.82 kB；OS-2–OS-7 尚未实施。OS-5 的 Review v1/v2 最小 migration 已完成可表达性与兼容设计，但 migration 尚未实施；真实邮件/解析镜像/服务器、真实 AI 与真实来源同样未实施，公共版本仍为 0 |
+| 工程切片 | OS-2 最终回归 Config 20、Contracts 82、Database 54、Platform 462、Web 150，共 768/768；lint 466 files、typecheck、build、audit 与 diff check 通过。主包 394.47 kB（gzip 115.29 kB）；Resume Editor 29.38 kB、Interview 23.76 kB、数据设置 12.35 kB 保持 lazy load。OS-3–OS-7 尚未实施；OS-5 的 Review v1/v2 最小 migration 已完成可表达性与兼容设计，但 migration 尚未实施。真实邮件/解析镜像/服务器、真实 AI 与真实来源同样未实施，公共版本仍为 0 |
 | AI 状态 | Review、Interview、Feedback 与 Debrief 均必须与用户确认事实分离；公开环境继续关闭，M4 沿用确定性模板，不调用真实 AI |
 
 以上内容只用于帮助首次阅读者定位本次文档基线。后续动态阶段、样本进度、Gate 状态和下一决策日期只更新到 [MVP 路线与当前决策面板](docs/06-mvp-roadmap.md)；如有差异，以该面板为准。
@@ -66,7 +66,7 @@ pnpm ai:configure
 
 该命令只填写接口地址、模型和 API Key；配置保存在 Git 已忽略的 `.data/ai-provider.local.json`。填写或替换配置后重启 `pnpm dev`。需要验收真实接口时再运行 `pnpm ai:smoke`，这不是日常配置步骤。前端没有读取或修改供应商配置的接口；未来线上部署只替换后端配置来源，不改岗位推荐和简历优化链路。
 
-旧 `ProductShell` 仍由 `VITE_CAREER_OS_V2=false` 保留为紧急回退，不是当前同步改进目标。旧 `/resume*` 目前仍承担简历解析与确认；`/recommendations`、`/insights` 当前只保留零请求兼容说明，旧 Tailoring 当前只读。这些是 UX-0 已确认并定向的融合缺口，不能因旧服务或兼容 URL 仍存在就写成已经自然融入；OS-2、OS-4、OS-5 必须按端到端契约分别实现规范推荐/洞察入口、固定版本匹配、岗位要求引用和唯一 Review 写入。`/research/*` 与 `/internal-preview/*` 是内部或历史页面，不进入本轮用户旅程收敛。
+旧 `ProductShell` 仍由 `VITE_CAREER_OS_V2=false` 保留为紧急回退，不是当前同步改进目标。V2 已由 `/resumes/import*` 承接简历解析与确认，由 `/jobs/recommended*` 和 `/jobs/insights*` 承接规范推荐与市场洞察；旧 `/resume*`、`/recommendations`、`/insights` 在 V2 中重定向，旧 Tailoring 继续只读。OS-2 的融合完成不代表 OS-4 固定版本匹配或 OS-5 岗位要求引用与唯一 Review 写入已经完成。`/research/*` 与 `/internal-preview/*` 是内部或历史页面，不进入本轮用户旅程收敛。
 
 `VITE_CAREER_OS_V2` 回退旗标继续保留。进行当前 UX 基线或实现验收时，在启动开发进程前显式开启它，即可从 <http://127.0.0.1:5173/today> 进入当前 Career OS；正常会话使用真实本地 Case API，不回退到仓库静态 Case，也不会访问真实招聘来源或真实 AI：
 

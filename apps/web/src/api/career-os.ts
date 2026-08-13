@@ -50,7 +50,10 @@ import type {
   SubmitInterviewAnswerResponse,
   UpdateCaseQuestionRequest,
 } from "@aijob/contracts";
-import { ApplicationCaseWithJobContextSchema } from "@aijob/contracts";
+import {
+  ApplicationCaseWithJobContextSchema,
+  CreateApplicationCaseResponseSchema,
+} from "@aijob/contracts";
 import { apiRequest } from "./client";
 
 export const careerOsQueryKeys = {
@@ -126,6 +129,7 @@ export function createApplicationCase(
     method: "POST",
     body: request,
     idempotencyKey,
+    responseSchema: CreateApplicationCaseResponseSchema,
   });
 }
 

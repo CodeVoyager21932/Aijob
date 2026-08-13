@@ -128,9 +128,7 @@ export function CareerDataControlPage() {
       {!accountManaged ? (
         <OwnerClaimPanel
           ownerEpoch={scope.owner.epoch}
-          onClaimed={() =>
-            queryClient.invalidateQueries({ queryKey: careerOsQueryKeys.dataScope })
-          }
+          onClaimed={() => queryClient.invalidateQueries({ queryKey: careerOsQueryKeys.dataScope })}
         />
       ) : null}
 
@@ -287,7 +285,7 @@ export function CareerDataControlPage() {
           <Link className="career-button career-button--quiet" to="/applications">
             查看我的求职
           </Link>
-          <Link className="career-button career-button--quiet" to="/resume">
+          <Link className="career-button career-button--quiet" to="/resumes/import">
             重新确认简历证据
           </Link>
         </div>

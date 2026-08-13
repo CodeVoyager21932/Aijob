@@ -5,12 +5,12 @@ export type LegacySurface =
   | "resume_tailoring"
   | "data_control";
 
-export type LegacySurfaceMode = "legacy" | "case_only" | "compatibility" | "read_only" | "redirect";
+export type LegacySurfaceMode = "legacy" | "case_only" | "read_only" | "redirect";
 
 const careerOsV2Modes: Record<LegacySurface, Exclude<LegacySurfaceMode, "legacy">> = {
   job_detail_actions: "case_only",
-  recommendations: "compatibility",
-  insights: "compatibility",
+  recommendations: "redirect",
+  insights: "redirect",
   resume_tailoring: "read_only",
   data_control: "redirect",
 };

@@ -3,6 +3,9 @@ import type {
   FreshnessState,
   JobDetail,
   JobFamily,
+  JobRecommendationDisplay,
+  JobRecommendationScope,
+  JobSearchItem,
   JobSearchQuery,
   JobSearchResponse,
   Salary,
@@ -21,12 +24,18 @@ import {
   SourceTypeSchema,
 } from "@aijob/contracts";
 import type { Database, JsonValue } from "@aijob/database";
-import { type Kysely, sql } from "kysely";
+import { type Kysely, sql, type Transaction } from "kysely";
 import { z } from "zod";
 import { validateNavigationUrl } from "../ingestion/safe-http.js";
 import type { SourceTarget } from "../sources/source-config.js";
 import { approvedCompanyEmail } from "./application-methods.js";
-import { type CatalogSearchRecord, searchCatalogRecords } from "./filtering.js";
+import {
+  collectCatalogSearchItems,
+  type CatalogSearchRecord,
+  searchCatalogRecords,
+} from "./filtering.js";
+
+type DbExecutor = Kysely<Database> | Transaction<Database>;
 
 type UnknownReason = "source_not_stated" | "parse_failed" | "not_yet_verified";
 
@@ -274,7 +283,7 @@ function mapRow(row: CatalogDatabaseRow): CatalogSearchRecord {
   };
 }
 
-async function loadLocalRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[]> {
+async function loadLocalRows(db: DbExecutor): Promise<CatalogDatabaseRow[]> {
   const result = await sql<CatalogDatabaseRow>`
     SELECT
       COALESCE(published.published_job_id, preview.job_id) AS job_id,
@@ -365,7 +374,7 @@ async function loadLocalRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[]
   return result.rows;
 }
 
-async function loadCompanyQuotaGaps(db: Kysely<Database>) {
+async function loadCompanyQuotaGaps(db: DbExecutor) {
   const rows = await db
     .selectFrom("catalog.company_quota_selections")
     .select(({ fn }) => [
@@ -388,7 +397,7 @@ async function loadCompanyQuotaGaps(db: Kysely<Database>) {
   }));
 }
 
-async function loadPublicRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[]> {
+async function loadPublicRows(db: DbExecutor): Promise<CatalogDatabaseRow[]> {
   const result = await sql<CatalogDatabaseRow>`
     SELECT
       job.id AS job_id,
@@ -471,12 +480,17 @@ async function loadPublicRows(db: Kysely<Database>): Promise<CatalogDatabaseRow[
   return result.rows;
 }
 
-async function approvedOfficialLink(
-  db: Kysely<Database>,
-  sourceId: string,
-  applyUrl: string | null,
-): Promise<string | null> {
-  if (!applyUrl) return null;
+export async function approvedOfficialLinks(
+  db: DbExecutor,
+  candidates: Array<{
+    key: string;
+    sourceId: string;
+    applyUrl: string | null;
+  }>,
+): Promise<Map<string, string | null>> {
+  const results = new Map<string, string | null>(candidates.map(({ key }) => [key, null]));
+  const sourceIds = [...new Set(candidates.map(({ sourceId }) => sourceId))];
+  if (sourceIds.length === 0) return results;
   const targets = await db
     .selectFrom("source_control.source_apply_targets")
     .innerJoin(
@@ -485,6 +499,7 @@ async function approvedOfficialLink(
       "source_control.source_apply_targets.source_id",
     )
     .select([
+      "source_control.source_apply_targets.source_id",
       "source_control.source_apply_targets.method",
       "source_control.source_apply_targets.scheme",
       "source_control.source_apply_targets.host",
@@ -493,43 +508,131 @@ async function approvedOfficialLink(
       "source_control.source_apply_targets.allow_redirects",
       "source_control.source_apply_targets.allowed_query_parameters",
     ])
-    .where("source_control.source_apply_targets.source_id", "=", sourceId)
+    .where("source_control.source_apply_targets.source_id", "in", sourceIds)
     .whereRef(
       "source_control.source_apply_targets.policy_version",
       "=",
       "source_control.sources.current_policy_version",
     )
     .execute();
-
-  try {
-    validateNavigationUrl(
-      applyUrl,
-      "GET",
-      targets.map(
-        (target): SourceTarget => ({
-          method: target.method as "GET",
-          scheme: target.scheme as "https",
-          host: target.host,
-          port: target.port as 443,
-          pathPrefix: target.path_prefix,
-          allowRedirects: target.allow_redirects,
-          allowedQueryParameters: target.allowed_query_parameters,
-        }),
-      ),
-    );
-    return applyUrl;
-  } catch {
-    return null;
+  const targetsBySource = new Map<string, SourceTarget[]>();
+  for (const target of targets) {
+    const sourceTargets = targetsBySource.get(target.source_id) ?? [];
+    sourceTargets.push({
+      method: target.method as "GET",
+      scheme: target.scheme as "https",
+      host: target.host,
+      port: target.port as 443,
+      pathPrefix: target.path_prefix,
+      allowRedirects: target.allow_redirects,
+      allowedQueryParameters: target.allowed_query_parameters,
+    });
+    targetsBySource.set(target.source_id, sourceTargets);
   }
+  for (const candidate of candidates) {
+    if (!candidate.applyUrl) continue;
+    try {
+      validateNavigationUrl(
+        candidate.applyUrl,
+        "GET",
+        targetsBySource.get(candidate.sourceId) ?? [],
+      );
+      results.set(candidate.key, candidate.applyUrl);
+    } catch {
+      // Immutable URLs remain actionable only while the current source allowlist accepts them.
+    }
+  }
+  return results;
+}
+
+export interface ImmutableRecommendationJobProjection {
+  publishedJobId: string;
+  publishedJobVersionId: string;
+  display: Omit<JobRecommendationDisplay, "lastVerifiedAt">;
+  officialUrl: string | null;
+}
+
+export async function getImmutableRecommendationJobProjections(
+  db: DbExecutor,
+  publishedJobVersionIds: string[],
+): Promise<Map<string, ImmutableRecommendationJobProjection>> {
+  if (publishedJobVersionIds.length === 0) return new Map();
+  const rows = await db
+    .selectFrom("catalog.published_job_versions as version")
+    .innerJoin(
+      "ingestion.source_job_revisions as revision",
+      "revision.id",
+      "version.source_job_revision_id",
+    )
+    .innerJoin(
+      "ingestion.source_job_records as record",
+      "record.id",
+      "revision.source_job_record_id",
+    )
+    .innerJoin("source_control.sources as source", "source.id", "record.source_id")
+    .select([
+      "version.id as publishedJobVersionId",
+      "version.published_job_id as publishedJobId",
+      "version.title",
+      "version.company_name as companyName",
+      "version.locations",
+      "version.work_mode as workMode",
+      "version.deadline_at as deadlineAt",
+      "version.apply_url as applyUrl",
+      "source.id as sourceId",
+      "source.name as sourceName",
+    ])
+    .where("version.id", "in", publishedJobVersionIds)
+    .execute();
+  const approvedUrls = await approvedOfficialLinks(
+    db,
+    rows.map((row) => ({
+      key: row.publishedJobVersionId,
+      sourceId: row.sourceId,
+      applyUrl: row.applyUrl,
+    })),
+  );
+  return new Map(
+    rows.map((row) => [
+      row.publishedJobVersionId,
+      {
+        publishedJobId: row.publishedJobId,
+        publishedJobVersionId: row.publishedJobVersionId,
+        display: {
+          title: row.title,
+          companyName: row.companyName,
+          locations: parseField(row.locations, z.array(z.string().trim().min(1)).min(1)),
+          workMode: parseField(row.workMode, z.string().trim().min(1)),
+          deadlineAt: normalizedTimestamp(row.deadlineAt),
+          sourceName: row.sourceName,
+        },
+        officialUrl: approvedUrls.get(row.publishedJobVersionId) ?? null,
+      },
+    ]),
+  );
+}
+
+async function approvedOfficialLink(
+  db: DbExecutor,
+  sourceId: string,
+  applyUrl: string | null,
+): Promise<string | null> {
+  return (
+    (await approvedOfficialLinks(db, [{ key: sourceId, sourceId, applyUrl }])).get(sourceId) ?? null
+  );
 }
 
 export interface CatalogRepository {
   search(query: JobSearchQuery): Promise<JobSearchResponse>;
+  collectRecommendationCandidates(
+    scope: JobRecommendationScope,
+    maximum: number,
+  ): Promise<JobSearchItem[]>;
   get(jobId: string): Promise<JobDetail | null>;
 }
 
 export function createCatalogRepository(input: {
-  db: Kysely<Database>;
+  db: DbExecutor;
   enableLocalMvp: boolean;
 }): CatalogRepository {
   const load = async () =>
@@ -543,6 +646,13 @@ export function createCatalogRepository(input: {
       if (!input.enableLocalMvp) return response;
       const companyQuotaGaps = await loadCompanyQuotaGaps(input.db);
       return companyQuotaGaps.length > 0 ? { ...response, companyQuotaGaps } : response;
+    },
+    async collectRecommendationCandidates(scope, maximum) {
+      const ready = (await load()).filter(
+        ({ detail }) =>
+          detail.publishedJobVersionId !== null && detail.activeRequirementSetId !== null,
+      );
+      return collectCatalogSearchItems(ready, scope, maximum);
     },
     async get(jobId) {
       const records = await load();

@@ -3,6 +3,7 @@ import { JobSearchQuerySchema } from "@aijob/contracts";
 import { describe, expect, it } from "vitest";
 import {
   buildCatalogFacets,
+  collectCatalogSearchItems,
   type CatalogSearchRecord,
   classifyCatalogRecord,
   InvalidCatalogCursorError,
@@ -204,6 +205,25 @@ describe("catalog hard-filter semantics", () => {
     expect(
       searchCatalogRecords([unknownSalary, belowThreshold, explicit], query).items,
     ).toHaveLength(2);
+  });
+
+  it("collects a complete scoped candidate set and exposes one item past the limit", () => {
+    const records = Array.from({ length: 205 }, (_, index) =>
+      job(`candidate-${String(index).padStart(3, "0")}`),
+    );
+    expect(
+      collectCatalogSearchItems(records, { includeUnknownHardConditions: true }, 1_100),
+    ).toHaveLength(205);
+    expect(
+      collectCatalogSearchItems(records, { includeUnknownHardConditions: true }, 200),
+    ).toHaveLength(201);
+    expect(
+      collectCatalogSearchItems(
+        records,
+        { companies: ["另一家公司"], includeUnknownHardConditions: true },
+        1_100,
+      ),
+    ).toEqual([]);
   });
 });
 

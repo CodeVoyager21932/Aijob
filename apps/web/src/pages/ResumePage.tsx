@@ -138,7 +138,11 @@ export function ResumePage() {
     },
     onSuccess: (analysis) => {
       writeJourneyId("analysisId", analysis.id);
-      navigate(`/resume/confirm/${encodeURIComponent(analysis.id)}`);
+      navigate(
+        careerOsV2Enabled
+          ? `/resumes/import/confirm/${encodeURIComponent(analysis.id)}`
+          : `/resume/confirm/${encodeURIComponent(analysis.id)}`,
+      );
     },
   });
 
@@ -148,7 +152,7 @@ export function ResumePage() {
   }
 
   return (
-    <>
+    <div className={careerOsV2Enabled ? "career-profile-import" : undefined}>
       {careerOsV2Enabled ? null : <JourneySteps current={2} />}
       <header className="product-hero">
         <div>
@@ -401,6 +405,6 @@ export function ResumePage() {
           </section>
         </aside>
       </form>
-    </>
+    </div>
   );
 }

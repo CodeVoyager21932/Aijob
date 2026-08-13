@@ -822,7 +822,7 @@ export function ResumeDocumentEditor({
           ) : confirmedEvidence.length === 0 ? (
             <div className="career-resume-editor__evidence-empty">
               <p>尚无已确认的经历证据。正文仍可编辑，但专业建议不会使用未确认事实。</p>
-              <Link to="/resume">前往确认简历证据</Link>
+              <Link to="/resumes/import">前往确认简历证据</Link>
             </div>
           ) : selectedEntry ? (
             <ul>

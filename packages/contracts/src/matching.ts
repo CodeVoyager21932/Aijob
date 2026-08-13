@@ -1,12 +1,20 @@
 import { z } from "zod";
 
-import { IdentifierSchema, Sha256Schema, TimestampSchema } from "./common.js";
+import {
+  HttpsUrlSchema,
+  IdentifierSchema,
+  Sha256Schema,
+  TimestampSchema,
+  UuidSchema,
+} from "./common.js";
 import {
   AsyncRunStatusSchema,
   EligibilityStatusSchema,
   EvidenceMatchStatusSchema,
   PreferenceMatchStatusSchema,
 } from "./enums.js";
+import { fieldValueSchema } from "./field-value.js";
+import { JobSearchQuerySchema } from "./jobs.js";
 
 export const RequirementKindSchema = z.enum([
   "graduation_year",
@@ -199,6 +207,21 @@ export const CreateRecommendationRunRequestSchema = z.object({
 });
 export type CreateRecommendationRunRequest = z.infer<typeof CreateRecommendationRunRequestSchema>;
 
+export const JobRecommendationScopeSchema = JobSearchQuerySchema.omit({
+  cursor: true,
+  limit: true,
+}).strict();
+export type JobRecommendationScope = z.infer<typeof JobRecommendationScopeSchema>;
+
+export const CreateRecommendationRunFromSearchRequestSchema = z
+  .object({
+    scope: JobRecommendationScopeSchema,
+  })
+  .strict();
+export type CreateRecommendationRunFromSearchRequest = z.infer<
+  typeof CreateRecommendationRunFromSearchRequestSchema
+>;
+
 export const RecommendationCatalogStateSchema = z.enum(["current", "stale", "invalid"]);
 export type RecommendationCatalogState = z.infer<typeof RecommendationCatalogStateSchema>;
 
@@ -232,3 +255,65 @@ export const RecommendationRunSchema = z.object({
   completedAt: TimestampSchema.nullable(),
 });
 export type RecommendationRun = z.infer<typeof RecommendationRunSchema>;
+
+export const JobRecommendationDisplaySchema = z.object({
+  title: z.string().trim().min(1),
+  companyName: z.string().trim().min(1),
+  locations: fieldValueSchema(z.array(z.string().trim().min(1)).min(1)),
+  workMode: fieldValueSchema(z.string().trim().min(1)),
+  deadlineAt: fieldValueSchema(TimestampSchema),
+  sourceName: z.string().trim().min(1),
+  lastVerifiedAt: TimestampSchema.nullable(),
+});
+export type JobRecommendationDisplay = z.infer<typeof JobRecommendationDisplaySchema>;
+
+export const JobRecommendationRunViewSchema = z
+  .object({
+    schemaVersion: z.literal("job-recommendation-run-view-v1"),
+    run: RecommendationRunSchema,
+    jobs: z.array(
+      z.object({
+        ordinal: z.number().int().nonnegative(),
+        publishedJobId: UuidSchema,
+        publishedJobVersionId: UuidSchema,
+        display: JobRecommendationDisplaySchema,
+        officialUrl: HttpsUrlSchema.nullable(),
+        catalogState: RecommendationCatalogStateSchema,
+      }),
+    ),
+  })
+  .superRefine((value, context) => {
+    if (value.run.status !== "succeeded" && value.jobs.length > 0) {
+      context.addIssue({
+        code: "custom",
+        path: ["jobs"],
+        message: "unfinished recommendation runs cannot expose job projections",
+      });
+      return;
+    }
+    if (value.run.status !== "succeeded") return;
+    if (value.jobs.length !== value.run.items.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["jobs"],
+        message: "recommendation jobs must align one-to-one with run items",
+      });
+      return;
+    }
+    value.jobs.forEach((job, index) => {
+      const item = value.run.items[index];
+      if (
+        !item ||
+        item.ordinal !== job.ordinal ||
+        item.publishedJobVersionId !== job.publishedJobVersionId ||
+        item.catalogState !== job.catalogState
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["jobs", index],
+          message: "recommendation job projection does not match its run item",
+        });
+      }
+    });
+  });
+export type JobRecommendationRunView = z.infer<typeof JobRecommendationRunViewSchema>;

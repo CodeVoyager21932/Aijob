@@ -1,12 +1,13 @@
 # Aijob Career OS 前后端同步改进当前交付计划
 
-- 状态：**Active / UX-0 审计与 OS-1 五项 Gate 已关闭；OS-2 是下一前后端同步切片，尚未实施**
+- 状态：**Active / UX-0、OS-1 与 OS-2 五项 Gate 已关闭；OS-3 是下一候选前后端同步切片，尚未实施**
 - 生效日期：2026-08-13
 - 当前分支：`codex/career-os-ux-convergence`
-- 当前切片：`OS-2 资料准备与可信岗位入口（待 coco 指令开始）`
+- 当前切片：`OS-3 申请看板与 Case 命令（待 coco 指令开始）`
 - 稳定契约：[Career OS 端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)
 - 追踪矩阵：[UX-0 页面—系统—证据追踪矩阵](career-os-ux-0-end-to-end-traceability-matrix.md)
-- 上一切片关闭证据：[OS-1 系统外壳与运行契约验收](../evidence/product/career-os-v2/os-1-system-shell-and-runtime-contract-acceptance-2026-08-13.md)
+- 上一切片关闭证据：[OS-2 资料准备与可信岗位入口验收](../evidence/product/career-os-v2/os-2-profile-and-trusted-job-entry-acceptance-2026-08-13.md)
+- 上游关闭证据：[OS-1 系统外壳与运行契约验收](../evidence/product/career-os-v2/os-1-system-shell-and-runtime-contract-acceptance-2026-08-13.md)
 - 上游审计基线：[UX-0 端到端契约与基线审计](../evidence/product/career-os-v2/ux-0-end-to-end-contract-and-baseline-2026-08-13.md)
 - 动态进度：[MVP 路线与当前决策面板](../06-mvp-roadmap.md)
 - 工程入口：[当前项目交接](../handoffs/current.md)
@@ -54,35 +55,35 @@ flowchart LR
 | 能力 | 当前后端事实 | 当前 V2 / Web 事实 | 判定与负责切片 |
 |---|---|---|---|
 | 身份、owner、CSRF、会话恢复 | 已有 owner 隔离、读请求一次恢复、mutation 不自动重放 | OS-1 已把访问 Gate、Utility Bar 与 session boundary 回接到唯一 Shell；各业务页草稿/冲突仍由所属切片处理 | **OS-1 触达范围已关闭**；OS-2–OS-6 随业务页回归，OS-7 总验 |
-| 岗位检索与详情 | `/v1/jobs` 已有筛选、facet、cursor 和 unknown 语义 | 筛选只在组件 state；排序契约未固定；返回详情会丢状态 | **部分匹配**；OS-2 |
+| 岗位检索与详情 | `/v1/jobs` 已有筛选、facet、cursor 和 unknown 语义 | OS-2 已完成筛选 URL、详情往返、刷新/深链、失败重试与四视口规范页面 | **OS-2 触达范围已关闭** |
 | 公共/私有 Case 与固定岗位版本 | 已有幂等创建、owner 404、固定版本、diff/upgrade、删除资产处置 | 创建与读取已接入；transition、diff/upgrade 未进入 V2 API 适配器和完整交互 | **部分匹配**；OS-3、OS-4 |
 | 五阶段看板 | Case 列表只支持 `stage + cursor + limit`，固定按更新时间排序 | 前端没把 stage 传给 API；城市/排序只作用于已加载页面，可能不是完整集合 | **契约缺口**；OS-3 先定列表 read model，再做卡片 |
 | Requirements / 证据 / 问题 | 已有三证据状态、引用、问题、revision 409、owner 隔离 | 主路径已接入，检查器、草稿和错误呈现仍不完整 | **主体匹配**；OS-4 同步收敛 |
 | 三轴匹配 | matching 服务与 immutable run 已存在，但创建和 Worker 处理都只允许“当前目录指针”的岗位版本 | Case 固定版本可能已不是当前目录版本；V2 又禁用旧匹配动作，Case 没有可恢复入口 | **后端语义缺口**；OS-4 扩展 Case-pinned 执行上下文与恢复 adapter，不新增 Case 外键 |
-| 推荐 | recommendation run 可基于候选岗位和资料修订生成 | `/recommendations` 在 V2 只是零请求兼容说明，规范岗位旅程没有承接 | **未自然融合**；OS-2 |
-| JD 洞察 | insights 服务是按 scope 的确定性聚合，不是天然的单 Case 能力 | `/insights` 在 V2 只是兼容说明；概念图“单岗位要求”不能误当市场洞察 | **归属已锁定、尚未接入**；市场 Insights 进入 `/jobs/insights*`，Case 只保留单岗 Requirements；OS-2 |
-| 简历导入与确认 | 解析、原文保留边界、profile/evidence 确认均已存在 | 仍使用 `/resume*`，规范 `/resumes/import*` 缺失 | **后端主体匹配、入口未融合**；OS-2 |
+| 推荐 | recommendation run 可基于候选岗位和资料修订生成；OS-2 新增服务器筛选、冻结和带岗位投影 view adapter | `/jobs/recommended*` 已接入，旧 V2 路径重定向；Run 可刷新/深链且不再由浏览器提交候选 IDs | **OS-2 已自然融入规范岗位旅程**；OS-4 仍负责 Case 固定版本匹配 |
+| JD 洞察 | insights 服务继续按 scope 生成持久确定性聚合，不进入单 Case | `/jobs/insights*` 已接入，scope URL 与 Run 深链可恢复；Case Requirements 保持分离 | **OS-2 已关闭归位与接入** |
+| 简历导入与确认 | 解析、原文保留边界、profile/evidence 确认均已存在 | `/resumes/import*` 已承接文本/PDF/DOCX 与一次性确认，旧 V2 `/resume*` 重定向 | **OS-2 已关闭规范入口与 runtime 契约** |
 | Resume V2 / Review / DOCX | 文档、内容/布局修订、模板 Review、逐建议决策、DOCX、删除已存在；但当前模板 Review 没有读取固定岗位 Requirements，Finding/Suggestion 也没有 requirement 引用 | Studio 已接入，但当前 Review 只能证明“证据一致性检查”，不能证明已经完成岗位定制 | **后端语义缺口**；OS-5 同步扩展岗位要求输入、引用契约和真实测试 |
 | 旧 Tailoring / 受控 AI | tailoring run 有 provider、去标识化、逐段决策和导出；Resume Review 只开放 template，Worker 也硬编码模板且运行记录缺少生成 provenance | V2 只保留旧 Tailoring 历史只读，新 Review 尚未承接受控 AI | **归属已锁定、迁移范围已证明**；OS-5 以 Review 为唯一新写入并做最小 expand migration，复用低层安全能力而非复活旧写入流程 |
 | 投递、面试、复盘 | 显式投递、模板面试、反馈、复盘确认/回流和选择性删除均已存在 | 已接入但 interview/debrief 路由焦点、冲突和错误体验未统一 | **主体匹配**；OS-6 |
 | 数据范围与全量删除 | owner 数据范围、删除状态和不可读语义已存在 | 新设置入口已接入，错误与 session 回接需统一 | **主体匹配**；OS-6、OS-7 |
-| Web API 边界 | Platform 路由会解析请求，服务/测试大量使用 schema | OS-1 已实现 parser-aware `apiRequest`，session/identity 与 Case 触达响应使用共享 schema；其余业务 adapter 尚需随切片关闭 | **OS-1 触达范围已关闭**；OS-2–OS-6 逐切片扩展，OS-7 扫描余量 |
-| 浏览器证据 | Platform 集成测试覆盖大量 404/409/幂等/删除语义 | OS-1 已增加 loopback/test-only server 与四视口真实 API Gate；完整满态/空态仍随业务切片扩展 | **OS-1 最小夹具已实现**；后续切片扩展，OS-7 总验 |
+| Web API 边界 | Platform 路由会解析请求，服务/测试大量使用 schema | OS-1 建立 parser-aware `apiRequest`；OS-2 已扩展岗位、推荐、洞察、简历与当前资料响应，并共享并发 session promise | **OS-1/OS-2 触达范围已关闭**；OS-3–OS-6 逐切片扩展，OS-7 扫描余量 |
+| 浏览器证据 | Platform 集成测试覆盖大量 404/409/幂等/删除语义 | OS-2 已扩展真实 API/worker 四视口 Gate，覆盖规范岗位/资料入口、503、owner/session、URL、lazy load 与 flag 回退 | **OS-2 触达范围已关闭**；后续切片扩展，OS-7 总验 |
 
-以上主体差距来自 UX-0 代码与运行反证；其中 OS-1 负责的身份/Shell、runtime parse 与最小浏览器夹具已经实现并通过，其余能力不因此自动完成。详细逐用例事实和字段级契约见[追踪矩阵](career-os-ux-0-end-to-end-traceability-matrix.md)。
+以上主体差距来自 UX-0 代码与运行反证；其中 OS-1 负责的身份/Shell、OS-2 负责的岗位与资料入口、推荐/洞察归位、对应 runtime parse 与浏览器 Gate 已实现并通过，其余能力不因此自动完成。详细逐用例事实和字段级契约见[追踪矩阵](career-os-ux-0-end-to-end-traceability-matrix.md)。
 
 ### 3.1 已选择的防返工架构
 
-以下选择中第 6 项已随 OS-1 触达范围实施；第 1–5 项仍只锁定后续实现方向：
+以下选择中第 3、4、6 项已随 OS-1/OS-2 触达范围实施；第 1、2、5 项仍锁定后续实现方向：
 
 1. **看板集合：`E`，无语义 migration。** 扩展 Case list 的 `city / sort / total` 契约，并新增 `GET /v1/application-cases/board` 初始投影，在同一 repeatable-read 快照返回五阶段的首批 items、逐列 total 与 cursor。后续单列加载复用 stage list；浏览器不再对分页子集计算全局筛选、排序或计数。索引只在隔离库 `EXPLAIN`/延迟证据证明需要时单独评审。
 2. **三轴匹配：`E`，不新增 Case 外键。** 新增 Case-scoped match adapter：服务端由 Case 固定公共岗位版本、固定 requirement set 和当前已确认资料修订创建/读取 MatchRun，返回 `not_run / current / stale / not_applicable_private`。现有 matching 创建与 Worker 都要求岗位仍是当前目录指针，不能直接复用；OS-4 必须增加只由同 owner、未删除 Case 授权的 `case_pinned` 执行上下文，并把 `caseId` 放进受 schema 约束的任务载荷供 Worker 重验。幂等 hash 同时包含请求与服务端实际解析出的岗位/要求/资料 revisions，防止资料变化后错误复用旧任务。MatchRun 仍归 `matching`，结果不复制进 Case，也不新增 Case 外键。
-3. **市场洞察：`A`，明确不进入单 Case JD 面板。** 规范入口为 `/jobs/insights` 与 `/jobs/insights/:runId`；Run ID 是已持久化结果的深链。Case Requirements 只显示单岗官方/私有要求。V2 的旧 `/insights` 改为规范入口兼容跳转，V2=false 仍保留旧页。
-4. **推荐：`E`，归入岗位发现但不创建第二种 Run。** 规范页面为 `/jobs/recommended` 与 `/jobs/recommended/:runId`。Platform 在现有 `/v1/recommendation-runs` 资源下增加“按岗位筛选创建”和“带岗位投影读取”adapter，根据规范筛选和当前确认资料在服务器冻结候选集，继续复用现有 RecommendationRun；不再由浏览器先拉取最多 1100 个岗位后提交 ID，也不逐项 N+1。旧 `/recommendations` 在 V2 中跳转新入口。
+3. **市场洞察：`A`，OS-2 已实现。** 规范入口为 `/jobs/insights` 与 `/jobs/insights/:runId`；Run ID 是已持久化结果的深链。Case Requirements 只显示单岗官方/私有要求。V2 的旧 `/insights` 跳转规范入口，V2=false 仍保留旧页。
+4. **推荐：`E`，OS-2 已实现且未创建第二种 Run。** 规范页面为 `/jobs/recommended` 与 `/jobs/recommended/:runId`。Platform 已在现有 `/v1/recommendation-runs` 资源下增加“按岗位筛选创建”和“带岗位投影读取”adapter，根据规范筛选和当前确认资料在服务器事务内冻结候选集；浏览器不再先拉取最多 1100 个岗位后提交 ID，也不逐项 N+1。旧 `/recommendations` 在 V2 中跳转新入口。
 5. **简历优化：`E + M`，只保留一个新写入所有者。** Resume V2 Review 成为模板与受控 AI 的唯一新写入聚合；旧 Tailoring 保留历史只读。现有 Review 虽预留 `controlled_ai` mode，但请求、路由和 Worker 都只实现 template，生成器也没有使用固定岗位 Requirements，Finding/Suggestion 没有 requirement 引用，Run 缺生成 provenance 与 failure/fallback 说明。OS-5 因此需要一个最小 expand migration：为新 Run 增加不伪造旧数据的版本化 provenance，为 Finding/Suggestion 增加受校验的 `requirementIds`；同时在同一任务队列增加 v2 任务类型，使旧 Worker 不会领取并误处理 v2 Run。必须先部署双读 v1/v2 且同时保留 v1/v2 handler 的 reader/Worker，再启用 template 或 controlled_ai 的任何 v2 写入；一旦存在 v2 Run，pre-v2 应用代码回滚禁止，只能前向修复。实现只抽取可复用的低层 provider、去标识化与结构化校验能力，不让旧 Tailoring 重新成为写入口。AI 关闭或调用失败按 ADR-0013 明确降级模板并记录原因；离线验收只用 loopback 模拟 provider，真实 AI、公开/远程启用仍受原 Gate 约束。
-6. **Web 响应契约：`A`，OS-1 触达范围已实现。** `apiRequest` 接受运行时 parser，session/identity 与 Case 读取使用共享 schema；解析失败统一为 Shell 内可重试且不泄露 payload 的 `INVALID_API_RESPONSE`。后续切片触达的核心 adapter 仍必须同步接入，不能再把 `apiRequest<T>` 泛型断言当作契约验证。
+6. **Web 响应契约：`A`，OS-1/OS-2 触达范围已实现。** `apiRequest` 接受运行时 parser，session/identity/Case 及岗位、推荐、洞察、简历/资料响应使用共享 schema；解析失败统一为 Shell 内可重试且不泄露 payload 的 `INVALID_API_RESPONSE`。后续切片触达的核心 adapter 仍必须同步接入，不能再把 `apiRequest<T>` 泛型断言当作契约验证。
 
-这些选择保持一个 Platform 模块化单体和一个 PostgreSQL 事实源。OS-1 还在真实 Gate 中关闭了 Requirements 并发一致性读的暂态 `40001`，只重试读取而不重放 mutation。Review 的 expand-only、双读/双 handler、v2 写入开关及“存在 v2 Run 后禁止旧代码回滚”仍只锁定在 OS-5；OS-3 看板与 OS-5 Resume Studio 的视口缺口未因 OS-1 完成而消失。
+这些选择保持一个 Platform 模块化单体和一个 PostgreSQL 事实源。OS-1 关闭 Requirements 并发一致性读；OS-2 又关闭首次并发 session 多 owner 风险，并对推荐创建的 `23505/40001` 做有界事务重试，mutation 仍不自动重放。Review 的 expand-only、双读/双 handler、v2 写入开关及“存在 v2 Run 后禁止旧代码回滚”仍只锁定在 OS-5；OS-3 看板与 OS-5 Resume Studio 的视口缺口未因 OS-2 完成而消失。
 
 ## 4. 串行纵向里程碑
 
@@ -90,8 +91,8 @@ flowchart LR
 |---|---|---|---|
 | UX-0 端到端契约与基线 | 路由、用户动作、领域归属、API/DB/错误/删除矩阵；视觉 token；满态/空态夹具；四视口当前基线 | 核心路径无未归属能力；每行有复用/适配/扩展决定；浏览器基线完成 | **已完成审计 Gate；不等于功能实现** |
 | OS-1 系统外壳与运行契约 | WorkspaceShell、访问/会话、路由错误、统一 overlay/focus；必要的响应 schema 适配 | 规范路由不掉回旧 Shell；真实 session/404/error/deep-link 端到端通过 | **已完成五项 Gate；见独立证据** |
-| OS-2 资料准备与可信岗位入口 | 岗位目录/详情、推荐/洞察归位、简历导入确认、Case 创建与 URL 恢复 | 用户从可信岗位和已确认资料进入 Case；公开/空目录和 unknown 语义不退化 | **下一切片；尚未实施，等待 coco 指令** |
-| OS-3 申请看板与 Case 命令 | 看板/列表/Peek；列表 read model、分页、筛选、计数、阶段命令和固定版本入口 | 不依赖“已加载子集”得出完整结果；owner/409/幂等/刷新真实通过 | 待 OS-2 Gate |
+| OS-2 资料准备与可信岗位入口 | 岗位目录/详情、推荐/洞察归位、简历导入确认、Case 创建与 URL 恢复 | 用户从可信岗位和已确认资料进入 Case；公开/空目录和 unknown 语义不退化 | **已完成五项 Gate；见独立证据** |
+| OS-3 申请看板与 Case 命令 | 看板/列表/Peek；列表 read model、分页、筛选、计数、阶段命令和固定版本入口 | 不依赖“已加载子集”得出完整结果；owner/409/幂等/刷新真实通过 | **下一候选切片；尚未实施，等待 coco 指令** |
 | OS-4 单 Case 决策与固定版本匹配 | Case Header、Requirements/Evidence、问题、岗位版本与三轴匹配 | 同一固定岗位版本与资料修订可追溯；无匹配总分；刷新后结果可恢复 | 待 OS-3 Gate |
 | OS-5 Resume Studio 与唯一 Review 写入 | 基础/岗位简历、修订、Review、DOCX；旧 Tailoring 历史承接 | 不存在两套可写简历流程；草稿/409/证据引用/删除/DOCX 真实通过 | 待 OS-4 Gate |
 | OS-6 投递、面试、复盘与数据控制 | 今日、显式投递、面试、复盘、设置、访问、历史只读和兼容 URL | 同一 Case 贯通投递到回流；删除和兼容行为端到端通过 | 待 OS-5 Gate |

@@ -3,6 +3,8 @@ import type {
   FieldValue,
   JobDetail,
   JobFacet,
+  JobRecommendationScope,
+  JobSearchItem,
   JobSearchQuery,
   JobSearchResponse,
   JobSummary,
@@ -547,4 +549,36 @@ export function searchCatalogRecords(
     totalKnown: candidates.filter(({ match }) => match === "explicit_match").length,
     totalUnknown: candidates.filter(({ match }) => match === "information_unknown").length,
   });
+}
+
+export function collectCatalogSearchItems(
+  records: CatalogSearchRecord[],
+  scope: JobRecommendationScope,
+  maximum: number,
+): JobSearchItem[] {
+  const items: JobSearchItem[] = [];
+  const seenIds = new Set<string>();
+  const seenCursors = new Set<string>();
+  let cursor: string | undefined;
+
+  while (items.length <= maximum) {
+    const page = searchCatalogRecords(records, {
+      ...scope,
+      limit: 100,
+      ...(cursor ? { cursor } : {}),
+    });
+    for (const item of page.items) {
+      if (seenIds.has(item.id)) throw new InvalidCatalogCursorError();
+      seenIds.add(item.id);
+      items.push(item);
+      if (items.length > maximum) return items;
+    }
+    if (!page.nextCursor) return items;
+    if (page.items.length === 0 || seenCursors.has(page.nextCursor)) {
+      throw new InvalidCatalogCursorError();
+    }
+    seenCursors.add(page.nextCursor);
+    cursor = page.nextCursor;
+  }
+  return items;
 }
