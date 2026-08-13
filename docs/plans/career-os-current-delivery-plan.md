@@ -1,12 +1,12 @@
 # Aijob Career OS 前后端同步改进当前交付计划
 
-- 状态：**Active / UX-0 系统契约审计进行中；后续按 OS-1–OS-7 前后端同步切片推进，尚未开始产品代码实施**
+- 状态：**Active / UX-0 审计 Gate 已关闭；OS-1 是下一前后端同步切片，尚未开始产品代码实施**
 - 生效日期：2026-08-13
 - 当前分支：`codex/career-os-ux-convergence`
-- 当前切片：`UX-0 端到端契约与基线`
+- 当前切片：`OS-1 系统外壳与运行契约（待 coco 指令开始）`
 - 稳定契约：[Career OS 端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)
 - 追踪矩阵：[UX-0 页面—系统—证据追踪矩阵](career-os-ux-0-end-to-end-traceability-matrix.md)
-- 当前切片证据：[UX-0 端到端契约与基线审计](../evidence/product/career-os-v2/ux-0-end-to-end-contract-and-baseline-2026-08-13.md)
+- 上一切片关闭证据：[UX-0 端到端契约与基线审计](../evidence/product/career-os-v2/ux-0-end-to-end-contract-and-baseline-2026-08-13.md)
 - 动态进度：[MVP 路线与当前决策面板](../06-mvp-roadmap.md)
 - 工程入口：[当前项目交接](../handoffs/current.md)
 - 上一轮归档：[M0–M4 与 PA-1 交付计划](archive/career-os-m0-m4-pa1-delivery-plan-2026-08-12.md)
@@ -21,8 +21,8 @@
 已确认的纠正原则：
 
 - “优先复用现有后端”是逐项审计后的结论，不是默认假设。
-- UX-0 先把每个用户动作绑定到 Contract、Platform 模块、PostgreSQL 事实、权限/并发/删除语义和真实测试；没有绑定的页面不得先做。
-- `UX-0` 保留为本轮历史已启动的审计名称；后续实现统一使用 `OS-1–OS-7`，避免再把里程碑误读为前端 UX 独立优化。
+- UX-0 已把每个用户动作绑定到 Contract、Platform 模块、PostgreSQL 事实、权限/并发/删除语义和真实测试；没有绑定的页面不得先做。
+- `UX-0` 保留为已关闭的审计名称与实施基线；后续实现统一使用 `OS-1–OS-7`，避免再把里程碑误读为前端 UX 独立优化。
 - 每个 OS 切片都按**同切片契约先行**推进：先锁 Contract，再完成 Database/Platform，随即由 Web 消费，最后用真实隔离库联合验收；任何一层单独完成都不能宣称切片完成。
 - 旧能力不能仅用“兼容说明还在”冒充“已自然融入”。只有用户能在规范 Career OS 路径中继续使用、刷新后能恢复、数据仍可追溯，才算融合完成。
 
@@ -68,7 +68,7 @@ flowchart LR
 | Web API 边界 | Platform 路由会解析请求，服务/测试大量使用 schema | 通用 `apiRequest<T>` 对大多数响应只是类型断言 | **运行时契约缺口**；从 OS-1 起随切片修正 |
 | 浏览器证据 | Platform 集成测试覆盖大量 404/409/幂等/删除语义 | 没有受 CI 管理的完整满态/空态真实 API 浏览器夹具 | **验收缺口**；UX-0 设计，后续切片最小实现，OS-7 总验 |
 
-以上判定是当前只读审计结果，不等于能力已经实现。详细逐用例事实和字段级草案见[追踪矩阵](career-os-ux-0-end-to-end-traceability-matrix.md)。六个结构性接缝已经形成“复用 / 适配 / 扩展 / 最小迁移 / 排除”方向；UX-0 仍须完成代码反证、迁移兼容断言和实时浏览器基线，不能把文档决策写成工程通过。
+以上判定是 UX-0 代码与运行反证结果，不等于能力已经实现。详细逐用例事实和字段级契约见[追踪矩阵](career-os-ux-0-end-to-end-traceability-matrix.md)。六个结构性接缝已经形成“复用 / 适配 / 扩展 / 最小迁移 / 排除”方向；实现与最终通过仍由对应 OS 切片负责，不能把审计关闭写成工程功能完成。
 
 ### 3.1 已选择的防返工架构
 
@@ -78,17 +78,17 @@ flowchart LR
 2. **三轴匹配：`E`，不新增 Case 外键。** 新增 Case-scoped match adapter：服务端由 Case 固定公共岗位版本、固定 requirement set 和当前已确认资料修订创建/读取 MatchRun，返回 `not_run / current / stale / not_applicable_private`。现有 matching 创建与 Worker 都要求岗位仍是当前目录指针，不能直接复用；OS-4 必须增加只由同 owner、未删除 Case 授权的 `case_pinned` 执行上下文，并把 `caseId` 放进受 schema 约束的任务载荷供 Worker 重验。幂等 hash 同时包含请求与服务端实际解析出的岗位/要求/资料 revisions，防止资料变化后错误复用旧任务。MatchRun 仍归 `matching`，结果不复制进 Case，也不新增 Case 外键。
 3. **市场洞察：`A`，明确不进入单 Case JD 面板。** 规范入口为 `/jobs/insights` 与 `/jobs/insights/:runId`；Run ID 是已持久化结果的深链。Case Requirements 只显示单岗官方/私有要求。V2 的旧 `/insights` 改为规范入口兼容跳转，V2=false 仍保留旧页。
 4. **推荐：`E`，归入岗位发现但不创建第二种 Run。** 规范页面为 `/jobs/recommended` 与 `/jobs/recommended/:runId`。Platform 在现有 `/v1/recommendation-runs` 资源下增加“按岗位筛选创建”和“带岗位投影读取”adapter，根据规范筛选和当前确认资料在服务器冻结候选集，继续复用现有 RecommendationRun；不再由浏览器先拉取最多 1100 个岗位后提交 ID，也不逐项 N+1。旧 `/recommendations` 在 V2 中跳转新入口。
-5. **简历优化：`E + M`，只保留一个新写入所有者。** Resume V2 Review 成为模板与受控 AI 的唯一新写入聚合；旧 Tailoring 保留历史只读。现有 Review 虽预留 `controlled_ai` mode，但请求、路由和 Worker 都只实现 template，生成器也没有使用固定岗位 Requirements，Finding/Suggestion 没有 requirement 引用，Run 缺生成 provenance 与 failure/fallback 说明。OS-5 因此需要一个最小 expand migration：为新 Run 增加不伪造旧数据的版本化 provenance，为 Finding/Suggestion 增加受校验的 `requirementIds`；同时在同一任务队列增加 v2 任务类型，使旧 Worker 不会领取并误处理 controlled_ai Run。实现只抽取可复用的低层 provider、去标识化与结构化校验能力，不让旧 Tailoring 重新成为写入口。AI 关闭或调用失败按 ADR-0013 明确降级模板并记录原因；离线验收只用 loopback 模拟 provider，真实 AI、公开/远程启用仍受原 Gate 约束。
+5. **简历优化：`E + M`，只保留一个新写入所有者。** Resume V2 Review 成为模板与受控 AI 的唯一新写入聚合；旧 Tailoring 保留历史只读。现有 Review 虽预留 `controlled_ai` mode，但请求、路由和 Worker 都只实现 template，生成器也没有使用固定岗位 Requirements，Finding/Suggestion 没有 requirement 引用，Run 缺生成 provenance 与 failure/fallback 说明。OS-5 因此需要一个最小 expand migration：为新 Run 增加不伪造旧数据的版本化 provenance，为 Finding/Suggestion 增加受校验的 `requirementIds`；同时在同一任务队列增加 v2 任务类型，使旧 Worker 不会领取并误处理 v2 Run。必须先部署双读 v1/v2 且同时保留 v1/v2 handler 的 reader/Worker，再启用 template 或 controlled_ai 的任何 v2 写入；一旦存在 v2 Run，pre-v2 应用代码回滚禁止，只能前向修复。实现只抽取可复用的低层 provider、去标识化与结构化校验能力，不让旧 Tailoring 重新成为写入口。AI 关闭或调用失败按 ADR-0013 明确降级模板并记录原因；离线验收只用 loopback 模拟 provider，真实 AI、公开/远程启用仍受原 Gate 约束。
 6. **Web 响应契约：`A`。** `apiRequest` 接受运行时 parser，触达的核心 adapter 必须用共享 schema 解析成功响应；解析失败统一为 Shell 内可重试的 `INVALID_API_RESPONSE`，不再把 `apiRequest<T>` 泛型断言当作契约验证。
 
-这些选择保持一个 Platform 模块化单体和一个 PostgreSQL 事实源。字段级请求/响应、Problem、删除/版本语义和核心测试断言已经形成草案；UX-0 还需完成逐项代码反证、迁移的 legacy/new-write 兼容检查和四视口实时基线，才可关闭 Gate。
+这些选择保持一个 Platform 模块化单体和一个 PostgreSQL 事实源。字段级请求/响应、Problem、删除/版本语义和核心测试断言已完成 UX-0 反证；Review 的 expand-only、双读/双 handler、v2 写入开关及“存在 v2 Run 后禁止旧代码回滚”也已锁定。四视口当前基线已完成并把失败分配到 OS-1、OS-3、OS-5。
 
 ## 4. 串行纵向里程碑
 
 | 切片 | 同步交付范围 | 通过条件 | 状态 |
 |---|---|---|---|
-| UX-0 端到端契约与基线 | 路由、用户动作、领域归属、API/DB/错误/删除矩阵；视觉 token；满态/空态夹具；四视口当前基线 | 核心路径无未归属能力；每行有复用/适配/扩展决定；浏览器基线完成 | **当前：静态系统草案已形成；代码反证、迁移兼容与浏览器基线待完成，决定修改** |
-| OS-1 系统外壳与运行契约 | WorkspaceShell、访问/会话、路由错误、统一 overlay/focus；必要的响应 schema 适配 | 规范路由不掉回旧 Shell；真实 session/404/error/deep-link 端到端通过 | 待 UX-0 Gate |
+| UX-0 端到端契约与基线 | 路由、用户动作、领域归属、API/DB/错误/删除矩阵；视觉 token；满态/空态夹具；四视口当前基线 | 核心路径无未归属能力；每行有复用/适配/扩展决定；浏览器基线完成 | **已完成审计 Gate；不等于功能实现** |
+| OS-1 系统外壳与运行契约 | WorkspaceShell、访问/会话、路由错误、统一 overlay/focus；必要的响应 schema 适配 | 规范路由不掉回旧 Shell；真实 session/404/error/deep-link 端到端通过 | **下一切片；尚未开始，等待 coco 指令** |
 | OS-2 资料准备与可信岗位入口 | 岗位目录/详情、推荐/洞察归位、简历导入确认、Case 创建与 URL 恢复 | 用户从可信岗位和已确认资料进入 Case；公开/空目录和 unknown 语义不退化 | 待 OS-1 Gate |
 | OS-3 申请看板与 Case 命令 | 看板/列表/Peek；列表 read model、分页、筛选、计数、阶段命令和固定版本入口 | 不依赖“已加载子集”得出完整结果；owner/409/幂等/刷新真实通过 | 待 OS-2 Gate |
 | OS-4 单 Case 决策与固定版本匹配 | Case Header、Requirements/Evidence、问题、岗位版本与三轴匹配 | 同一固定岗位版本与资料修订可追溯；无匹配总分；刷新后结果可恢复 | 待 OS-3 Gate |
@@ -96,7 +96,7 @@ flowchart LR
 | OS-6 投递、面试、复盘与数据控制 | 今日、显式投递、面试、复盘、设置、访问、历史只读和兼容 URL | 同一 Case 贯通投递到回流；删除和兼容行为端到端通过 | 待 OS-5 Gate |
 | OS-7 系统总 Gate | 全前台视觉、功能、Contracts、Platform、数据库语义、可访问性、性能、离线与回退 | 全新隔离库、全仓质量、四视口、网络/控制台、删除与 flag 回退全部通过 | 待 OS-6 Gate |
 
-原“全部 UX 约 9–12 个有效开发日”估算建立在主要前端收敛假设上，现已撤回。只有 UX-0 的静态契约、迁移兼容核验和运行基线全部通过后才重新估时，避免把匹配固定版本、岗位定制 Review 和浏览器夹具的后端成本推迟到页面完成后暴露。
+原“全部 UX 约 9–12 个有效开发日”估算建立在主要前端收敛假设上，现已撤回。UX-0 已暴露匹配固定版本、岗位定制 Review、列表投影和浏览器夹具的真实后端/运行成本；后续只在每个 OS 切片启动时按其五项状态单独估时，不恢复未经验证的全局总工期。
 
 ## 5. 每个切片的固定执行顺序
 

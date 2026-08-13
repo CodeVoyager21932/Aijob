@@ -6,7 +6,7 @@
 >
 > 起始 HEAD：`d23bdaa docs(plans): activate career os ux convergence`
 >
-> 当前决定：**修改 / 保持 UX-0。视觉/交互规则、端到端领域归属和六个结构性接缝的字段级静态草案已形成；逐项代码反证、Review migration 的 legacy/new-write 兼容断言和四视口运行基线仍未完成，不得进入 OS-1。**
+> 当前决定：**完成 UX-0，继续 OS-1 准备。六个结构性接缝已逐项用代码反证，Review v1/v2 的 expand-only、滚动部署与不可逆代码回滚边界已锁定，四视口当前运行基线已完成。该决定只关闭审计，不表示任何 OS-1 产品代码已经实施。**
 
 稳定实施契约见 [Career OS 端到端体验与系统契约](../../../14-career-os-end-to-end-experience-contract.md)。
 
@@ -14,7 +14,7 @@
 
 ## 1. 本轮范围
 
-UX-0 只建立后续实现必须遵守的可复核基线，没有重做页面、修改产品代码、添加后端能力、启动数据库或访问外部系统。2026-08-13 coco 明确要求不能把后端匹配当作前提，必须在页面实现前同步审计 Web、Contracts、Platform 与数据库语义；本证据因此由“视觉基线”纠正为“端到端契约与基线”。
+UX-0 只建立后续实现必须遵守的可复核基线，没有重做页面、修改产品代码或添加后端能力。为完成运行反证，本轮仅临时启动 loopback Web/Platform 与全新隔离 PostgreSQL，全部使用合成数据并在结束后精确清理；没有访问外部系统。2026-08-13 coco 明确要求不能把后端匹配当作前提，必须在页面实现前同步审计 Web、Contracts、Platform 与数据库语义；本证据因此由“视觉基线”纠正为“端到端契约与基线”。
 
 完成的工作：
 
@@ -25,6 +25,9 @@ UX-0 只建立后续实现必须遵守的可复核基线，没有重做页面、
 5. 审计现有 CSS token、字体、密度、响应式、焦点和 overlay 行为。
 6. 设计隔离合成满态与真实空态验收夹具，不建设产品演示模式。
 7. 确认后续 OS-1–OS-7 必须由 Contract、Database/Platform、Web、Integrated Gate、Evidence 同步关闭，不能按前端/后端独立报完。
+8. 逐项反证看板、Case matching、Recommendation、Insights、Review 与 Web runtime parse 的现有 Contracts、服务、Worker 和数据库可表达性。
+9. 在隔离 PostgreSQL 上执行迁移 001–032，并运行 026B–031 forward-contract 13/13 集成测试，锁定 Review v1/v2 的滚动部署与回滚边界。
+10. 通过真实 Platform API、合成公共岗位/Case/Resume 和本机 Chrome 完成 1536、1280、320 与 200% 等效 768 四视口运行基线；未生成截图。
 
 未做的工作：
 
@@ -40,7 +43,7 @@ UX-0 只建立后续实现必须遵守的可复核基线，没有重做页面、
 | 项目 | 实际结果 |
 |---|---|
 | 分支 | `codex/career-os-ux-convergence` |
-| HEAD | `d23bdaa`，与 `origin/codex/career-os-ux-convergence` 一致 |
+| 关闭核验起点 HEAD | `8a56727`，与 `origin/codex/career-os-ux-convergence` 一致，ahead/behind 为 `0/0` |
 | tracked 工作树 | 干净 |
 | 最近基线 | `d03219f` PA-1、`aa4cf75` M4-4、`6ea75fc` M4-3 均可追溯 |
 | 3000 / 5173 / 5432 | 2026-08-13 均未监听 |
@@ -48,12 +51,13 @@ UX-0 只建立后续实现必须遵守的可复核基线，没有重做页面、
 
 这与 2026-08-12 当前交接中“服务正在运行”的时点记录不同。差异来自运行状态变化，不是代码或产品基线冲突；活动交接必须改为今天的实际状态。
 
-本轮曾尝试只启动 Vite 读取无数据库的错误/空运行基线：
+运行核验使用：
 
-- 沙箱外 `127.0.0.1:5173` Vite 能正常就绪，并被生命周期助手自动停止。
-- 捆绑 Playwright 元数据指向已不存在的浏览器；改用本机 Chrome 后，开发 HMR 使最初的 `networkidle` 等待不结束，任务被主动终止，端口随后确认停止。
-- 修正为 `DOMContentLoaded + 固定稳定窗口` 后，沙箱外运行额度被系统拒绝；没有再次绕过或重试。
-- 因此本证据不声称 2026-08-13 已重新完成浏览器四视口验收。
+- 精确数据库 `aijob_ux0_test_20260813_f057`，迁移 001–032，只写合成公共岗位、匿名 owner、Case 与 Resume；数据库 forward-contract 测试创建的两个 `aijob_test_phase2a_*` 子库由测试 `afterAll` 自动删除。
+- Platform 使用 test 配置与临时目录，禁用 AI、source probe、internal preview 和所有非 loopback 能力；Web 只代理 `127.0.0.1:3000`。
+- 捆绑 Python 环境没有 Playwright，因此没有联网安装；改用仓库可用的 Node Playwright 驱动本机 Chrome。等待条件为 `DOMContentLoaded + 固定稳定窗口`，避免把 Vite HMR 长连接误判为页面未就绪。
+- 浏览器遥测没有 console warning/error、HTTP 异常、非导航请求失败或外部请求。51 次 `net::ERR_ABORTED` 全是脚本切换页面时取消尚未完成的 GET 导航伴随请求，不是服务失败；独立记录为 navigation abort，不计入网络通过项。
+- 核验结束后删除临时 runner 与精确测试库，停止 Web、Platform、项目 PostgreSQL，并确认 3000/5173/5432 不再监听。
 
 ## 3. 概念图核验
 
@@ -145,7 +149,28 @@ UX-0 只建立后续实现必须遵守的可复核基线，没有重做页面、
 | Tailoring / Review | Resume V2 Review 是模板与受控 AI 的唯一新写入；template/AI 都读取固定 Requirements，旧 Tailoring 历史只读；v2 使用同一队列的新任务类型，使旧 Worker 不领取 | **需要最小 expand migration**：Run v2 provenance/failure/fallback；Finding/Suggestion v2 requirement IDs；versioned task type；legacy v1 不回填臆造 provenance |
 | Web response | parser-aware `apiRequest`，触达端点使用共享 schema | 不需要 |
 
-选择依据来自 ADR-0030 的“单 Case 共同上下文”、ADR-0031 的“applications/Case 为新业务真源、旧路由只作兼容/历史”、ADR-0013 的受控 AI 降级/审计边界和现有代码可表达性。字段级 schema、Problem、回退与核心断言已经写入[追踪矩阵](../../../plans/career-os-ux-0-end-to-end-traceability-matrix.md)，但尚未实现或运行验证，因此它们是实施约束，不是功能完成声明。
+选择依据来自 ADR-0030 的“单 Case 共同上下文”、ADR-0031 的“applications/Case 为新业务真源、旧路由只作兼容/历史”、ADR-0013 的受控 AI 降级/审计边界和现有代码可表达性。字段级 schema、Problem、回退与核心断言已经写入[追踪矩阵](../../../plans/career-os-ux-0-end-to-end-traceability-matrix.md)。UX-0 已完成对“为什么需要这些处置”的代码反证，但尚未实现任何新 Contract/API/migration，因此它们是后续实施约束，不是功能完成声明。
+
+### 5.5 代码与 migration 兼容反证结果
+
+| 接缝 | 反证结果 | 后续责任 |
+|---|---|---|
+| 看板完整集合 | Contracts/Platform 只提供 stage 分页，Web 对已加载子集做 city/sort/count | OS-3 扩展 list 与同快照 board read model；当前无表 migration 依据 |
+| Case 固定版本匹配 | MatchRun 创建与 Worker 都要求 current/public pointer，Case 没有执行上下文 | OS-4 增加 `case_pinned` adapter/task 与双时点重验；不加 Case 外键 |
+| Recommendation | 浏览器提交最多 1100 个候选版本 ID，读取结果缺岗位显示投影 | OS-2 改由 Platform 派生规范候选范围并复用现有 Run |
+| Insights | 现有服务是跨岗位 scope 聚合，不是单 Case Requirements | OS-2 归 `/jobs/insights*`，从 Case JD 明确排除 |
+| Review | 当前 request/route/Worker 只实现 template；generator 不读固定 Requirements；v1 row 无 provenance/failure/requirement IDs | OS-5 最小 expand migration 与 Review v2 双读/双任务处理 |
+| Web runtime | 通用 `apiRequest<T>` 对多数成功响应只作泛型断言 | OS-1 起对触达端点使用共享 schema parser |
+
+Review 兼容结论不是“以后再看”，而是已经固定的部署约束：
+
+1. migration 只做 expand，`down` no-op；旧 Review/Tailoring 数据与路由不删除。
+2. 先部署能双读 v1/v2、同时保留 `resume_review` v1 handler 并新增 `resume_review_v2` handler 的 reader/Worker；在全部实例兼容前，template 和 controlled_ai 的 v2 写入都关闭。
+3. legacy row 只识别为 v1；provenance 保持 unknown/NULL，requirement IDs 保持空数组，不用当前模板版本伪造历史。
+4. public/private requirement 引用分别对固定 requirement set 与固定 private snapshot revision 校验，不依赖可删除的 Case 当前状态。
+5. 当前旧 mapper 会把未来记录硬标成 v1，因此只要数据库中出现过任何 v2 Run，pre-v2 应用代码回滚就不再安全；关闭 AI 或排空任务不足以恢复，只允许前向修复。
+
+focused 反证结果：Contracts 79/79、Web 142/142、Platform applications/matching/insights/review 13/13、Database forward-contract 13/13，全部通过；文档收口后的 lint 451 files 与全仓 typecheck 也通过。它们证明现有事实被正确读取且本次文档没有破坏工程基线，不代表上述 OS-* 扩展已经实现。
 
 ## 6. 页面状态基线
 
@@ -220,19 +245,20 @@ UX-0 只建立后续实现必须遵守的可复核基线，没有重做页面、
 
 这些必须由 OS-1 的统一 overlay/focus primitive 解决，不能继续散落在各页面。
 
-## 8. 四视口代码派生基线
+## 8. 四视口实时运行基线
 
-以下是从当前 CSS、组件几何和历史 M4 浏览器证据推导的**风险基线**，不是 2026-08-13 新浏览器通过声明。
+2026-08-13 使用真实 Vite → Platform API → 隔离 PostgreSQL 路径、合成岗位/Case/Resume 和全新浏览器上下文完成当前实现测量。这里“基线完成”表示缺口已被可复现地测出并分配，不表示当前布局或可访问性已经通过目标 Gate。
 
-| 视口 | 当前代码事实 | 风险 / 结论 |
-|---|---|---|
-| 1536 CSS px | 248px sidebar + 默认 360px Peek 后，main 内容约 860px；五列最低约 1138px | 五列 + Peek 必然使用内部横滚，达不到概念图同屏密度 |
-| 1280 CSS px | 1439 断点强制 76px rail；无 Peek 内容宽度已贴近看板最低宽度；最大 Peek 后列表轨道可能超过画布 | 容易局部横滚或被父级 `overflow:hidden` 裁剪 |
-| 320 CSS px | sidebar 转抽屉，main padding 14px，看板单列，Peek/inspector 全宽 | 历史 M4 曾实测页面无水平滚动；本轮仍须验证“没有内容被裁掉”而不只看 scrollWidth |
-| 200% / 640 CSS px | 会进入当前移动断点 | 大部分重排路径存在，但 modal 键盘约束未完成 |
-| 200% / 768 CSS px | 比 `max-width:767px` 高 1px，仍处 tablet 双栏；Resume editor 最小轨道约 454px，而右侧可用约 384px | 存在约 70px 静默裁剪风险，是必须补验的边界 |
+| 视口 | 看板 | Requirements / overlay | Resume Studio | 结论与归属 |
+|---|---|---|---|---|
+| 1536 CSS px | board `845 / 1138`，内部横向溢出 293px | 页面无全局横滚；Peek/inspector 均无 dialog 语义、打开聚焦或 Escape | asset stage `863 / 863`，无裁剪 | Shell/overlay → OS-1；看板密度/read model → OS-3 |
+| 1280 CSS px | board `777 / 1138`，内部横向溢出 361px | 同上 | asset stage `795 / 795`，无裁剪 | OS-1、OS-3 |
+| 320 CSS px | 单列 `292 / 292`，页面无水平滚动 | workspace 自身溢出 14px，最右后代越界约 79px，被全局 hidden 掩盖；overlay 语义仍缺失 | 单列 `290 / 290`，无裁剪 | 移动重排/overlay → OS-1；后续页面逐切片复验 |
+| 200% 等效 768 CSS px | board `625 / 1138`，内部横向溢出 513px | Requirements 后代左右越界约 41/26px；overlay 语义仍缺失 | stage `327 / 454`，被 `overflow-x:hidden` 静默裁掉 127px；shell 后代另越界约 85px | 断点/overlay → OS-1；Studio 重排 → OS-5 |
 
-当前 main 使用 `overflow-x:hidden`，所以“没有出现滚动条”不能自动证明布局通过。稳定契约把页面级横向滚动禁止，并只为看板、tabs、步骤和历史轨道保留明确白名单。
+所有视口中，Peek 显式关闭后的焦点都能返回触发卡片，这是可复用的正向事实；但 Peek 与 Requirement inspector 打开后焦点不进入 surface，Escape 也不关闭，且缺 `role=dialog`/`aria-modal`。当前 main 使用 `overflow-x:hidden`，因此“document scrollWidth 等于 clientWidth”不能自动证明没有裁剪。
+
+浏览器遥测：`consoleProblems=[]`、`externalRequests=[]`、`httpProblems=[]`、`nonNavigationFailedRequests=[]`。没有访问真实招聘来源、AI、邮件或远程服务器，也没有生成截图。
 
 ## 9. 验收夹具设计
 
@@ -261,14 +287,15 @@ UX-0 只建立后续实现必须遵守的可复核基线，没有重做页面、
 | Gate | 结果 |
 |---|---|
 | 路由与旧能力处置矩阵 | **静态通过**；matching/recommendation/insights/Tailoring 的规范归属、兼容入口和唯一写入已锁定，尚未实现 |
-| 页面—动作—Contract—Platform—DB—测试矩阵 | **部分通过**；逐用例与字段级草案、Problem 和核心断言已形成；代码反证、migration legacy/new-write 兼容和运行验证待完成 |
+| 页面—动作—Contract—Platform—DB—测试矩阵 | **UX-0 通过**；逐用例、字段、Problem、删除/版本和六接缝代码反证已形成；实施断言留在对应 OS Gate |
 | 概念图采用/拒绝/响应式规则 | 通过，并纠正两张图片的标签互换 |
 | 视觉 token、密度、焦点和 overlay 契约 | 通过，已经固定 |
 | 满态与真实空态夹具设计 | 通过；设计完成，未实现 |
-| 1536 / 1280 / 320 / 200% 当前运行基线 | **未通过**；只有静态风险推导和历史 M4 证据，本轮浏览器未完成 |
+| Review v1/v2 migration 兼容 | **UX-0 通过**；expand-only、双读/双 handler、v2 写入开关与“出现 v2 row 后禁止旧代码回滚”已锁定；migration 尚未实施 |
+| 1536 / 1280 / 320 / 200% 当前运行基线 | **基线完成、目标未通过**；已量化看板横滚、768 Studio 裁剪和 overlay/focus 缺口并分配 OS-1/OS-3/OS-5 |
 | 产品代码边界 | 通过；没有修改产品代码或扩建后端，仅做只读审计和文档纠正 |
-| 离线与数据安全 | 通过；没有访问外部系统或禁区 |
+| 离线与数据安全 | 通过；真实运行只用 loopback、合成数据和精确测试库，没有访问外部系统或禁区 |
 
-最终决定是 **修改**：保持 `UX-0`，不进入 OS-1。下一动作是逐项用现有 Contract、SQL、Platform 路由/Worker 和测试反证字段草案，完成 Review v1/v2 migration 的前向/回退条件检查，并补齐四视口实时浏览器基线；任一项未完成都不能开始页面实现。若核验与当前文档冲突，先修改契约，不静默选择前端或后端一方。
+最终决定是 **完成 UX-0，继续 OS-1 准备**。OS-1 的唯一范围是先同步收敛 WorkspaceShell、规范路由/错误边界、统一 overlay/focus、身份/session 回接和触达响应的 runtime schema；不会顺带实现看板 read model、Case matching 或 Review migration。UX-0 关闭不代表这些功能已经完成，也不代表已开始 OS-1 产品代码。
 
 产品证据继续为 E0；本轮设计审计不代表用户价值、真实供给或 Private Alpha 就绪。

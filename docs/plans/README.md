@@ -4,7 +4,7 @@
 
 ## 当前执行
 
-- [Career OS 前后端同步改进计划](career-os-current-delivery-plan.md)：当前唯一活动计划；UX-0 视觉规则、核心能力 `R / A / E / M / X` 定级和字段级系统草案已形成，逐项代码反证、Review v1/v2 migration 兼容与四视口运行基线待补，当前决定为“修改并保持 UX-0”，产品代码尚未实施。
+- [Career OS 前后端同步改进计划](career-os-current-delivery-plan.md)：当前唯一活动计划；UX-0 的视觉规则、核心能力 `R / A / E / M / X` 定级、代码反证、Review v1/v2 兼容边界与四视口运行基线均已关闭，下一切片是 OS-1，产品代码尚未实施。
 - [Career OS 端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)：OS-1–OS-7 必须遵守的系统归属、Contracts/Platform/DB/Web、路由、状态、视觉、响应式、焦点和夹具规则；不提供新的任务顺序。
 - [UX-0 页面—系统—证据追踪矩阵](career-os-ux-0-end-to-end-traceability-matrix.md)：逐用例记录规范路由、Contracts、Platform/DB、权限/并发/删除语义、Web 状态、真实测试和 `R / A / E / M / X` 处置；未决行关闭前不得实现对应页面。
 - [MVP 路线与当前决策面板](../06-mvp-roadmap.md)：当前阶段、真实分母、Gate 和下一决定的最高动态事实源。
@@ -42,7 +42,7 @@
 | UX-6 | OS-6 投递、面试、复盘与数据控制 |
 | UX-7 | OS-7 系统总 Gate |
 
-`UX-0` 保留为当前已启动的端到端契约审计名称。支持契约、追踪矩阵、证据、未来 Gate、兼容路标和归档都不是独立活动计划。
+`UX-0` 保留为已完成的端到端契约审计名称及后续实现基线。支持契约、追踪矩阵、证据、未来 Gate、兼容路标和归档都不是独立活动计划，也不得把已关闭审计重新生成成当前任务。
 
 ## 事实源与冲突处理
 

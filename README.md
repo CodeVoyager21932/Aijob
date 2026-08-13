@@ -1,6 +1,6 @@
 # Aijob：可信官方岗位驱动的求职 OS
 
-> 2026-08-13：M1–M4 与 PA-1 离线候选已经完成。当前执行[Career OS 前后端同步改进计划](docs/plans/career-os-current-delivery-plan.md)：UX-0 先完成系统契约审计，后续 OS-1–OS-7 按 Contract、Database/Platform、Web、Integrated Gate、Evidence 五项同步推进。UX-0 的[系统契约](docs/14-career-os-end-to-end-experience-contract.md)已形成六项结构性接缝的字段级静态草案，并确认现有匹配不能直接处理 Case 固定旧版本、现有 Review 也尚未读取固定 JD Requirements。逐项代码反证、Review v1/v2 migration 兼容和四视口运行基线待完成，当前决定为“修改并保持 UX-0”，产品代码尚未实施。真实邮件、解析镜像、服务器、供给和参与者 Gate 仍未通过。
+> 2026-08-13：M1–M4 与 PA-1 离线候选已经完成。当前执行[Career OS 前后端同步改进计划](docs/plans/career-os-current-delivery-plan.md)：UX-0 系统契约审计已关闭，后续 OS-1–OS-7 按 Contract、Database/Platform、Web、Integrated Gate、Evidence 五项同步推进。UX-0 的[系统契约](docs/14-career-os-end-to-end-experience-contract.md)及[追踪矩阵](docs/plans/career-os-ux-0-end-to-end-traceability-matrix.md)已完成六项结构性接缝的代码反证、Review v1/v2 兼容边界和四视口运行基线。下一切片是 OS-1，产品代码尚未实施。真实邮件、解析镜像、服务器、供给和参与者 Gate 仍未通过。
 
 这是一个待验证的产品项目，面向**未来 30 天真实投递实习岗位、已有中文简历、近期使用过多个官方渠道的中国大陆在校生**。它只把企业官方招聘网站和经企业官网确认的官方 ATS 中当前存在的具体岗位整理为可追溯信息；高校就业网站、政府页面、公众号和其他二手页面只用于发现企业及其官网方向。系统依据用户确认过的约束与经历证据，帮助用户完成投递、暂缓或放弃的高质量决定，最终回到企业官网或官方 ATS 投递。
 
@@ -11,15 +11,15 @@
 | 项目 | 当前值 |
 |---|---|
 | 快照日期 | 2026-08-13 |
-| 当前阶段 | Career OS 前后端同步改进；UX-0 视觉/交互规则、领域归属、复用/适配/扩展定级和字段级草案已形成，代码反证、Review migration 兼容和四视口实时基线待补。M1–M4 与 PA-1 保留为工程基线，真实邮件、解析镜像与服务器 Gate 通过前，G0/G1 继续暂停 |
+| 当前阶段 | Career OS 前后端同步改进；UX-0 审计 Gate 已关闭，OS-1 系统外壳与运行契约是下一切片且尚未实施。M1–M4 与 PA-1 保留为工程基线，真实邮件、解析镜像与服务器 Gate 通过前，G0/G1 继续暂停 |
 | 当前范围 | 干净验收库 `aijob_alpha` 为 22 条可信可见活动岗位、3 家企业、3 个官方 ATS 来源；距离硬门槛仍缺 978 岗、97 家。SME 为 2/3 家、14/22 岗，人工来源为 0；Alpha 与公共岗位均为 0。开发库 14/2 及纠偏前 231/149/29 只保留为历史运行事实 |
 | 协议校准 | 尚未开始；供给硬门槛和服务器就绪 Gate 通过后，只有 coco 明确启动才做 2 人校准；历史可核验记录仍为 0/2 |
 | 正式实验 | 暂停；供给硬门槛、服务器就绪 Gate 与 G0 通过后再做 6 人正式任务和 72 小时回访 |
 | 历史研究样本 | 5 条本地产品/运营岗位；不等于完整 MVP 目录 |
 | 当前证据 | E0：尚无可复核目标用户行为证据，两个产品假设均未判定 |
-| 当前实现策略 | 不默认后端已匹配，也不无依据重做。UX-0 先把每个用户动作绑定到 Contracts、Platform 模块、PostgreSQL 事实、权限/并发/删除语义和真实测试，再按纵向切片同步完成 Platform/DB 与 Web。三张概念图作为布局、信息层级和交互关系的高保真目标；旧 Matching、Recommendation、Insights、Tailoring 只有从规范路径可用、刷新可恢复且事实可追溯时才算自然融入；不因此启动真实 Alpha |
+| 当前实现策略 | 不默认后端已匹配，也不无依据重做。UX-0 已把每个用户动作绑定到 Contracts、Platform 模块、PostgreSQL 事实、权限/并发/删除语义和真实测试；后续按纵向切片同步完成 Platform/DB 与 Web。三张概念图作为布局、信息层级和交互关系的高保真目标；旧 Matching、Recommendation、Insights、Tailoring 只有从规范路径可用、刷新可恢复且事实可追溯时才算自然融入；不因此启动真实 Alpha |
 | 来源发现进度 | 已按 ADR-0019 完成 1000/1000 家企业/机构审查记录；34 个来源配置中 12 个为 canonical（7 个活动确定性、2 个浏览器提醒、3 个硬冲突暂停），22 个高校等来源均降级为 `discovery_only`。当前审计没有 `capacity` 就绪候选 |
-| 工程切片 | PA-1 最终回归 Config 20、Contracts 79、Database 54、Platform 461、Web 142，共 756/756；lint 451、typecheck、build、audit 与 diff check 通过。OS 产品代码尚未实施；主包 566.69 kB 作为同步改进计划的性能基线。OS-5 的 Review v1/v2 最小 migration 目前只有静态草案、尚未实施；真实邮件/解析镜像/服务器、真实 AI 与真实来源同样未实施，公共版本仍为 0 |
+| 工程切片 | PA-1 最终回归 Config 20、Contracts 79、Database 54、Platform 461、Web 142，共 756/756；lint 451、typecheck、build、audit 与 diff check 通过。OS 产品代码尚未实施；主包 566.69 kB 作为同步改进计划的性能基线。OS-5 的 Review v1/v2 最小 migration 已完成可表达性与兼容设计，但 migration 尚未实施；真实邮件/解析镜像/服务器、真实 AI 与真实来源同样未实施，公共版本仍为 0 |
 | AI 状态 | Review、Interview、Feedback 与 Debrief 均必须与用户确认事实分离；公开环境继续关闭，M4 沿用确定性模板，不调用真实 AI |
 
 以上内容只用于帮助首次阅读者定位本次文档基线。后续动态阶段、样本进度、Gate 状态和下一决策日期只更新到 [MVP 路线与当前决策面板](docs/06-mvp-roadmap.md)；如有差异，以该面板为准。

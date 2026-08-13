@@ -1,6 +1,6 @@
 # UX-0 页面—系统—证据追踪矩阵
 
-> 状态：Active / UX-0 静态契约草案已形成，代码反证与运行基线待完成
+> 状态：Accepted baseline / UX-0 已完成代码反证、Review 兼容核验与四视口当前运行基线；后续实现按 OS-1–OS-7 逐行关闭
 >
 > 日期：2026-08-13
 >
@@ -18,7 +18,7 @@
 6. 真实隔离数据库与浏览器证据。
 7. `R / A / E / M / X` 处置决定。
 
-处置含义：`R` 直接复用；`A` 在现有模块内适配；`E` 扩展 Contracts/API/read model；`M` 经证明的最小 migration；`X` 明确排除并给出替代入口。带 `?` 的行尚未完成 UX-0 Gate。
+处置含义：`R` 直接复用；`A` 在现有模块内适配；`E` 扩展 Contracts/API/read model；`M` 经证明的最小 migration；`X` 明确排除并给出替代入口。UX-0 关闭只表示归属、可表达性和当前反证已锁定，不表示对应 OS 切片已经实现。
 
 ## 2. 核心用例矩阵
 
@@ -50,12 +50,25 @@
 
 | 编号 | 未决问题 | 首选核验顺序 | 关闭条件 |
 |---|---|---|---|
-| A-01 | 看板完整集合 | **已选：Case list 扩展 + board 初始 read model；无语义 migration** | 字段草案已形成；仍需 >100 Case 集成测试、同快照断言与 `EXPLAIN` 证据 |
-| A-02 | MatchRun 的 Case 恢复语义 | **已选：Case-scoped adapter + `case_pinned` Worker 上下文；按固定 job/requirement 与资料 revisions 查回，不加 caseId** | 字段草案已形成；仍需证明服务端派生输入进入幂等 hash、任务载荷校验、固定旧版本处理、Case 删除/升级竞态 |
-| A-03 | Insights 与单岗 Requirements 边界 | **已选：市场洞察归 `/jobs/insights*`，从 Case JD 明确排除** | 现有 API 可复用；仍需 V2 兼容跳转、深链和错误浏览器证据 |
-| A-04 | Recommendation 入口与候选冻结 | **已选：归 `/jobs/recommended*`；在现有 RecommendationRun 资源下增加按搜索创建和 view adapter** | 字段草案已形成；仍需 scope 与目录查询同义、固定请求数、stale/invalid/空目录断言 |
-| A-05 | Tailoring / Review 唯一写入所有权 | **已选：Review 唯一新写入，受控 AI 与岗位要求引用走最小 expand migration；Tailoring 历史只读** | legacy provenance 不得回填臆造值；v2 使用同一队列中的版本化任务类型以便旧 Worker fail closed；仍需 migration up/down、public/private 引用、模拟 provider 与删除矩阵 |
-| A-06 | Web 核心响应运行时校验 | **已选：parser-aware `apiRequest`，触达端点使用共享 schema** | 字段草案已形成；仍需畸形响应、敏感 payload 不泄漏和包体断言 |
+| A-01 | 看板完整集合 | **已选：Case list 扩展 + board 初始 read model；无语义 migration** | UX-0 代码反证完成；>100 Case、同快照与 `EXPLAIN` 属 OS-3 实施 Gate |
+| A-02 | MatchRun 的 Case 恢复语义 | **已选：Case-scoped adapter + `case_pinned` Worker 上下文；按固定 job/requirement 与资料 revisions 查回，不加 caseId** | UX-0 代码反证完成；幂等 hash、任务载荷、固定旧版本与删除/升级竞态属 OS-4 Gate |
+| A-03 | Insights 与单岗 Requirements 边界 | **已选：市场洞察归 `/jobs/insights*`，从 Case JD 明确排除** | UX-0 语义反证完成；兼容跳转、深链和错误证据属 OS-2 Gate |
+| A-04 | Recommendation 入口与候选冻结 | **已选：归 `/jobs/recommended*`；在现有 RecommendationRun 资源下增加按搜索创建和 view adapter** | UX-0 代码反证完成；scope 同义、请求数、stale/invalid/空目录属 OS-2 Gate |
+| A-05 | Tailoring / Review 唯一写入所有权 | **已选：Review 唯一新写入，受控 AI 与岗位要求引用走最小 expand migration；Tailoring 历史只读** | UX-0 legacy/new-write 与滚动部署边界已锁定；migration、引用、模拟 provider 和删除矩阵属 OS-5 Gate |
+| A-06 | Web 核心响应运行时校验 | **已选：parser-aware `apiRequest`，触达端点使用共享 schema** | UX-0 代码反证完成；畸形响应、敏感 payload 与包体断言随 OS-1 起逐切片关闭 |
+
+### 3.1 UX-0 代码反证结论
+
+| 接缝 | 当前代码事实 | 结论 |
+|---|---|---|
+| 看板 | `application-cases` list 只接收 `cursor / limit / stage`，Platform 固定按更新时间分页；`ApplicationsPage` 对最多 100 条已加载结果在浏览器内做城市筛选、排序和列计数 | `E` 成立；必须由服务端提供完整集合语义与初始 board read model，不需要先加表 |
+| Case 匹配 | `CreateMatchRun` 没有 Case 上下文；创建服务和 Worker 都要求岗位版本仍是 current/public pointer | `E` 成立；Case 固定旧版本需要受 owner/删除状态约束的 `case_pinned` adapter/task，不增加 Case 外键 |
+| Recommendation | 浏览器先拉最多 1100 个岗位并提交候选版本 ID；Run 读取又没有岗位显示投影 | `E` 成立；候选范围和显示投影由 Platform 派生，继续复用现有 RecommendationRun |
+| Insights | 现有 Run 是跨岗位 scope 聚合，当前 V2 兼容文案却把结果描述成具体岗位；不存在单 Case insight API | `A` 成立；市场洞察与 Case Requirements 必须分开 |
+| Review | 创建请求只开放 `template`；Run/Finding/Suggestion 都是 v1，生成器不读取固定 Requirements，失败状态没有稳定 reason | `E + M` 成立；当前能力只能称证据一致性 Review，不能称岗位定制 Review |
+| Web runtime | 通用 `apiRequest<T>` 对多数业务响应直接 `as T`；只有少数 identity/session 路径显式 schema parse | `A` 成立；触达的核心响应必须逐切片使用共享 schema 运行时解析 |
+
+数据库反证进一步确认：现有 public requirement 可从固定 `catalog.job_requirement_sets.requirements` 校验，private requirement 可从固定 `application.private_job_snapshot_revisions.requirements` 校验，Review 不需要依赖会随 Case 删除而消失的可变状态。因而 OS-5 的 migration 仅扩展 Review 版本/provenance/failure 与 requirement 引用，不新增第二套 Review 聚合或 Case 外键。
 
 ## 4. 实施防返工规则
 
@@ -260,7 +273,11 @@ Run 处于 queued/processing 时 `jobs=[]`；成功后 `jobs` 与 `run.items` �
 
 AI 关闭、配置缺失或 provider/Schema/引用校验失败时，按 ADR-0013 生成确定性模板结果并明确写 `usedTemplateFallback=true` 与稳定 `fallbackReasonCode`；不是静默成功，也不需要先返回 503。只有模板生成本身也失败时 Run 才进入 failed 并写 `failureCode`。Worker 改为接收 config、可注入 fetch 与 abort signal；UX 离线验收只注入 loopback 模拟 provider，并由验收网络 allowlist 在发现非 loopback 请求时立即失败。未来本地真实 provider 仍只能经既有显式配置与供应商 Gate 启用，不能被测试 allowlist 误写成生产限制。
 
-迁移采用 expand-only：不删除旧 Tailoring 表、路由或数据。同一 `task_queue.tasks` 中保留旧 `resume_review` 任务，并为新 v2 Run 增加 `resume_review_v2` 任务类型；新 Worker 同时读取两者，旧 Worker 的固定任务类型集合不会领取 v2，从部署过程上 fail closed，而不是依赖 payload 额外字段（旧 Zod object 会剥离未知字段）。down/代码回退前还必须先禁用 controlled_ai 新建、排空或取消 v2 Review task，并证明不存在 v2 Run；否则迁移回退拒绝执行。
+迁移采用 expand-only：不删除旧 Tailoring 表、路由或数据，`down` 保持 no-op。同一 `task_queue.tasks` 中保留旧 `resume_review` 任务，并为新 v2 Run 增加 `resume_review_v2` 任务类型；新 Worker 同时读取两者，旧 Worker 的固定任务类型集合不会领取 v2，从部署过程上 fail closed，而不是依赖 payload 额外字段（旧 Zod object 会剥离未知字段）。
+
+滚动部署顺序固定为：先加 nullable/有安全默认值的字段与 v2 任务类型，部署能双读 v1/v2 且分别处理 `resume_review`/`resume_review_v2` 的新 reader/Worker；在全部 reader/Worker 兼容前，template 与 controlled_ai 的 v2 写入都保持关闭；兼容部署完成后才启用 v2 新写入。旧行只把 Run 版本识别为 v1，provenance 继续为 NULL，绝不把当前模板版本回填成历史事实，Finding/Suggestion 的 legacy `requirement_ids` 保持空数组。
+
+当前旧 mapper 会忽略未来列并把读取结果硬标成 `resume-review-run-v1`。因此一旦任何 v2 Run 已经写入，回滚到 pre-v2 应用代码就不再安全：关闭 controlled_ai、排空任务或证明没有待处理 v2 task 都不足以恢复兼容，必须前向修复。只有在**从未启用 v2 写入且数据库中不存在任何 v2 Run**时，才允许回退旧应用二进制；数据库 expand migration 本身不反向删除列。
 
 其他固定错误沿用 Review 的 owner 404、revision 409、证据无效和删除语义；新增 `CONTROLLED_AI_CONSENT_REQUIRED`、`RESUME_REVIEW_REQUIREMENT_REFERENCE_INVALID` 和 `RESUME_REVIEW_GENERATION_FAILED`。旧 `/resume-tailorings/:runId` 在 V2 中只读，不提供新建、决策或导出写按钮；历史导出按既有保留规则读取。
 
