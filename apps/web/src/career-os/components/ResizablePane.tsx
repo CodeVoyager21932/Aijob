@@ -40,7 +40,7 @@ export function ResizablePane({ width, onWidthChange, children }: ResizablePaneP
         aria-label="调整右侧检查器宽度"
         aria-orientation="vertical"
         aria-valuemin={312}
-        aria-valuemax={460}
+        aria-valuemax={420}
         aria-valuenow={width}
         tabIndex={0}
         onPointerDown={startResize}

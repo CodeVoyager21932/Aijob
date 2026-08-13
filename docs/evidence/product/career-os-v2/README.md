@@ -6,9 +6,9 @@
 >
 > 上位事实源：[ADR-0030](../../../decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md)、[当前交付计划](../../../plans/career-os-current-delivery-plan.md)
 
-> 当前状态：M1–M4 与 PA-1 已完成并归档；coco 已要求 Career OS 以 Contracts、Platform/DB、Web 和真实隔离库同步收敛。UX-0 的视觉规则、核心能力系统定级、代码反证、Review v1/v2 migration 兼容与四视口运行基线均已完成，决定为“完成 UX-0，继续 OS-1 准备”。OS-1 尚未实施；后续只按 OS-1–OS-7 路线推进。本目录各历史验收中的“继续”“下一唯一切片”和等待决定只记录当时时点，不得生成当前任务。
+> 当前状态：M1–M4 与 PA-1 已完成并归档；UX-0 审计与 OS-1 系统外壳/运行契约均已关闭。OS-1 已同步完成 Platform 读冲突修复、唯一 WorkspaceShell、路由/错误、统一 overlay/focus、真实 session 状态与触达响应 runtime schema；决定为“完成 OS-1，进入 OS-2 准备”。OS-2 尚未实施，等待 coco 指令。本目录各历史验收中的“继续”“下一唯一切片”和等待决定只记录当时时点，不得生成当前任务。
 
-当前体验证据见 [UX-0 端到端契约与基线审计](ux-0-end-to-end-contract-and-baseline-2026-08-13.md)。该记录和[端到端体验与系统契约](../../../14-career-os-end-to-end-experience-contract.md)已经锁定 OS-1–OS-7 的系统边界；UX-0 审计关闭不等于任一 OS 功能已实现。
+当前体验证据见 [OS-1 系统外壳与运行契约验收](os-1-system-shell-and-runtime-contract-acceptance-2026-08-13.md)；其上游基线为 [UX-0 端到端契约与基线审计](ux-0-end-to-end-contract-and-baseline-2026-08-13.md)。OS-1 关闭不等于 OS-2–OS-7、真实供给、用户价值或 Private Alpha 已通过。
 
 已完成工程路线的证据依次见 [M1 真实 Case 工作台](m1-real-case-workspace-acceptance-2026-08-09.md)、[M2 专业简历闭环](m2-professional-resume-acceptance-2026-08-11.md)、[M3 总验收](m3-workflow-acceptance-2026-08-12.md)、[M4 工程与浏览器总验收](m4-engineering-browser-gate-acceptance-2026-08-12.md)和 [PA-1 离线候选](pa-1-offline-identity-parser-candidate-acceptance-2026-08-12.md)。这些证据保留历史工程事实，但不覆盖[动态路线](../../../06-mvp-roadmap.md)、[当前交付计划](../../../plans/career-os-current-delivery-plan.md)或[当前交接](../../../handoffs/current.md)。
 

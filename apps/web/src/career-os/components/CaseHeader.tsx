@@ -46,6 +46,7 @@ export function CaseHeader({
         ) : null}
         {onRequestDelete ? (
           <button
+            data-case-delete-trigger
             className="career-button career-button--danger-quiet"
             type="button"
             onClick={onRequestDelete}

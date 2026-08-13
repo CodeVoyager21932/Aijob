@@ -1,7 +1,10 @@
+import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { getSessionStatus } from "../../api/client";
 import { getWorkspaceBreadcrumbs, workspaceNavigation } from "../navigation";
 import { Icon } from "./Icon";
+import { ModalSurface } from "./ModalSurface";
 
 interface UtilityBarProps {
   onOpenMobileNavigation: () => void;
@@ -14,41 +17,35 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
   const [query, setQuery] = useState("");
   const [utilityPopover, setUtilityPopover] = useState<"notifications" | "account" | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const searchTriggerRef = useRef<HTMLButtonElement>(null);
-  const searchReturnFocusRef = useRef<HTMLElement | null>(null);
+  const sessionQuery = useQuery({
+    queryKey: ["identity", "session"],
+    queryFn: ({ signal }) => getSessionStatus(signal),
+    staleTime: 30_000,
+    retry: 1,
+  });
 
   const openSearch = useCallback(() => {
-    searchReturnFocusRef.current =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : searchTriggerRef.current;
     setSearchOpen(true);
   }, []);
 
   const closeSearch = useCallback(() => {
     setSearchOpen(false);
-    window.requestAnimationFrame(() => searchReturnFocusRef.current?.focus());
   }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        openSearch();
+        if (!document.querySelector("#career-overlay-root [role='dialog']")) openSearch();
       }
-      if (event.key === "Escape") {
-        if (searchOpen) closeSearch();
-        setUtilityPopover(null);
-      }
+      if (event.key === "Escape" && !searchOpen) setUtilityPopover(null);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [closeSearch, openSearch, searchOpen]);
+  }, [openSearch, searchOpen]);
 
   useEffect(() => {
-    if (!searchOpen) return;
-    setQuery("");
-    window.requestAnimationFrame(() => inputRef.current?.focus());
+    if (searchOpen) setQuery("");
   }, [searchOpen]);
 
   const normalizedQuery = query.trim().toLowerCase();
@@ -56,12 +53,31 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
     () => workspaceNavigation.filter((item) => item.label.toLowerCase().includes(normalizedQuery)),
     [normalizedQuery],
   );
+  const sessionLabel = sessionQuery.isPending
+    ? "会话检查中"
+    : sessionQuery.isError
+      ? "状态未知"
+      : !sessionQuery.data.authenticated
+        ? "需要验证"
+        : sessionQuery.data.owner.retentionMode === "account_managed"
+          ? "长期账号"
+          : "本机会话";
+  const sessionDescription = sessionQuery.isPending
+    ? "正在读取当前访问与数据保留状态。"
+    : sessionQuery.isError
+      ? "当前无法确认会话状态，请刷新后重试。"
+      : !sessionQuery.data.authenticated
+        ? "当前没有建立可访问的用户会话。"
+        : sessionQuery.data.owner.retentionMode === "account_managed"
+          ? "职业资产由已验证账号长期管理。"
+          : "匿名职业资产按本机保留期限管理。";
 
   return (
     <>
       <header className="career-utility-bar">
         <div className="career-utility-bar__leading">
           <button
+            data-mobile-navigation-trigger
             className="career-icon-button career-mobile-menu"
             type="button"
             aria-label="打开全局导航"
@@ -84,7 +100,7 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
 
         <div className="career-utility-bar__actions">
           <button
-            ref={searchTriggerRef}
+            data-command-search-trigger
             className="career-command-trigger"
             type="button"
             aria-label="搜索工作区页面"
@@ -107,12 +123,11 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
               }
             >
               <Icon name="bell" />
-              <span className="career-notification-dot" aria-hidden="true" />
             </button>
             {utilityPopover === "notifications" ? (
               <output className="career-utility-popover">
                 <strong>今天没有新的系统提醒</strong>
-                <span>静态项目任务请在“今日”中查看。</span>
+                <span>下一步任务请在“今日”中查看。</span>
               </output>
             ) : null}
           </div>
@@ -120,23 +135,25 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
             <button
               className="career-account-button"
               type="button"
-              aria-label="打开本机会话菜单"
+              aria-label={`打开会话菜单：${sessionLabel}`}
               aria-expanded={utilityPopover === "account"}
               onClick={() =>
                 setUtilityPopover((current) => (current === "account" ? null : "account"))
               }
             >
               <span aria-hidden="true">本</span>
-              <strong>本机会话</strong>
+              <strong>{sessionLabel}</strong>
               <Icon name="chevron" size={15} />
             </button>
             {utilityPopover === "account" ? (
               <div className="career-utility-popover career-utility-popover--account">
-                <strong>匿名本机会话</strong>
-                <span>不收集手机号或邮箱。</span>
-                <Link to="/settings/data" onClick={() => setUtilityPopover(null)}>
-                  管理个人数据
-                </Link>
+                <strong>{sessionLabel}</strong>
+                <span>{sessionDescription}</span>
+                {sessionQuery.data?.authenticated ? (
+                  <Link to="/settings/data" onClick={() => setUtilityPopover(null)}>
+                    管理个人数据
+                  </Link>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -144,19 +161,18 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
       </header>
 
       {searchOpen ? (
-        <div className="career-command-overlay" role="presentation">
-          <button
-            className="career-command-backdrop"
-            type="button"
-            aria-label="关闭全局搜索"
-            onClick={closeSearch}
-          />
-          <section
-            className="career-command-menu"
-            role="dialog"
-            aria-modal="true"
-            aria-label="全局搜索"
-          >
+        <ModalSurface
+          className="career-command-menu"
+          layerClassName="career-modal-layer--command"
+          labelledBy="career-command-title"
+          initialFocusRef={inputRef}
+          closeLabel="关闭全局搜索"
+          onClose={closeSearch}
+          returnFocus={() => document.querySelector<HTMLElement>("[data-command-search-trigger]")}
+        >
+          <h2 className="sr-only" id="career-command-title">
+            全局搜索
+          </h2>
             <label>
               <Icon name="search" />
               <input
@@ -173,7 +189,7 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
                 <div>
                   <p>页面</p>
                   {navigationResults.map((item) => (
-                    <Link key={item.to} to={item.to} onClick={() => setSearchOpen(false)}>
+                    <Link key={item.to} to={item.to} onClick={closeSearch}>
                       <Icon name={item.icon} />
                       <span>{item.label}</span>
                     </Link>
@@ -184,8 +200,7 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
                 <p className="career-command-menu__empty">没有找到对应页面。</p>
               ) : null}
             </div>
-          </section>
-        </div>
+        </ModalSurface>
       ) : null}
     </>
   );

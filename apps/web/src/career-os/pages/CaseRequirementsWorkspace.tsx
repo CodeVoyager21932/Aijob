@@ -20,6 +20,7 @@ import { createIdempotencyKey, ProductApiError } from "../../api/client";
 import { toApplicationCaseView } from "../application-case-view";
 import { EvidenceState } from "../components/EvidenceState";
 import { Icon } from "../components/Icon";
+import { ModalSurface } from "../components/ModalSurface";
 import { RequirementInspector } from "../components/RequirementInspector";
 import {
   getRequirementEvidenceIds,
@@ -29,6 +30,7 @@ import {
   requirementKindLabel,
   requirementSourceLabel,
 } from "../requirements-view";
+import { useMediaQuery } from "../use-media-query";
 
 function shouldOpenInspectorByDefault(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches;
@@ -83,6 +85,8 @@ export function CaseRequirementsWorkspace({
   const [answerDrafts, setAnswerDrafts] = useState<Record<string, string>>({});
   const [revisionConflict, setRevisionConflict] = useState(false);
   const questionCommandRef = useRef<{ signature: string; key: string } | null>(null);
+  const inspectorCloseRef = useRef<HTMLButtonElement>(null);
+  const inspectorIsOverlay = useMediaQuery("(max-width: 1023px)");
 
   const requirementsQuery = useQuery({
     queryKey: careerOsQueryKeys.requirements(applicationCase.id),
@@ -318,9 +322,70 @@ export function CaseRequirementsWorkspace({
       answer,
     });
   };
+  const inspectorTitleId = "career-requirement-inspector-title";
+  const requirementInspector = (
+    <RequirementInspector
+      key={selectedRequirement.id}
+      applicationCase={applicationCaseView}
+      requirement={selectedRequirement}
+      group={requirementGroup(selectedRequirement)}
+      sourceLabel={requirementSourceLabel(data)}
+      state={selectedState}
+      userNote={selectedNote}
+      evidenceIds={selectedEvidenceIds}
+      evidenceRevisionId={evidenceRevisionId}
+      evidence={evidence}
+      questions={selectedQuestions}
+      questionDraft={questionDraft}
+      answerDrafts={answerDrafts}
+      pending={commandMutation.isPending}
+      conflict={revisionConflict}
+      error={revisionConflict ? null : commandMutation.error}
+      titleId={inspectorTitleId}
+      closeButtonRef={inspectorCloseRef}
+      onClose={closeInspector}
+      onStateChange={(state) => updateDraft({ state })}
+      onNoteChange={(userNote) => updateDraft({ userNote })}
+      onEvidenceChange={(evidenceIds) => updateDraft({ evidenceIds })}
+      onSaveState={() =>
+        commandMutation.mutate({
+          kind: "state",
+          requirementId: selectedRequirement.id,
+          expectedRevision: data.revision,
+          state: selectedState,
+          userNote: selectedNote.trim() || null,
+        })
+      }
+      onSaveEvidence={() => {
+        if (!evidenceRevisionId) return;
+        commandMutation.mutate({
+          kind: "evidence",
+          requirementId: selectedRequirement.id,
+          expectedRevision: data.revision,
+          evidenceRevisionId,
+          evidenceIds: [...new Set(selectedEvidenceIds)].sort(),
+        });
+      }}
+      onQuestionDraftChange={(value) =>
+        setQuestionDrafts((current) => ({
+          ...current,
+          [selectedRequirement.id]: value,
+        }))
+      }
+      onCreateQuestion={createQuestion}
+      onAnswerDraftChange={(questionId, value) =>
+        setAnswerDrafts((current) => ({ ...current, [questionId]: value }))
+      }
+      onUpdateQuestion={updateQuestion}
+    />
+  );
 
   return (
-    <div className="career-case-detail-layout career-requirements-layout">
+    <div
+      className={`career-case-detail-layout career-requirements-layout${
+        isInspectorOpen ? "" : " is-inspector-closed"
+      }`}
+    >
       <div className="career-case-detail-layout__main">
         <header className="career-workspace-heading">
           <div>
@@ -400,67 +465,27 @@ export function CaseRequirementsWorkspace({
         </div>
       </div>
 
-      <div className={`career-context-panel${isInspectorOpen ? " is-open" : ""}`}>
-        <RequirementInspector
-          key={selectedRequirement.id}
-          applicationCase={applicationCaseView}
-          requirement={selectedRequirement}
-          group={requirementGroup(selectedRequirement)}
-          sourceLabel={requirementSourceLabel(data)}
-          state={selectedState}
-          userNote={selectedNote}
-          evidenceIds={selectedEvidenceIds}
-          evidenceRevisionId={evidenceRevisionId}
-          evidence={evidence}
-          questions={selectedQuestions}
-          questionDraft={questionDraft}
-          answerDrafts={answerDrafts}
-          pending={commandMutation.isPending}
-          conflict={revisionConflict}
-          error={revisionConflict ? null : commandMutation.error}
+      {!inspectorIsOverlay && isInspectorOpen ? (
+        <div className="career-context-panel is-open">
+          {requirementInspector}
+        </div>
+      ) : null}
+      {inspectorIsOverlay && isInspectorOpen ? (
+        <ModalSurface
+          className="career-modal-surface--inspector"
+          layerClassName="career-modal-layer--inspector"
+          labelledBy={inspectorTitleId}
+          initialFocusRef={inspectorCloseRef}
+          closeLabel="关闭要求检查器"
           onClose={closeInspector}
-          onStateChange={(state) => updateDraft({ state })}
-          onNoteChange={(userNote) => updateDraft({ userNote })}
-          onEvidenceChange={(evidenceIds) => updateDraft({ evidenceIds })}
-          onSaveState={() =>
-            commandMutation.mutate({
-              kind: "state",
-              requirementId: selectedRequirement.id,
-              expectedRevision: data.revision,
-              state: selectedState,
-              userNote: selectedNote.trim() || null,
-            })
+          returnFocus={() =>
+            document.querySelector<HTMLElement>(
+              `[data-requirement-trigger="${CSS.escape(selectedRequirement.id)}"]`,
+            )
           }
-          onSaveEvidence={() => {
-            if (!evidenceRevisionId) return;
-            commandMutation.mutate({
-              kind: "evidence",
-              requirementId: selectedRequirement.id,
-              expectedRevision: data.revision,
-              evidenceRevisionId,
-              evidenceIds: [...new Set(selectedEvidenceIds)].sort(),
-            });
-          }}
-          onQuestionDraftChange={(value) =>
-            setQuestionDrafts((current) => ({
-              ...current,
-              [selectedRequirement.id]: value,
-            }))
-          }
-          onCreateQuestion={createQuestion}
-          onAnswerDraftChange={(questionId, value) =>
-            setAnswerDrafts((current) => ({ ...current, [questionId]: value }))
-          }
-          onUpdateQuestion={updateQuestion}
-        />
-      </div>
-      {isInspectorOpen ? (
-        <button
-          className="career-context-panel-backdrop"
-          type="button"
-          aria-label="关闭要求检查器"
-          onClick={closeInspector}
-        />
+        >
+          {requirementInspector}
+        </ModalSurface>
       ) : null}
     </div>
   );

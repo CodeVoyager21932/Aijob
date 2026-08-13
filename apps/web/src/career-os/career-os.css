@@ -6,27 +6,76 @@
   place-items: center;
   background: #f7f8fa;
   color: #475569;
-  font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif;
 }
 
 .product-app.career-os {
-  --career-ink: #172033;
-  --career-muted: #687386;
-  --career-line: #e3e7ee;
-  --career-shell: #f7f8fa;
-  --career-paper: #ffffff;
-  --career-blue: #2864dc;
-  --career-blue-deep: #1749ad;
-  --career-blue-soft: #edf3ff;
-  --career-green: #16865b;
-  --career-green-soft: #eaf7f1;
-  --career-amber: #c77808;
-  --career-amber-soft: #fff6e5;
-  --career-red: #b44940;
-  --career-red-soft: #fff0ee;
-  --career-purple: #6755c6;
-  --career-purple-soft: #f1effd;
-  --career-sidebar-width: 248px;
+  --co-font-sans: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif;
+  --co-text-xs: 12px;
+  --co-text-sm: 13px;
+  --co-text-md: 14px;
+  --co-text-lg: 16px;
+  --co-title-sm: 20px;
+  --co-title-md: 24px;
+  --co-title-lg: 32px;
+  --co-canvas: #f7f8fa;
+  --co-surface: #ffffff;
+  --co-surface-subtle: #f1f3f6;
+  --co-text: #172033;
+  --co-text-muted: #5f6b7a;
+  --co-border: #dfe4ea;
+  --co-action: #1749ad;
+  --co-action-hover: #103b8c;
+  --co-action-soft: #edf3ff;
+  --co-positive: #0f6b49;
+  --co-positive-soft: #eaf7f1;
+  --co-warning: #7a4900;
+  --co-warning-soft: #fff6e5;
+  --co-danger: #963832;
+  --co-danger-soft: #fff0ee;
+  --co-space-1: 4px;
+  --co-space-2: 8px;
+  --co-space-3: 12px;
+  --co-space-4: 16px;
+  --co-space-5: 20px;
+  --co-space-6: 24px;
+  --co-space-7: 32px;
+  --co-space-8: 40px;
+  --co-radius-sm: 6px;
+  --co-radius-md: 8px;
+  --co-radius-lg: 12px;
+  --co-radius-full: 999px;
+  --co-shadow-low: 0 2px 8px rgba(23, 32, 51, 0.08);
+  --co-shadow-mid: 0 12px 32px rgba(23, 32, 51, 0.14);
+  --co-shadow-high: 0 24px 64px rgba(23, 32, 51, 0.2);
+  --co-layer-base: 0;
+  --co-layer-sticky: 20;
+  --co-layer-header: 40;
+  --co-layer-popover: 80;
+  --co-layer-drawer: 90;
+  --co-layer-modal: 100;
+  --co-layer-toast: 110;
+  --co-sidebar-wide: 216px;
+  --co-sidebar-rail: 72px;
+  --co-header-height: 64px;
+  --co-header-mobile-height: 56px;
+  --career-ink: var(--co-text);
+  --career-muted: var(--co-text-muted);
+  --career-line: var(--co-border);
+  --career-shell: var(--co-canvas);
+  --career-paper: var(--co-surface);
+  --career-blue: var(--co-action);
+  --career-blue-deep: var(--co-action-hover);
+  --career-blue-soft: var(--co-action-soft);
+  --career-green: var(--co-positive);
+  --career-green-soft: var(--co-positive-soft);
+  --career-amber: var(--co-warning);
+  --career-amber-soft: var(--co-warning-soft);
+  --career-red: var(--co-danger);
+  --career-red-soft: var(--co-danger-soft);
+  --career-purple: var(--co-action);
+  --career-purple-soft: var(--co-action-soft);
+  --career-sidebar-width: var(--co-sidebar-wide);
   display: grid;
   width: 100%;
   height: 100dvh;
@@ -35,11 +84,12 @@
   overflow: hidden;
   background: var(--career-shell);
   color: var(--career-ink);
-  font-family: Inter, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif;
+  font-family: var(--co-font-sans);
+  font-size: var(--co-text-md);
 }
 
 .product-app.career-os.is-sidebar-collapsed {
-  --career-sidebar-width: 76px;
+  --career-sidebar-width: var(--co-sidebar-rail);
 }
 
 .career-os button,
@@ -54,7 +104,7 @@
 .career-os textarea:focus-visible,
 .career-os select:focus-visible,
 .career-os [role="separator"]:focus-visible {
-  outline: 3px solid rgba(40, 100, 220, 0.28);
+  outline: 2px solid var(--co-action);
   outline-offset: 2px;
 }
 
@@ -73,7 +123,7 @@
 
 .career-sidebar__brand-row {
   display: flex;
-  min-height: 68px;
+  min-height: var(--co-header-height);
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -223,13 +273,13 @@
 .career-workspace {
   display: grid;
   min-width: 0;
-  grid-template-rows: 68px minmax(0, 1fr);
+  grid-template-rows: var(--co-header-height) minmax(0, 1fr);
   overflow: hidden;
 }
 
 .career-utility-bar {
   position: relative;
-  z-index: 30;
+  z-index: var(--co-layer-header);
   display: flex;
   min-width: 0;
   align-items: center;
@@ -237,8 +287,7 @@
   gap: 24px;
   padding: 0 24px;
   border-bottom: 1px solid var(--career-line);
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(14px);
+  background: var(--co-surface);
 }
 
 .career-utility-bar__leading,
@@ -5103,7 +5152,7 @@
 
 @media (max-width: 1439px) {
   .product-app.career-os {
-    --career-sidebar-width: 76px;
+    --career-sidebar-width: var(--co-sidebar-rail);
   }
 
   .career-sidebar__brand-row {
@@ -5281,11 +5330,11 @@
   }
 
   .career-workspace {
-    grid-template-rows: 58px minmax(0, 1fr);
+    grid-template-rows: var(--co-header-mobile-height) minmax(0, 1fr);
   }
 
   .career-utility-bar {
-    min-height: 58px;
+    min-height: var(--co-header-mobile-height);
     gap: 10px;
     padding-inline: 10px;
   }
@@ -6163,6 +6212,10 @@
   margin-top: 8px;
 }
 
+.career-requirements-layout.is-inspector-closed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .career-data-claim {
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(260px, 1.1fr);
@@ -6387,5 +6440,250 @@
 
   .career-os .career-main.product-main {
     scroll-behavior: auto;
+  }
+}
+
+/* OS-1 workspace contract: one overlay stack, one geometry system, one focus language. */
+.career-overlay-root {
+  position: fixed;
+  z-index: var(--co-layer-modal);
+  inset: 0;
+  pointer-events: none;
+}
+
+.career-modal-layer {
+  position: fixed;
+  z-index: var(--co-layer-modal);
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+}
+
+.career-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: rgba(23, 32, 51, 0.42);
+  cursor: default;
+}
+
+.career-modal-backdrop:disabled {
+  opacity: 1;
+}
+
+.career-modal-surface {
+  position: relative;
+  z-index: 1;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+  border: 1px solid var(--co-border);
+  border-radius: var(--co-radius-lg);
+  background: var(--co-surface);
+  box-shadow: var(--co-shadow-high);
+}
+
+.career-modal-surface:focus {
+  outline: none;
+}
+
+.career-modal-layer--command {
+  place-items: start center;
+  padding: min(14vh, 120px) 20px 20px;
+}
+
+.career-modal-layer--drawer,
+.career-modal-layer--inspector {
+  place-items: stretch end;
+}
+
+.career-modal-surface--drawer {
+  width: min(560px, calc(100vw - 40px));
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  border-width: 0 0 0 1px;
+  border-radius: 0;
+}
+
+.career-modal-surface--drawer .career-private-jd-drawer {
+  position: static;
+  width: 100%;
+  height: 100%;
+  box-shadow: none;
+}
+
+.career-modal-surface--inspector {
+  align-self: end;
+  width: min(420px, calc(100vw - var(--co-sidebar-rail)));
+  height: calc(100dvh - var(--co-header-height));
+  max-width: none;
+  max-height: none;
+  border-width: 1px 0 0 1px;
+  border-radius: 0;
+}
+
+.career-modal-surface--inspector > .career-inspector {
+  height: 100%;
+}
+
+.career-modal-layer--navigation {
+  place-items: stretch start;
+}
+
+.career-modal-surface--navigation {
+  width: min(286px, calc(100vw - 36px));
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  border-width: 0 1px 0 0;
+  border-radius: 0;
+}
+
+.career-modal-surface--navigation .career-sidebar {
+  position: static;
+  width: 100%;
+  height: 100%;
+  visibility: visible;
+  transform: none;
+  box-shadow: none;
+}
+
+.career-sidebar__mobile-close {
+  display: none;
+}
+
+.career-modal-surface--navigation .career-sidebar__mobile-close {
+  display: inline-grid;
+}
+
+.career-modal-surface--dialog {
+  width: min(620px, calc(100vw - 40px));
+  max-height: calc(100dvh - 40px);
+}
+
+.career-modal-surface--case-deletion {
+  width: min(880px, calc(100vw - 40px));
+}
+
+.career-modal-surface--dialog .career-deletion-dialog {
+  position: static;
+  width: 100%;
+  max-height: calc(100dvh - 40px);
+  border: 0;
+  border-radius: inherit;
+  box-shadow: none;
+  transform: none;
+}
+
+.career-route-state {
+  display: grid;
+  width: min(100%, 720px);
+  min-height: min(520px, 64vh);
+  align-content: center;
+  justify-items: start;
+  gap: var(--co-space-3);
+  padding: var(--co-space-7);
+  border: 1px solid var(--co-border);
+  border-radius: var(--co-radius-lg);
+  background: var(--co-surface);
+}
+
+.career-route-state > p,
+.career-route-state > h1,
+.career-route-state > span {
+  margin: 0;
+}
+
+.career-route-state > p {
+  color: var(--co-action);
+  font-size: var(--co-text-xs);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.career-route-state > h1 {
+  font-size: var(--co-title-lg);
+  line-height: 1.2;
+}
+
+.career-route-state > span {
+  max-width: 60ch;
+  color: var(--co-text-muted);
+  line-height: 1.7;
+}
+
+.career-route-state > span code {
+  overflow-wrap: anywhere;
+  color: var(--co-text);
+}
+
+.career-route-state > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--co-space-2);
+  margin-top: var(--co-space-2);
+}
+
+.career-route-state--loading {
+  min-height: 320px;
+  place-items: center;
+  color: var(--co-text-muted);
+}
+
+.career-os .alpha-access--workspace {
+  min-height: min(620px, calc(100dvh - var(--co-header-height) - 64px));
+  padding: var(--co-space-7);
+  background: var(--co-canvas);
+}
+
+.career-os .alpha-access--workspace .alpha-access__panel {
+  border-color: var(--co-border);
+  border-radius: var(--co-radius-lg);
+  background: var(--co-surface);
+  box-shadow: var(--co-shadow-low);
+}
+
+@media (max-width: 767px) {
+  .career-modal-surface--inspector {
+    width: 100vw;
+    height: calc(100dvh - var(--co-header-mobile-height));
+    border-left: 0;
+  }
+
+  .career-modal-surface--drawer {
+    width: 100vw;
+  }
+
+  .career-modal-surface--dialog,
+  .career-modal-surface--case-deletion {
+    align-self: end;
+    width: 100vw;
+    max-width: none;
+    max-height: min(92dvh, 760px);
+    border-width: 1px 0 0;
+    border-radius: var(--co-radius-lg) var(--co-radius-lg) 0 0;
+  }
+
+  .career-modal-surface--dialog .career-deletion-dialog {
+    max-height: min(92dvh, 760px);
+  }
+
+  .career-route-state {
+    min-height: 60vh;
+    padding: var(--co-space-5);
+  }
+
+  .career-route-state > h1 {
+    font-size: var(--co-title-md);
+  }
+
+  .career-os .alpha-access--workspace {
+    min-height: calc(100dvh - var(--co-header-mobile-height) - 48px);
+    padding: var(--co-space-4) 0;
   }
 }

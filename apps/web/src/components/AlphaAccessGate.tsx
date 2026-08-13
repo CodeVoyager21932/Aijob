@@ -3,6 +3,7 @@ import {
   completeEmailVerification,
   createEmailVerificationChallenge,
   getSessionStatus,
+  subscribeToSessionBoundary,
 } from "../api/client";
 
 type AccessState = "checking" | "email" | "sending" | "code" | "verifying" | "authenticated";
@@ -11,8 +12,20 @@ function requestKey(): string {
   return `alpha-email:${Date.now()}:${Math.random().toString(36).slice(2)}`;
 }
 
-export function AlphaAccessGate({ enabled, children }: PropsWithChildren<{ enabled: boolean }>) {
+interface AlphaAccessGateProps {
+  enabled: boolean;
+  variant?: "standalone" | "workspace";
+  onAccessChange?: (granted: boolean) => void;
+}
+
+export function AlphaAccessGate({
+  enabled,
+  variant = "standalone",
+  onAccessChange,
+  children,
+}: PropsWithChildren<AlphaAccessGateProps>) {
   const [state, setState] = useState<AccessState>(enabled ? "checking" : "authenticated");
+  const [sessionRevision, setSessionRevision] = useState(0);
   const [email, setEmail] = useState("");
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [maskedEmail, setMaskedEmail] = useState("");
@@ -22,6 +35,7 @@ export function AlphaAccessGate({ enabled, children }: PropsWithChildren<{ enabl
   const codeInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    void sessionRevision;
     if (!enabled) {
       setState("authenticated");
       return;
@@ -40,7 +54,19 @@ export function AlphaAccessGate({ enabled, children }: PropsWithChildren<{ enabl
         setState("email");
       });
     return () => controller.abort();
+  }, [enabled, sessionRevision]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    return subscribeToSessionBoundary(() => {
+      setState("checking");
+      setSessionRevision((current) => current + 1);
+    });
   }, [enabled]);
+
+  useEffect(() => {
+    onAccessChange?.(state === "authenticated");
+  }, [onAccessChange, state]);
 
   useEffect(() => {
     if (state === "email") emailInputRef.current?.focus();
@@ -89,8 +115,13 @@ export function AlphaAccessGate({ enabled, children }: PropsWithChildren<{ enabl
 
   if (state === "authenticated") return children;
 
+  const Root = variant === "workspace" ? "section" : "main";
+
   return (
-    <main className="alpha-access" aria-labelledby="alpha-access-title">
+    <Root
+      className={`alpha-access${variant === "workspace" ? " alpha-access--workspace" : ""}`}
+      aria-labelledby="alpha-access-title"
+    >
       <section className="alpha-access__panel">
         <span className="alpha-access__mark" aria-hidden="true">
           A
@@ -168,6 +199,6 @@ export function AlphaAccessGate({ enabled, children }: PropsWithChildren<{ enabl
           <output>正在安全检查当前会话…</output>
         )}
       </section>
-    </main>
+    </Root>
   );
 }

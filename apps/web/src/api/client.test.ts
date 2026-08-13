@@ -119,6 +119,53 @@ describe("product API client", () => {
     });
   });
 
+  it("rejects malformed JSON with a stable response-contract error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response("not-json", {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+      ),
+    );
+
+    await expect(apiRequest("/v1/malformed")).rejects.toMatchObject({
+      message: "服务返回了无法验证的数据，请刷新后重试。",
+      status: 502,
+      code: "INVALID_API_RESPONSE",
+    });
+  });
+
+  it("does not leak an invalid response payload or schema diagnostics", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ secretResumeText: "never expose this" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+      ),
+    );
+
+    const request = apiRequest("/v1/invalid-contract", {
+      responseSchema: {
+        parse: () => {
+          throw new Error("schema path: secretResumeText");
+        },
+      },
+    });
+    await expect(request).rejects.toMatchObject({
+      status: 502,
+      code: "INVALID_API_RESPONSE",
+    });
+    await expect(request).rejects.not.toMatchObject({
+      message: expect.stringContaining("secretResumeText"),
+    });
+  });
+
   it("checks session state without creating a mutation", async () => {
     let captured: RequestInit | undefined;
     vi.stubGlobal(
@@ -166,6 +213,10 @@ describe("product API client", () => {
 
   it("requests and completes an Alpha email challenge without a pre-existing CSRF cookie", async () => {
     let captured: RequestInit | undefined;
+    let boundaryNotifications = 0;
+    const unsubscribe = subscribeToSessionBoundary(() => {
+      boundaryNotifications += 1;
+    });
     const challenge = {
       id: "challenge-alpha",
       purpose: "sign_in",
@@ -215,9 +266,15 @@ describe("product API client", () => {
         verificationCode: "246810",
       }),
     );
+    unsubscribe();
+    expect(boundaryNotifications).toBe(1);
   });
 
   it("claims the current owner with CSRF and preserves the owner epoch", async () => {
+    let boundaryNotifications = 0;
+    const unsubscribe = subscribeToSessionBoundary(() => {
+      boundaryNotifications += 1;
+    });
     const challenge = {
       id: "challenge-claim",
       purpose: "claim_owner",
@@ -283,6 +340,8 @@ describe("product API client", () => {
         expectedOwnerEpoch: 1,
       }),
     );
+    unsubscribe();
+    expect(boundaryNotifications).toBe(1);
   });
 
   it("recovers a read once across a session boundary", async () => {

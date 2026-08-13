@@ -1,29 +1,39 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useSearchParams } from "react-router-dom";
 import { careerOsQueryKeys, getApplicationCase } from "../api/career-os";
 import { ProductApiError } from "../api/client";
+import { AlphaAccessGate } from "../components/AlphaAccessGate";
 import { toApplicationCaseView } from "./application-case-view";
 import { ContextInspector } from "./components/ContextInspector";
 import { ContextInspectorFrame } from "./components/ContextInspector";
 import { GlobalSidebar } from "./components/GlobalSidebar";
+import { ModalSurface } from "./components/ModalSurface";
 import { ResizablePane } from "./components/ResizablePane";
 import { UtilityBar } from "./components/UtilityBar";
+import {
+  WorkspaceRouteBoundary,
+  WorkspaceRouteLoading,
+} from "./components/WorkspaceRouteBoundary";
 import { readWorkspacePreferences, writeWorkspacePreferences } from "./ui-preferences";
+import { useMediaQuery } from "./use-media-query";
 import "./career-os.css";
 
-export function WorkspaceShell() {
+export function WorkspaceShell({ accessRequired = false }: { accessRequired?: boolean }) {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [preferences, setPreferences] = useState(readWorkspacePreferences);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const [accessGranted, setAccessGranted] = useState(!accessRequired);
   const mainRef = useRef<HTMLElement>(null);
+  const inspectorCloseRef = useRef<HTMLButtonElement>(null);
   const previousPeekRef = useRef<string | null>(null);
   const peekCaseId = location.pathname === "/applications" ? searchParams.get("peek") : null;
+  const inspectorIsOverlay = useMediaQuery("(max-width: 1023px)");
   const peekQuery = useQuery({
     queryKey: careerOsQueryKeys.caseDetail(peekCaseId ?? ""),
     queryFn: ({ signal }) => getApplicationCase(peekCaseId ?? "", signal),
-    enabled: Boolean(peekCaseId),
+    enabled: Boolean(peekCaseId && accessGranted),
     retry: (failureCount, error) =>
       error instanceof ProductApiError && error.status === 404 ? false : failureCount < 1,
   });
@@ -65,11 +75,42 @@ export function WorkspaceShell() {
     next.delete("peek");
     setSearchParams(next);
   };
+  const showInspector = Boolean(peekCaseId && accessGranted);
+  const inspectorTitleId = "career-case-inspector-title";
+  const inspectorContent = peekCase ? (
+    <ContextInspector
+      applicationCase={peekCase}
+      onClose={closeInspector}
+      titleId={inspectorTitleId}
+      closeButtonRef={inspectorCloseRef}
+    />
+  ) : (
+    <ContextInspectorFrame
+      ariaLabel="岗位侧览"
+      eyebrow="求职项目"
+      title={peekQuery.isError ? "侧览暂时不可用" : "正在读取…"}
+      titleId={inspectorTitleId}
+      meta="真实 Case 数据"
+      closeLabel="关闭岗位侧览"
+      closeButtonRef={inspectorCloseRef}
+      onClose={closeInspector}
+    >
+      {peekQuery.isError ? (
+        <div className="career-inline-error" role="alert">
+          <span>
+            {peekQuery.error instanceof Error ? peekQuery.error.message : "请关闭后重试。"}
+          </span>
+        </div>
+      ) : (
+        <output className="career-inspector__copy">正在加载固定岗位信息…</output>
+      )}
+    </ContextInspectorFrame>
+  );
 
   return (
     <div
       className={`product-app career-os${preferences.sidebarCollapsed ? " is-sidebar-collapsed" : ""}`}
-      data-inspector-open={peekCaseId ? "true" : "false"}
+      data-inspector-open={showInspector ? "true" : "false"}
     >
       <a className="skip-link" href="#career-main">
         跳到主要内容
@@ -89,51 +130,50 @@ export function WorkspaceShell() {
         <UtilityBar onOpenMobileNavigation={() => setMobileNavigationOpen(true)} />
         <div className="career-workspace__body">
           <main ref={mainRef} className="career-main product-main" id="career-main" tabIndex={-1}>
-            <Outlet />
+            <AlphaAccessGate
+              enabled={accessRequired}
+              variant="workspace"
+              onAccessChange={setAccessGranted}
+            >
+              <WorkspaceRouteBoundary>
+                <Suspense fallback={<WorkspaceRouteLoading />}>
+                  <Outlet />
+                </Suspense>
+              </WorkspaceRouteBoundary>
+            </AlphaAccessGate>
           </main>
-          {peekCaseId ? (
-            <>
-              <button
-                className="career-inspector-backdrop"
-                type="button"
-                aria-label="关闭岗位侧览背景"
-                onClick={closeInspector}
-              />
-              <ResizablePane
-                width={preferences.inspectorWidth}
-                onWidthChange={(inspectorWidth) =>
-                  setPreferences((current) => ({ ...current, inspectorWidth }))
-                }
-              >
-                {peekCase ? (
-                  <ContextInspector applicationCase={peekCase} onClose={closeInspector} />
-                ) : (
-                  <ContextInspectorFrame
-                    ariaLabel="岗位侧览"
-                    eyebrow="求职项目"
-                    title={peekQuery.isError ? "侧览暂时不可用" : "正在读取…"}
-                    meta="真实 Case 数据"
-                    closeLabel="关闭岗位侧览"
-                    onClose={closeInspector}
-                  >
-                    {peekQuery.isError ? (
-                      <div className="career-inline-error" role="alert">
-                        <span>
-                          {peekQuery.error instanceof Error
-                            ? peekQuery.error.message
-                            : "请关闭后重试。"}
-                        </span>
-                      </div>
-                    ) : (
-                      <output className="career-inspector__copy">正在加载固定岗位信息…</output>
-                    )}
-                  </ContextInspectorFrame>
-                )}
-              </ResizablePane>
-            </>
+          {showInspector && !inspectorIsOverlay ? (
+            <ResizablePane
+              width={preferences.inspectorWidth}
+              onWidthChange={(inspectorWidth) =>
+                setPreferences((current) => ({ ...current, inspectorWidth }))
+              }
+            >
+              {inspectorContent}
+            </ResizablePane>
           ) : null}
         </div>
       </div>
+      <div id="career-overlay-root" className="career-overlay-root" />
+      {showInspector && inspectorIsOverlay ? (
+        <ModalSurface
+          className="career-modal-surface--inspector"
+          layerClassName="career-modal-layer--inspector"
+          labelledBy={inspectorTitleId}
+          initialFocusRef={inspectorCloseRef}
+          closeLabel="关闭岗位侧览"
+          onClose={closeInspector}
+          returnFocus={() =>
+            peekCaseId
+              ? document.querySelector<HTMLElement>(
+                  `[data-case-trigger="${CSS.escape(peekCaseId)}"]`,
+                )
+              : null
+          }
+        >
+          {inspectorContent}
+        </ModalSurface>
+      ) : null}
     </div>
   );
 }

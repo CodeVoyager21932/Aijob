@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import { Link } from "react-router-dom";
 import type { ApplicationCaseView } from "../application-case-view";
 import { Icon } from "./Icon";
@@ -7,6 +7,8 @@ import { StageBadge } from "./StageBadge";
 interface ContextInspectorProps {
   applicationCase: ApplicationCaseView;
   onClose: () => void;
+  titleId?: string | undefined;
+  closeButtonRef?: RefObject<HTMLButtonElement | null> | undefined;
 }
 
 interface ContextInspectorFrameProps {
@@ -18,6 +20,8 @@ interface ContextInspectorFrameProps {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  titleId?: string | undefined;
+  closeButtonRef?: RefObject<HTMLButtonElement | null> | undefined;
 }
 
 export function ContextInspectorFrame({
@@ -29,16 +33,19 @@ export function ContextInspectorFrame({
   onClose,
   children,
   footer,
+  titleId,
+  closeButtonRef,
 }: ContextInspectorFrameProps) {
   return (
     <aside className="career-inspector" aria-label={ariaLabel}>
       <header className="career-inspector__header">
         <div>
           <p>{eyebrow}</p>
-          <h2>{title}</h2>
+          <h2 id={titleId}>{title}</h2>
           <span>{meta}</span>
         </div>
         <button
+          ref={closeButtonRef}
           className="career-icon-button"
           type="button"
           aria-label={closeLabel}
@@ -55,7 +62,12 @@ export function ContextInspectorFrame({
   );
 }
 
-export function ContextInspector({ applicationCase, onClose }: ContextInspectorProps) {
+export function ContextInspector({
+  applicationCase,
+  onClose,
+  titleId,
+  closeButtonRef,
+}: ContextInspectorProps) {
   return (
     <ContextInspectorFrame
       ariaLabel={`${applicationCase.companyName}岗位侧览`}
@@ -64,6 +76,8 @@ export function ContextInspector({ applicationCase, onClose }: ContextInspectorP
       meta={`${applicationCase.locationLabel} · ${applicationCase.workModeLabel}`}
       closeLabel="关闭岗位侧览"
       onClose={onClose}
+      titleId={titleId}
+      closeButtonRef={closeButtonRef}
       footer={
         <Link
           className="career-button career-button--primary"

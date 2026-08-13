@@ -9,11 +9,11 @@ const preferenceKey = "aijob:career-os-ui:v1";
 export const defaultWorkspacePreferences: WorkspacePreferences = {
   version: 1,
   sidebarCollapsed: false,
-  inspectorWidth: 360,
+  inspectorWidth: 336,
 };
 
 export function clampInspectorWidth(width: number): number {
-  return Math.min(460, Math.max(312, Math.round(width)));
+  return Math.min(420, Math.max(312, Math.round(width)));
 }
 
 export function readWorkspacePreferences(): WorkspacePreferences {

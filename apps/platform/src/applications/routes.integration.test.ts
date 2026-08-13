@@ -1987,6 +1987,18 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
         }),
       ),
     );
+    const concurrentRequirementReads = await Promise.all(
+      Array.from({ length: 12 }, () =>
+        app.inject({
+          method: "GET",
+          url: `/v1/application-cases/${publicCase.applicationCase.id}/requirements`,
+          headers,
+        }),
+      ),
+    );
+    expect(concurrentRequirementReads.map(({ statusCode }) => statusCode)).toEqual(
+      Array.from({ length: 12 }, () => 200),
+    );
 
     const privateRequirementsResponse = await app.inject({
       method: "GET",

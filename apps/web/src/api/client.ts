@@ -26,6 +26,28 @@ interface ProblemPayload {
   correlationId?: string;
 }
 
+export interface RuntimeResponseSchema<T> {
+  parse(input: unknown): T;
+}
+
+async function readValidatedJson<T>(
+  response: Response,
+  schema?: RuntimeResponseSchema<T>,
+): Promise<T> {
+  let payload: unknown;
+  try {
+    payload = await response.json();
+    return schema ? schema.parse(payload) : (payload as T);
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    throw new ProductApiError(
+      "服务返回了无法验证的数据，请刷新后重试。",
+      502,
+      "INVALID_API_RESPONSE",
+    );
+  }
+}
+
 export function cookieValue(cookieHeader: string, name: string): string | null {
   const prefix = `${encodeURIComponent(name)}=`;
   for (const part of cookieHeader.split(";")) {
@@ -48,6 +70,7 @@ function currentCsrfToken(): string | null {
 let sessionBootstrapPromise: Promise<void> | null = null;
 let knownOwnerKey: string | null = null;
 const sessionBoundaryListeners = new Set<() => void>();
+let sessionBoundaryGeneration = 0;
 const OWNER_CONTEXT_HEADER_NAME = "x-aijob-owner-context";
 
 export function subscribeToSessionBoundary(listener: () => void): () => void {
@@ -59,6 +82,7 @@ function recordOwnerKey(nextOwnerKey: string | null, forceNotify = false): boole
   const changed = knownOwnerKey !== null && knownOwnerKey !== nextOwnerKey;
   knownOwnerKey = nextOwnerKey;
   if (!forceNotify && !changed) return false;
+  sessionBoundaryGeneration += 1;
   for (const listener of sessionBoundaryListeners) listener();
   return true;
 }
@@ -75,7 +99,7 @@ async function requestSessionStatus(): Promise<SessionStatus> {
     credentials: "same-origin",
   });
   if (!response.ok) throw await readProblem(response);
-  return SessionStatusSchema.parse(await response.json());
+  return readValidatedJson(response, SessionStatusSchema);
 }
 
 async function ensureSessionBootstrap(): Promise<void> {
@@ -130,12 +154,13 @@ export function createIdempotencyKey(prefix = "web"): string {
   return `${prefix}:${suffix}`;
 }
 
-export interface ApiRequestOptions {
+export interface ApiRequestOptions<T = unknown> {
   method?: "GET" | "POST" | "PUT" | "DELETE";
   body?: unknown;
   signal?: AbortSignal | undefined;
   idempotencyKey?: string;
   headers?: HeadersInit;
+  responseSchema?: RuntimeResponseSchema<T>;
 }
 
 function isMutation(method: string): boolean {
@@ -159,7 +184,7 @@ async function recoverSessionBoundary(forceNotify: boolean): Promise<boolean> {
 
 async function apiRequestInternal<T>(
   path: string,
-  options: ApiRequestOptions,
+  options: ApiRequestOptions<T>,
   recoveryAttempted: boolean,
 ): Promise<T> {
   const method = options.method ?? "GET";
@@ -212,10 +237,10 @@ async function apiRequestInternal<T>(
     throw problem;
   }
   if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
+  return readValidatedJson(response, options.responseSchema);
 }
 
-export function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+export function apiRequest<T>(path: string, options: ApiRequestOptions<T> = {}): Promise<T> {
   return apiRequestInternal<T>(path, options, false);
 }
 
@@ -271,7 +296,10 @@ export function apiDownload(path: string, signal?: AbortSignal): Promise<ApiDown
 }
 
 export function getSessionStatus(signal?: AbortSignal): Promise<SessionStatus> {
-  return apiRequest<SessionStatus>("/v1/session", { signal }).then((status) => {
+  return apiRequest<SessionStatus>("/v1/session", {
+    signal,
+    responseSchema: SessionStatusSchema,
+  }).then((status) => {
     recordSessionStatus(status);
     return status;
   });
@@ -294,13 +322,14 @@ export async function createEmailVerificationChallenge(
     ...(signal ? { signal } : {}),
   });
   if (!response.ok) throw await readProblem(response);
-  return EmailVerificationChallengeSchema.parse(await response.json());
+  return readValidatedJson(response, EmailVerificationChallengeSchema);
 }
 
 export async function completeEmailVerification(
   input: { challengeId: string; email: string; verificationCode: string },
   signal?: AbortSignal,
 ): Promise<SessionStatus> {
+  const generationBeforeRequest = sessionBoundaryGeneration;
   const response = await fetch(`${baseUrl}/v1/email-verification-challenges/complete`, {
     method: "POST",
     headers: {
@@ -312,8 +341,8 @@ export async function completeEmailVerification(
     ...(signal ? { signal } : {}),
   });
   if (!response.ok) throw await readProblem(response);
-  const status = SessionStatusSchema.parse(await response.json());
-  recordSessionStatus(status);
+  const status = await readValidatedJson(response, SessionStatusSchema);
+  recordSessionStatus(status, sessionBoundaryGeneration === generationBeforeRequest);
   return status;
 }
 
@@ -327,7 +356,8 @@ export function createOwnerClaimChallenge(
     body: { purpose: "claim_owner", ...input },
     idempotencyKey,
     signal,
-  }).then((challenge) => EmailVerificationChallengeSchema.parse(challenge));
+    responseSchema: EmailVerificationChallengeSchema,
+  });
 }
 
 export function completeOwnerClaim(
@@ -339,14 +369,15 @@ export function completeOwnerClaim(
   },
   signal?: AbortSignal,
 ): Promise<SessionStatus> {
+  const generationBeforeRequest = sessionBoundaryGeneration;
   return apiRequest<SessionStatus>("/v1/email-verification-challenges/complete", {
     method: "POST",
     body: { purpose: "claim_owner", ...input },
     signal,
+    responseSchema: SessionStatusSchema,
   }).then((response) => {
-    const status = SessionStatusSchema.parse(response);
-    recordSessionStatus(status);
-    return status;
+    recordSessionStatus(response, sessionBoundaryGeneration === generationBeforeRequest);
+    return response;
   });
 }
 

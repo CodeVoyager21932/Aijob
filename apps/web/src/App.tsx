@@ -60,6 +60,11 @@ const LegacyCompatibilityPage = lazy(() =>
     default: module.LegacyCompatibilityPage,
   })),
 );
+const WorkspaceNotFoundPage = lazy(() =>
+  import("./career-os/pages/WorkspaceNotFoundPage").then((module) => ({
+    default: module.WorkspaceNotFoundPage,
+  })),
+);
 
 export function App() {
   const environment = {
@@ -90,15 +95,15 @@ export function App() {
       <Route path="/" element={<Navigate to={careerOsV2Enabled ? "/today" : "/jobs"} replace />} />
       <Route
         element={
-          <AlphaAccessGate enabled={alphaAccessRequired}>
-            {careerOsV2Enabled ? (
-              <Suspense fallback={<div className="route-loading">正在打开求职工作台…</div>}>
-                <WorkspaceShell />
-              </Suspense>
-            ) : (
+          careerOsV2Enabled ? (
+            <Suspense fallback={<div className="route-loading">正在打开求职工作台…</div>}>
+              <WorkspaceShell accessRequired={alphaAccessRequired} />
+            </Suspense>
+          ) : (
+            <AlphaAccessGate enabled={alphaAccessRequired}>
               <ProductShell />
-            )}
-          </AlphaAccessGate>
+            </AlphaAccessGate>
+          )
         }
       >
         {careerOsV2Enabled ? (
@@ -111,6 +116,7 @@ export function App() {
             <Route path="/resumes/:documentId" element={<ResumeAssetsPage />} />
             <Route path="/settings/data" element={<CareerDataControlPage />} />
             <Route path="/settings/data/deletion" element={<DeletionStatusPage />} />
+            <Route path="*" element={<WorkspaceNotFoundPage />} />
           </>
         ) : null}
         <Route path="/jobs" element={<JobListPage />} />

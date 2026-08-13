@@ -1,8 +1,10 @@
 # UX-0 页面—系统—证据追踪矩阵
 
-> 状态：Accepted baseline / UX-0 已完成代码反证、Review 兼容核验与四视口当前运行基线；后续实现按 OS-1–OS-7 逐行关闭
+> 状态：Accepted baseline / UX-0 已完成代码反证、Review 兼容核验与四视口当前运行基线；OS-1 触达行已关闭，后续实现继续按 OS-2–OS-7 逐行关闭
 >
 > 日期：2026-08-13
+
+> 后续关闭记录：OS-1 已完成唯一 WorkspaceShell、访问/session、404/loading/route error、统一 overlay/focus、触达响应 runtime schema 与四视口真实 API Gate；Requirements 并发读 `40001` 也已在 Platform 读事务内有界修复。见 [OS-1 验收证据](../evidence/product/career-os-v2/os-1-system-shell-and-runtime-contract-acceptance-2026-08-13.md)。下表的 UX-0 “当前 Web 状态/代码反证”保留审计时点事实，不能据此把已关闭的 OS-1 重新生成成任务。
 >
 > 本矩阵是[当前交付计划](career-os-current-delivery-plan.md)的 UX-0 工作产物，不生成新的任务顺序。稳定规则见[端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)。
 
@@ -55,7 +57,7 @@
 | A-03 | Insights 与单岗 Requirements 边界 | **已选：市场洞察归 `/jobs/insights*`，从 Case JD 明确排除** | UX-0 语义反证完成；兼容跳转、深链和错误证据属 OS-2 Gate |
 | A-04 | Recommendation 入口与候选冻结 | **已选：归 `/jobs/recommended*`；在现有 RecommendationRun 资源下增加按搜索创建和 view adapter** | UX-0 代码反证完成；scope 同义、请求数、stale/invalid/空目录属 OS-2 Gate |
 | A-05 | Tailoring / Review 唯一写入所有权 | **已选：Review 唯一新写入，受控 AI 与岗位要求引用走最小 expand migration；Tailoring 历史只读** | UX-0 legacy/new-write 与滚动部署边界已锁定；migration、引用、模拟 provider 和删除矩阵属 OS-5 Gate |
-| A-06 | Web 核心响应运行时校验 | **已选：parser-aware `apiRequest`，触达端点使用共享 schema** | UX-0 代码反证完成；畸形响应、敏感 payload 与包体断言随 OS-1 起逐切片关闭 |
+| A-06 | Web 核心响应运行时校验 | **已选并由 OS-1 实现基础：parser-aware `apiRequest`，触达端点使用共享 schema** | OS-1 的畸形响应、敏感 payload、session/Case parser 与包体断言已关闭；OS-2–OS-6 随触达端点扩展，OS-7 扫描余量 |
 
 ### 3.1 UX-0 代码反证结论
 

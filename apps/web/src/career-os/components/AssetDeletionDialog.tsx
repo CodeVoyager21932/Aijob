@@ -1,6 +1,7 @@
 import type { CaseAssetDisposition } from "@aijob/contracts";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
+import { ModalSurface } from "./ModalSurface";
 
 interface AssetDeletionDialogProps {
   open: boolean;
@@ -18,34 +19,6 @@ function errorMessage(error: unknown): string | null {
   return error instanceof Error ? error.message : "删除没有完成，请重新读取后再决定。";
 }
 
-function useDialogKeyboard(open: boolean, onClose: () => void) {
-  const initialFocusRef = useRef<HTMLButtonElement>(null);
-  const closeRef = useRef(onClose);
-  const returnFocusRef = useRef<HTMLElement | null>(null);
-  useEffect(() => {
-    closeRef.current = onClose;
-  }, [onClose]);
-  useEffect(() => {
-    if (!open) return;
-    returnFocusRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const focusFrame = window.requestAnimationFrame(() => initialFocusRef.current?.focus());
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closeRef.current();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.cancelAnimationFrame(focusFrame);
-      window.removeEventListener("keydown", onKeyDown);
-      const returnTarget = returnFocusRef.current;
-      if (returnTarget?.isConnected) {
-        window.requestAnimationFrame(() => returnTarget.focus());
-      }
-    };
-  }, [open]);
-  return initialFocusRef;
-}
-
 export function AssetDeletionDialog({
   open,
   title,
@@ -56,25 +29,22 @@ export function AssetDeletionDialog({
   onClose,
   onConfirm,
 }: AssetDeletionDialogProps) {
-  const cancelRef = useDialogKeyboard(open, onClose);
+  const cancelRef = useRef<HTMLButtonElement>(null);
   if (!open) return null;
   const message = errorMessage(error);
 
   return (
-    <div className="career-drawer-layer">
-      <button
-        className="career-inspector-backdrop"
-        type="button"
-        aria-label="关闭删除确认"
-        disabled={pending}
-        onClick={onClose}
-      />
-      <section
-        className="career-deletion-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="asset-deletion-title"
-      >
+    <ModalSurface
+      className="career-modal-surface--dialog"
+      layerClassName="career-modal-layer--dialog"
+      labelledBy="asset-deletion-title"
+      describedBy="asset-deletion-description"
+      initialFocusRef={cancelRef}
+      dismissible={!pending}
+      closeLabel="关闭删除确认"
+      onClose={onClose}
+    >
+      <section className="career-deletion-dialog">
         <header>
           <span className="career-deletion-dialog__icon">
             <Icon name="close" size={18} />
@@ -84,7 +54,7 @@ export function AssetDeletionDialog({
             <h2 id="asset-deletion-title">{title}</h2>
           </div>
         </header>
-        <p>{description}</p>
+        <p id="asset-deletion-description">{description}</p>
         <div className="career-deletion-dialog__warning" role="note">
           <strong>删除后的影响</strong>
           <span>{consequence}</span>
@@ -115,7 +85,7 @@ export function AssetDeletionDialog({
           </button>
         </footer>
       </section>
-    </div>
+    </ModalSurface>
   );
 }
 
@@ -202,7 +172,7 @@ export function CaseDeletionDialog({
   onClose,
   onConfirm,
 }: CaseDeletionDialogProps) {
-  const cancelRef = useDialogKeyboard(open, onClose);
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const [choices, setChoices] = useState<CaseDeletionChoices>(emptyChoices);
   useEffect(() => {
     if (open) setChoices(emptyChoices);
@@ -212,20 +182,17 @@ export function CaseDeletionDialog({
   const message = errorMessage(error);
 
   return (
-    <div className="career-drawer-layer">
-      <button
-        className="career-inspector-backdrop"
-        type="button"
-        aria-label="关闭求职项目删除确认"
-        disabled={pending}
-        onClick={onClose}
-      />
-      <section
-        className="career-deletion-dialog career-deletion-dialog--case"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="case-deletion-title"
-      >
+    <ModalSurface
+      className="career-modal-surface--dialog career-modal-surface--case-deletion"
+      layerClassName="career-modal-layer--dialog"
+      labelledBy="case-deletion-title"
+      describedBy="case-deletion-description"
+      initialFocusRef={cancelRef}
+      dismissible={!pending}
+      closeLabel="关闭求职项目删除确认"
+      onClose={onClose}
+    >
+      <section className="career-deletion-dialog career-deletion-dialog--case">
         <header>
           <span className="career-deletion-dialog__icon">
             <Icon name="close" size={18} />
@@ -235,7 +202,7 @@ export function CaseDeletionDialog({
             <h2 id="case-deletion-title">分别决定关联资产如何处理</h2>
           </div>
         </header>
-        <p>
+        <p id="case-deletion-description">
           Case
           的要求状态、备注、问题和关联会被删除。岗位简历、面试练习与复盘不会被系统擅自连带处理，请为每一类明确选择。
         </p>
@@ -299,6 +266,6 @@ export function CaseDeletionDialog({
           </button>
         </footer>
       </section>
-    </div>
+    </ModalSurface>
   );
 }

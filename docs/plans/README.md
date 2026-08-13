@@ -4,7 +4,7 @@
 
 ## 当前执行
 
-- [Career OS 前后端同步改进计划](career-os-current-delivery-plan.md)：当前唯一活动计划；UX-0 的视觉规则、核心能力 `R / A / E / M / X` 定级、代码反证、Review v1/v2 兼容边界与四视口运行基线均已关闭，下一切片是 OS-1，产品代码尚未实施。
+- [Career OS 前后端同步改进计划](career-os-current-delivery-plan.md)：当前唯一活动计划；UX-0 审计与 OS-1 系统外壳/运行契约均已关闭，下一切片是 OS-2 资料准备与可信岗位入口，尚未实施并等待 coco 指令。
 - [Career OS 端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)：OS-1–OS-7 必须遵守的系统归属、Contracts/Platform/DB/Web、路由、状态、视觉、响应式、焦点和夹具规则；不提供新的任务顺序。
 - [UX-0 页面—系统—证据追踪矩阵](career-os-ux-0-end-to-end-traceability-matrix.md)：逐用例记录规范路由、Contracts、Platform/DB、权限/并发/删除语义、Web 状态、真实测试和 `R / A / E / M / X` 处置；未决行关闭前不得实现对应页面。
 - [MVP 路线与当前决策面板](../06-mvp-roadmap.md)：当前阶段、真实分母、Gate 和下一决定的最高动态事实源。

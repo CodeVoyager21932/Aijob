@@ -24,6 +24,7 @@ import {
   writeApplicationsViewState,
 } from "../applications-state";
 import { Icon } from "../components/Icon";
+import { ModalSurface } from "../components/ModalSurface";
 import { StageBadge } from "../components/StageBadge";
 import { caseStages, getCaseStageLabel } from "../workspace-model";
 
@@ -103,11 +104,6 @@ function PrivateJdDrawer({ open, onClose }: PrivateJdDrawerProps) {
     useState<PrivateApplicationCaseDuplicateHandling>("reuse");
   const commandRef = useRef<{ signature: string; idempotencyKey: string } | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    window.requestAnimationFrame(() => titleRef.current?.focus());
-  }, [open]);
-
   const mutation = useMutation({
     mutationFn: ({
       request,
@@ -153,29 +149,36 @@ function PrivateJdDrawer({ open, onClose }: PrivateJdDrawerProps) {
   };
 
   return (
-    <div className="career-drawer-layer">
-      <button
-        className="career-inspector-backdrop"
-        type="button"
-        aria-label="关闭私有 JD 导入"
-        onClick={onClose}
-      />
-      <section
-        className="career-private-jd-drawer"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="private-jd-title"
-      >
+    <ModalSurface
+      className="career-modal-surface--drawer"
+      layerClassName="career-modal-layer--drawer"
+      labelledBy="private-jd-title"
+      describedBy="private-jd-description"
+      initialFocusRef={titleRef}
+      dismissible={!mutation.isPending}
+      closeLabel="关闭私有 JD 导入"
+      onClose={onClose}
+    >
+      <section className="career-private-jd-drawer">
         <header>
           <div>
             <p>仅加入你的求职工作区</p>
             <h2 id="private-jd-title">导入私有 JD</h2>
           </div>
-          <button className="career-icon-button" type="button" aria-label="关闭" onClick={onClose}>
+          <button
+            className="career-icon-button"
+            type="button"
+            aria-label="关闭"
+            disabled={mutation.isPending}
+            onClick={onClose}
+          >
             <Icon name="close" />
           </button>
         </header>
 
+        <p className="sr-only" id="private-jd-description">
+          将用户提供的岗位原文作为私有求职项目保存，不进入公共岗位目录。
+        </p>
         <form
           className="career-private-jd-form"
           onSubmit={(event) => {
@@ -297,7 +300,12 @@ function PrivateJdDrawer({ open, onClose }: PrivateJdDrawerProps) {
           ) : null}
 
           <footer>
-            <button className="career-button career-button--quiet" type="button" onClick={onClose}>
+            <button
+              className="career-button career-button--quiet"
+              type="button"
+              disabled={mutation.isPending}
+              onClick={onClose}
+            >
               取消
             </button>
             <button
@@ -310,7 +318,7 @@ function PrivateJdDrawer({ open, onClose }: PrivateJdDrawerProps) {
           </footer>
         </form>
       </section>
-    </div>
+    </ModalSurface>
   );
 }
 
@@ -367,7 +375,6 @@ export function ApplicationsPage() {
   };
   const closePrivateJd = () => {
     setPrivateJdOpen(false);
-    window.requestAnimationFrame(() => privateJdTriggerRef.current?.focus());
   };
   const visibleStages =
     viewState.stage === "all"
@@ -386,6 +393,7 @@ export function ApplicationsPage() {
         </div>
         <button
           ref={privateJdTriggerRef}
+          data-private-jd-trigger
           className="career-button career-button--primary"
           type="button"
           onClick={() => setPrivateJdOpen(true)}
@@ -495,6 +503,7 @@ export function ApplicationsPage() {
             </Link>
             <button
               ref={privateJdTriggerRef}
+              data-private-jd-trigger
               className="career-button career-button--primary"
               type="button"
               onClick={() => setPrivateJdOpen(true)}

@@ -1286,15 +1286,36 @@ export async function getApplicationCaseRequirements(input: {
   owner: OwnerScope;
   caseId: string;
 }): Promise<ApplicationCaseRequirements> {
-  return input.db
-    .transaction()
-    .setIsolationLevel("repeatable read")
-    .execute(async (transaction) => {
-      await assertActiveOwnerEpoch(transaction, input.owner.ownerId, input.owner.ownerEpoch);
-      const applicationCase = await loadCaseForRequirements(transaction, input.owner, input.caseId);
-      if (!applicationCase) throw caseNotFound();
-      return loadRequirementsReadModel(transaction, input.owner, applicationCase);
-    });
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      return await input.db
+        .transaction()
+        .setIsolationLevel("repeatable read")
+        .execute(async (transaction) => {
+          await assertActiveOwnerEpoch(transaction, input.owner.ownerId, input.owner.ownerEpoch);
+          const applicationCase = await loadCaseForRequirements(
+            transaction,
+            input.owner,
+            input.caseId,
+          );
+          if (!applicationCase) throw caseNotFound();
+          return loadRequirementsReadModel(transaction, input.owner, applicationCase);
+        });
+    } catch (error) {
+      const code =
+        error && typeof error === "object" && "code" in error ? error.code : undefined;
+      if (code !== "40001") throw error;
+      if (attempt === 3) {
+        throw new ServiceError(
+          503,
+          "CONSISTENT_READ_RETRY_EXHAUSTED",
+          "岗位要求正在同步更新，请稍后重新读取。",
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, attempt * 5));
+    }
+  }
+  throw new Error("CONSISTENT_READ_RETRY_UNREACHABLE");
 }
 
 export async function putApplicationCaseRequirementState(input: {

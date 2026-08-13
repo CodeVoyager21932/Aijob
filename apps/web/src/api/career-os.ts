@@ -50,6 +50,7 @@ import type {
   SubmitInterviewAnswerResponse,
   UpdateCaseQuestionRequest,
 } from "@aijob/contracts";
+import { ApplicationCaseWithJobContextSchema } from "@aijob/contracts";
 import { apiRequest } from "./client";
 
 export const careerOsQueryKeys = {
@@ -113,7 +114,7 @@ export function listApplicationCases(input: ListApplicationCasesInput = {}, sign
 export function getApplicationCase(caseId: string, signal?: AbortSignal) {
   return apiRequest<ApplicationCaseWithJobContext>(
     `/v1/application-cases/${encodeURIComponent(caseId)}`,
-    { signal },
+    { signal, responseSchema: ApplicationCaseWithJobContextSchema },
   );
 }
 

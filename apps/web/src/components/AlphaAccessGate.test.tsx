@@ -22,4 +22,14 @@ describe("Private Alpha access gate", () => {
     expect(html).toContain("正在确认访问状态");
     expect(html).not.toContain("private-product");
   });
+
+  it("can keep the access state inside an existing workspace main landmark", () => {
+    const html = renderToStaticMarkup(
+      <AlphaAccessGate enabled variant="workspace">
+        <p>private-product</p>
+      </AlphaAccessGate>,
+    );
+    expect(html).toContain('<section class="alpha-access alpha-access--workspace"');
+    expect(html).not.toContain("<main");
+  });
 });

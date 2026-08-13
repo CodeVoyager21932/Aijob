@@ -6,6 +6,7 @@ import type {
   RequirementEvidenceState,
   ResumeEvidence,
 } from "@aijob/contracts";
+import type { RefObject } from "react";
 import { Link } from "react-router-dom";
 import type { ApplicationCaseView } from "../application-case-view";
 import {
@@ -49,6 +50,8 @@ interface RequirementInspectorProps {
     status: CaseQuestionStatus,
     answer: string | null,
   ) => void;
+  titleId?: string;
+  closeButtonRef?: RefObject<HTMLButtonElement | null>;
 }
 
 function evidenceText(evidence: Evidence): string {
@@ -81,6 +84,8 @@ export function RequirementInspector({
   onCreateQuestion,
   onAnswerDraftChange,
   onUpdateQuestion,
+  titleId,
+  closeButtonRef,
 }: RequirementInspectorProps) {
   const groupLabel = requirementGroups.find((item) => item.value === group)?.label ?? "岗位要求";
 
@@ -92,6 +97,8 @@ export function RequirementInspector({
       meta={`${applicationCase.companyName} · ${applicationCase.roleTitle}`}
       closeLabel="关闭要求检查器"
       onClose={onClose}
+      titleId={titleId}
+      closeButtonRef={closeButtonRef}
       footer={
         <Link
           className="career-button career-button--primary"
