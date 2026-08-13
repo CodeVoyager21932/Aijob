@@ -27,7 +27,7 @@
 - `aijob_alpha` 与开发库均已升级至迁移 022；Git 忽略的恢复清单已校准为 22/22/3/0，并只包含三个已授权 canonical 确定性来源。`local:bootstrap` 与 `source:probe` 均要求显式 `--confirm-live`。
 - Alpha 后端读取绕过修复后的最终工程门：隔离 PostgreSQL 全仓 557/557、全仓 TypeScript、生产构建、331 文件 lint 与 `git diff --check` 全绿。
 
-## 1. 当前唯一目标
+## 1. 2026-08-03 当时唯一目标
 
 coco 已通过 [ADR-0029](../../decisions/0029-official-source-catalog-trust-boundary.md) 修正岗位事实源，高校等二手页面只能用于发现企业方向。P0/P1 可信度纠偏已完成代码与干净库收口。**当前唯一目标是冻结并提交本轮纠偏结果，然后按 ADR-0028 恢复容量优先的企业官网/官方 ATS 来源族扩容，从 22 岗/3 家可信分母推进 100/1000。** 产品证据保持 `E0`，G0/G1 和其他外部用户测试继续暂停。
 
@@ -107,7 +107,7 @@ coco 已通过 [ADR-0029](../../decisions/0029-official-source-catalog-trust-bou
 - 2026-08-02 合并前工程门：隔离库全量 460/460、全仓 TypeScript、生产构建、`pnpm lint`（300 文件）与 `git diff --check` 再次通过；工程命令未访问真实来源。同期计划运行观察独立记录在[首轮扩展证据](../../evidence/ingestion/source-refresh-first-rollout-observation-2026-08-02.md)。
 - GitHub CI 已配置一次性 PostgreSQL 16 测试服务，预迁移后强制设置 `AIJOB_TEST_DATABASE_URL`，因此 PR 与 `main` 的工程门不再静默跳过 20 个数据库集成测试文件；CI 显式关闭来源探测、本地预览与 AI。PR 分支只由 `pull_request` 触发，合并后由 `main` push 复验，避免同一提交重复运行两套检查。
 
-## 3. 当前未完成项
+## 3. 2026-08-03 当时未完成项
 
 1. 当前可信总量仅 22 / 1000 岗、3 / 100 家企业，至少缺 978 岗、97 家；达到硬门后还要维持 110/1100 运营缓冲。
 2. 当前 SME 为 2/3 家、14/22 岗；到 100 家/1000 岗至少还需 48 家和 386 条合格 SME，规模预判、招聘平台人数和 `unknown` 不能计入。

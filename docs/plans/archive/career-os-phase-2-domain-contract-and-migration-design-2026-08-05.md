@@ -6,7 +6,7 @@
 - 日期：2026-08-05；Phase 2R 复核：2026-08-06
 - 决策者：coco
 - 适用阶段：Phase 2
-- 当前执行计划：[Career OS 当前交付计划](../career-os-current-delivery-plan.md)
+- 现行路由：[Career OS 前后端同步改进计划](../career-os-current-delivery-plan.md)
 - 历史上位计划：[已废止的 Private Alpha 严格开发总计划](career-os-v2-upgrade-plan-2026-08-04.md)
 - 关联决策：[ADR-0005](../../decisions/0005-invitation-session-ownership-retention.md)、[ADR-0007](../../decisions/0007-postgres-task-idempotency.md)、[ADR-0008](../../decisions/0008-immutable-match-versioning.md)、[ADR-0012](../../decisions/0012-isolated-resume-document-ingestion.md)、[ADR-0013](../../decisions/0013-local-ai-recommendation-and-resume-tailoring.md)、[ADR-0023](../../decisions/0023-enforce-runtime-and-database-role-boundaries.md)、[ADR-0030](../../decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md)、[ADR-0031](../../decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md)
 

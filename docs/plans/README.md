@@ -4,15 +4,15 @@
 
 ## 当前执行
 
-- [Career OS 端到端体验收敛计划](career-os-current-delivery-plan.md)：当前唯一活动计划；UX-0 视觉规则、核心能力 `R / A / E / M / X` 定级和字段级系统草案已形成，逐项代码反证、Review v1/v2 migration 兼容与四视口运行基线待补，当前决定为“修改并保持 UX-0”，产品代码尚未实施。
-- [Career OS 端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)：UX-1–UX-7 必须遵守的系统归属、Contracts/Platform/DB/Web、路由、状态、视觉、响应式、焦点和夹具规则；不提供新的任务顺序。
+- [Career OS 前后端同步改进计划](career-os-current-delivery-plan.md)：当前唯一活动计划；UX-0 视觉规则、核心能力 `R / A / E / M / X` 定级和字段级系统草案已形成，逐项代码反证、Review v1/v2 migration 兼容与四视口运行基线待补，当前决定为“修改并保持 UX-0”，产品代码尚未实施。
+- [Career OS 端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)：OS-1–OS-7 必须遵守的系统归属、Contracts/Platform/DB/Web、路由、状态、视觉、响应式、焦点和夹具规则；不提供新的任务顺序。
 - [UX-0 页面—系统—证据追踪矩阵](career-os-ux-0-end-to-end-traceability-matrix.md)：逐用例记录规范路由、Contracts、Platform/DB、权限/并发/删除语义、Web 状态、真实测试和 `R / A / E / M / X` 处置；未决行关闭前不得实现对应页面。
 - [MVP 路线与当前决策面板](../06-mvp-roadmap.md)：当前阶段、真实分母、Gate 和下一决定的最高动态事实源。
 - [当前项目交接](../handoffs/current.md)：当前分支、工程基线、当前切片、代码入口和安全边界。
 
 ## 后续验收 Gate
 
-- [Private Alpha 与上线就绪 Gate](private-alpha-readiness-gates.md)：只回答进入真实参与者测试和推广上线前不能遗漏什么；不得从中生成当前 UX 任务。
+- [Private Alpha 与上线就绪 Gate](private-alpha-readiness-gates.md)：只回答进入真实参与者测试和推广上线前不能遗漏什么；不得从中生成当前任务。
 
 ## 历史归档
 
@@ -27,6 +27,22 @@
 归档正文中的“当前”“下一步”“授权”“时间盒”和历史分母只描述当时时点，不得覆盖现行路线。
 
 旧路径 [career-os-v2-upgrade-plan-2026-08-04.md](career-os-v2-upgrade-plan-2026-08-04.md) 仅为兼容历史链接的废止路标。
+
+### 旧切片名称映射
+
+旧 `UX-1–UX-7` 已停止作为现行任务名。归档正文保留原名以维护历史证据，阅读时只按下表理解其现行归属，不得沿旧顺序继续：
+
+| 历史名称 | 现行名称 |
+|---|---|
+| UX-1 | OS-1 系统外壳与运行契约 |
+| UX-5 | OS-2 资料准备与可信岗位入口 |
+| UX-2 | OS-3 申请看板与 Case 命令 |
+| UX-3 | OS-4 单 Case 决策与固定版本匹配 |
+| UX-4 | OS-5 Resume Studio 与唯一 Review 写入 |
+| UX-6 | OS-6 投递、面试、复盘与数据控制 |
+| UX-7 | OS-7 系统总 Gate |
+
+`UX-0` 保留为当前已启动的端到端契约审计名称。支持契约、追踪矩阵、证据、未来 Gate、兼容路标和归档都不是独立活动计划。
 
 ## 事实源与冲突处理
 

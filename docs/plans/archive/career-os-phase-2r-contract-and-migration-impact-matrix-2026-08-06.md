@@ -6,7 +6,7 @@
 - 状态：**Historical / 已完成并由 migrations 025–030 落地，不是当前任务队列**
 - 适用基线：Aijob OS 2.0 初版
 - 上位决策：[ADR-0031](../../decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md)
-- 当前执行计划：[Career OS 当前交付计划](../career-os-current-delivery-plan.md)
+- 现行路由：[Career OS 前后端同步改进计划](../career-os-current-delivery-plan.md)
 - 历史上位计划：[已废止的 Private Alpha 严格开发总计划](career-os-v2-upgrade-plan-2026-08-04.md)
 - 对应证据：[Phase 2R 架构对齐报告](../../evidence/product/career-os-v2/phase-2r-architecture-realignment-2026-08-06.md)
 

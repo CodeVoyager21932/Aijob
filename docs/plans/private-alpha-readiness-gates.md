@@ -2,7 +2,7 @@
 
 - 状态：Active checklist / 非当前任务队列
 - 生效日期：2026-08-09
-- 当前执行路线：[Career OS 当前交付计划](career-os-current-delivery-plan.md)
+- 当前执行路线：[Career OS 前后端同步改进计划](career-os-current-delivery-plan.md)
 
 本文只定义进入真实参与者测试和推广上线前不能遗漏的条件。Gate 编号不表示当前开发顺序，也不得用于跳过路线图中的当前唯一目标。
 

@@ -10,7 +10,7 @@
 
 动态事实源：[MVP 路线图](../06-mvp-roadmap.md)
 
-当前执行计划：[Career OS 端到端体验收敛计划](../plans/career-os-current-delivery-plan.md)
+当前执行计划：[Career OS 前后端同步改进计划](../plans/career-os-current-delivery-plan.md)
 
 稳定实施契约：[Career OS 端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)
 
@@ -24,7 +24,7 @@
 
 coco 已确认现有系统与三张 Career OS 概念图存在明显视觉与整合差距，并进一步要求不能做前端独立优化、不能默认后端匹配，必须以系统架构方式同步收敛 Contracts、Platform/DB、Web 与端到端证据。
 
-**当前唯一目标是 UX-0 端到端契约与基线。视觉/交互静态审计、六个结构性接缝的 `R / A / E / M / X` 方向及字段级请求/响应、Problem、删除/版本和核心断言草案已经形成；仍须逐项代码反证、完成 Review v1/v2 migration 的 legacy/new-write 兼容检查，以及 1536、1280、320 与 200% 实时浏览器基线。当前决定为“修改”，产品代码尚未实施，不得进入 UX-1。**
+**当前唯一目标是 UX-0 端到端契约与基线。视觉/交互静态审计、六个结构性接缝的 `R / A / E / M / X` 方向及字段级请求/响应、Problem、删除/版本和核心断言草案已经形成；仍须逐项代码反证、完成 Review v1/v2 migration 的 legacy/new-write 兼容检查，以及 1536、1280、320 与 200% 实时浏览器基线。当前决定为“修改”，产品代码尚未实施，不得进入 OS-1。**
 
 不得继续从 PA-1、旧 M4、历史 Phase 2、旧 R2、供给扩容或 Private Alpha Gate 自动选择任务。
 
@@ -48,7 +48,9 @@ coco 已确认现有系统与三张 Career OS 概念图存在明显视觉与整�
 ## 3. 已锁定的端到端方向
 
 - 三张概念图是布局、信息层级和交互关系的高保真目标。
-- 交付方式为用户结果纵向切片：先锁 Contract/领域/数据语义，再做 Platform/DB、Web 与真实隔离库浏览器验收，不一次重写全站，也不先做视觉壳。
+- 交付方式为用户结果纵向切片：先锁 Contract/领域/数据语义，再做 Database/Platform、Web 与真实隔离库浏览器验收，不一次重写全站，也不先做视觉壳。
+- `UX-0` 只保留为当前审计名称；后续实现统一使用 `OS-1–OS-7`。每个 OS 切片都维护 `Contract / Database/Platform / Web / Integrated Gate / Evidence` 五项状态，五项未全部通过时不得写成完成。
+- 固定顺序为：OS-1 系统外壳与运行契约 → OS-2 资料准备与可信岗位入口 → OS-3 申请看板与 Case 命令 → OS-4 单 Case 决策与固定版本匹配 → OS-5 Resume Studio 与唯一 Review 写入 → OS-6 投递、面试、复盘与数据控制 → OS-7 系统总 Gate。
 - 旧岗位、三轴匹配、推荐、JD 洞察、简历解析/确认和 Tailoring 只有从规范路径可用、刷新可恢复且事实可追溯时才算自然嵌入；兼容说明或历史只读本身不算完成。
 - 现有 matching 创建与 Worker 读取路径只接受 current/public pointer，不能直接覆盖 Case 固定旧版本；现有 Resume Review 又没有读取固定 Requirements 或保存 requirement 引用。这两项必须作为后端语义缺口同步修正，不能留给页面兜底。
 - 完成边界覆盖整个用户前台，包括今日、岗位、看板、Case、简历、投递、面试、复盘、设置和访问页。
@@ -66,7 +68,7 @@ UX-0 当前结果：
 5. **已完成字段级静态草案，待反证**：页面—用户动作—Contracts—Platform/DB—测试矩阵和隔离满态/空态夹具；看板、Matching、Recommendation、Insights、Tailoring/Review 与 runtime parse 已有 schema/Problem/断言草案。
 6. **已确认后端新增差距**：Matching 创建/Worker 当前只接受目录 current pointer；Review Worker 只做 template 且不读固定 Requirements，Finding/Suggestion 没有 requirement IDs，Run 没有可信 generation provenance/failure。
 7. **待补**：逐项代码反证、Review migration legacy/new-write/up/down guard，以及 1536、1280、320 和 200% 等效视口的当前实时浏览器基线。
-8. **当前决定**：修改并保持 UX-0；系统矩阵与运行基线都通过前不得进入 UX-1。
+8. **当前决定**：修改并保持 UX-0；系统矩阵与运行基线都通过前不得进入 OS-1。
 
 UX-0 没有重做页面、修改产品代码、新增后端能力或访问外部系统。
 
@@ -90,17 +92,17 @@ UX-0 没有重做页面、修改产品代码、新增后端能力或访问外部
 
 - 不访问真实招聘来源、真实 AI、真实邮件、服务器、参与者或真实简历，不获取外部解析镜像。
 - 不新增第二套数据库、BFF、Redis、向量库、消息总线、第二套认证或 AI SDK，不移除 `VITE_CAREER_OS_V2`。
-- UX-0 不实施 migration。只读审计已证明 UX-4 需要一项 Review v1/v2 最小 expand migration（generation provenance/failure 与 requirement 引用）；看板、Case matching 和 Recommendation 当前不需要表 migration。实施前仍必须完成 legacy/new-write/up/down guard，不得为了视觉便利或绕过契约追加其他迁移。
+- UX-0 不实施 migration。只读审计已证明 OS-5 需要一项 Review v1/v2 最小 expand migration（generation provenance/failure 与 requirement 引用）；看板、Case matching 和 Recommendation 当前不需要表 migration。实施前仍必须完成 legacy/new-write/up/down guard，不得为了视觉便利或绕过契约追加其他迁移。
 - 不读取、修改、暂存、覆盖、清理或提交 `.claude/`、`.data/`、密钥、令牌、真实简历原文、本地业务数据库、下载产物或截图。
 - 测试数据库必须全新且匹配 `aijob_*_test_*`，只写合成数据，结束后精确清理。
-- Private Alpha Gate 只用于守门，不得从中生成当前 UX 任务。
+- Private Alpha Gate 只用于守门，不得从中生成当前任务。
 
 ## 7. 新任务接手检查
 
-1. 依次阅读 `AGENTS.md`、README、路线图、本交接、计划索引和当前 UX 交付计划。
+1. 依次阅读 `AGENTS.md`、README、路线图、本交接、计划索引和当前前后端同步交付计划。
 2. 核对实际分支、HEAD、远端跟踪、工作树、最近提交、容器和 3000/5173/5432 端口；冲突先报告。
-3. 确认当前只做 UX-0：反证已选 `R / A / E / M / X` 字段级草案、完成 Review migration 兼容核验并补齐四视口实时基线；不得跳到 UX-1 或页面实现。
+3. 确认当前只做 UX-0：反证已选 `R / A / E / M / X` 字段级草案、完成 Review migration 兼容核验并补齐四视口实时基线；不得跳到 OS-1 或页面实现。
 4. 系统矩阵必须逐项核对规范路由、用户动作、Contracts、Platform 模块、PostgreSQL 事实、owner/CSRF/幂等/revision/删除和真实测试，不能只看页面或测试总数。
 5. 需要运行时，只允许临时启动 V2 Web 和必要的 loopback 隔离环境；不读取本地业务库，不得因此访问外部来源。
 6. 基线只记录实时页面布局、页面级/局部滚动、console、loopback network、键盘和焦点；不生成或提交截图。
-7. 追加 UX-0 证据并作“继续 UX-1、继续修改、回退或停止”之一后，才更新当前目标。
+7. 追加 UX-0 证据并作“继续 OS-1、继续修改、回退或停止”之一后，才更新当前目标。

@@ -4,13 +4,13 @@
 >
 > 生效日期：2026-08-13
 >
-> 当前验收状态：视觉/交互规则、端到端领域归属和六个结构性接缝的字段级静态草案已经形成；逐项代码反证、Review migration 的 legacy/new-write 兼容断言与四视口当前运行基线仍须按 [UX-0 证据](evidence/product/career-os-v2/ux-0-end-to-end-contract-and-baseline-2026-08-13.md)完成。在这些缺口关闭前不得进入 UX-1。
+> 当前验收状态：视觉/交互规则、端到端领域归属和六个结构性接缝的字段级静态草案已经形成；逐项代码反证、Review migration 的 legacy/new-write 兼容断言与四视口当前运行基线仍须按 [UX-0 证据](evidence/product/career-os-v2/ux-0-end-to-end-contract-and-baseline-2026-08-13.md)完成。在这些缺口关闭前不得进入 OS-1。
 >
 > 动态任务只看 [MVP 路线](06-mvp-roadmap.md)、[当前交接](handoffs/current.md)和[当前交付计划](plans/career-os-current-delivery-plan.md)。本文固定设计规则，不生成新的任务顺序。
 
 ## 1. 目的与适用边界
 
-本文把 coco 提供的三张 Career OS 概念图、现有 Web、Contracts、Platform、PostgreSQL 能力和 UX-0–UX-7 路线，收敛为可实现、可测试、不会随页面开发漂移的端到端契约。
+本文把 coco 提供的三张 Career OS 概念图、现有 Web、Contracts、Platform、PostgreSQL 能力和“UX-0 审计 → OS-1–OS-7 同步实现”路线，收敛为可实现、可测试、不会随页面开发漂移的端到端契约。
 
 它约束整个 V2 用户旅程：
 
@@ -51,7 +51,7 @@ flowchart LR
 | `R — 直接复用` | 现有契约和事实语义完整匹配 | 可从规范路由真实恢复；无需前端猜测或 N+1 |
 | `A — 适配` | 领域能力存在，只缺规范 read model / command adapter / runtime parse | 不改变事实含义，不建立第二套真源 |
 | `E — 扩展` | 现有契约缺少目标交互必要字段、查询或持久关联 | 先补 Contracts、Platform 集成测试和回退 |
-| `M — 最小迁移` | 现有表无法持久表达必要语义 | UX-0 明确证明、评审、迁移测试和回退后才允许 |
+| `M — 最小迁移` | 现有表无法持久表达必要语义 | 当前切片明确证明、评审、迁移测试和回退后才允许 |
 | `X — 排除` | 不属于当前用户结果或违反固定边界 | 必须写明替代入口，不能以兼容说明冒充融合 |
 
 任何核心行仍是“待决定”时，UX-0 不通过。不得先画页面，再用临时静态数据、成功响应 mock 或客户端 join 填空。
@@ -60,19 +60,19 @@ flowchart LR
 
 | 用户能力 | 当前系统事实 | 当前判定 | 负责切片 |
 |---|---|---|---|
-| session / owner / CSRF / 不重放 | Platform 与 API client 有基础，页面回接不统一 | `R/A` | UX-1、UX-7 |
-| 岗位检索、facet、详情 | 后端主体存在；Web URL 恢复与排序未完整对齐 | `R/A/E`；推荐/洞察归入该旅程 | UX-5 |
-| Case 创建、固定版本、删除 | 主体存在；transition、diff/upgrade 未进入完整 V2 交互 | `R/A` | UX-2、UX-3 |
-| 看板列表、筛选、计数 | API 只有 stage/cursor/limit；Web 对已加载子集做 city/sort | `E`：Case list + board read model，无语义 migration | UX-2 |
-| Requirements / Evidence / Questions | 三证据状态、revision、owner 语义存在 | `R/A` | UX-3 |
-| 三轴匹配 | immutable run 存在；但创建/Worker 只接受当前目录版本，不能直接处理 Case 固定旧版本 | `E`：Case-scoped adapter + `case_pinned` 任务上下文；按固定版本、requirement set 与资料修订查回，不加 Case 外键 | UX-3 |
-| 推荐 | run 已冻结候选/要求/新鲜度；V2 只显示兼容说明，旧页由浏览器拉取候选 | `E`：在现有 RecommendationRun 资源下增加按搜索创建和岗位投影 view，规范入口归入 `/jobs` | UX-5 |
-| JD 市场洞察 | scope 聚合存在；不是单 Case Requirements | `A`：规范入口归入 `/jobs/insights*`，明确排除 Case JD 面板 | UX-5 |
-| 简历导入/确认 | 后端主体存在；规范 `/resumes/import*` 缺失 | `R/A` | UX-5 |
-| Resume V2 / Review / DOCX | 主体存在；当前模板 Review 未读取固定 Requirements，Finding/Suggestion 无 requirement 引用 | `E + M`：固定岗位要求进入 template/AI 生成链并持久引用；同时收敛草稿、错误与响应式 | UX-4 |
-| 旧 Tailoring / 受控 AI | Tailoring 有低层 provider/去标识化能力；Review 预留 mode 但请求/Worker 只实现 template，Run 缺 provenance/failure | `E + M`：新写入统一归 Resume Review，v1/v2 兼容的最小 expand migration；旧 Tailoring 只读 | UX-4 |
-| 投递 / 面试 / 复盘 / 删除 | 后端主体与现有 V2 主路径存在 | `R/A` | UX-6 |
-| 完整浏览器夹具 | Platform 集成测试存在；无完整真实 API UX runner | `E`（测试基础设施） | UX-0、UX-7 |
+| session / owner / CSRF / 不重放 | Platform 与 API client 有基础，页面回接不统一 | `R/A` | OS-1、OS-7 |
+| 岗位检索、facet、详情 | 后端主体存在；Web URL 恢复与排序未完整对齐 | `R/A/E`；推荐/洞察归入该旅程 | OS-2 |
+| Case 创建、固定版本、删除 | 主体存在；transition、diff/upgrade 未进入完整 V2 交互 | `R/A` | OS-3、OS-4 |
+| 看板列表、筛选、计数 | API 只有 stage/cursor/limit；Web 对已加载子集做 city/sort | `E`：Case list + board read model，无语义 migration | OS-3 |
+| Requirements / Evidence / Questions | 三证据状态、revision、owner 语义存在 | `R/A` | OS-4 |
+| 三轴匹配 | immutable run 存在；但创建/Worker 只接受当前目录版本，不能直接处理 Case 固定旧版本 | `E`：Case-scoped adapter + `case_pinned` 任务上下文；按固定版本、requirement set 与资料修订查回，不加 Case 外键 | OS-4 |
+| 推荐 | run 已冻结候选/要求/新鲜度；V2 只显示兼容说明，旧页由浏览器拉取候选 | `E`：在现有 RecommendationRun 资源下增加按搜索创建和岗位投影 view，规范入口归入 `/jobs` | OS-2 |
+| JD 市场洞察 | scope 聚合存在；不是单 Case Requirements | `A`：规范入口归入 `/jobs/insights*`，明确排除 Case JD 面板 | OS-2 |
+| 简历导入/确认 | 后端主体存在；规范 `/resumes/import*` 缺失 | `R/A` | OS-2 |
+| Resume V2 / Review / DOCX | 主体存在；当前模板 Review 未读取固定 Requirements，Finding/Suggestion 无 requirement 引用 | `E + M`：固定岗位要求进入 template/AI 生成链并持久引用；同时收敛草稿、错误与响应式 | OS-5 |
+| 旧 Tailoring / 受控 AI | Tailoring 有低层 provider/去标识化能力；Review 预留 mode 但请求/Worker 只实现 template，Run 缺 provenance/failure | `E + M`：新写入统一归 Resume Review，v1/v2 兼容的最小 expand migration；旧 Tailoring 只读 | OS-5 |
+| 投递 / 面试 / 复盘 / 删除 | 后端主体与现有 V2 主路径存在 | `R/A` | OS-6 |
+| 完整浏览器夹具 | Platform 集成测试存在；无完整真实 API UX runner | `E`（测试基础设施） | UX-0、OS-7 |
 
 详细代码证据和当前判定见 [UX-0 端到端审计](evidence/product/career-os-v2/ux-0-end-to-end-contract-and-baseline-2026-08-13.md)，字段级请求、响应、Problem 与断言见 [UX-0 页面—系统—证据追踪矩阵](plans/career-os-ux-0-end-to-end-traceability-matrix.md)。
 
@@ -174,29 +174,29 @@ Career OS 是一个**高密度、克制、可信的专业求职驾驶舱**：像
 
 | 路由或能力 | V2 最终处置 | 主要 URL 状态 | 负责切片 |
 |---|---|---|---|
-| `/` | 重定向 `/today` | 无 | UX-1 |
-| `/today` | 保留并统一为任务概览 | 可恢复的局部筛选若后续出现 | UX-6 |
-| `/jobs` | 保留 URL，旧岗位目录自然嵌入 WorkspaceShell | 查询、城市、职能、排序、页游标 | UX-5 |
-| `/jobs/:jobId` | 保留 URL，岗位事实、三轴核对入口与加入 Case 动作统一 | `jobId`、来源上下文、可选当前 match run | UX-3、UX-5 |
-| `/jobs/recommended` | 推荐准备页；由 Platform 从规范岗位筛选冻结候选集 | 筛选、资料准备状态 | UX-5 |
-| `/jobs/recommended/:runId` | 持久化 RecommendationRun 与岗位投影 | `runId` | UX-5 |
-| `/jobs/insights` | 市场 JD 洞察条件页；不与单 Case Requirements 混用 | family、city、scale、是否对照证据 | UX-5 |
-| `/jobs/insights/:runId` | 持久化市场洞察报告 | `runId` | UX-5 |
-| `/applications` | 主申请看板/列表 | `view`、`stage`、`city`、`sort`、`peek` | UX-2 |
-| `/applications/:caseId` | 兼容重定向 `overview` | `caseId` | UX-3 |
-| `/applications/:caseId/:tab` | Case 六标签唯一工作区 | `tab`；各页只增加必要选中项 | UX-3、UX-4、UX-6 |
-| `/resumes` | 简历资产首页 | 来源提示、当前选择 | UX-4 |
-| `/resumes/:documentId` | 基础或派生简历工作室 | `documentId`、`block`、工作模式 | UX-4 |
-| `/resumes/import` | **新增规范前台路由**，承接现有 `/resume` 能力 | 输入模式，不把原文放 URL | UX-5 |
-| `/resumes/import/confirm/:analysisId` | **新增规范前台路由**，承接现有确认能力 | `analysisId`、确认步骤 | UX-5 |
-| `/resume`、`/resume/confirm/:analysisId` | 兼容入口，重定向或委托规范路由；旗标关闭时保持旧行为 | 保留旧参数 | UX-5 |
-| `/recommendations` | V2 兼容重定向 `/jobs/recommended`；V2=false 保留旧页 | 无 | UX-5、UX-6 |
-| `/insights` | V2 兼容重定向 `/jobs/insights`；V2=false 保留旧页 | 无 | UX-5、UX-6 |
-| `/resume-tailorings/:runId` | 历史只读；新模板/受控 AI 写入统一归 Resume V2 Review | `runId` | UX-4、UX-6 |
-| `/settings/data` | 数据与设置唯一入口 | 必要的结果提示 | UX-6 |
-| `/settings/data/deletion` | 全量删除状态与回执 | 无敏感内容 | UX-6 |
-| `/data-control*` | 兼容重定向 `/settings/data*` | 保留旧入口可达 | UX-6 |
-| 未知用户路由 | WorkspaceShell 内统一 404 | 原路径可见 | UX-1 |
+| `/` | 重定向 `/today` | 无 | OS-1 |
+| `/today` | 保留并统一为任务概览 | 可恢复的局部筛选若后续出现 | OS-6 |
+| `/jobs` | 保留 URL，旧岗位目录自然嵌入 WorkspaceShell | 查询、城市、职能、排序、页游标 | OS-2 |
+| `/jobs/:jobId` | 保留 URL，岗位事实、三轴核对入口与加入 Case 动作统一 | `jobId`、来源上下文、可选当前 match run | OS-2、OS-4 |
+| `/jobs/recommended` | 推荐准备页；由 Platform 从规范岗位筛选冻结候选集 | 筛选、资料准备状态 | OS-2 |
+| `/jobs/recommended/:runId` | 持久化 RecommendationRun 与岗位投影 | `runId` | OS-2 |
+| `/jobs/insights` | 市场 JD 洞察条件页；不与单 Case Requirements 混用 | family、city、scale、是否对照证据 | OS-2 |
+| `/jobs/insights/:runId` | 持久化市场洞察报告 | `runId` | OS-2 |
+| `/applications` | 主申请看板/列表 | `view`、`stage`、`city`、`sort`、`peek` | OS-3 |
+| `/applications/:caseId` | 兼容重定向 `overview` | `caseId` | OS-4 |
+| `/applications/:caseId/:tab` | Case 六标签唯一工作区 | `tab`；各页只增加必要选中项 | OS-4、OS-5、OS-6 |
+| `/resumes` | 简历资产首页 | 来源提示、当前选择 | OS-5 |
+| `/resumes/:documentId` | 基础或派生简历工作室 | `documentId`、`block`、工作模式 | OS-5 |
+| `/resumes/import` | **新增规范前台路由**，承接现有 `/resume` 能力 | 输入模式，不把原文放 URL | OS-2 |
+| `/resumes/import/confirm/:analysisId` | **新增规范前台路由**，承接现有确认能力 | `analysisId`、确认步骤 | OS-2 |
+| `/resume`、`/resume/confirm/:analysisId` | 兼容入口，重定向或委托规范路由；旗标关闭时保持旧行为 | 保留旧参数 | OS-2 |
+| `/recommendations` | V2 兼容重定向 `/jobs/recommended`；V2=false 保留旧页 | 无 | OS-2、OS-6 |
+| `/insights` | V2 兼容重定向 `/jobs/insights`；V2=false 保留旧页 | 无 | OS-2、OS-6 |
+| `/resume-tailorings/:runId` | 历史只读；新模板/受控 AI 写入统一归 Resume V2 Review | `runId` | OS-5、OS-6 |
+| `/settings/data` | 数据与设置唯一入口 | 必要的结果提示 | OS-6 |
+| `/settings/data/deletion` | 全量删除状态与回执 | 无敏感内容 | OS-6 |
+| `/data-control*` | 兼容重定向 `/settings/data*` | 保留旧入口可达 | OS-6 |
+| 未知用户路由 | WorkspaceShell 内统一 404 | 原路径可见 | OS-1 |
 | `/research/*`、`/internal-preview/*` | 排除用户前台，不共享本轮视觉完成声明 | 不适用 | 不在本计划 |
 
 ### 5.3 懒加载契约
@@ -245,20 +245,20 @@ Career OS 是一个**高密度、克制、可信的专业求职驾驶舱**：像
 
 | 已知差距 | 不得在 UX-0 顺手修复 | 负责切片 |
 |---|---|---|
-| V2 404 回到 ProductShell、没有路由级 Error Boundary | 是 | UX-1 |
-| Overlay 缺少统一焦点约束、Esc、背景 inert 和可靠返焦 | 是 | UX-1 |
-| Case list 只支持 stage/cursor，Web 对已加载子集做 city/sort；Peek 404 静默关闭、五列与 Peek 尺寸冲突 | 是 | UX-2 |
-| transition、job-version diff/upgrade 已在 Platform 但未完整接入 Web；Requirement 桌面检查器不能真实收起 | 是 | UX-2、UX-3 |
-| 三轴 matching run 没有 V2 Case 可恢复入口，现有 Worker 又拒绝 Case 固定旧版本 | 是 | 已选 Case-scoped adapter + `case_pinned` 任务上下文；UX-3 实施 |
-| Resume Studio 草稿可能丢失；Review 未读取固定 Requirements、无 requirement 引用，controlled_ai 与 provenance 也未实现 | 是 | 已选 Review 唯一新写入 + v1/v2 最小 expand migration；UX-4 实施 |
-| recommendation / insights 在 V2 仅兼容说明；`/resumes/import*` 缺失、岗位筛选不进 URL | 是 | 已选归入规范 `/jobs/*`；UX-5 实施 |
-| 今日、岗位详情、设置、旧只读页的错误语义不一致 | 是 | UX-6 |
-| 通用 `apiRequest<T>` 对多数业务响应不做运行时 schema 解析 | 是 | 随 UX-1–UX-6 触达端点修正；UX-7 总验 |
-| 刷新部署、全路由键盘、性能和回退总验证 | 是 | UX-7 |
+| V2 404 回到 ProductShell、没有路由级 Error Boundary | 是 | OS-1 |
+| Overlay 缺少统一焦点约束、Esc、背景 inert 和可靠返焦 | 是 | OS-1 |
+| Case list 只支持 stage/cursor，Web 对已加载子集做 city/sort；Peek 404 静默关闭、五列与 Peek 尺寸冲突 | 是 | OS-3 |
+| transition、job-version diff/upgrade 已在 Platform 但未完整接入 Web；Requirement 桌面检查器不能真实收起 | 是 | OS-3、OS-4 |
+| 三轴 matching run 没有 V2 Case 可恢复入口，现有 Worker 又拒绝 Case 固定旧版本 | 是 | 已选 Case-scoped adapter + `case_pinned` 任务上下文；OS-4 实施 |
+| Resume Studio 草稿可能丢失；Review 未读取固定 Requirements、无 requirement 引用，controlled_ai 与 provenance 也未实现 | 是 | 已选 Review 唯一新写入 + v1/v2 最小 expand migration；OS-5 实施 |
+| recommendation / insights 在 V2 仅兼容说明；`/resumes/import*` 缺失、岗位筛选不进 URL | 是 | 已选归入规范 `/jobs/*`；OS-2 实施 |
+| 今日、岗位详情、设置、旧只读页的错误语义不一致 | 是 | OS-2、OS-6 |
+| 通用 `apiRequest<T>` 对多数业务响应不做运行时 schema 解析 | 是 | 随 OS-1–OS-6 触达端点修正；OS-7 总验 |
+| 刷新部署、全路由键盘、性能和回退总验证 | 是 | OS-7 |
 
 ## 7. 视觉 token
 
-UX-1 开始必须把 token 从页面字面量中抽离。旧 `ProductShell` 可以保留自己的回退 token，但不得继续污染 `.career-os`。
+OS-1 开始必须把 token 从页面字面量中抽离。旧 `ProductShell` 可以保留自己的回退 token，但不得继续污染 `.career-os`。
 
 ### 7.1 字体与排版
 
@@ -525,11 +525,12 @@ Desktop 非模态 inspector 不强制焦点圈闭；关闭按钮存在时必须�
 
 ## 13. 实施纪律
 
-每个后续 UX 切片必须：
+每个后续 OS 切片必须：
 
 1. 先为本切片每个用户动作记录 `R / A / E / M / X`、规范路由、Contracts、领域所有者、事实源、错误/并发/删除语义和验收夹具。
 2. 需要 Platform/Contracts/持久语义变化时先完成并验证，再让 Web 消费；不得由 React 临时补齐跨领域事实。
 3. 只修该切片已归属的差距，先运行 Contracts/Platform/Web focused tests，再做真实隔离库的纵向浏览器验收。
 4. 同时验证 1536、1280、320、200%、满态与真实空态、键盘、焦点、URL 恢复、console、network、N+1 和 lazy loading。
-5. 更新独立证据、路线图和当前交接。
-6. 只作“继续、修改、回退、停止”之一；不能以全站最终验收为理由跳过当前 Gate。
+5. 同步维护 `Contract / Database/Platform / Web / Integrated Gate / Evidence` 五项状态；拆分提交不改变联合完成判定。
+6. 更新独立证据、路线图和当前交接。
+7. 只作“继续、修改、回退、停止”之一；不能以全站最终验收为理由跳过当前 Gate。

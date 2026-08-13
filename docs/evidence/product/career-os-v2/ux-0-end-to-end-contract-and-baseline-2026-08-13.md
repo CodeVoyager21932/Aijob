@@ -6,7 +6,7 @@
 >
 > 起始 HEAD：`d23bdaa docs(plans): activate career os ux convergence`
 >
-> 当前决定：**修改 / 保持 UX-0。视觉/交互规则、端到端领域归属和六个结构性接缝的字段级静态草案已形成；逐项代码反证、Review migration 的 legacy/new-write 兼容断言和四视口运行基线仍未完成，不得进入 UX-1。**
+> 当前决定：**修改 / 保持 UX-0。视觉/交互规则、端到端领域归属和六个结构性接缝的字段级静态草案已形成；逐项代码反证、Review migration 的 legacy/new-write 兼容断言和四视口运行基线仍未完成，不得进入 OS-1。**
 
 稳定实施契约见 [Career OS 端到端体验与系统契约](../../../14-career-os-end-to-end-experience-contract.md)。
 
@@ -24,14 +24,14 @@ UX-0 只建立后续实现必须遵守的可复核基线，没有重做页面、
 4. 只读核对 Application、Matching、Recommendation、Insights、Resume、Tailoring、Interview、Profile 与 Identity 的 Contracts、API 适配器和 Platform 路由。
 5. 审计现有 CSS token、字体、密度、响应式、焦点和 overlay 行为。
 6. 设计隔离合成满态与真实空态验收夹具，不建设产品演示模式。
-7. 把 UX-1–UX-7 改为 Contract、Platform/DB、Web、真实隔离库浏览器验收同步完成的纵向切片。
+7. 确认后续 OS-1–OS-7 必须由 Contract、Database/Platform、Web、Integrated Gate、Evidence 同步关闭，不能按前端/后端独立报完。
 
 未做的工作：
 
 - 没有访问真实招聘来源、真实 AI、邮件、服务器、真实简历、参与者或本地业务数据库。
 - 没有读取、修改或提交 `.claude/`、`.data/`、密钥、令牌、下载产物或截图。
 - 没有添加或修改 Contracts、API、数据库、migration、Redis、向量库、队列、认证或 AI SDK。
-- 没有修改 `apps/web/src` 产品代码，也没有偷跑 UX-1。
+- 没有修改 `apps/web/src` 产品代码，也没有偷跑 OS-1。
 
 ## 2. Git 与运行状态
 
@@ -91,16 +91,16 @@ UX-0 只建立后续实现必须遵守的可复核基线，没有重做页面、
 
 | 接缝 | 当前事实 | 后续归属 |
 |---|---|---|
-| V2 404 | 通配路由仍使用 `ProductShell`，甚至返回内部预览链接 | UX-1 |
-| 路由异常 | 只有 Suspense，没有 Shell 内路由 Error Boundary | UX-1 |
-| 简历规范路由 | 计划要求 `/resumes/import*`，代码仍只有 `/resume*`；`/resumes/import` 当前会被当成 document ID | UX-5 |
-| 岗位筛选 | 仍保存在组件 state，刷新或从详情返回会丢 | UX-5 |
-| Matching / Recommendation / Insights | V2 禁用岗位详情旧匹配动作，并把推荐/洞察降为兼容说明；规范入口与系统归属现已锁定但未实现 | UX-3、UX-5 实施 |
-| 旧 Tailoring | V2 只读；现已锁定 Resume Review 为唯一新写入，旧 run 继续历史只读 | UX-4 实施并验证迁移兼容 |
-| Interview / Debrief | 两个 tab 渲染同一组件，`/debrief` 不直接聚焦复盘 | UX-6 |
-| SPA 草稿 | Resume Editor 保护浏览器 unload，但站内导航/后退仍可能丢未保存草稿 | UX-4 |
-| session UI | API 能恢复读请求并禁止 mutation 自动重放；访问 Gate 和页面级恢复仍有接缝 | UX-1、UX-7 |
-| 主包 | 多个旧页面在 `App.tsx` eager import，继续占用 566.69 kB 主包 | UX-5、UX-6、UX-7 |
+| V2 404 | 通配路由仍使用 `ProductShell`，甚至返回内部预览链接 | OS-1 |
+| 路由异常 | 只有 Suspense，没有 Shell 内路由 Error Boundary | OS-1 |
+| 简历规范路由 | 计划要求 `/resumes/import*`，代码仍只有 `/resume*`；`/resumes/import` 当前会被当成 document ID | OS-2 |
+| 岗位筛选 | 仍保存在组件 state，刷新或从详情返回会丢 | OS-2 |
+| Matching / Recommendation / Insights | V2 禁用岗位详情旧匹配动作，并把推荐/洞察降为兼容说明；规范入口与系统归属现已锁定但未实现 | OS-2、OS-4 实施 |
+| 旧 Tailoring | V2 只读；现已锁定 Resume Review 为唯一新写入，旧 run 继续历史只读 | OS-5 实施并验证迁移兼容 |
+| Interview / Debrief | 两个 tab 渲染同一组件，`/debrief` 不直接聚焦复盘 | OS-6 |
+| SPA 草稿 | Resume Editor 保护浏览器 unload，但站内导航/后退仍可能丢未保存草稿 | OS-5 |
+| session UI | API 能恢复读请求并禁止 mutation 自动重放；访问 Gate 和页面级恢复仍有接缝 | OS-1、OS-7 |
+| 主包 | 多个旧页面在 `App.tsx` eager import，继续占用 566.69 kB 主包 | OS-2、OS-6、OS-7 |
 
 完整最终路由处置见[稳定契约第 5 节](../../../14-career-os-end-to-end-experience-contract.md#5-信息架构与旧能力处置)。路由 URL 的去留只能在能力、事实源和恢复语义同时明确后通过；本轮不再把“已有兼容页”计为融合完成。
 
@@ -218,7 +218,7 @@ UX-0 只建立后续实现必须遵守的可复核基线，没有重做页面、
 - Desktop Requirement inspector 的关闭动作没有真正收起。
 - 返焦失败缺少 `h1 → main` 的统一降级策略。
 
-这些必须由 UX-1 的统一 overlay/focus primitive 解决，不能继续散落在各页面。
+这些必须由 OS-1 的统一 overlay/focus primitive 解决，不能继续散落在各页面。
 
 ## 8. 四视口代码派生基线
 
@@ -269,6 +269,6 @@ UX-0 只建立后续实现必须遵守的可复核基线，没有重做页面、
 | 产品代码边界 | 通过；没有修改产品代码或扩建后端，仅做只读审计和文档纠正 |
 | 离线与数据安全 | 通过；没有访问外部系统或禁区 |
 
-最终决定是 **修改**：保持 `UX-0`，不进入 UX-1。下一动作是逐项用现有 Contract、SQL、Platform 路由/Worker 和测试反证字段草案，完成 Review v1/v2 migration 的前向/回退条件检查，并补齐四视口实时浏览器基线；任一项未完成都不能开始页面实现。若核验与当前文档冲突，先修改契约，不静默选择前端或后端一方。
+最终决定是 **修改**：保持 `UX-0`，不进入 OS-1。下一动作是逐项用现有 Contract、SQL、Platform 路由/Worker 和测试反证字段草案，完成 Review v1/v2 migration 的前向/回退条件检查，并补齐四视口实时浏览器基线；任一项未完成都不能开始页面实现。若核验与当前文档冲突，先修改契约，不静默选择前端或后端一方。
 
 产品证据继续为 E0；本轮设计审计不代表用户价值、真实供给或 Private Alpha 就绪。

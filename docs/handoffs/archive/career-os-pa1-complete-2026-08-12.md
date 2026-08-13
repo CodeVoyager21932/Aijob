@@ -16,7 +16,7 @@
 
 后续守门清单：[Private Alpha 与上线就绪 Gate](../../plans/private-alpha-readiness-gates.md)
 
-## 1. 当前决定
+## 1. PA-1 收口时决定
 
 M1–M4 已完成；coco 授权的 PA-1 已在严格离线边界内形成身份与解析隔离候选。
 

@@ -4,7 +4,7 @@
 
 > 状态：M2-0 已完成的支持性设计记录；M2-4 已按可复现权限冲突完成前向修正
 >
-> 上位事实源：[MVP 路线与当前决策面板](../../06-mvp-roadmap.md)、[Career OS 当前交付计划](../career-os-current-delivery-plan.md)
+> 现行路由：[MVP 路线与当前决策面板](../../06-mvp-roadmap.md)、[Career OS 前后端同步改进计划](../career-os-current-delivery-plan.md)
 >
 > 本文只回答“现有能力如何进入 M2、哪些边界不能跨越”，不定义新的里程碑，也不得提供 M2 之后的下一任务。
 
@@ -50,7 +50,7 @@ M2 不需要新数据库、第二套解析器、第二套事实库或通用富�
 | DOCX | `createAtsResumeDocx` | 新增 Resume V2 DTO 适配和 owner 保护的即时 DOCX 响应；只在内存生成 | 不复用旧 tailoring export 聚合伪装 V2 导出历史，不落盘 |
 | 删除 | owner 全量删除已覆盖 V1/V2/review/export | 沿用并增加 M2 路由的 owner/epoch/墓碑测试 | 不设倒计时催删，不恢复 30 天职业资产 TTL |
 
-## 4. 当前契约能力与缺口
+## 4. M2 当时契约能力与缺口
 
 ### 已足够，禁止重复建设
 

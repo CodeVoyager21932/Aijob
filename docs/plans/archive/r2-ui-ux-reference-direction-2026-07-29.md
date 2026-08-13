@@ -1,6 +1,6 @@
 # R2 UI/UX 视觉参考与设计方向提案
 
-> 【历史归档】本文记录 2026-07-29 的旧 `ProductShell` 视觉方向和当时验收，不提供当前 Career OS UX 任务。现行视觉目标以[前台体验收敛计划](../career-os-current-delivery-plan.md)和三张 Career OS 概念图契约为准。
+> 【历史归档】本文记录 2026-07-29 的旧 `ProductShell` 视觉方向和当时验收，不提供当前 Career OS 任务。现行视觉目标以[前后端同步改进计划](../career-os-current-delivery-plan.md)和三张 Career OS 概念图契约为准。
 
 > 状态：Completed / 2026-07-29 实施与终局工程门完成  
 > 日期：2026-07-29  

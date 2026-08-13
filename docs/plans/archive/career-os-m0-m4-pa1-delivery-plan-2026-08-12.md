@@ -2,19 +2,19 @@
 
 > 归档日期：2026-08-12
 >
-> 本文保留 M0–M4 与 PA-1 当时的范围、顺序和退出条件，只用于追溯。它不得提供当前目标或下一任务。当前执行只看[前台体验收敛计划](../career-os-current-delivery-plan.md)、[MVP 路线](../../06-mvp-roadmap.md)和[当前交接](../../handoffs/current.md)。
+> 本文保留 M0–M4 与 PA-1 当时的范围、顺序和退出条件，只用于追溯。它不得提供当前目标或下一任务。当前执行只看[前后端同步改进计划](../career-os-current-delivery-plan.md)、[MVP 路线](../../06-mvp-roadmap.md)和[当前交接](../../handoffs/current.md)。
 
 - 状态：**Complete / M0–M4 与 PA-1 离线候选已完成**
 - 生效日期：2026-08-09
 - 决策者：coco
-- 当前里程碑：`PA-1 离线身份与解析隔离候选` 已完成；下一项 Private Alpha 准备等待 coco 单独授权
+- 历史收口状态：`PA-1 离线身份与解析隔离候选` 已完成；当时时点记录的下一项 Private Alpha 准备已被后续路线取代
 - 历史动态面板：[MVP 路线与当前决策面板](../../06-mvp-roadmap.md)
 - 当前工程入口：[当前项目交接](../../handoffs/current.md)
 - 后续完整性检查：[Private Alpha 与上线就绪 Gate](../private-alpha-readiness-gates.md)
 
 本计划取代旧的“先铺完全部 Phase 2/3/4，再形成可用闭环”的执行顺序。旧计划中的真实性、安全、隐私和发布门槛继续有效，但不再决定当前任务。
 
-## 1. 当前交付目标
+## 1. 历史交付目标
 
 Aijob 要先形成一个由 coco 在本地完整体验、能够判断产品流程是否成立的 Career OS 2.0 测试版本：
 

@@ -289,7 +289,7 @@ new ProductApiError(
 )
 ```
 
-不把原始 payload、Zod issue 中的敏感值或响应正文写入控制台。Problem Details 继续容忍 HTML/proxy 错误，但 JSON problem 使用共享 schema 安全解析。UX-1–UX-6 每次触达的 adapter 必须同时加入 response parser 与畸形响应测试；UX-7 扫描剩余核心用户 API。包体增长计入 10 kB 守门，必要时按路由 lazy import schema，不以删除运行时校验换体积。
+不把原始 payload、Zod issue 中的敏感值或响应正文写入控制台。Problem Details 继续容忍 HTML/proxy 错误，但 JSON problem 使用共享 schema 安全解析。OS-1–OS-6 每次触达的 adapter 必须同时加入 response parser 与畸形响应测试；OS-7 扫描剩余核心用户 API。包体增长计入 10 kB 守门，必要时按路由 lazy import schema，不以删除运行时校验换体积。
 
 ## 6. 静态契约进入实施前的断言清单
 

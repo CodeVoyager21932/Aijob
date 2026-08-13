@@ -2,7 +2,9 @@
 
 本目录只保存已完成、被新决策取代或仅用于解释既有实现的计划。归档文件中的“当前”“下一步”“授权”“时间盒”和历史分母只描述当时时点，不得提供当前任务。
 
-当前活动计划见[Career OS 前台体验收敛计划](../career-os-current-delivery-plan.md)，当前事实见[MVP 路线](../../06-mvp-roadmap.md)和[当前交接](../../handoffs/current.md)。
+当前活动计划见[Career OS 前后端同步改进计划](../career-os-current-delivery-plan.md)，当前事实见[MVP 路线](../../06-mvp-roadmap.md)和[当前交接](../../handoffs/current.md)。
+
+历史正文中的旧 `UX-1–UX-7` 名称不再提供任务。现行映射为：`UX-1 → OS-1`、`UX-5 → OS-2`、`UX-2 → OS-3`、`UX-3 → OS-4`、`UX-4 → OS-5`、`UX-6 → OS-6`、`UX-7 → OS-7`；执行顺序只看当前计划，不按旧编号排序。
 
 ## 已归档计划
 

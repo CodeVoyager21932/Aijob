@@ -6,12 +6,13 @@
 
 - M1–M4 的本地一岗闭环和工程/浏览器 Gate 已完成；PA-1 离线身份与解析隔离候选也已完成。
 - coco 对当前系统进行了产品复核：现有功能闭环真实存在，但最终用户旅程与三张 Career OS 概念图在视觉保真、信息密度、整体成品感和旧能力自然融合方面仍有明显差距。
-- 因此当前不继续服务器、真实邮件、真实来源、供给扩容或参与者工作，改为执行已批准并已纠正为纵向切片的[Career OS 端到端体验收敛计划](plans/career-os-current-delivery-plan.md)。
+- 因此当前不继续服务器、真实邮件、真实来源、供给扩容或参与者工作，改为执行已批准的[Career OS 前后端同步改进计划](plans/career-os-current-delivery-plan.md)。
 - 2026-08-13 coco 进一步明确：不得把纠正计划理解成前端独立优化，也不得默认后端已经匹配。每个用户结果必须同步核对 Contracts、Platform、PostgreSQL、Web 与真实隔离库证据，避免页面完成后再返修后端。
 - 三张概念图作为布局、信息层级和交互关系的高保真目标。图中公司、岗位、日期、数量和建议不是事实；“匹配良好/中/差”等标签明确拒绝。
 - `UX-0 端到端契约与基线` 已开始：视觉/交互静态审计已形成；只读系统审计确认 Case、Requirements、Resume V2、Interview、Deletion 的主体后端语义较强，但看板列表投影、Case 固定旧版本匹配、Recommendation/Insights 规范入口，以及 Review 的岗位要求引用与受控 AI provenance 存在实质接缝。见[端到端契约](14-career-os-end-to-end-experience-contract.md)与[UX-0 审计证据](evidence/product/career-os-v2/ux-0-end-to-end-contract-and-baseline-2026-08-13.md)。
 - 2026-08-13 实际本机 3000、5173、5432 均未监听，Docker API 不可用；这取代交接中 2026-08-12 的“服务正在运行”时点记录，不构成代码基线冲突。
-- UX-0 已为看板、Matching、Recommendation、Insights、Tailoring/Review 和 Web runtime parse 选择 `R / A / E / M / X` 方向并形成字段级请求/响应、Problem/删除/版本和核心断言草案；逐项代码反证、Review v1/v2 migration 兼容检查和四视口实时浏览器基线仍未完成。当前决定为**修改并保持 UX-0**，不得进入 UX-1 或页面重写。
+- UX-0 已为看板、Matching、Recommendation、Insights、Tailoring/Review 和 Web runtime parse 选择 `R / A / E / M / X` 方向并形成字段级请求/响应、Problem/删除/版本和核心断言草案；逐项代码反证、Review v1/v2 migration 兼容检查和四视口实时浏览器基线仍未完成。当前决定为**修改并保持 UX-0**，不得进入 OS-1 或页面重写。
+- UX-0 关闭后，后续实现统一使用 `OS-1–OS-7`。每个切片必须依次完成 Contract、Database/Platform、Web、Integrated Gate、Evidence 五项状态，不能把前端或后端单层通过写成里程碑完成。
 - 原 M0–M4/PA-1 当前交付计划和交接已移入归档。历史 Phase 2、M2/M3/M4 审计、R2 和 G2 计划均不得生成当前任务。
 
 ## 2. 当前快照
@@ -19,7 +20,7 @@
 | 项目 | 当前事实 |
 |---|---|
 | 更新日期 | 2026-08-13 |
-| 当前阶段 | Career OS 端到端体验收敛；UX-0 视觉静态审计、六项架构方向和字段级系统草案已形成，代码反证、Review migration 兼容与四视口运行基线待补，产品代码尚未实施 |
+| 当前阶段 | Career OS 前后端同步改进；UX-0 视觉静态审计、六项架构方向和字段级系统草案已形成，代码反证、Review migration 兼容与四视口运行基线待补，产品代码尚未实施 |
 | 当前唯一目标 | `UX-0 端到端契约与基线`：逐项反证[追踪矩阵](plans/career-os-ux-0-end-to-end-traceability-matrix.md)的字段草案，完成 Review v1/v2 migration 前向/回退条件检查，并补齐四视口实时基线 |
 | 当前分支 | `codex/career-os-ux-convergence`；精确 HEAD 与工作树以 Git 为准 |
 | 工程基线 | PA-1 最终 Config 20、Contracts 79、Database 54、Platform 461、Web 142，共 756/756；lint 451 files、typecheck、build、audit、隔离 PostgreSQL 与 diff check 通过 |
@@ -28,7 +29,7 @@
 | 可信供给 | 22 岗 / 3 家企业 / 3 个官方 ATS；公共与 Alpha 岗位均为 0 |
 | 当前 AI | 公开和远程环境关闭；只允许确定性模板或模拟 provider |
 | 当前外部边界 | 不接真实招聘来源、真实 AI、邮件、服务器、解析镜像或参与者 |
-| 当前下一决定 | 代码反证、migration 兼容和四视口基线均完成后，只作继续 UX-1、继续修改、回退或停止之一 |
+| 当前下一决定 | 代码反证、migration 兼容和四视口基线均完成后，只作继续 OS-1、继续修改、回退或停止之一 |
 | 时间盒 | 原 9–12 日前端偏重估算已撤回；UX-0 静态契约与运行基线全部通过后重新估时 |
 
 岗位数量、合成数据、页面完成、工程测试或视觉验收都不能自动把产品证据从 E0 提升。
@@ -38,34 +39,34 @@
 ~~~mermaid
 flowchart LR
     B["M0–M4 + PA-1<br/>工程基线已完成"] --> U0["UX-0 端到端契约与基线<br/>当前"]
-    U0 --> U1["UX-1 系统外壳与运行边界"]
-    U1 --> U2["UX-2 申请组合与 Case 命令"]
-    U2 --> U3["UX-3 单 Case 决策工作区"]
-    U3 --> U4["UX-4 Resume Studio 与历史承接"]
-    U4 --> U5["UX-5 岗位、推荐与资料入口"]
-    U5 --> U6["UX-6 下游求职流程"]
-    U6 --> U7["UX-7 端到端总 Gate"]
-    U7 --> P["Private Alpha 准备<br/>仍需单独授权"]
+    U0 --> O1["OS-1 系统外壳与运行契约"]
+    O1 --> O2["OS-2 资料准备与可信岗位入口"]
+    O2 --> O3["OS-3 申请看板与 Case 命令"]
+    O3 --> O4["OS-4 单 Case 决策与固定版本匹配"]
+    O4 --> O5["OS-5 Resume Studio 与唯一 Review 写入"]
+    O5 --> O6["OS-6 投递、面试、复盘与数据控制"]
+    O6 --> O7["OS-7 系统总 Gate"]
+    O7 --> P["Private Alpha 准备<br/>仍需单独授权"]
 ~~~
 
 | 切片 | 用户可见结果 | 状态 |
 |---|---|---|
 | UX-0 | 视觉契约、领域归属、端到端契约矩阵、满/空态夹具和四视口基线 | **当前：字段级静态草案完成；代码反证、migration 兼容和运行基线待补，决定修改** |
-| UX-1 | Shell/路由/overlay 与身份、session、错误和运行时响应契约同步收敛 | 待 UX-0 Gate |
-| UX-2 | 看板/Peek 与列表 read model、分页筛选、阶段命令、owner/409/幂等同步收敛 | 待 UX-1 Gate |
-| UX-3 | Case/Requirements 与固定岗位版本、三轴匹配、单岗/市场洞察归属同步收敛 | 待 UX-2 Gate |
-| UX-4 | Resume V2/Review/DOCX 与旧 Tailoring 历史承接、新写入唯一所有权同步收敛 | 待 UX-3 Gate |
-| UX-5 | 岗位发现/详情、推荐、Case 创建、简历导入确认和 URL 恢复同步收敛 | 待 UX-4 Gate |
-| UX-6 | 今日、投递、面试、复盘、设置、访问、历史与兼容 URL 端到端统一 | 待 UX-5 Gate |
-| UX-7 | 整体视觉、Contracts、Platform、数据库语义、功能、可访问性、性能和离线总 Gate | 待 UX-6 Gate |
+| OS-1 | Shell/路由/overlay 与身份、session、错误和运行时响应契约同步收敛 | 待 UX-0 Gate |
+| OS-2 | 资料准备、岗位发现/详情、推荐/洞察、Case 创建、简历导入确认和 URL 恢复同步收敛 | 待 OS-1 Gate |
+| OS-3 | 看板/Peek 与列表 read model、分页筛选、阶段命令、owner/409/幂等同步收敛 | 待 OS-2 Gate |
+| OS-4 | Case/Requirements 与固定岗位版本、三轴匹配同步收敛 | 待 OS-3 Gate |
+| OS-5 | Resume V2/Review/DOCX 与旧 Tailoring 历史承接、新写入唯一所有权同步收敛 | 待 OS-4 Gate |
+| OS-6 | 今日、投递、面试、复盘、设置、访问、历史与兼容 URL 端到端统一 | 待 OS-5 Gate |
+| OS-7 | 整体视觉、Contracts、Platform、数据库语义、功能、可访问性、性能和离线总 Gate | 待 OS-6 Gate |
 
 详细范围、接口边界和验收标准只看[当前交付计划](plans/career-os-current-delivery-plan.md)。
 
-## 4. UX 固定边界
+## 4. 同步交付固定边界
 
 - 高保真采用三张概念图的结构、密度和交互关系，但不采用示例业务数据、匹配标签或独立 AI 简历品牌；实际文件身份、系统归属、token 与响应式规则以[端到端契约](14-career-os-end-to-end-experience-contract.md)为准。
 - 证据状态只允许`已有证据 / 证据待补充 / 用户尚未确认`。
-- 按用户结果纵向交付；每个切片先 Contract/Platform/DB，后 Web，再用真实隔离库浏览器验收，不能以“全站最后一起看”为理由跳过中间 Gate。
+- 按用户结果纵向交付；每个切片依次完成 Contract、Database/Platform、Web、Integrated Gate、Evidence，不能以“全站最后一起看”为理由跳过中间 Gate。
 - 隔离合成满态和真实空态分别验收；不在产品内建设会冒充真实业务的演示模式。
 - 旧能力只有从规范路径可用、可刷新恢复且事实可追溯时才算自然融入；兼容说明或历史只读本身不算完成。`VITE_CAREER_OS_V2=false` 回退保持可用。
 - 保持一个 Platform 模块化单体和一个 PostgreSQL 事实源；复用、适配、扩展或最小 migration 必须逐用例定级，不新增未来服务或浏览器端第二套事实。
@@ -74,7 +75,7 @@ flowchart LR
 
 | Gate | 最低条件 | 当前状态 |
 |---|---|---|
-| UX 端到端体验 | UX-0–UX-7 的 Contracts、Platform/DB、Web 与 coco 可见验收 | UX-0 进行中；字段级静态草案完成，代码/迁移反证与运行基线未通过 |
+| Career OS 前后端同步交付 | UX-0 审计与 OS-1–OS-7 的 Contracts、Platform/DB、Web 与 coco 可见验收 | UX-0 进行中；字段级静态草案完成，代码/迁移反证与运行基线未通过 |
 | Private Alpha 产品闭环 | M1–M4 一岗闭环 | 已通过本地合成工程 Gate；不等于体验、供给、服务器或用户 Gate 通过 |
 | 可信供给 | 100 家企业 / 1000 条活动可信实习岗位及既定分布 | 22 岗 / 3 家，未通过 |
 | 来源持续性 | 至少 3 个已准入确定性来源连续 7 天按 12 小时周期运行 | 0/3，未开始 |
@@ -97,6 +98,6 @@ flowchart LR
 ## 7. 面板更新规则
 
 - 当前目标只能有一个，且必须与当前交接和当前交付计划一致。
-- 每个 UX 切片完成后同步更新本面板、当前交接和独立体验证据。
+- 每个 OS 切片完成后同步更新本面板、当前交接和独立体验证据。
 - 归档计划、历史验收中的“下一步”、提交名称和后续 Gate 均不能覆盖本面板。
 - 没有目标用户证据时只能写工程或体验完成，不得写“价值已验证”“成熟”或“受到用户认可”。

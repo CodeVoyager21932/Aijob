@@ -5,7 +5,7 @@
 - 日期：2026-08-06
 - 状态：**Historical / 已由 migrations 025–030 落地，不是当前任务队列**
 - 历史结果：长期 owner、公共/私有 Case、Requirement、Resume/Review、Interview/Debrief/Knowledge 及后续严格事件/幂等修复均已注册
-- 当前执行计划：[Career OS 当前交付计划](../career-os-current-delivery-plan.md)
+- 现行路由：[Career OS 前后端同步改进计划](../career-os-current-delivery-plan.md)
 - 上位决策：[ADR-0031](../../decisions/0031-long-lived-career-os-architecture-realignment-2026-08-06.md)
 - 前置矩阵：[Phase 2R 契约与迁移影响矩阵](career-os-phase-2r-contract-and-migration-impact-matrix-2026-08-06.md)
 - 实现基线：[migration 023](../../../packages/database/src/migrations/023_application_case_core_expand.ts)、[migration 024](../../../packages/database/src/migrations/024_resume_document_v2_expand.ts)

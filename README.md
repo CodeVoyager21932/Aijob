@@ -1,6 +1,6 @@
 # Aijob：可信官方岗位驱动的求职 OS
 
-> 2026-08-13：M1–M4 与 PA-1 离线候选已经完成。coco 已把[Career OS 体验收敛计划](docs/plans/career-os-current-delivery-plan.md)纠正为 Contracts、Platform/DB、Web 与真实隔离库同步推进的端到端纵向计划；UX-0 的[系统契约](docs/14-career-os-end-to-end-experience-contract.md)已形成六项结构性接缝的字段级静态草案，并确认现有匹配不能直接处理 Case 固定旧版本、现有 Review 也尚未读取固定 JD Requirements。逐项代码反证、Review v1/v2 migration 兼容和四视口运行基线待完成，当前决定为“修改并保持 UX-0”，产品代码尚未实施。真实邮件、解析镜像、服务器、供给和参与者 Gate 仍未通过。
+> 2026-08-13：M1–M4 与 PA-1 离线候选已经完成。当前执行[Career OS 前后端同步改进计划](docs/plans/career-os-current-delivery-plan.md)：UX-0 先完成系统契约审计，后续 OS-1–OS-7 按 Contract、Database/Platform、Web、Integrated Gate、Evidence 五项同步推进。UX-0 的[系统契约](docs/14-career-os-end-to-end-experience-contract.md)已形成六项结构性接缝的字段级静态草案，并确认现有匹配不能直接处理 Case 固定旧版本、现有 Review 也尚未读取固定 JD Requirements。逐项代码反证、Review v1/v2 migration 兼容和四视口运行基线待完成，当前决定为“修改并保持 UX-0”，产品代码尚未实施。真实邮件、解析镜像、服务器、供给和参与者 Gate 仍未通过。
 
 这是一个待验证的产品项目，面向**未来 30 天真实投递实习岗位、已有中文简历、近期使用过多个官方渠道的中国大陆在校生**。它只把企业官方招聘网站和经企业官网确认的官方 ATS 中当前存在的具体岗位整理为可追溯信息；高校就业网站、政府页面、公众号和其他二手页面只用于发现企业及其官网方向。系统依据用户确认过的约束与经历证据，帮助用户完成投递、暂缓或放弃的高质量决定，最终回到企业官网或官方 ATS 投递。
 
@@ -11,7 +11,7 @@
 | 项目 | 当前值 |
 |---|---|
 | 快照日期 | 2026-08-13 |
-| 当前阶段 | Career OS 端到端体验收敛；UX-0 视觉/交互规则、领域归属、复用/适配/扩展定级和字段级草案已形成，代码反证、Review migration 兼容和四视口实时基线待补。M1–M4 与 PA-1 保留为工程基线，真实邮件、解析镜像与服务器 Gate 通过前，G0/G1 继续暂停 |
+| 当前阶段 | Career OS 前后端同步改进；UX-0 视觉/交互规则、领域归属、复用/适配/扩展定级和字段级草案已形成，代码反证、Review migration 兼容和四视口实时基线待补。M1–M4 与 PA-1 保留为工程基线，真实邮件、解析镜像与服务器 Gate 通过前，G0/G1 继续暂停 |
 | 当前范围 | 干净验收库 `aijob_alpha` 为 22 条可信可见活动岗位、3 家企业、3 个官方 ATS 来源；距离硬门槛仍缺 978 岗、97 家。SME 为 2/3 家、14/22 岗，人工来源为 0；Alpha 与公共岗位均为 0。开发库 14/2 及纠偏前 231/149/29 只保留为历史运行事实 |
 | 协议校准 | 尚未开始；供给硬门槛和服务器就绪 Gate 通过后，只有 coco 明确启动才做 2 人校准；历史可核验记录仍为 0/2 |
 | 正式实验 | 暂停；供给硬门槛、服务器就绪 Gate 与 G0 通过后再做 6 人正式任务和 72 小时回访 |
@@ -19,7 +19,7 @@
 | 当前证据 | E0：尚无可复核目标用户行为证据，两个产品假设均未判定 |
 | 当前实现策略 | 不默认后端已匹配，也不无依据重做。UX-0 先把每个用户动作绑定到 Contracts、Platform 模块、PostgreSQL 事实、权限/并发/删除语义和真实测试，再按纵向切片同步完成 Platform/DB 与 Web。三张概念图作为布局、信息层级和交互关系的高保真目标；旧 Matching、Recommendation、Insights、Tailoring 只有从规范路径可用、刷新可恢复且事实可追溯时才算自然融入；不因此启动真实 Alpha |
 | 来源发现进度 | 已按 ADR-0019 完成 1000/1000 家企业/机构审查记录；34 个来源配置中 12 个为 canonical（7 个活动确定性、2 个浏览器提醒、3 个硬冲突暂停），22 个高校等来源均降级为 `discovery_only`。当前审计没有 `capacity` 就绪候选 |
-| 工程切片 | PA-1 最终回归 Config 20、Contracts 79、Database 54、Platform 461、Web 142，共 756/756；lint 451、typecheck、build、audit 与 diff check 通过。UX 产品代码尚未实施；主包 566.69 kB 作为新体验计划的性能基线。UX-4 的 Review v1/v2 最小 migration 目前只有静态草案、尚未实施；真实邮件/解析镜像/服务器、真实 AI 与真实来源同样未实施，公共版本仍为 0 |
+| 工程切片 | PA-1 最终回归 Config 20、Contracts 79、Database 54、Platform 461、Web 142，共 756/756；lint 451、typecheck、build、audit 与 diff check 通过。OS 产品代码尚未实施；主包 566.69 kB 作为同步改进计划的性能基线。OS-5 的 Review v1/v2 最小 migration 目前只有静态草案、尚未实施；真实邮件/解析镜像/服务器、真实 AI 与真实来源同样未实施，公共版本仍为 0 |
 | AI 状态 | Review、Interview、Feedback 与 Debrief 均必须与用户确认事实分离；公开环境继续关闭，M4 沿用确定性模板，不调用真实 AI |
 
 以上内容只用于帮助首次阅读者定位本次文档基线。后续动态阶段、样本进度、Gate 状态和下一决策日期只更新到 [MVP 路线与当前决策面板](docs/06-mvp-roadmap.md)；如有差异，以该面板为准。
@@ -66,7 +66,7 @@ pnpm ai:configure
 
 该命令只填写接口地址、模型和 API Key；配置保存在 Git 已忽略的 `.data/ai-provider.local.json`。填写或替换配置后重启 `pnpm dev`。需要验收真实接口时再运行 `pnpm ai:smoke`，这不是日常配置步骤。前端没有读取或修改供应商配置的接口；未来线上部署只替换后端配置来源，不改岗位推荐和简历优化链路。
 
-旧 `ProductShell` 仍由 `VITE_CAREER_OS_V2=false` 保留为紧急回退，不是当前体验收敛目标。旧 `/resume*` 目前仍承担简历解析与确认；`/recommendations`、`/insights` 当前只保留零请求兼容说明，旧 Tailoring 当前只读。这些是 UX-0 已确认并定向的融合缺口，不能因旧服务或兼容 URL 仍存在就写成已经自然融入；UX-3–UX-5 必须按端到端契约实现固定版本匹配、规范推荐/洞察入口、岗位要求引用和唯一 Review 写入。`/research/*` 与 `/internal-preview/*` 是内部或历史页面，不进入本轮用户旅程收敛。
+旧 `ProductShell` 仍由 `VITE_CAREER_OS_V2=false` 保留为紧急回退，不是当前同步改进目标。旧 `/resume*` 目前仍承担简历解析与确认；`/recommendations`、`/insights` 当前只保留零请求兼容说明，旧 Tailoring 当前只读。这些是 UX-0 已确认并定向的融合缺口，不能因旧服务或兼容 URL 仍存在就写成已经自然融入；OS-2、OS-4、OS-5 必须按端到端契约分别实现规范推荐/洞察入口、固定版本匹配、岗位要求引用和唯一 Review 写入。`/research/*` 与 `/internal-preview/*` 是内部或历史页面，不进入本轮用户旅程收敛。
 
 `VITE_CAREER_OS_V2` 回退旗标继续保留。进行当前 UX 基线或实现验收时，在启动开发进程前显式开启它，即可从 <http://127.0.0.1:5173/today> 进入当前 Career OS；正常会话使用真实本地 Case API，不回退到仓库静态 Case，也不会访问真实招聘来源或真实 AI：
 
