@@ -18,7 +18,9 @@
 - OS-2 使用全新隔离 PostgreSQL、loopback Platform/Web、合成数据与真实本地 worker 完成 1536/1280/768/320 Gate；精确数据库、临时运行物、容器/网络和服务已清理，3000、5173、5174、5432 均未监听。
 - `OS-3 申请看板与 Case 命令` 已关闭五项状态：Case list 支持完整集合的阶段/城市/排序/总数和 query-bound cursor；固定五列 board 在同一 repeatable-read 快照返回首批 items/total/cursor；看板、列表、Peek 与显式阶段命令统一覆盖 owner、404、revision 409、幂等和 session mutation 不重放。见 [OS-3 验收证据](evidence/product/career-os-v2/os-3-application-board-and-case-command-acceptance-2026-08-14.md)。
 - OS-3 使用全新隔离 PostgreSQL、loopback Platform/Web 与 26 个合成 Case 完成 1536/1280/768/320 Gate；精确数据库、临时运行物、容器/网络和服务已清理，3000、5173、5174、5432 均未监听。性能反证没有支持新增索引或 migration。
-- 当前决定为**完成 OS-3，进入 OS-4 准备**；OS-4 尚未实施并等待 coco 指令。后续每个切片继续依次完成 Contract、Database/Platform、Web、Integrated Gate、Evidence 五项状态，不能把前端或后端单层通过写成里程碑完成。
+- `OS-4 单 Case 决策与固定版本匹配` 已关闭五项状态：新增 Case-scoped match state/create 契约，Platform 由 Case 派生固定岗位版本、要求集和当前资料修订，现有 Worker 以受约束的 `case_pinned` 上下文在计算前后重验；Web 已接入三轴分离结果、岗位版本 diff/显式升级、Requirements 深链与 409 再确认。见 [OS-4 验收证据](evidence/product/career-os-v2/os-4-case-decision-and-pinned-match-acceptance-2026-08-14.md)。
+- OS-4 使用全新隔离 PostgreSQL、loopback Platform/Web、合成公共/私有 Case 与真实本地 Worker 完成 1536/1280/768/320 Gate；没有新增 migration、服务或依赖。精确数据库、临时运行物和服务已清理，3000、5173、5174、5432 均未监听。
+- 当前决定为**完成 OS-4，进入 OS-5 准备**；OS-5 尚未实施并等待 coco 指令。后续每个切片继续依次完成 Contract、Database/Platform、Web、Integrated Gate、Evidence 五项状态，不能把前端或后端单层通过写成里程碑完成。
 - 原 M0–M4/PA-1 当前交付计划和交接已移入归档。历史 Phase 2、M2/M3/M4 审计、R2 和 G2 计划均不得生成当前任务。
 
 ## 2. 当前快照
@@ -26,17 +28,17 @@
 | 项目 | 当前事实 |
 |---|---|
 | 更新日期 | 2026-08-14 |
-| 当前阶段 | Career OS 前后端同步改进；UX-0、OS-1、OS-2 与 OS-3 已关闭，OS-4 单 Case 决策与固定版本匹配是下一候选切片，尚未实施 |
-| 当前唯一目标 | 等待 coco 决定是否开始 `OS-4 单 Case 决策与固定版本匹配`；在明确指令前不实施 OS-4，不从后续 Gate 或历史计划生成任务 |
+| 当前阶段 | Career OS 前后端同步改进；UX-0 与 OS-1–OS-4 已关闭，OS-5 Resume Studio 与唯一 Review 写入是下一候选切片，尚未实施 |
+| 当前唯一目标 | 等待 coco 决定是否开始 `OS-5 Resume Studio 与唯一 Review 写入`；在明确指令前不实施 OS-5，不从后续 Gate 或历史计划生成任务 |
 | 当前分支 | `codex/career-os-ux-convergence`；精确 HEAD 与工作树以 Git 为准 |
-| 工程基线 | OS-3 最终 Config 20、Contracts 83、Database 54、Platform 463、Web 154，共 774/774；lint 468 files、typecheck、build、audit、全新隔离 PostgreSQL、四视口真实 API Gate 与 diff check 通过 |
-| 前端基线 | Web main 395.43 kB（gzip 115.57 kB）；Applications 16.35 kB、Resume Editor 29.38 kB、Interview 23.76 kB、数据设置 12.35 kB；OS-3 看板已关闭目标结构与响应式，OS-5 Resume Studio 尚未完成 |
+| 工程基线 | OS-4 最终 Config 20、Contracts 85、Database 54、Platform 465、Web 158，共 782/782；lint 474 files、typecheck、build、离线缓存 audit、全新隔离 PostgreSQL、四视口真实 API Gate 与 diff check 通过 |
+| 前端基线 | Web main 397.80 kB（gzip 116.09 kB）；Case 24.05 kB、Requirements 13.61 kB、Resume Editor 29.38 kB、Interview 23.76 kB；OS-4 Case 决策工作区已关闭目标结构与响应式，OS-5 Resume Studio 尚未完成 |
 | 当前产品证据 | E0：没有可复核目标用户行为证据 |
 | 可信供给 | 22 岗 / 3 家企业 / 3 个官方 ATS；公共与 Alpha 岗位均为 0 |
 | 当前 AI | 公开和远程环境关闭；只允许确定性模板或模拟 provider |
 | 当前外部边界 | 不接真实招聘来源、真实 AI、邮件、服务器、解析镜像或参与者 |
-| 当前下一决定 | coco 只作开始 OS-4、修改 OS-3、回退或停止之一；当前不自动开始 OS-4 |
-| 时间盒 | 原 9–12 日前端偏重总估算已撤回；OS-4 只有在启动时才按其五项状态单独估时 |
+| 当前下一决定 | coco 只作开始 OS-5、修改 OS-4、回退或停止之一；当前不自动开始 OS-5 |
+| 时间盒 | 原 9–12 日前端偏重总估算已撤回；OS-5 只有在启动时才按其五项状态单独估时 |
 
 岗位数量、合成数据、页面完成、工程测试或视觉验收都不能自动把产品证据从 E0 提升。
 
@@ -48,8 +50,8 @@ flowchart LR
     U0 --> O1["OS-1 系统外壳与运行契约<br/>已完成"]
     O1 --> O2["OS-2 资料准备与可信岗位入口<br/>已完成"]
     O2 --> O3["OS-3 申请看板与 Case 命令<br/>已完成"]
-    O3 --> O4["OS-4 单 Case 决策与固定版本匹配<br/>下一候选切片"]
-    O4 --> O5["OS-5 Resume Studio 与唯一 Review 写入"]
+    O3 --> O4["OS-4 单 Case 决策与固定版本匹配<br/>已完成"]
+    O4 --> O5["OS-5 Resume Studio 与唯一 Review 写入<br/>下一候选切片"]
     O5 --> O6["OS-6 投递、面试、复盘与数据控制"]
     O6 --> O7["OS-7 系统总 Gate"]
     O7 --> P["Private Alpha 准备<br/>仍需单独授权"]
@@ -60,9 +62,9 @@ flowchart LR
 | UX-0 | 视觉契约、领域归属、端到端契约矩阵、满/空态夹具和四视口基线 | **已完成审计 Gate；不等于 OS 功能已实现** |
 | OS-1 | Shell/路由/overlay 与身份、session、错误和运行时响应契约同步收敛 | **已完成五项 Gate；不等于全站视觉或后续能力完成** |
 | OS-2 | 资料准备、岗位发现/详情、推荐/洞察、Case 创建、简历导入确认和 URL 恢复同步收敛 | **已完成五项 Gate；不等于后续 Case/Review 能力完成** |
-| OS-3 | 看板/Peek 与列表 read model、分页筛选、阶段命令、owner/409/幂等同步收敛 | **已完成五项 Gate；不等于固定版本匹配或 Requirements 已完成** |
-| OS-4 | Case/Requirements 与固定岗位版本、三轴匹配同步收敛 | **下一候选切片；尚未实施，等待 coco 指令** |
-| OS-5 | Resume V2/Review/DOCX 与旧 Tailoring 历史承接、新写入唯一所有权同步收敛 | 待 OS-4 Gate |
+| OS-3 | 看板/Peek 与列表 read model、分页筛选、阶段命令、owner/409/幂等同步收敛 | **已完成五项 Gate；见独立证据** |
+| OS-4 | Case/Requirements 与固定岗位版本、三轴匹配同步收敛 | **已完成五项 Gate；不等于 Review v2 或 Resume Studio 已完成** |
+| OS-5 | Resume V2/Review/DOCX 与旧 Tailoring 历史承接、新写入唯一所有权同步收敛 | **下一候选切片；尚未实施，等待 coco 指令** |
 | OS-6 | 今日、投递、面试、复盘、设置、访问、历史与兼容 URL 端到端统一 | 待 OS-5 Gate |
 | OS-7 | 整体视觉、Contracts、Platform、数据库语义、功能、可访问性、性能和离线总 Gate | 待 OS-6 Gate |
 
@@ -81,7 +83,7 @@ flowchart LR
 
 | Gate | 最低条件 | 当前状态 |
 |---|---|---|
-| Career OS 前后端同步交付 | UX-0 审计与 OS-1–OS-7 的 Contracts、Platform/DB、Web 与 coco 可见验收 | UX-0、OS-1、OS-2 与 OS-3 已关闭；OS-4–OS-7 均未完成 |
+| Career OS 前后端同步交付 | UX-0 审计与 OS-1–OS-7 的 Contracts、Platform/DB、Web 与 coco 可见验收 | UX-0 与 OS-1–OS-4 已关闭；OS-5–OS-7 均未完成 |
 | Private Alpha 产品闭环 | M1–M4 一岗闭环 | 已通过本地合成工程 Gate；不等于体验、供给、服务器或用户 Gate 通过 |
 | 可信供给 | 100 家企业 / 1000 条活动可信实习岗位及既定分布 | 22 岗 / 3 家，未通过 |
 | 来源持续性 | 至少 3 个已准入确定性来源连续 7 天按 12 小时周期运行 | 0/3，未开始 |

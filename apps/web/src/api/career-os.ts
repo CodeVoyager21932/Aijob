@@ -1,11 +1,13 @@
 import type {
   ApplicationBoardResponse,
   ApplicationCaseCommandResponse,
+  ApplicationCaseJobVersionDiffResponse,
   ApplicationCaseMutationResponse,
   ApplicationCaseRequirements,
   ApplicationCaseSort,
   ApplicationCaseWithJobContext,
   CareerDataScopeResponse,
+  CaseMatchState,
   CaseStage,
   ConfirmCaseDebriefRequest,
   ConfirmCaseDebriefResponse,
@@ -53,11 +55,14 @@ import type {
   SubmitInterviewAnswerResponse,
   TransitionApplicationCaseRequest,
   UpdateCaseQuestionRequest,
+  UpgradeApplicationCaseJobVersionRequest,
 } from "@aijob/contracts";
 import {
   ApplicationBoardResponseSchema,
   ApplicationCaseCommandResponseSchema,
+  ApplicationCaseJobVersionDiffResponseSchema,
   ApplicationCaseWithJobContextSchema,
+  CaseMatchStateSchema,
   CreateApplicationCaseResponseSchema,
   ListApplicationCasesResponseSchema,
 } from "@aijob/contracts";
@@ -81,6 +86,10 @@ export const careerOsQueryKeys = {
     ["career-os", "application-cases", "board", filters.city ?? "all", filters.sort] as const,
   caseDetail: (caseId: string) => ["career-os", "application-cases", "detail", caseId] as const,
   caseEvents: (caseId: string) => ["career-os", "application-cases", caseId, "events"] as const,
+  caseMatchState: (caseId: string) =>
+    ["career-os", "application-cases", caseId, "match-state"] as const,
+  caseJobVersionDiff: (caseId: string) =>
+    ["career-os", "application-cases", caseId, "job-version-diff"] as const,
   requirements: (caseId: string) =>
     ["career-os", "application-cases", caseId, "requirements"] as const,
   evidence: ["career-os", "profile", "evidence"] as const,
@@ -167,6 +176,52 @@ export function getApplicationCase(caseId: string, signal?: AbortSignal) {
   return apiRequest<ApplicationCaseWithJobContext>(
     `/v1/application-cases/${encodeURIComponent(caseId)}`,
     { signal, responseSchema: ApplicationCaseWithJobContextSchema },
+  );
+}
+
+export function getCaseMatchState(caseId: string, signal?: AbortSignal) {
+  return apiRequest<CaseMatchState>(
+    `/v1/application-cases/${encodeURIComponent(caseId)}/match-state`,
+    { signal, responseSchema: CaseMatchStateSchema },
+  );
+}
+
+export function createCaseMatchRun(
+  caseId: string,
+  expectedCaseRevision: number,
+  idempotencyKey: string,
+) {
+  return apiRequest<CaseMatchState>(
+    `/v1/application-cases/${encodeURIComponent(caseId)}/match-runs`,
+    {
+      method: "POST",
+      body: { expectedCaseRevision },
+      idempotencyKey,
+      responseSchema: CaseMatchStateSchema,
+    },
+  );
+}
+
+export function getApplicationCaseJobVersionDiff(caseId: string, signal?: AbortSignal) {
+  return apiRequest<ApplicationCaseJobVersionDiffResponse>(
+    `/v1/application-cases/${encodeURIComponent(caseId)}/job-version-diff`,
+    { signal, responseSchema: ApplicationCaseJobVersionDiffResponseSchema },
+  );
+}
+
+export function upgradeApplicationCaseJobVersion(
+  caseId: string,
+  request: UpgradeApplicationCaseJobVersionRequest,
+  idempotencyKey: string,
+) {
+  return apiRequest<ApplicationCaseCommandResponse>(
+    `/v1/application-cases/${encodeURIComponent(caseId)}/job-version-upgrades`,
+    {
+      method: "POST",
+      body: request,
+      idempotencyKey,
+      responseSchema: ApplicationCaseCommandResponseSchema,
+    },
   );
 }
 

@@ -12,7 +12,9 @@ import { ProductApiError } from "../../api/client";
 import { toApplicationCaseView } from "../application-case-view";
 import { CaseDeletionDialog } from "../components/AssetDeletionDialog";
 import { CaseHeader } from "../components/CaseHeader";
+import { CaseMatchPanel } from "../components/CaseMatchPanel";
 import { CaseTabs } from "../components/CaseTabs";
+import { CaseVersionControl } from "../components/CaseVersionControl";
 import { Icon } from "../components/Icon";
 import { summarizeRequirementProgress } from "../requirements-view";
 import { type CaseTab, caseStages, isCaseTab } from "../workspace-model";
@@ -76,7 +78,9 @@ function CaseOverview({ applicationCase }: { applicationCase: ApplicationCaseWit
           <p>
             {summary
               ? `${summary.total} 项要求中，${summary.unconfirmed} 项仍未确认。`
-              : "正在读取固定岗位要求…"}
+              : requirementsQuery.isError
+                ? "要求进度暂时无法读取，当前固定内容没有改变。"
+                : "正在读取固定岗位要求…"}
           </p>
         </div>
         <Link
@@ -97,31 +101,9 @@ function CaseOverview({ applicationCase }: { applicationCase: ApplicationCaseWit
               : "请稍后重试。"}
           </span>
         </div>
-      ) : (
-        <section className="career-case-overview__axes" aria-labelledby="case-axes-heading">
-          <header>
-            <h2 id="case-axes-heading">分别核对，不合并成匹配等级</h2>
-            <p>只展示已经保存的状态，不自动劝退。</p>
-          </header>
-          <div>
-            <article>
-              <span>要求状态</span>
-              <strong>{summary ? `${summary.confirmed} 项已有证据` : "读取中"}</strong>
-              <small>{summary ? `${summary.needsWork} 项证据待补充` : "等待要求数据"}</small>
-            </article>
-            <article>
-              <span>经历证据</span>
-              <strong>{summary ? `${summary.linkedEvidenceCount} 个关联` : "读取中"}</strong>
-              <small>只关联用户已确认的证据</small>
-            </article>
-            <article>
-              <span>偏好</span>
-              <strong>尚未在当前工作区核对</strong>
-              <small>偏好仍需在当前求职项目中核对</small>
-            </article>
-          </div>
-        </section>
-      )}
+      ) : null}
+
+      <CaseMatchPanel applicationCase={applicationCase} />
     </div>
   );
 }
@@ -191,6 +173,12 @@ export function CaseWorkspacePage() {
       queryClient.removeQueries({
         queryKey: careerOsQueryKeys.requirements(variables.targetCaseId),
       });
+      queryClient.removeQueries({
+        queryKey: careerOsQueryKeys.caseMatchState(variables.targetCaseId),
+      });
+      queryClient.removeQueries({
+        queryKey: careerOsQueryKeys.caseJobVersionDiff(variables.targetCaseId),
+      });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: careerOsQueryKeys.caseList() }),
         queryClient.invalidateQueries({ queryKey: careerOsQueryKeys.resumeDocumentLists }),
@@ -244,10 +232,7 @@ export function CaseWorkspacePage() {
       <CaseHeader applicationCase={view} onRequestDelete={() => setDeleteOpen(true)} />
       <CaseTabs caseId={applicationCase.id} />
       <CaseProgress stage={applicationCase.stage} />
-      <div className="career-case-version-note" role="note">
-        <Icon name="check" size={17} />
-        {view.fixedVersionLabel}。外部页面更新不会静默替换当前 Case 的固定内容。
-      </div>
+      <CaseVersionControl applicationCase={applicationCase} />
       {renderCaseTab(tab, applicationCase)}
       <CaseDeletionDialog
         open={deleteOpen}

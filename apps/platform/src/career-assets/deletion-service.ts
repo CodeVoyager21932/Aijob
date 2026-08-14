@@ -107,6 +107,18 @@ function toIso(value: Date): string {
   return value.toISOString();
 }
 
+async function deletionTimestamp(
+  transaction: Transaction<Database>,
+  requested?: Date,
+): Promise<Date> {
+  if (requested) return requested;
+  // Created timestamps come from PostgreSQL, so deletion must use the same clock.
+  const row = await transaction
+    .selectNoFrom(sql<Date>`clock_timestamp()`.as("deleted_at"))
+    .executeTakeFirstOrThrow();
+  return row.deleted_at;
+}
+
 function classifyCaseAssets(rows: CaseAssetProjectionRow[]): CaseAssetProjection {
   const deletedIds: string[] = [];
   const detachedIds: string[] = [];
@@ -340,8 +352,8 @@ export async function deleteApplicationCase(input: {
   request: DeleteApplicationCaseRequest;
   now?: Date;
 }): Promise<DeleteApplicationCaseResponse> {
-  const now = input.now ?? new Date();
   return input.db.transaction().execute(async (transaction) => {
+    const now = await deletionTimestamp(transaction, input.now);
     await assertActiveOwnerEpoch(transaction, input.owner.ownerId, input.owner.ownerEpoch, now);
     const applicationCase = (await transaction
       .selectFrom("application.application_cases")
@@ -545,8 +557,8 @@ export async function deleteResumeDocument(input: {
   request: DeleteResumeDocumentRequest;
   now?: Date;
 }): Promise<DeleteResumeDocumentResponse> {
-  const now = input.now ?? new Date();
   return input.db.transaction().execute(async (transaction) => {
+    const now = await deletionTimestamp(transaction, input.now);
     await assertActiveOwnerEpoch(transaction, input.owner.ownerId, input.owner.ownerEpoch, now);
     const document = (await transaction
       .selectFrom("profile.resume_documents")
@@ -624,8 +636,8 @@ export async function deleteInterviewSession(input: {
   request: DeleteInterviewSessionRequest;
   now?: Date;
 }): Promise<DeleteInterviewSessionResponse> {
-  const now = input.now ?? new Date();
   return input.db.transaction().execute(async (transaction) => {
+    const now = await deletionTimestamp(transaction, input.now);
     await assertActiveOwnerEpoch(transaction, input.owner.ownerId, input.owner.ownerEpoch, now);
     const session = (await transaction
       .selectFrom("application.interview_sessions")
@@ -686,8 +698,8 @@ export async function deleteDebrief(input: {
   request: DeleteDebriefRequest;
   now?: Date;
 }): Promise<DeleteDebriefResponse> {
-  const now = input.now ?? new Date();
   return input.db.transaction().execute(async (transaction) => {
+    const now = await deletionTimestamp(transaction, input.now);
     await assertActiveOwnerEpoch(transaction, input.owner.ownerId, input.owner.ownerEpoch, now);
     const debrief = (await transaction
       .selectFrom("application.debriefs")

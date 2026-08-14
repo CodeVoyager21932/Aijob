@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
 import {
+  type CaseMatchCatalogState,
+  type CaseMatchInput,
+  type CaseMatchMissingInput,
+  type CaseMatchStaleReason,
+  type CaseMatchState,
+  CaseMatchStateSchema,
+  type CasePinnedMatchExecutionContext,
   type CreateRecommendationRunFromSearchRequest,
   CreateRecommendationRunFromSearchRequestSchema,
   type CreateRecommendationRunRequest,
@@ -38,7 +45,7 @@ import {
   getCurrentResumeEvidence,
 } from "../profile/revision-repository.js";
 import type { OwnerTaskLease } from "../workers/owner-task-lease.js";
-import { withOwnerTaskLease } from "../workers/owner-task-lease.js";
+import { OwnerTaskLeaseLostError, withOwnerTaskLease } from "../workers/owner-task-lease.js";
 import { CAPABILITY_DICTIONARY_VERSION } from "./capabilities.js";
 import { evaluateThreeAxisMatch, type MatchableJob } from "./engine.js";
 import {
@@ -326,6 +333,543 @@ function mapMatchRun(row: MatchRunRow): MatchRun {
   });
 }
 
+function caseMatchNotFound(): ServiceError {
+  return new ServiceError(
+    404,
+    "APPLICATION_CASE_NOT_FOUND",
+    "求职项目不存在、已删除或不属于当前账户。",
+  );
+}
+
+function caseMatchRevisionConflict(): ServiceError {
+  return new ServiceError(
+    409,
+    "APPLICATION_CASE_REVISION_CONFLICT",
+    "求职项目已在其他页面更新，请刷新后重试。",
+  );
+}
+
+function caseMatchContextChanged(): ServiceError {
+  return new ServiceError(
+    409,
+    "CASE_MATCH_CONTEXT_CHANGED",
+    "求职项目的固定岗位上下文已经变化，请刷新后重新核对。",
+  );
+}
+
+function caseMatchContextUnavailable(): ServiceError {
+  return new ServiceError(
+    409,
+    "CASE_MATCH_CONTEXT_UNAVAILABLE",
+    "求职项目固定的岗位版本或要求集当前不可读取，系统不会改用其他版本。",
+  );
+}
+
+async function loadCaseMatchContext(
+  db: DbExecutor,
+  owner: OwnerContext,
+  caseId: string,
+  lock = false,
+) {
+  let query = db
+    .selectFrom("application.application_cases")
+    .select([
+      "id",
+      "owner_id",
+      "owner_epoch",
+      "job_context_kind",
+      "published_job_id",
+      "published_job_version_id",
+      "requirement_set_id",
+      "revision",
+    ])
+    .where("id", "=", caseId)
+    .where("owner_id", "=", owner.ownerId)
+    .where("owner_epoch", "=", owner.ownerEpoch)
+    .where("deleted_at", "is", null);
+  if (lock) query = query.forUpdate();
+  return query.executeTakeFirst();
+}
+
+async function currentCaseMatchProfileInputs(
+  db: DbExecutor,
+  owner: OwnerContext,
+): Promise<{
+  input: Omit<CaseMatchInput, "publishedJobVersionId" | "requirementSetId"> | null;
+  missingInputs: CaseMatchMissingInput[];
+}> {
+  const [facts, preferences, evidence] = await Promise.all([
+    db
+      .selectFrom("profile.profile_fact_revisions")
+      .select("id")
+      .where("owner_id", "=", owner.ownerId)
+      .where("owner_epoch", "=", owner.ownerEpoch)
+      .orderBy("revision", "desc")
+      .executeTakeFirst(),
+    db
+      .selectFrom("profile.job_preference_revisions")
+      .select("id")
+      .where("owner_id", "=", owner.ownerId)
+      .where("owner_epoch", "=", owner.ownerEpoch)
+      .orderBy("revision", "desc")
+      .executeTakeFirst(),
+    db
+      .selectFrom("profile.resume_evidence_revisions")
+      .select(["id", "schema_version"])
+      .where("owner_id", "=", owner.ownerId)
+      .where("owner_epoch", "=", owner.ownerEpoch)
+      .orderBy("revision", "desc")
+      .executeTakeFirst(),
+  ]);
+  const missingInputs: CaseMatchMissingInput[] = [];
+  if (!facts) missingInputs.push("facts");
+  if (!preferences) missingInputs.push("preferences");
+  if (!evidence || evidence.schema_version !== "resume-evidence-v2") {
+    missingInputs.push("evidence");
+  }
+  return {
+    input:
+      facts && preferences && evidence?.schema_version === "resume-evidence-v2"
+        ? {
+            profileFactRevisionId: facts.id,
+            preferenceRevisionId: preferences.id,
+            evidenceRevisionId: evidence.id,
+          }
+        : null,
+    missingInputs,
+  };
+}
+
+function sameCaseMatchProfileInputs(
+  left: Awaited<ReturnType<typeof currentCaseMatchProfileInputs>>,
+  right: Awaited<ReturnType<typeof currentCaseMatchProfileInputs>>,
+): boolean {
+  return hashCanonicalJson(left) === hashCanonicalJson(right);
+}
+
+async function lockCaseMatchProfileInputs(db: DbExecutor, ownerId: string): Promise<void> {
+  // Keep the same order as atomic profile confirmation to avoid cross-command deadlocks.
+  for (const scope of ["job-preferences", "profile-facts", "resume-evidence"] as const) {
+    await sql`select pg_advisory_xact_lock(hashtextextended(${`${scope}:${ownerId}`}, 0))`.execute(
+      db,
+    );
+  }
+}
+
+async function pinnedCaseMatchContextAvailable(
+  db: DbExecutor,
+  applicationCase: {
+    published_job_id: string | null;
+    published_job_version_id: string | null;
+    requirement_set_id: string | null;
+  },
+): Promise<boolean> {
+  if (
+    !applicationCase.published_job_id ||
+    !applicationCase.published_job_version_id ||
+    !applicationCase.requirement_set_id
+  ) {
+    return false;
+  }
+  const row = await db
+    .selectFrom("catalog.published_job_versions as version")
+    .innerJoin("catalog.job_requirement_sets as requirement", (join) =>
+      join
+        .onRef("requirement.published_job_version_id", "=", "version.id")
+        .on("requirement.id", "=", applicationCase.requirement_set_id),
+    )
+    .innerJoin("catalog.job_condition_projections as projection", (join) =>
+      join
+        .onRef("projection.published_job_version_id", "=", "version.id")
+        .on("projection.requirement_set_id", "=", applicationCase.requirement_set_id),
+    )
+    .select("version.id")
+    .where("version.id", "=", applicationCase.published_job_version_id)
+    .where("version.published_job_id", "=", applicationCase.published_job_id)
+    .executeTakeFirst();
+  return Boolean(row);
+}
+
+async function caseMatchCatalogState(
+  db: DbExecutor,
+  applicationCase: {
+    published_job_id: string | null;
+    published_job_version_id: string | null;
+    requirement_set_id: string | null;
+  },
+  options: MatchCatalogOptions,
+): Promise<CaseMatchCatalogState> {
+  if (!(await pinnedCaseMatchContextAvailable(db, applicationCase))) return "unavailable";
+  const pointerColumn = options.enableLocalMvp
+    ? ("job.current_version_id" as const)
+    : ("job.public_version_id" as const);
+  const row = await db
+    .selectFrom("catalog.published_jobs as job")
+    .leftJoin("catalog.published_job_versions as version", "version.id", pointerColumn)
+    .leftJoin(
+      "catalog.job_version_eligibility as eligibility",
+      "eligibility.published_job_version_id",
+      "version.id",
+    )
+    .leftJoin(
+      "catalog.current_job_effective_activity as activity",
+      "activity.published_job_version_id",
+      "version.id",
+    )
+    .leftJoin("catalog.company_quota_selections as quota", "quota.published_job_id", "job.id")
+    .select([
+      "version.id as current_version_id",
+      "version.active_requirement_set_id as current_requirement_set_id",
+      "eligibility.eligible_for_local_mvp",
+      "eligibility.eligible_for_alpha",
+      "activity.effective_activity_state",
+      "quota.selected as quota_selected",
+    ])
+    .where("job.id", "=", applicationCase.published_job_id)
+    .executeTakeFirst();
+  const eligible = options.enableLocalMvp ? row?.eligible_for_local_mvp : row?.eligible_for_alpha;
+  if (
+    !row?.current_version_id ||
+    !row.current_requirement_set_id ||
+    !eligible ||
+    !row.effective_activity_state ||
+    (options.enableLocalMvp && row.quota_selected === false)
+  ) {
+    return "unavailable";
+  }
+  if (row.effective_activity_state === "closed") return "closed";
+  return row.current_version_id === applicationCase.published_job_version_id &&
+    row.current_requirement_set_id === applicationCase.requirement_set_id
+    ? "current"
+    : "stale";
+}
+
+function matchRunState(run: MatchRunRow): "queued" | "processing" | "current" | "failed" {
+  if (run.status === "queued") return "queued";
+  if (run.status === "processing") return "processing";
+  if (run.status === "succeeded") return "current";
+  return "failed";
+}
+
+function caseMatchStaleReasons(run: MatchRunRow, input: CaseMatchInput): CaseMatchStaleReason[] {
+  const reasons: CaseMatchStaleReason[] = [];
+  if (
+    run.published_job_version_id !== input.publishedJobVersionId ||
+    run.requirement_set_id !== input.requirementSetId
+  ) {
+    reasons.push("case_job_version");
+  }
+  if (run.profile_fact_revision_id !== input.profileFactRevisionId) {
+    reasons.push("profile_facts");
+  }
+  if (run.preference_revision_id !== input.preferenceRevisionId) reasons.push("preferences");
+  if (run.evidence_revision_id !== input.evidenceRevisionId) reasons.push("evidence");
+  return reasons;
+}
+
+async function latestExactCaseMatchRun(
+  db: DbExecutor,
+  owner: OwnerContext,
+  input: CaseMatchInput,
+): Promise<MatchRunRow | undefined> {
+  return db
+    .selectFrom("matching.match_runs")
+    .selectAll()
+    .where("owner_id", "=", owner.ownerId)
+    .where("owner_epoch", "=", owner.ownerEpoch)
+    .where("published_job_version_id", "=", input.publishedJobVersionId)
+    .where("requirement_set_id", "=", input.requirementSetId)
+    .where("profile_fact_revision_id", "=", input.profileFactRevisionId)
+    .where("preference_revision_id", "=", input.preferenceRevisionId)
+    .where("evidence_revision_id", "=", input.evidenceRevisionId)
+    .where("status", "!=", "deleted")
+    .orderBy("created_at", "desc")
+    .orderBy("id", "desc")
+    .executeTakeFirst();
+}
+
+async function latestRelatedCaseMatchRun(
+  db: DbExecutor,
+  owner: OwnerContext,
+  publishedJobId: string,
+): Promise<MatchRunRow | undefined> {
+  return db
+    .selectFrom("matching.match_runs as run")
+    .innerJoin(
+      "catalog.published_job_versions as version",
+      "version.id",
+      "run.published_job_version_id",
+    )
+    .selectAll("run")
+    .where("run.owner_id", "=", owner.ownerId)
+    .where("run.owner_epoch", "=", owner.ownerEpoch)
+    .where("version.published_job_id", "=", publishedJobId)
+    .where("run.status", "!=", "deleted")
+    .orderBy("run.created_at", "desc")
+    .orderBy("run.id", "desc")
+    .executeTakeFirst();
+}
+
+async function resolveCaseMatchState(input: {
+  db: DbExecutor;
+  owner: OwnerContext;
+  applicationCase: NonNullable<Awaited<ReturnType<typeof loadCaseMatchContext>>>;
+  options: MatchCatalogOptions;
+  profile?: Awaited<ReturnType<typeof currentCaseMatchProfileInputs>>;
+  preferredRun?: MatchRunRow;
+}): Promise<CaseMatchState> {
+  const common = {
+    schemaVersion: "case-match-state-v1" as const,
+    caseId: input.applicationCase.id,
+    caseRevision: Number(input.applicationCase.revision),
+  };
+  if (input.applicationCase.job_context_kind === "private") {
+    return CaseMatchStateSchema.parse({
+      ...common,
+      status: "not_applicable_private",
+      input: null,
+      catalogState: null,
+      missingInputs: [],
+      staleReasons: [],
+      run: null,
+    });
+  }
+  if (
+    !input.applicationCase.published_job_id ||
+    !input.applicationCase.published_job_version_id ||
+    !input.applicationCase.requirement_set_id
+  ) {
+    throw caseMatchContextUnavailable();
+  }
+  const [profile, catalogState] = await Promise.all([
+    input.profile ?? currentCaseMatchProfileInputs(input.db, input.owner),
+    caseMatchCatalogState(input.db, input.applicationCase, input.options),
+  ]);
+  if (!profile.input) {
+    return CaseMatchStateSchema.parse({
+      ...common,
+      status: "profile_incomplete",
+      input: null,
+      catalogState,
+      missingInputs: profile.missingInputs,
+      staleReasons: [],
+      run: null,
+    });
+  }
+  const matchInput: CaseMatchInput = {
+    publishedJobVersionId: input.applicationCase.published_job_version_id,
+    requirementSetId: input.applicationCase.requirement_set_id,
+    ...profile.input,
+  };
+  const exactRun =
+    input.preferredRun ?? (await latestExactCaseMatchRun(input.db, input.owner, matchInput));
+  if (exactRun) {
+    return CaseMatchStateSchema.parse({
+      ...common,
+      status: matchRunState(exactRun),
+      input: matchInput,
+      catalogState,
+      missingInputs: [],
+      staleReasons: [],
+      run: mapMatchRun(exactRun),
+    });
+  }
+  const previousRun = await latestRelatedCaseMatchRun(
+    input.db,
+    input.owner,
+    input.applicationCase.published_job_id,
+  );
+  if (previousRun) {
+    return CaseMatchStateSchema.parse({
+      ...common,
+      status: "stale",
+      input: matchInput,
+      catalogState,
+      missingInputs: [],
+      staleReasons: caseMatchStaleReasons(previousRun, matchInput),
+      run: mapMatchRun(previousRun),
+    });
+  }
+  return CaseMatchStateSchema.parse({
+    ...common,
+    status: "not_run",
+    input: matchInput,
+    catalogState,
+    missingInputs: [],
+    staleReasons: [],
+    run: null,
+  });
+}
+
+export async function getCaseMatchState(
+  db: Kysely<Database>,
+  owner: OwnerContext,
+  caseId: string,
+  options: MatchCatalogOptions,
+): Promise<CaseMatchState> {
+  return db
+    .transaction()
+    .setIsolationLevel("repeatable read")
+    .execute(async (transaction) => {
+      const applicationCase = await loadCaseMatchContext(transaction, owner, caseId);
+      if (!applicationCase) throw caseMatchNotFound();
+      return resolveCaseMatchState({ db: transaction, owner, applicationCase, options });
+    });
+}
+
+export async function enqueueCaseMatchRun(
+  db: Kysely<Database>,
+  owner: OwnerContext,
+  caseId: string,
+  expectedCaseRevision: number,
+  idempotencyKey: string,
+  options: MatchCatalogOptions,
+): Promise<CaseMatchState> {
+  if (!idempotencyKey.trim()) {
+    throw new ServiceError(400, "IDEMPOTENCY_KEY_REQUIRED", "创建匹配任务时必须提供幂等键。");
+  }
+  return db.transaction().execute(async (transaction) => {
+    await lockOwnerIdempotencyKey(transaction, {
+      ownerId: owner.ownerId,
+      scope: "match-run",
+      idempotencyKey,
+    });
+    await assertActiveOwnerEpoch(transaction, owner.ownerId, owner.ownerEpoch);
+    const applicationCase = await loadCaseMatchContext(transaction, owner, caseId, true);
+    if (!applicationCase) throw caseMatchNotFound();
+    if (applicationCase.job_context_kind === "private") {
+      throw new ServiceError(
+        422,
+        "CASE_MATCH_NOT_APPLICABLE_PRIVATE",
+        "用户私有 JD 不进入公共岗位三轴匹配；请继续逐项核对要求与证据。",
+      );
+    }
+    if (!applicationCase.published_job_version_id || !applicationCase.requirement_set_id) {
+      throw caseMatchContextUnavailable();
+    }
+
+    const initialProfile = await currentCaseMatchProfileInputs(transaction, owner);
+    await lockCaseMatchProfileInputs(transaction, owner.ownerId);
+    const profile = await currentCaseMatchProfileInputs(transaction, owner);
+    if (!sameCaseMatchProfileInputs(initialProfile, profile)) {
+      throw new ServiceError(
+        409,
+        "CASE_MATCH_INPUT_CHANGED",
+        "已确认资料在创建匹配任务期间发生了变化，请刷新后重试。",
+      );
+    }
+    const derivedInput = profile.input
+      ? {
+          publishedJobVersionId: applicationCase.published_job_version_id,
+          requirementSetId: applicationCase.requirement_set_id,
+          ...profile.input,
+        }
+      : null;
+    const requestHash = hashCanonicalJson({
+      caseId,
+      expectedCaseRevision,
+      input: derivedInput,
+      missingInputs: profile.missingInputs,
+    });
+    const previous = await existingMatchRun(transaction, owner.ownerId, idempotencyKey);
+    if (previous) {
+      if (previous.request_hash !== requestHash) {
+        throw new ServiceError(
+          409,
+          "IDEMPOTENCY_KEY_REUSED",
+          "同一个幂等键不能用于变化后的求职项目或资料输入。",
+        );
+      }
+      return resolveCaseMatchState({
+        db: transaction,
+        owner,
+        applicationCase,
+        options,
+        profile,
+        preferredRun: previous,
+      });
+    }
+    if (Number(applicationCase.revision) !== expectedCaseRevision) {
+      throw caseMatchRevisionConflict();
+    }
+    if (!derivedInput) {
+      throw new ServiceError(
+        422,
+        "CASE_MATCH_PROFILE_INCOMPLETE",
+        "请先确认求职事实、岗位偏好和经历证据，再核对这个求职项目。",
+      );
+    }
+    if (!(await pinnedCaseMatchContextAvailable(transaction, applicationCase))) {
+      throw caseMatchContextUnavailable();
+    }
+    await assertProfileInputs(transaction, owner, derivedInput);
+
+    const runId = randomUUID();
+    const row = await transaction
+      .insertInto("matching.match_runs")
+      .values({
+        id: runId,
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        published_job_version_id: derivedInput.publishedJobVersionId,
+        requirement_set_id: derivedInput.requirementSetId,
+        profile_fact_revision_id: derivedInput.profileFactRevisionId,
+        preference_revision_id: derivedInput.preferenceRevisionId,
+        evidence_revision_id: derivedInput.evidenceRevisionId,
+        rule_version: RULE_VERSION,
+        dictionary_version: DICTIONARY_VERSION,
+        template_version: TEMPLATE_VERSION,
+        status: "queued",
+        request_hash: requestHash,
+        idempotency_key: idempotencyKey,
+        result: null,
+        failure_code: null,
+        completed_at: null,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    await transaction
+      .insertInto("task_queue.tasks")
+      .values({
+        id: randomUUID(),
+        task_type: "match_run",
+        owner_id: owner.ownerId,
+        owner_epoch: owner.ownerEpoch,
+        payload: json({
+          runId,
+          executionContext: {
+            kind: "case_pinned",
+            caseId,
+            expectedCaseRevision,
+            publishedJobVersionId: derivedInput.publishedJobVersionId,
+            requirementSetId: derivedInput.requirementSetId,
+          },
+        }),
+        idempotency_key: `owner:${owner.ownerId}:match:${idempotencyKey}`,
+        status: "queued",
+        attempt: 0,
+        max_attempts: 3,
+        available_at: new Date(),
+        backoff_policy: json({ kind: "exponential", baseSeconds: 2, maxSeconds: 30 }),
+        lease_owner: null,
+        lease_until: null,
+        heartbeat_at: null,
+        last_error_code: null,
+        last_error_summary: null,
+        completed_at: null,
+      })
+      .execute();
+    return resolveCaseMatchState({
+      db: transaction,
+      owner,
+      applicationCase,
+      options,
+      profile,
+      preferredRun: row,
+    });
+  });
+}
+
 export async function getMatchRun(
   db: Kysely<Database>,
   owner: OwnerContext,
@@ -358,69 +902,127 @@ export async function getMatchRun(
   return row ? mapMatchRun(row) : null;
 }
 
-async function loadMatchInputs(db: DbExecutor, run: MatchRunRow, options: MatchCatalogOptions) {
+interface MatchProcessingOptions extends MatchCatalogOptions {
+  executionContext?: CasePinnedMatchExecutionContext;
+}
+
+async function assertCasePinnedMatchContext(
+  db: DbExecutor,
+  owner: OwnerContext,
+  run: MatchRunRow,
+  executionContext: CasePinnedMatchExecutionContext,
+): Promise<void> {
+  if (
+    run.published_job_version_id !== executionContext.publishedJobVersionId ||
+    run.requirement_set_id !== executionContext.requirementSetId
+  ) {
+    throw caseMatchContextChanged();
+  }
+  const applicationCase = await loadCaseMatchContext(db, owner, executionContext.caseId, true);
+  if (
+    !applicationCase ||
+    Number(applicationCase.revision) !== executionContext.expectedCaseRevision ||
+    applicationCase.job_context_kind !== "public" ||
+    applicationCase.published_job_version_id !== executionContext.publishedJobVersionId ||
+    applicationCase.requirement_set_id !== executionContext.requirementSetId
+  ) {
+    throw caseMatchContextChanged();
+  }
+  if (!(await pinnedCaseMatchContextAvailable(db, applicationCase))) {
+    throw caseMatchContextUnavailable();
+  }
+}
+
+async function loadMatchJobVersion(
+  db: DbExecutor,
+  run: MatchRunRow,
+  options: MatchProcessingOptions,
+) {
+  const base = db
+    .selectFrom("catalog.published_job_versions as version")
+    .innerJoin("catalog.published_jobs as job", "job.id", "version.published_job_id")
+    .innerJoin(
+      "catalog.job_condition_projections as projection",
+      "projection.published_job_version_id",
+      "version.id",
+    )
+    .select([
+      "version.company_name",
+      "version.job_family",
+      "version.work_mode",
+      "projection.locations",
+      "projection.weekly_attendance_days",
+      "projection.duration_months",
+    ])
+    .where("version.id", "=", run.published_job_version_id)
+    .where("projection.requirement_set_id", "=", run.requirement_set_id);
+  if (options.executionContext?.kind === "case_pinned") {
+    return base.executeTakeFirst();
+  }
+  return base
+    .innerJoin(
+      "catalog.job_version_eligibility as eligibility",
+      "eligibility.published_job_version_id",
+      "version.id",
+    )
+    .whereRef(
+      options.enableLocalMvp ? "job.current_version_id" : "job.public_version_id",
+      "=",
+      "version.id",
+    )
+    .where(
+      options.enableLocalMvp
+        ? "eligibility.eligible_for_local_mvp"
+        : "eligibility.eligible_for_alpha",
+      "=",
+      true,
+    )
+    .executeTakeFirst();
+}
+
+async function loadMatchInputs(db: DbExecutor, run: MatchRunRow, options: MatchProcessingOptions) {
   const [requirementSet, factRevision, preferenceRevision, evidenceRevision, jobVersion] =
     await Promise.all([
       db
         .selectFrom("catalog.job_requirement_sets")
         .selectAll()
         .where("id", "=", run.requirement_set_id)
-        .executeTakeFirstOrThrow(),
+        .where("published_job_version_id", "=", run.published_job_version_id)
+        .executeTakeFirst(),
       db
         .selectFrom("profile.profile_fact_revisions")
         .selectAll()
         .where("id", "=", run.profile_fact_revision_id)
         .where("owner_id", "=", run.owner_id)
+        .where("owner_epoch", "=", run.owner_epoch)
         .executeTakeFirstOrThrow(),
       db
         .selectFrom("profile.job_preference_revisions")
         .selectAll()
         .where("id", "=", run.preference_revision_id)
         .where("owner_id", "=", run.owner_id)
+        .where("owner_epoch", "=", run.owner_epoch)
         .executeTakeFirstOrThrow(),
       db
         .selectFrom("profile.resume_evidence_revisions")
         .selectAll()
         .where("id", "=", run.evidence_revision_id)
         .where("owner_id", "=", run.owner_id)
+        .where("owner_epoch", "=", run.owner_epoch)
         .executeTakeFirstOrThrow(),
-      db
-        .selectFrom("catalog.published_job_versions as version")
-        .innerJoin("catalog.published_jobs as job", "job.id", "version.published_job_id")
-        .innerJoin(
-          "catalog.job_version_eligibility as eligibility",
-          "eligibility.published_job_version_id",
-          "version.id",
-        )
-        .innerJoin(
-          "catalog.job_condition_projections as projection",
-          "projection.published_job_version_id",
-          "version.id",
-        )
-        .select([
-          "version.company_name",
-          "version.job_family",
-          "version.work_mode",
-          "projection.locations",
-          "projection.weekly_attendance_days",
-          "projection.duration_months",
-        ])
-        .where("version.id", "=", run.published_job_version_id)
-        .where("projection.requirement_set_id", "=", run.requirement_set_id)
-        .whereRef(
-          options.enableLocalMvp ? "job.current_version_id" : "job.public_version_id",
-          "=",
-          "version.id",
-        )
-        .where(
-          options.enableLocalMvp
-            ? "eligibility.eligible_for_local_mvp"
-            : "eligibility.eligible_for_alpha",
-          "=",
-          true,
-        )
-        .executeTakeFirstOrThrow(),
+      loadMatchJobVersion(db, run, options),
     ]);
+
+  if (!requirementSet || !jobVersion) {
+    if (options.executionContext?.kind === "case_pinned") {
+      throw caseMatchContextUnavailable();
+    }
+    throw new ServiceError(
+      422,
+      "JOB_REQUIREMENTS_NOT_READY",
+      "该岗位的要求尚未完成可追溯拆解，请稍后重试。",
+    );
+  }
 
   const job: MatchableJob = {
     companyName: jobVersion.company_name,
@@ -449,7 +1051,7 @@ async function loadMatchInputs(db: DbExecutor, run: MatchRunRow, options: MatchC
 async function computeMatchResult(
   db: DbExecutor,
   run: MatchRunRow,
-  options: MatchCatalogOptions,
+  options: MatchProcessingOptions,
 ): Promise<MatchRunResult> {
   const inputs = await loadMatchInputs(db, run, options);
   return MatchRunResultSchema.parse(evaluateThreeAxisMatch(inputs));
@@ -460,31 +1062,37 @@ export async function processMatchRun(
   owner: OwnerContext,
   runId: string,
   lease: OwnerTaskLease,
-  options: MatchCatalogOptions,
+  options: MatchProcessingOptions,
 ): Promise<void> {
-  const run = await withOwnerTaskLease(db, lease, async (transaction) => {
-    const current = await transaction
-      .selectFrom("matching.match_runs")
-      .selectAll()
-      .where("id", "=", runId)
-      .where("owner_id", "=", owner.ownerId)
-      .where("owner_epoch", "=", owner.ownerEpoch)
-      .forUpdate()
-      .executeTakeFirst();
-    if (!current || current.status === "deleted" || current.status === "succeeded") {
-      return current;
-    }
-    await transaction
-      .updateTable("matching.match_runs")
-      .set({ status: "processing" })
-      .where("id", "=", current.id)
-      .executeTakeFirstOrThrow();
-    return current;
-  });
-  if (!run || run.status === "deleted" || run.status === "succeeded") return;
   try {
+    const run = await withOwnerTaskLease(db, lease, async (transaction) => {
+      const current = await transaction
+        .selectFrom("matching.match_runs")
+        .selectAll()
+        .where("id", "=", runId)
+        .where("owner_id", "=", owner.ownerId)
+        .where("owner_epoch", "=", owner.ownerEpoch)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!current || current.status === "deleted" || current.status === "succeeded") {
+        return current;
+      }
+      if (options.executionContext?.kind === "case_pinned") {
+        await assertCasePinnedMatchContext(transaction, owner, current, options.executionContext);
+      }
+      await transaction
+        .updateTable("matching.match_runs")
+        .set({ status: "processing" })
+        .where("id", "=", current.id)
+        .executeTakeFirstOrThrow();
+      return current;
+    });
+    if (!run || run.status === "deleted" || run.status === "succeeded") return;
     const result = await computeMatchResult(db, run, options);
     await withOwnerTaskLease(db, lease, async (transaction) => {
+      if (options.executionContext?.kind === "case_pinned") {
+        await assertCasePinnedMatchContext(transaction, owner, run, options.executionContext);
+      }
       await transaction
         .updateTable("matching.match_runs")
         .set({
@@ -500,6 +1108,7 @@ export async function processMatchRun(
         .executeTakeFirstOrThrow();
     });
   } catch (error) {
+    if (error instanceof OwnerTaskLeaseLostError) throw error;
     await withOwnerTaskLease(db, lease, async (transaction) => {
       await transaction
         .updateTable("matching.match_runs")
@@ -508,10 +1117,10 @@ export async function processMatchRun(
           failure_code: error instanceof ServiceError ? error.code : "MATCH_PROCESSING_FAILED",
           completed_at: new Date(),
         })
-        .where("id", "=", run.id)
+        .where("id", "=", runId)
         .where("owner_id", "=", owner.ownerId)
         .where("owner_epoch", "=", owner.ownerEpoch)
-        .where("status", "=", "processing")
+        .where("status", "in", ["queued", "processing", "failed"])
         .execute();
     });
     throw error;

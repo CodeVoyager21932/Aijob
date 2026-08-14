@@ -1,4 +1,5 @@
 import {
+  CreateCaseMatchRunRequestSchema,
   CreateMatchRunRequestSchema,
   CreateRecommendationRunFromSearchRequestSchema,
   CreateRecommendationRunRequestSchema,
@@ -11,15 +12,18 @@ import { requireOwnerContext } from "../identity/fastify.js";
 import { ApiProblem, sendApiProblem } from "../identity/http.js";
 import { ServiceError } from "../lib/service-error.js";
 import {
+  enqueueCaseMatchRun,
   enqueueMatchRun,
-  enqueueRecommendationRunFromSearch,
   enqueueRecommendationRun,
+  enqueueRecommendationRunFromSearch,
+  getCaseMatchState,
   getMatchRun,
   getRecommendationRun,
   getRecommendationRunView,
 } from "./service.js";
 
 const ParamsSchema = z.object({ runId: z.string().trim().min(1) });
+const CaseParamsSchema = z.object({ caseId: z.string().uuid() }).strict();
 const IdempotencyKeySchema = z.string().trim().min(1).max(200);
 
 function idempotencyKey(headers: Record<string, unknown>): string {
@@ -77,6 +81,38 @@ export function registerMatchingRoutes(
   app: FastifyInstance,
   options: { db: Kysely<Database>; enableLocalMvp: boolean },
 ): void {
+  app.get("/v1/application-cases/:caseId/match-state", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { caseId } = CaseParamsSchema.parse(request.params);
+      const result = await getCaseMatchState(options.db, owner, caseId, {
+        enableLocalMvp: options.enableLocalMvp,
+      });
+      return reply.send(result);
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  app.post("/v1/application-cases/:caseId/match-runs", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { caseId } = CaseParamsSchema.parse(request.params);
+      const body = CreateCaseMatchRunRequestSchema.parse(request.body);
+      const result = await enqueueCaseMatchRun(
+        options.db,
+        owner,
+        caseId,
+        body.expectedCaseRevision,
+        idempotencyKey(request.headers),
+        { enableLocalMvp: options.enableLocalMvp },
+      );
+      return reply.code(202).send(result);
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
   app.post("/v1/match-runs", async (request, reply) => {
     try {
       const owner = requireOwnerContext(request);

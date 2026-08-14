@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { AppConfig } from "@aijob/config";
+import { MatchRunTaskPayloadSchema } from "@aijob/contracts";
 import type { Database, JsonValue } from "@aijob/database";
 import type { Kysely, Selectable } from "kysely";
 import { z } from "zod";
+import { isActiveOwnerEpochState } from "../identity/session-repository.js";
 import { processMatchRun, processRecommendationRun } from "../matching/service.js";
 import { processOwnerDeletion } from "../profile/deletion-service.js";
 import {
@@ -13,7 +15,6 @@ import { processResumeAnalysis, purgeExpiredResumeContent } from "../resume/anal
 import { processResumeReview } from "../resume-documents/review-service.js";
 import { purgeExpiredResumeExports } from "../tailoring/export-retention.js";
 import { processResumeExport, processTailoringRun } from "../tailoring/service.js";
-import { isActiveOwnerEpochState } from "../identity/session-repository.js";
 import { type OwnerTaskLease, OwnerTaskLeaseLostError } from "./owner-task-lease.js";
 
 const LEASE_MS = 60_000;
@@ -217,9 +218,12 @@ async function dispatchTask(
       return;
     }
     case "match_run": {
-      const { runId } = RunPayloadSchema.parse(task.payload);
-      await processMatchRun(db, owner, runId, lease, {
+      const payload = MatchRunTaskPayloadSchema.parse(task.payload);
+      await processMatchRun(db, owner, payload.runId, lease, {
         enableLocalMvp: config.enableLocalMvp,
+        ...("executionContext" in payload
+          ? { executionContext: payload.executionContext }
+          : {}),
       });
       return;
     }
@@ -445,7 +449,7 @@ export async function runOwnerTaskWorker(input: {
 
 export const workerTaskPayloadSchemas = {
   resume_analysis: AnalysisPayloadSchema,
-  match_run: RunPayloadSchema,
+  match_run: MatchRunTaskPayloadSchema,
   recommendation_run: RunPayloadSchema,
   resume_tailoring: RunPayloadSchema,
   resume_export: ExportPayloadSchema,

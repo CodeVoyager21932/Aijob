@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   HttpsUrlSchema,
   IdentifierSchema,
+  RevisionSchema,
   Sha256Schema,
   TimestampSchema,
   UuidSchema,
@@ -194,16 +195,166 @@ export const MatchRunSchema = z.object({
 });
 export type MatchRun = z.infer<typeof MatchRunSchema>;
 
+export const CreateCaseMatchRunRequestSchema = z
+  .object({
+    expectedCaseRevision: RevisionSchema,
+  })
+  .strict();
+export type CreateCaseMatchRunRequest = z.infer<typeof CreateCaseMatchRunRequestSchema>;
+
+export const CaseMatchStatusSchema = z.enum([
+  "not_applicable_private",
+  "profile_incomplete",
+  "not_run",
+  "queued",
+  "processing",
+  "current",
+  "stale",
+  "failed",
+]);
+export type CaseMatchStatus = z.infer<typeof CaseMatchStatusSchema>;
+
+export const CaseMatchCatalogStateSchema = z.enum(["current", "stale", "closed", "unavailable"]);
+export type CaseMatchCatalogState = z.infer<typeof CaseMatchCatalogStateSchema>;
+
+export const CaseMatchMissingInputSchema = z.enum(["facts", "preferences", "evidence"]);
+export type CaseMatchMissingInput = z.infer<typeof CaseMatchMissingInputSchema>;
+
+export const CaseMatchStaleReasonSchema = z.enum([
+  "case_job_version",
+  "profile_facts",
+  "preferences",
+  "evidence",
+]);
+export type CaseMatchStaleReason = z.infer<typeof CaseMatchStaleReasonSchema>;
+
+export const CaseMatchInputSchema = z
+  .object({
+    publishedJobVersionId: UuidSchema,
+    requirementSetId: UuidSchema,
+    profileFactRevisionId: UuidSchema,
+    preferenceRevisionId: UuidSchema,
+    evidenceRevisionId: UuidSchema,
+  })
+  .strict();
+export type CaseMatchInput = z.infer<typeof CaseMatchInputSchema>;
+
+export const CaseMatchStateSchema = z
+  .object({
+    schemaVersion: z.literal("case-match-state-v1"),
+    caseId: UuidSchema,
+    caseRevision: RevisionSchema,
+    status: CaseMatchStatusSchema,
+    input: CaseMatchInputSchema.nullable(),
+    catalogState: CaseMatchCatalogStateSchema.nullable(),
+    missingInputs: z.array(CaseMatchMissingInputSchema),
+    staleReasons: z.array(CaseMatchStaleReasonSchema),
+    run: MatchRunSchema.nullable(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (new Set(value.missingInputs).size !== value.missingInputs.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["missingInputs"],
+        message: "missing inputs must be unique",
+      });
+    }
+    if (new Set(value.staleReasons).size !== value.staleReasons.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["staleReasons"],
+        message: "stale reasons must be unique",
+      });
+    }
+    if (value.status === "not_applicable_private") {
+      if (
+        value.input !== null ||
+        value.catalogState !== null ||
+        value.missingInputs.length > 0 ||
+        value.staleReasons.length > 0 ||
+        value.run !== null
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "private Case match state cannot expose public matching context",
+        });
+      }
+      return;
+    }
+    if (value.catalogState === null) {
+      context.addIssue({
+        code: "custom",
+        path: ["catalogState"],
+        message: "public Case match state requires a catalog state",
+      });
+    }
+    if (value.status === "profile_incomplete") {
+      if (value.input !== null || value.missingInputs.length === 0 || value.run !== null) {
+        context.addIssue({
+          code: "custom",
+          message: "incomplete profile state requires missing inputs and no run",
+        });
+      }
+      return;
+    }
+    if (value.input === null || value.missingInputs.length > 0) {
+      context.addIssue({
+        code: "custom",
+        path: ["input"],
+        message: "runnable public Case match state requires complete inputs",
+      });
+    }
+    if (value.status === "not_run" && value.run !== null) {
+      context.addIssue({ code: "custom", path: ["run"], message: "not-run state has no run" });
+    }
+    if (value.status === "stale" && (value.run === null || value.staleReasons.length === 0)) {
+      context.addIssue({
+        code: "custom",
+        message: "stale state requires a previous run and at least one reason",
+      });
+    }
+    if (
+      ["queued", "processing", "current", "failed"].includes(value.status) &&
+      (value.run === null || value.staleReasons.length > 0)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "current-input run states require a run without stale reasons",
+      });
+    }
+  });
+export type CaseMatchState = z.infer<typeof CaseMatchStateSchema>;
+
+export const CasePinnedMatchExecutionContextSchema = z
+  .object({
+    kind: z.literal("case_pinned"),
+    caseId: UuidSchema,
+    expectedCaseRevision: RevisionSchema,
+    publishedJobVersionId: UuidSchema,
+    requirementSetId: UuidSchema,
+  })
+  .strict();
+export type CasePinnedMatchExecutionContext = z.infer<typeof CasePinnedMatchExecutionContextSchema>;
+
+export const MatchRunTaskPayloadSchema = z.union([
+  z.object({ runId: UuidSchema }).strict(),
+  z
+    .object({
+      runId: UuidSchema,
+      executionContext: CasePinnedMatchExecutionContextSchema,
+    })
+    .strict(),
+]);
+export type MatchRunTaskPayload = z.infer<typeof MatchRunTaskPayloadSchema>;
+
 export const MAX_RECOMMENDATION_CANDIDATES = 1_100;
 
 export const CreateRecommendationRunRequestSchema = z.object({
   profileFactRevisionId: IdentifierSchema,
   preferenceRevisionId: IdentifierSchema,
   evidenceRevisionId: IdentifierSchema,
-  candidateJobVersionIds: z
-    .array(IdentifierSchema)
-    .min(1)
-    .max(MAX_RECOMMENDATION_CANDIDATES),
+  candidateJobVersionIds: z.array(IdentifierSchema).min(1).max(MAX_RECOMMENDATION_CANDIDATES),
 });
 export type CreateRecommendationRunRequest = z.infer<typeof CreateRecommendationRunRequestSchema>;
 

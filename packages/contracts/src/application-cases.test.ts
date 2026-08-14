@@ -13,6 +13,7 @@ import {
   ApplicationCaseRequirementsSchema,
   ApplicationCaseSchema,
   ApplicationCaseWithJobContextSchema,
+  CaseMatchStateSchema,
   CaseOutcomeSchema,
   CaseQuestionSchema,
   CaseRequirementEvidenceLinkSchema,
@@ -22,6 +23,7 @@ import {
   CreateApplicationCaseRequestSchema,
   CreateApplicationCaseResponseSchema,
   CreateApplicationCaseWithJobContextRequestSchema,
+  CreateCaseMatchRunRequestSchema,
   CreateCaseQuestionRequestSchema,
   DeleteApplicationCaseRequestSchema,
   DeleteApplicationCaseResponseSchema,
@@ -32,6 +34,7 @@ import {
   ListApplicationCaseEventsResponseSchema,
   ListApplicationCasesQuerySchema,
   ListApplicationCasesResponseSchema,
+  MatchRunTaskPayloadSchema,
   PrivateJobSnapshotSchema,
   PrivateRequirementContextSchema,
   PublicJobReferenceSchema,
@@ -920,6 +923,101 @@ describe("ApplicationCase contracts", () => {
     ).toEqual({ city: "深圳", sort: "deadline", limitPerStage: 100 });
     expect(ApplicationBoardQuerySchema.safeParse({ limitPerStage: 101 }).success).toBe(false);
     expect(ApplicationBoardQuerySchema.safeParse({ stage: "applied" }).success).toBe(false);
+  });
+
+  it("locks Case-scoped matching to fixed public context and server-derived inputs", () => {
+    const input = {
+      publishedJobVersionId: ids.version,
+      requirementSetId: ids.requirementSet,
+      profileFactRevisionId: randomUUID(),
+      preferenceRevisionId: randomUUID(),
+      evidenceRevisionId: randomUUID(),
+    };
+    const run = {
+      id: randomUUID(),
+      ownerId: ids.owner,
+      status: "queued" as const,
+      ...input,
+      ruleVersion: "eligibility-rules-v3",
+      dictionaryVersion: "zh-cn-internship-v3",
+      templateVersion: "three-axis-explanation-v3",
+      result: null,
+      failureCode: null,
+      createdAt: "2026-08-14T00:00:00.000Z",
+      completedAt: null,
+    };
+    expect(CreateCaseMatchRunRequestSchema.parse({ expectedCaseRevision: 3 })).toEqual({
+      expectedCaseRevision: 3,
+    });
+    expect(
+      CreateCaseMatchRunRequestSchema.safeParse({
+        expectedCaseRevision: 3,
+        publishedJobVersionId: ids.version,
+      }).success,
+    ).toBe(false);
+    expect(
+      CaseMatchStateSchema.safeParse({
+        schemaVersion: "case-match-state-v1",
+        caseId: ids.case,
+        caseRevision: 3,
+        status: "queued",
+        input,
+        catalogState: "stale",
+        missingInputs: [],
+        staleReasons: [],
+        run,
+      }).success,
+    ).toBe(true);
+    expect(
+      CaseMatchStateSchema.safeParse({
+        schemaVersion: "case-match-state-v1",
+        caseId: ids.case,
+        caseRevision: 3,
+        status: "stale",
+        input,
+        catalogState: "current",
+        missingInputs: [],
+        staleReasons: [],
+        run,
+      }).success,
+    ).toBe(false);
+    expect(
+      CaseMatchStateSchema.safeParse({
+        schemaVersion: "case-match-state-v1",
+        caseId: ids.case,
+        caseRevision: 3,
+        status: "not_applicable_private",
+        input: null,
+        catalogState: null,
+        missingInputs: [],
+        staleReasons: [],
+        run: null,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("keeps legacy match tasks and Case-pinned worker context as a strict union", () => {
+    const runId = randomUUID();
+    expect(MatchRunTaskPayloadSchema.parse({ runId })).toEqual({ runId });
+    expect(
+      MatchRunTaskPayloadSchema.parse({
+        runId,
+        executionContext: {
+          kind: "case_pinned",
+          caseId: ids.case,
+          expectedCaseRevision: 3,
+          publishedJobVersionId: ids.version,
+          requirementSetId: ids.requirementSet,
+        },
+      }),
+    ).toMatchObject({ executionContext: { kind: "case_pinned", caseId: ids.case } });
+    expect(
+      MatchRunTaskPayloadSchema.safeParse({
+        runId,
+        executionContext: { kind: "current_catalog" },
+      }).success,
+    ).toBe(false);
+    expect(MatchRunTaskPayloadSchema.safeParse({ runId, caseId: ids.case }).success).toBe(false);
   });
 
   it("requires every cursor sort column and rejects cross-sort cursor fields", () => {

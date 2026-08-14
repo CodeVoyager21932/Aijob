@@ -2,15 +2,16 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   applicationBoardPath,
-  applicationCaseTransitionPath,
   applicationCaseEventsPath,
   applicationCaseListPath,
+  applicationCaseTransitionPath,
+  careerOsQueryKeys,
   caseDebriefConfirmationPath,
   caseDebriefPath,
+  createCaseMatchRun,
   interviewSessionListPath,
   resumeDocumentDocxPath,
   resumeDocumentListPath,
-  careerOsQueryKeys,
 } from "./career-os";
 
 describe("Career OS API paths", () => {
@@ -40,6 +41,54 @@ describe("Career OS API paths", () => {
     expect(applicationCaseTransitionPath(caseId)).toBe(
       `/v1/application-cases/${caseId}/transitions`,
     );
+  });
+
+  it("keeps Case matching inputs server-derived", async () => {
+    const caseId = randomUUID();
+    const originalFetch = globalThis.fetch;
+    const requests: Array<{ url: string; body: unknown }> = [];
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: { cookie: "aijob_csrf=test-token" },
+    });
+    globalThis.fetch = (async (input, init) => {
+      requests.push({
+        url: String(input),
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+      });
+      return new Response(
+        JSON.stringify({
+          schemaVersion: "case-match-state-v1",
+          caseId,
+          caseRevision: 4,
+          status: "not_run",
+          input: {
+            publishedJobVersionId: randomUUID(),
+            requirementSetId: randomUUID(),
+            profileFactRevisionId: randomUUID(),
+            preferenceRevisionId: randomUUID(),
+            evidenceRevisionId: randomUUID(),
+          },
+          catalogState: "current",
+          missingInputs: [],
+          staleReasons: [],
+          run: null,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }) as typeof fetch;
+    try {
+      await createCaseMatchRun(caseId, 4, "case-match:test");
+      expect(requests).toEqual([
+        {
+          url: `/v1/application-cases/${caseId}/match-runs`,
+          body: { expectedCaseRevision: 4 },
+        },
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+      Reflect.deleteProperty(globalThis, "document");
+    }
   });
 
   it("binds a Case timeline cursor to the selected Case path", () => {
