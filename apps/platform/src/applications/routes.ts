@@ -1,4 +1,5 @@
 import {
+  ApplicationBoardQuerySchema,
   CreateApplicationCaseWithJobContextRequestSchema,
   CreateCaseQuestionRequestSchema,
   DeleteApplicationCaseRequestSchema,
@@ -22,6 +23,7 @@ import { deleteApplicationCase } from "../career-assets/deletion-service.js";
 import {
   createApplicationCase,
   createApplicationCaseQuestion,
+  getApplicationBoard,
   getApplicationCase,
   getApplicationCaseJobVersionDiff,
   getApplicationCaseRequirements,
@@ -79,6 +81,26 @@ function handleError(
   throw error;
 }
 
+function handleBoardError(
+  error: unknown,
+  request: Parameters<typeof sendApiProblem>[0],
+  reply: Parameters<typeof sendApiProblem>[1],
+) {
+  if (error instanceof z.ZodError) {
+    return sendApiProblem(
+      request,
+      reply,
+      new ApiProblem(
+        400,
+        "INVALID_APPLICATION_BOARD_QUERY",
+        "申请看板参数格式不正确",
+        "请检查城市、排序或每列数量后重新加载。",
+      ),
+    );
+  }
+  return handleError(error, request, reply);
+}
+
 export function registerApplicationCaseRoutes(
   app: FastifyInstance,
   options: { db: Kysely<Database>; enableLocalMvp: boolean },
@@ -90,6 +112,16 @@ export function registerApplicationCaseRoutes(
       return reply.send(await listApplicationCases({ db: options.db, owner, query }));
     } catch (error) {
       return handleError(error, request, reply);
+    }
+  });
+
+  app.get("/v1/application-cases/board", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const query = ApplicationBoardQuerySchema.parse(request.query);
+      return reply.send(await getApplicationBoard({ db: options.db, owner, query }));
+    } catch (error) {
+      return handleBoardError(error, request, reply);
     }
   });
 
@@ -114,7 +146,20 @@ export function registerApplicationCaseRoutes(
   app.get("/v1/application-cases/:caseId", async (request, reply) => {
     try {
       const owner = requireOwnerContext(request);
-      const { caseId } = ParamsSchema.parse(request.params);
+      const params = ParamsSchema.safeParse(request.params);
+      if (!params.success) {
+        return sendApiProblem(
+          request,
+          reply,
+          new ApiProblem(
+            404,
+            "APPLICATION_CASE_NOT_FOUND",
+            "没有找到该求职项目",
+            "记录不存在、已删除或不属于当前账户。",
+          ),
+        );
+      }
+      const { caseId } = params.data;
       const applicationCase = await getApplicationCase({ db: options.db, owner, caseId });
       if (!applicationCase) {
         return sendApiProblem(

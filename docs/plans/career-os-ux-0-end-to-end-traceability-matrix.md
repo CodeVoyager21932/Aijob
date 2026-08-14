@@ -1,10 +1,10 @@
 # UX-0 页面—系统—证据追踪矩阵
 
-> 状态：Accepted baseline / UX-0 已完成代码反证、Review 兼容核验与四视口当前运行基线；OS-1 与 OS-2 触达行已关闭，后续实现继续按 OS-3–OS-7 逐行关闭
+> 状态：Accepted baseline / UX-0 已完成代码反证、Review 兼容核验与四视口当前运行基线；OS-1、OS-2 与 OS-3 触达行已关闭，后续实现继续按 OS-4–OS-7 逐行关闭
 >
-> 日期：2026-08-13
+> 基线日期：2026-08-13；后续关闭更新：2026-08-14
 
-> 后续关闭记录：OS-1 已完成唯一 WorkspaceShell、访问/session、统一 overlay/focus 与运行时响应基础；OS-2 已完成规范岗位目录/详情、服务器派生推荐、市场洞察、简历导入/确认、Case 创建、URL 恢复及对应 owner/session/runtime schema Gate。见 [OS-1 验收证据](../evidence/product/career-os-v2/os-1-system-shell-and-runtime-contract-acceptance-2026-08-13.md)与 [OS-2 验收证据](../evidence/product/career-os-v2/os-2-profile-and-trusted-job-entry-acceptance-2026-08-13.md)。下表的 UX-0 “当前 Web 状态/代码反证”保留审计时点事实，不能据此把已关闭的 OS-1/OS-2 重新生成成任务。
+> 后续关闭记录：OS-1 已完成唯一 WorkspaceShell、访问/session、统一 overlay/focus 与运行时响应基础；OS-2 已完成规范岗位目录/详情、服务器派生推荐、市场洞察、简历导入/确认、Case 创建、URL 恢复及对应 owner/session/runtime schema Gate；OS-3 已完成 Case list/board 完整集合、Peek、显式阶段命令、owner/404/409/session 与四视口 Gate。见 [OS-1 验收证据](../evidence/product/career-os-v2/os-1-system-shell-and-runtime-contract-acceptance-2026-08-13.md)、[OS-2 验收证据](../evidence/product/career-os-v2/os-2-profile-and-trusted-job-entry-acceptance-2026-08-13.md)与 [OS-3 验收证据](../evidence/product/career-os-v2/os-3-application-board-and-case-command-acceptance-2026-08-14.md)。下表的 UX-0 “当前 Web 状态/代码反证”保留审计时点事实，不能据此把已关闭的 OS-1–OS-3 重新生成成任务。
 >
 > 本矩阵是[当前交付计划](career-os-current-delivery-plan.md)的 UX-0 工作产物，不生成新的任务顺序。稳定规则见[端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)。
 
@@ -31,8 +31,8 @@
 | 查看岗位 `/jobs/:jobId` | 核对岗位事实、来源、版本 | `JobDetail`、`/v1/jobs/:id` | `catalog` 的 published job/version/requirement set | 不显示未准入公共岗位；不存在与不可见一致 404 | **OS-2 已关闭**：规范详情、来源/要求、往返 URL 与 Case 入口；旧匹配动作仍归 OS-4 | 正常/unknown/关闭/404/版本变化 | `R/A` 已按 OS-2 触达范围关闭 |
 | 创建公共 Case | 显式“加入我的求职” | `CreateApplicationCaseWithJobContextRequest/Response`、`POST /v1/application-cases` | `applications` 固定 public job version；幂等活动 Case | CSRF、Idempotency-Key、owner、重复 reuse | **OS-2 已从岗位详情接入并导航 Requirements** | 重复点击、刷新、session 恢复不重放、跨 owner | `R` 已按 OS-2 关闭 |
 | 创建私有 Case | 粘贴私有 JD、确认来源/重复处理 | 同上；`private_input` | owner-private snapshot 与 content revision | 私有内容不入公共目录；owner 404；显式 duplicate handling | 入口在看板页；视觉/overlay 待收敛 | reuse/create_separate、长文本、非法 URL、跨 owner、删除保留 | `R/A` |
-| 看板 `/applications` | 五阶段浏览、stage/city/sort、Peek | 扩展 Case list；新增 `GET /v1/application-cases/board` | `applications` 在 repeatable-read 中返回五列首批 items/total/cursor；后续单列复用 stage list | cursor 含 query hash、owner、deleted 不可见；private city 为 unknown | 当前 Web API 没有 stage；页面对已加载 pages 做 city/sort | 超过 100 Case、跨页计数/筛选/排序、深链 Peek、404、固定请求数 | `E`：无语义 migration；索引只凭性能证据 |
-| 推进 Case 阶段 | 显式选择阶段/结果并确认 | `TransitionApplicationCaseRequest`、`POST .../transitions` | Case revision 与 append-only event | CSRF、Idempotency-Key、409、不允许非法回退/结果 | Platform 已有；V2 API adapter/完整交互缺失 | 每个合法/非法 transition、重复命令、409 草稿、刷新 | `A` |
+| 看板 `/applications` | 五阶段浏览、stage/city/sort、Peek | 扩展 Case list；新增 `GET /v1/application-cases/board` | `applications` 在 repeatable-read 中返回五列首批 items/total/cursor；后续单列复用 stage list | cursor 与 query 绑定、owner/deleted 不可见；private city 为 unknown | **OS-3 已关闭**：服务端完整集合、逐列续页、URL 恢复、宽屏/overlay/移动 Peek | 105 Case 跨页、26 Case 浏览器满态、计数/筛选/排序、深链/404、固定请求数 | `E` 已关闭；`EXPLAIN` 未证明需要索引，无 migration |
+| 推进 Case 阶段 | 显式选择阶段/结果并确认 | `TransitionApplicationCaseRequest`、`POST .../transitions` | Case revision 与 append-only event | CSRF、Idempotency-Key、409、不允许非法回退/结果 | **OS-3 已关闭**：显式阶段/outcome、409 最新读取与保留选择、再次确认、session mutation 不重放 | 合法/非法 transition、幂等、409 保稿、刷新、session 403 | `A` 已关闭 |
 | 固定岗位版本 | 查看 diff、显式升级 | `ApplicationCaseJobVersionDiffResponse`、Upgrade request | Case 固定 version、requirement context、event | owner、revision、幂等；禁止静默升级 | Platform 已有；Web adapter 与 UI 缺失 | unchanged/changed/unavailable、升级、409、requirements 连续性 | `A` |
 | JD Requirements `/applications/:id/requirements` | 查看原句，确认状态/备注，关联证据，提问 | Requirements、Put State/Links、Questions contracts | `applications` requirement state/link/question；`profile` evidence revision | 三状态分离、只接受已确认证据、revision 409、owner 404 | 主路径已接入；检查器/草稿/overlay 有缺口 | public/private、三状态、证据无效、409 保稿、长文、删除 | `R/A` |
 | 三轴核对（Case 与岗位详情入口） | 对 Case 固定岗位版本用当前资料修订运行/查看 | 扩展 Case-scoped create/read state adapter 与 `case_pinned` Worker 上下文 | `matching` immutable run 绑定 job/profile/preference/evidence revisions；现有创建/处理只接受当前目录指针，adapter 必须由同 owner Case 授权固定旧版本并在任务载荷中供 Worker 重验；不新增 caseId | owner、资料确认、Case revision、固定版本陈旧、不输出总分；private 返回 not_applicable | V2 岗位详情关闭旧动作；Case adapter 尚未实现 | 同一 revisions 幂等/重用、固定旧版本、目录切换、任务执行前 Case 删除/升级、刷新、private | `E`：扩展 Contract/Platform/task payload；无 Case 外键/migration |
@@ -52,12 +52,12 @@
 
 | 编号 | 未决问题 | 首选核验顺序 | 关闭条件 |
 |---|---|---|---|
-| A-01 | 看板完整集合 | **已选：Case list 扩展 + board 初始 read model；无语义 migration** | UX-0 代码反证完成；>100 Case、同快照与 `EXPLAIN` 属 OS-3 实施 Gate |
+| A-01 | 看板完整集合 | **已实现：Case list 扩展 + board 初始 read model；无语义 migration** | OS-3 已通过 105 Case、同快照、逐列续页与 `EXPLAIN ANALYZE` Gate；未新增索引 |
 | A-02 | MatchRun 的 Case 恢复语义 | **已选：Case-scoped adapter + `case_pinned` Worker 上下文；按固定 job/requirement 与资料 revisions 查回，不加 caseId** | UX-0 代码反证完成；幂等 hash、任务载荷、固定旧版本与删除/升级竞态属 OS-4 Gate |
 | A-03 | Insights 与单岗 Requirements 边界 | **已实现：市场洞察归 `/jobs/insights*`，从 Case JD 明确排除** | OS-2 兼容跳转、scope/Run 深链、刷新与错误 Gate 已关闭 |
 | A-04 | Recommendation 入口与候选冻结 | **已实现：归 `/jobs/recommended*`；复用 RecommendationRun 的 search create 与 view adapter** | OS-2 scope 同义、服务器冻结、岗位投影、owner/session、请求数与空目录 Gate 已关闭 |
 | A-05 | Tailoring / Review 唯一写入所有权 | **已选：Review 唯一新写入，受控 AI 与岗位要求引用走最小 expand migration；Tailoring 历史只读** | UX-0 legacy/new-write 与滚动部署边界已锁定；migration、引用、模拟 provider 和删除矩阵属 OS-5 Gate |
-| A-06 | Web 核心响应运行时校验 | **已选并由 OS-1 建立基础；OS-2 已扩展岗位、推荐、洞察、简历与资料响应** | OS-1/OS-2 的畸形响应、敏感 payload、session、触达 parser 与包体断言已关闭；OS-3–OS-6 随触达端点扩展，OS-7 扫描余量 |
+| A-06 | Web 核心响应运行时校验 | **已选并由 OS-1 建立基础；OS-2 扩展岗位/推荐/洞察/资料，OS-3 扩展 Case list/board/transition** | OS-1–OS-3 的畸形响应、敏感 payload、session、触达 parser 与包体断言已关闭；OS-4–OS-6 随触达端点扩展，OS-7 扫描余量 |
 
 ### 3.1 UX-0 代码反证结论
 

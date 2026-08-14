@@ -1,22 +1,21 @@
 import type {
+  ApplicationCaseWithJobContext,
+  CaseStage,
   CreateApplicationCaseWithJobContextRequest,
   PrivateApplicationCaseDuplicateHandling,
   PrivateApplicationCaseSourceInput,
 } from "@aijob/contracts";
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   careerOsQueryKeys,
   createApplicationCase,
+  getApplicationBoard,
   listApplicationCases,
 } from "../../api/career-os";
 import { createIdempotencyKey } from "../../api/client";
-import {
-  compareCaseDeadline,
-  type ApplicationCaseView,
-  toApplicationCaseView,
-} from "../application-case-view";
+import { type ApplicationCaseView, toApplicationCaseView } from "../application-case-view";
 import {
   areSearchParamsEqual,
   canonicalizeApplicationsSearchParams,
@@ -26,6 +25,7 @@ import {
 import { Icon } from "../components/Icon";
 import { ModalSurface } from "../components/ModalSurface";
 import { StageBadge } from "../components/StageBadge";
+import { useMediaQuery } from "../use-media-query";
 import { caseStages, getCaseStageLabel } from "../workspace-model";
 
 interface CaseEntryProps {
@@ -326,44 +326,123 @@ export function ApplicationsPage() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [privateJdOpen, setPrivateJdOpen] = useState(false);
+  const [cityDraft, setCityDraft] = useState("");
+  const [boardAppend, setBoardAppend] = useState<
+    Partial<
+      Record<
+        CaseStage,
+        {
+          identity: string;
+          items: ApplicationCaseWithJobContext[];
+          nextCursor: string | null;
+          total: number;
+          loading: boolean;
+          error: string | null;
+        }
+      >
+    >
+  >({});
   const privateJdTriggerRef = useRef<HTMLButtonElement>(null);
   const viewState = readApplicationsViewState(searchParams);
-  const casesQuery = useInfiniteQuery({
-    queryKey: careerOsQueryKeys.caseList(),
+  const mobileBoard = useMediaQuery("(max-width: 767px)");
+  const cityFilter = viewState.city === "all" ? undefined : viewState.city;
+  const boardQuery = useQuery({
+    queryKey: careerOsQueryKeys.applicationBoard({
+      ...(cityFilter ? { city: cityFilter } : {}),
+      sort: viewState.sort,
+    }),
+    queryFn: ({ signal }) =>
+      getApplicationBoard(
+        {
+          ...(cityFilter ? { city: cityFilter } : {}),
+          sort: viewState.sort,
+          limitPerStage: 20,
+        },
+        signal,
+      ),
+    enabled: viewState.view === "board",
+  });
+  const listQuery = useInfiniteQuery({
+    queryKey: careerOsQueryKeys.caseList({
+      stage: viewState.stage,
+      city: viewState.city,
+      sort: viewState.sort,
+    }),
     initialPageParam: null as string | null,
     queryFn: ({ pageParam, signal }) =>
-      listApplicationCases({ limit: 100, ...(pageParam ? { cursor: pageParam } : {}) }, signal),
+      listApplicationCases(
+        {
+          limit: 50,
+          ...(viewState.stage !== "all" ? { stage: viewState.stage } : {}),
+          ...(cityFilter ? { city: cityFilter } : {}),
+          sort: viewState.sort,
+          ...(pageParam ? { cursor: pageParam } : {}),
+        },
+        signal,
+      ),
     getNextPageParam: (lastPage) => lastPage.nextCursor,
+    enabled: viewState.view === "list",
   });
+  const boardIdentity = `${boardQuery.data?.generatedAt ?? "pending"}:${viewState.city}:${viewState.sort}`;
+  const boardIdentityRef = useRef(boardIdentity);
+  boardIdentityRef.current = boardIdentity;
 
   useEffect(() => {
-    const canonical = canonicalizeApplicationsSearchParams(searchParams);
+    let canonical = canonicalizeApplicationsSearchParams(searchParams);
+    const canonicalState = readApplicationsViewState(canonical);
+    if (mobileBoard && canonicalState.view === "board" && canonicalState.stage === "all") {
+      canonical = writeApplicationsViewState(canonical, {
+        ...canonicalState,
+        stage: caseStages[0].value,
+      });
+    }
     if (!areSearchParamsEqual(searchParams, canonical)) {
       setSearchParams(canonical, { replace: true });
     }
-  }, [searchParams, setSearchParams]);
+  }, [mobileBoard, searchParams, setSearchParams]);
 
-  const loadedCases = useMemo(
-    () => (casesQuery.data?.pages ?? []).flatMap((page) => page.items).map(toApplicationCaseView),
-    [casesQuery.data?.pages],
+  useEffect(() => {
+    setCityDraft(viewState.city === "all" ? "" : viewState.city);
+  }, [viewState.city]);
+
+  const listCases = useMemo(
+    () => (listQuery.data?.pages ?? []).flatMap((page) => page.items).map(toApplicationCaseView),
+    [listQuery.data?.pages],
   );
-  const cityOptions = useMemo(
+  const boardColumns = useMemo(
     () =>
-      [...new Set(loadedCases.flatMap((applicationCase) => applicationCase.locationValues))].sort(),
-    [loadedCases],
+      (boardQuery.data?.columns ?? []).map((column) => {
+        const append = boardAppend[column.stage];
+        const activeAppend = append?.identity === boardIdentity ? append : undefined;
+        const items = [...column.items, ...(activeAppend?.items ?? [])];
+        return {
+          ...column,
+          items: [...new Map(items.map((item) => [item.id, item])).values()].map(
+            toApplicationCaseView,
+          ),
+          total: activeAppend?.total ?? column.total,
+          nextCursor: activeAppend?.nextCursor ?? column.nextCursor,
+          loading: activeAppend?.loading ?? false,
+          error: activeAppend?.error ?? null,
+        };
+      }),
+    [boardAppend, boardIdentity, boardQuery.data?.columns],
   );
-  const filteredCases = useMemo(() => {
-    const filtered = loadedCases.filter(
-      (applicationCase) =>
-        (viewState.stage === "all" || applicationCase.stage === viewState.stage) &&
-        (viewState.city === "all" || applicationCase.locationValues.includes(viewState.city)),
-    );
-    return [...filtered].sort((left, right) =>
-      viewState.sort === "deadline"
-        ? compareCaseDeadline(left, right)
-        : right.updatedAt.localeCompare(left.updatedAt) || left.id.localeCompare(right.id),
-    );
-  }, [loadedCases, viewState.city, viewState.sort, viewState.stage]);
+  const citySuggestions = useMemo(() => {
+    const rawCases = [
+      ...(boardQuery.data?.columns.flatMap((column) => column.items) ?? []),
+      ...(listQuery.data?.pages.flatMap((page) => page.items) ?? []),
+    ];
+    return [
+      ...new Set(
+        rawCases.flatMap((applicationCase) =>
+          applicationCase.jobDisplay.locations.state === "known"
+            ? applicationCase.jobDisplay.locations.value
+            : [],
+        ),
+      ),
+    ].sort((left, right) => left.localeCompare(right, "zh-CN"));
+  }, [boardQuery.data?.columns, listQuery.data?.pages]);
 
   const updateViewState = (patch: Partial<typeof viewState>) => {
     setSearchParams(writeApplicationsViewState(searchParams, { ...viewState, ...patch }));
@@ -376,20 +455,87 @@ export function ApplicationsPage() {
   const closePrivateJd = () => {
     setPrivateJdOpen(false);
   };
+  const loadBoardColumn = async (stage: CaseStage) => {
+    const column = boardColumns.find((item) => item.stage === stage);
+    if (!column?.nextCursor || column.loading) return;
+    const identity = boardIdentity;
+    const existing = boardAppend[stage]?.identity === identity ? boardAppend[stage] : undefined;
+    setBoardAppend((current) => ({
+      ...current,
+      [stage]: {
+        identity,
+        items: existing?.items ?? [],
+        nextCursor: column.nextCursor,
+        total: existing?.total ?? column.total,
+        loading: true,
+        error: null,
+      },
+    }));
+    try {
+      const page = await listApplicationCases({
+        stage,
+        limit: 20,
+        ...(cityFilter ? { city: cityFilter } : {}),
+        sort: viewState.sort,
+        cursor: column.nextCursor,
+      });
+      if (boardIdentityRef.current !== identity) return;
+      setBoardAppend((current) => {
+        const latest = current[stage];
+        const previousItems = latest?.identity === identity ? latest.items : [];
+        return {
+          ...current,
+          [stage]: {
+            identity,
+            items: [...previousItems, ...page.items],
+            nextCursor: page.nextCursor,
+            total: page.total,
+            loading: false,
+            error: null,
+          },
+        };
+      });
+    } catch (error) {
+      if (boardIdentityRef.current !== identity) return;
+      setBoardAppend((current) => {
+        const latest = current[stage];
+        return {
+          ...current,
+          [stage]: {
+            identity,
+            items: latest?.identity === identity ? latest.items : [],
+            nextCursor: column.nextCursor,
+            total: latest?.identity === identity ? latest.total : column.total,
+            loading: false,
+            error: error instanceof Error ? error.message : "该列暂时无法继续读取。",
+          },
+        };
+      });
+    }
+  };
+  const effectiveBoardStage =
+    mobileBoard && viewState.stage === "all" ? caseStages[0].value : viewState.stage;
   const visibleStages =
-    viewState.stage === "all"
+    effectiveBoardStage === "all"
       ? caseStages
-      : caseStages.filter((stage) => stage.value === viewState.stage);
+      : caseStages.filter((stage) => stage.value === effectiveBoardStage);
+  const visibleBoardColumns = visibleStages
+    .map((stage) => boardColumns.find((column) => column.stage === stage.value))
+    .filter((column): column is (typeof boardColumns)[number] => Boolean(column));
+  const visibleBoardTotal = visibleBoardColumns.reduce((sum, column) => sum + column.total, 0);
+  const collectionTotal =
+    viewState.view === "board"
+      ? visibleBoardTotal
+      : (listQuery.data?.pages[0]?.total ?? listCases.length);
+  const activeQuery = viewState.view === "board" ? boardQuery : listQuery;
+  const collectionEmpty = !activeQuery.isPending && !activeQuery.isError && collectionTotal === 0;
 
   return (
     <section className="career-applications-page" aria-labelledby="applications-title">
       <header className="career-page-heading">
         <div>
           <h1 id="applications-title">我的求职</h1>
-          <p>
-            已加载 {loadedCases.length} 个真实求职项目
-            {casesQuery.hasNextPage ? "，还有更多" : ""}
-          </p>
+          <p aria-live="polite">当前筛选共 {collectionTotal} 个求职项目</p>
         </div>
         <button
           ref={privateJdTriggerRef}
@@ -432,7 +578,7 @@ export function ApplicationsPage() {
           </button>
         </fieldset>
 
-        <label>
+        <label className="career-view-toolbar__stage">
           <span>阶段</span>
           <select
             value={viewState.stage}
@@ -449,23 +595,49 @@ export function ApplicationsPage() {
           </select>
         </label>
 
-        <label>
-          <span>城市</span>
-          <select
-            value={viewState.city}
-            onChange={(event) => updateViewState({ city: event.target.value })}
-          >
-            <option value="all">全部城市</option>
-            {viewState.city !== "all" && !cityOptions.includes(viewState.city) ? (
-              <option value={viewState.city}>{viewState.city}</option>
-            ) : null}
-            {cityOptions.map((city) => (
-              <option key={city} value={city}>
-                {city}
-              </option>
+        <form
+          className="career-city-filter"
+          onSubmit={(event) => {
+            event.preventDefault();
+            updateViewState({ city: cityDraft.trim() || "all" });
+          }}
+        >
+          <label>
+            <span>城市</span>
+            <input
+              type="search"
+              list="career-application-city-options"
+              maxLength={120}
+              placeholder="全部城市"
+              value={cityDraft}
+              onChange={(event) => setCityDraft(event.target.value)}
+            />
+          </label>
+          <datalist id="career-application-city-options">
+            {citySuggestions.map((city) => (
+              <option key={city} value={city} />
             ))}
-          </select>
-        </label>
+          </datalist>
+          <button
+            className="career-icon-button"
+            type="submit"
+            aria-label="应用城市筛选"
+            title="应用城市筛选"
+          >
+            <Icon name="search" size={17} />
+          </button>
+          {viewState.city !== "all" ? (
+            <button
+              className="career-icon-button"
+              type="button"
+              aria-label="清除城市筛选"
+              title="清除城市筛选"
+              onClick={() => updateViewState({ city: "all" })}
+            >
+              <Icon name="close" size={16} />
+            </button>
+          ) : null}
+        </form>
 
         <label className="career-view-toolbar__sort">
           <span>排序</span>
@@ -481,19 +653,40 @@ export function ApplicationsPage() {
         </label>
       </div>
 
-      {casesQuery.isPending ? (
+      {viewState.view === "board" ? (
+        <fieldset className="career-mobile-stage-control">
+          <legend>看板阶段</legend>
+          {caseStages.map((stage) => {
+            const count = boardColumns.find((column) => column.stage === stage.value)?.total ?? 0;
+            return (
+              <button
+                key={stage.value}
+                type="button"
+                className={effectiveBoardStage === stage.value ? "is-active" : undefined}
+                aria-pressed={effectiveBoardStage === stage.value}
+                onClick={() => updateViewState({ stage: stage.value })}
+              >
+                {stage.label}
+                <span>{count}</span>
+              </button>
+            );
+          })}
+        </fieldset>
+      ) : null}
+
+      {activeQuery.isPending ? (
         <output className="career-request-state">正在读取求职项目…</output>
-      ) : casesQuery.isError ? (
+      ) : activeQuery.isError ? (
         <div className="career-request-state career-inline-error" role="alert">
           <strong>求职项目暂时无法读取</strong>
           <span>
-            {casesQuery.error instanceof Error ? casesQuery.error.message : "请稍后重试。"}
+            {activeQuery.error instanceof Error ? activeQuery.error.message : "请稍后重试。"}
           </span>
-          <button type="button" onClick={() => void casesQuery.refetch()}>
+          <button type="button" onClick={() => void activeQuery.refetch()}>
             重新读取
           </button>
         </div>
-      ) : loadedCases.length === 0 ? (
+      ) : collectionEmpty && viewState.stage === "all" && viewState.city === "all" ? (
         <div className="career-empty-state career-empty-state--actions">
           <strong>还没有求职项目</strong>
           <p>从本地离线岗位开始，或导入一份只对你可见的 JD。</p>
@@ -512,7 +705,7 @@ export function ApplicationsPage() {
             </button>
           </div>
         </div>
-      ) : filteredCases.length === 0 ? (
+      ) : collectionEmpty ? (
         <div className="career-empty-state">
           <strong>当前筛选下没有求职项目</strong>
           <button type="button" onClick={() => updateViewState({ stage: "all", city: "all" })}>
@@ -521,35 +714,50 @@ export function ApplicationsPage() {
         </div>
       ) : viewState.view === "board" ? (
         <section className="career-case-board" aria-label="求职项目看板">
-          {visibleStages.map((stage) => {
-            const stageCases = filteredCases.filter(
-              (applicationCase) => applicationCase.stage === stage.value,
-            );
-            return (
-              <section
-                key={stage.value}
-                className={`career-case-column career-case-column--${stage.value}`}
-              >
-                <header>
-                  <h2>{stage.label}</h2>
-                  <span>{stageCases.length}</span>
-                </header>
-                <div className="career-case-column__items">
-                  {stageCases.length > 0 ? (
-                    stageCases.map((applicationCase) => (
-                      <CaseCard
-                        key={applicationCase.id}
-                        applicationCase={applicationCase}
-                        onOpen={() => openInspector(applicationCase.id)}
-                      />
-                    ))
-                  ) : (
-                    <p>暂无{getCaseStageLabel(stage.value)}项目</p>
-                  )}
+          {visibleBoardColumns.map((column) => (
+            <section
+              key={column.stage}
+              className={`career-case-column career-case-column--${column.stage}`}
+            >
+              <header>
+                <h2>{getCaseStageLabel(column.stage)}</h2>
+                <span title={`${column.total} 个项目`}>{column.total}</span>
+              </header>
+              <div className="career-case-column__items">
+                {column.items.length > 0 ? (
+                  column.items.map((applicationCase) => (
+                    <CaseCard
+                      key={applicationCase.id}
+                      applicationCase={applicationCase}
+                      onOpen={() => openInspector(applicationCase.id)}
+                    />
+                  ))
+                ) : (
+                  <p>暂无{getCaseStageLabel(column.stage)}项目</p>
+                )}
+              </div>
+              {column.error ? (
+                <div className="career-case-column__error" role="alert">
+                  <span>{column.error}</span>
+                  <button type="button" onClick={() => void loadBoardColumn(column.stage)}>
+                    重试
+                  </button>
                 </div>
-              </section>
-            );
-          })}
+              ) : null}
+              {column.nextCursor ? (
+                <button
+                  className="career-case-column__more"
+                  type="button"
+                  disabled={column.loading}
+                  onClick={() => void loadBoardColumn(column.stage)}
+                >
+                  {column.loading
+                    ? "正在加载…"
+                    : `继续加载（已显示 ${column.items.length}/${column.total}）`}
+                </button>
+              ) : null}
+            </section>
+          ))}
         </section>
       ) : (
         <section className="career-case-list" aria-label="求职项目列表">
@@ -560,7 +768,7 @@ export function ApplicationsPage() {
             <span>来源</span>
             <span />
           </div>
-          {filteredCases.map((applicationCase) => (
+          {listCases.map((applicationCase) => (
             <CaseListRow
               key={applicationCase.id}
               applicationCase={applicationCase}
@@ -570,15 +778,17 @@ export function ApplicationsPage() {
         </section>
       )}
 
-      {casesQuery.hasNextPage ? (
+      {viewState.view === "list" && listQuery.hasNextPage ? (
         <div className="career-load-more">
           <button
             className="career-button career-button--quiet"
             type="button"
-            disabled={casesQuery.isFetchingNextPage}
-            onClick={() => void casesQuery.fetchNextPage()}
+            disabled={listQuery.isFetchingNextPage}
+            onClick={() => void listQuery.fetchNextPage()}
           >
-            {casesQuery.isFetchingNextPage ? "正在加载…" : "继续加载"}
+            {listQuery.isFetchingNextPage
+              ? "正在加载…"
+              : `继续加载（已显示 ${listCases.length}/${collectionTotal}）`}
           </button>
         </div>
       ) : null}

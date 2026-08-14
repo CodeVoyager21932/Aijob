@@ -1,7 +1,11 @@
 import { randomUUID } from "node:crypto";
 import {
+  type ApplicationBoardQuery,
+  type ApplicationBoardResponse,
+  ApplicationBoardResponseSchema,
   type ApplicationCaseCommandResponse,
   ApplicationCaseCommandResponseSchema,
+  type ApplicationCaseCursor,
   ApplicationCaseCursorSchema,
   type ApplicationCaseEvent,
   type ApplicationCaseEventReadModel,
@@ -25,6 +29,7 @@ import {
   type CaseRequirementStateReadModel,
   CaseRequirementStateReadModelSchema,
   type CaseStage,
+  CaseStageSchema,
   type CreateApplicationCaseResponse,
   CreateApplicationCaseResponseSchema,
   type CreateApplicationCaseWithJobContextRequest,
@@ -155,7 +160,7 @@ interface ApplicationCaseReadRow {
 
 const CursorEnvelopeSchema = z
   .object({
-    version: z.literal(1),
+    version: z.literal(2),
     query: z.string().regex(/^[a-f0-9]{16}$/),
     position: ApplicationCaseCursorSchema,
   })
@@ -1131,16 +1136,42 @@ async function loadEligibleCurrentPublicVersion(
   return ((await query.executeTakeFirst()) as PublicVersionRow | undefined) ?? null;
 }
 
-function cursorQueryHash(query: Pick<ListApplicationCasesQuery, "stage">): string {
-  return hashCanonicalJson({ stage: query.stage ?? null }).slice(0, 16);
+function cursorQueryHash(
+  query: Pick<ListApplicationCasesQuery, "stage" | "city" | "sort">,
+): string {
+  return hashCanonicalJson({
+    stage: query.stage ?? null,
+    city: query.city ?? null,
+    sort: query.sort,
+  }).slice(0, 16);
 }
 
-function encodeCursor(applicationCase: ApplicationCaseWithJobContext, queryHash: string): string {
+function encodeCursor(
+  applicationCase: ApplicationCaseWithJobContext,
+  queryHash: string,
+  sort: ListApplicationCasesQuery["sort"],
+): string {
+  const position: ApplicationCaseCursor =
+    sort === "deadline"
+      ? {
+          sort,
+          deadlineAt:
+            applicationCase.jobDisplay.deadlineAt.state === "known"
+              ? applicationCase.jobDisplay.deadlineAt.value
+              : null,
+          updatedAt: applicationCase.updatedAt,
+          id: applicationCase.id,
+        }
+      : {
+          sort,
+          updatedAt: applicationCase.updatedAt,
+          id: applicationCase.id,
+        };
   return Buffer.from(
     JSON.stringify({
-      version: 1,
+      version: 2,
       query: queryHash,
-      position: { updatedAt: applicationCase.updatedAt, id: applicationCase.id },
+      position,
     }),
     "utf8",
   ).toString("base64url");
@@ -1162,13 +1193,19 @@ function decodeCursor(value: string, queryHash: string) {
   }
 }
 
-export async function listApplicationCases(input: {
-  db: Kysely<Database>;
+function knownDeadlineExpression() {
+  return sql<Date | null>`CASE
+    WHEN public_version.deadline_at ->> 'state' = 'known'
+      THEN (public_version.deadline_at ->> 'value')::timestamptz
+    ELSE NULL
+  END`;
+}
+
+function applicationCaseCollectionQuery(input: {
+  db: DbExecutor;
   owner: OwnerScope;
   query: ListApplicationCasesQuery;
-}): Promise<ListApplicationCasesResponse> {
-  const queryHash = cursorQueryHash(input.query);
-  const cursor = input.query.cursor ? decodeCursor(input.query.cursor, queryHash) : null;
+}) {
   let query = caseReadQuery(input.db)
     .where("application_case.owner_id", "=", input.owner.ownerId)
     .where("application_case.owner_epoch", "=", input.owner.ownerEpoch)
@@ -1177,9 +1214,27 @@ export async function listApplicationCases(input: {
   if (input.query.stage) {
     query = query.where("application_case.stage", "=", input.query.stage);
   }
-  if (cursor) {
-    const updatedAt = new Date(cursor.updatedAt);
-    query = query.where((expression) =>
+  if (input.query.city) {
+    const city = input.query.city;
+    query = query.where(sql<boolean>`
+      public_version.locations ->> 'state' = 'known'
+      AND COALESCE(
+        (public_version.locations -> 'value') @> ${JSON.stringify([city])}::jsonb,
+        FALSE
+      )
+    `);
+  }
+  return query;
+}
+
+function applyApplicationCaseCursor(
+  query: ReturnType<typeof applicationCaseCollectionQuery>,
+  cursor: ApplicationCaseCursor | null,
+) {
+  if (!cursor) return query;
+  const updatedAt = new Date(cursor.updatedAt);
+  if (cursor.sort === "updated") {
+    return query.where((expression) =>
       expression.or([
         expression("application_case.updated_at", "<", updatedAt),
         expression.and([
@@ -1190,9 +1245,58 @@ export async function listApplicationCases(input: {
     );
   }
 
-  const rows = await query
-    .orderBy("application_case.updated_at", "desc")
-    .orderBy("application_case.id", "desc")
+  if (cursor.deadlineAt === null) {
+    return query.where(sql<boolean>`
+      ${knownDeadlineExpression()} IS NULL
+      AND (
+        application_case.updated_at < ${updatedAt}
+        OR (
+          application_case.updated_at = ${updatedAt}
+          AND application_case.id < ${cursor.id}
+        )
+      )
+    `);
+  }
+  const deadlineAt = new Date(cursor.deadlineAt);
+  return query.where(sql<boolean>`
+    ${knownDeadlineExpression()} > ${deadlineAt}
+    OR ${knownDeadlineExpression()} IS NULL
+    OR (
+      ${knownDeadlineExpression()} = ${deadlineAt}
+      AND (
+        application_case.updated_at < ${updatedAt}
+        OR (
+          application_case.updated_at = ${updatedAt}
+          AND application_case.id < ${cursor.id}
+        )
+      )
+    )
+  `);
+}
+
+async function readApplicationCaseCollection(input: {
+  db: DbExecutor;
+  owner: OwnerScope;
+  query: ListApplicationCasesQuery;
+}): Promise<ListApplicationCasesResponse> {
+  const queryHash = cursorQueryHash(input.query);
+  const cursor = input.query.cursor ? decodeCursor(input.query.cursor, queryHash) : null;
+  const collectionQuery = applicationCaseCollectionQuery(input);
+  const countRow = await collectionQuery
+    .clearSelect()
+    .select(({ fn }) => fn.countAll<number>().as("count"))
+    .executeTakeFirstOrThrow();
+  let pageQuery = applyApplicationCaseCursor(collectionQuery, cursor);
+  pageQuery =
+    input.query.sort === "deadline"
+      ? pageQuery
+          .orderBy(knownDeadlineExpression(), (order) => order.asc().nullsLast())
+          .orderBy("application_case.updated_at", "desc")
+          .orderBy("application_case.id", "desc")
+      : pageQuery
+          .orderBy("application_case.updated_at", "desc")
+          .orderBy("application_case.id", "desc");
+  const rows = await pageQuery
     .limit(input.query.limit + 1)
     .execute();
   const hasMore = rows.length > input.query.limit;
@@ -1202,8 +1306,59 @@ export async function listApplicationCases(input: {
   const lastItem = items.at(-1);
   return ListApplicationCasesResponseSchema.parse({
     items,
-    nextCursor: hasMore && lastItem ? encodeCursor(lastItem, queryHash) : null,
+    nextCursor: hasMore && lastItem ? encodeCursor(lastItem, queryHash, input.query.sort) : null,
+    total: Number(countRow.count),
   });
+}
+
+export async function listApplicationCases(input: {
+  db: Kysely<Database>;
+  owner: OwnerScope;
+  query: ListApplicationCasesQuery;
+}): Promise<ListApplicationCasesResponse> {
+  return input.db
+    .transaction()
+    .setIsolationLevel("repeatable read")
+    .execute(async (transaction) => {
+      await assertActiveOwnerEpoch(transaction, input.owner.ownerId, input.owner.ownerEpoch);
+      return readApplicationCaseCollection({ ...input, db: transaction });
+    });
+}
+
+export async function getApplicationBoard(input: {
+  db: Kysely<Database>;
+  owner: OwnerScope;
+  query: ApplicationBoardQuery;
+}): Promise<ApplicationBoardResponse> {
+  return input.db
+    .transaction()
+    .setIsolationLevel("repeatable read")
+    .execute(async (transaction) => {
+      await assertActiveOwnerEpoch(transaction, input.owner.ownerId, input.owner.ownerEpoch);
+      const timestamp = await transaction
+        .selectNoFrom(sql<Date>`transaction_timestamp()`.as("generated_at"))
+        .executeTakeFirstOrThrow();
+      const columns: ApplicationBoardResponse["columns"] = [];
+      for (const stage of CaseStageSchema.options) {
+        const result = await readApplicationCaseCollection({
+          db: transaction,
+          owner: input.owner,
+          query: {
+            stage,
+            limit: input.query.limitPerStage,
+            sort: input.query.sort,
+            ...(input.query.city ? { city: input.query.city } : {}),
+          },
+        });
+        columns.push({ stage, ...result });
+      }
+      return ApplicationBoardResponseSchema.parse({
+        schemaVersion: "application-board-v1",
+        generatedAt: toIso(timestamp.generated_at),
+        filters: { city: input.query.city ?? null, sort: input.query.sort },
+        columns,
+      });
+    });
 }
 
 function encodeEventCursor(caseId: string, beforeSequence: number): string {

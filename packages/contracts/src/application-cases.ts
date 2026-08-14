@@ -355,12 +355,30 @@ export type UpgradeApplicationCaseJobVersionRequest = z.infer<
   typeof UpgradeApplicationCaseJobVersionRequestSchema
 >;
 
-export const ApplicationCaseCursorSchema = z
+export const ApplicationCaseSortSchema = z.enum(["updated", "deadline"]);
+export type ApplicationCaseSort = z.infer<typeof ApplicationCaseSortSchema>;
+
+const UpdatedApplicationCaseCursorSchema = z
   .object({
+    sort: z.literal("updated"),
     updatedAt: TimestampSchema,
     id: UuidSchema,
   })
   .strict();
+
+const DeadlineApplicationCaseCursorSchema = z
+  .object({
+    sort: z.literal("deadline"),
+    deadlineAt: TimestampSchema.nullable(),
+    updatedAt: TimestampSchema,
+    id: UuidSchema,
+  })
+  .strict();
+
+export const ApplicationCaseCursorSchema = z.discriminatedUnion("sort", [
+  UpdatedApplicationCaseCursorSchema,
+  DeadlineApplicationCaseCursorSchema,
+]);
 export type ApplicationCaseCursor = z.infer<typeof ApplicationCaseCursorSchema>;
 
 export const ListApplicationCasesQuerySchema = z
@@ -368,9 +386,20 @@ export const ListApplicationCasesQuerySchema = z
     cursor: z.string().trim().min(1).max(1_024).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(20),
     stage: CaseStageSchema.optional(),
+    city: z.string().trim().min(1).max(120).optional(),
+    sort: ApplicationCaseSortSchema.default("updated"),
   })
   .strict();
 export type ListApplicationCasesQuery = z.infer<typeof ListApplicationCasesQuerySchema>;
+
+export const ApplicationBoardQuerySchema = z
+  .object({
+    city: z.string().trim().min(1).max(120).optional(),
+    sort: ApplicationCaseSortSchema.default("updated"),
+    limitPerStage: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .strict();
+export type ApplicationBoardQuery = z.infer<typeof ApplicationBoardQuerySchema>;
 
 export const ListApplicationCaseEventsQuerySchema = z
   .object({
@@ -384,9 +413,46 @@ export const ListApplicationCasesResponseSchema = z
   .object({
     items: z.array(ApplicationCaseWithJobContextSchema),
     nextCursor: z.string().trim().min(1).nullable(),
+    total: z.number().int().nonnegative(),
   })
   .strict();
 export type ListApplicationCasesResponse = z.infer<typeof ListApplicationCasesResponseSchema>;
+
+export const ApplicationBoardColumnSchema = z
+  .object({
+    stage: CaseStageSchema,
+    total: z.number().int().nonnegative(),
+    items: z.array(ApplicationCaseWithJobContextSchema),
+    nextCursor: z.string().trim().min(1).nullable(),
+  })
+  .strict();
+export type ApplicationBoardColumn = z.infer<typeof ApplicationBoardColumnSchema>;
+
+export const ApplicationBoardResponseSchema = z
+  .object({
+    schemaVersion: z.literal("application-board-v1"),
+    generatedAt: TimestampSchema,
+    filters: z
+      .object({
+        city: z.string().trim().min(1).max(120).nullable(),
+        sort: ApplicationCaseSortSchema,
+      })
+      .strict(),
+    columns: z.array(ApplicationBoardColumnSchema).length(CaseStageSchema.options.length),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    for (const [index, stage] of CaseStageSchema.options.entries()) {
+      if (value.columns[index]?.stage !== stage) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["columns", index, "stage"],
+          message: `Board column ${index + 1} must be ${stage}`,
+        });
+      }
+    }
+  });
+export type ApplicationBoardResponse = z.infer<typeof ApplicationBoardResponseSchema>;
 
 export const CreateApplicationCaseResponseSchema = z
   .object({

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { AppConfig } from "@aijob/config";
 import {
+  ApplicationBoardResponseSchema,
   ApplicationCaseCommandResponseSchema,
   ApplicationCaseJobVersionDiffResponseSchema,
   ApplicationCaseMutationResponseSchema,
@@ -63,6 +64,7 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
   let firstSession: Awaited<ReturnType<typeof createAnonymousSession>>;
   let secondSession: Awaited<ReturnType<typeof createAnonymousSession>>;
   let requirementsSession: Awaited<ReturnType<typeof createAnonymousSession>>;
+  let boardScaleSession: Awaited<ReturnType<typeof createAnonymousSession>>;
   let expiredSession: Awaited<ReturnType<typeof createAnonymousSession>>;
   const ownerContexts: OwnerContext[] = [];
   const organizationId = randomUUID();
@@ -93,11 +95,13 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
     firstSession = await createAnonymousSession({ db });
     secondSession = await createAnonymousSession({ db });
     requirementsSession = await createAnonymousSession({ db });
+    boardScaleSession = await createAnonymousSession({ db });
     expiredSession = await createAnonymousSession({ db });
     ownerContexts.push(
       firstSession.context,
       secondSession.context,
       requirementsSession.context,
+      boardScaleSession.context,
       expiredSession.context,
     );
 
@@ -233,6 +237,17 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
                     state: "known",
                     value: ["Shanghai"],
                     evidenceRefs: [`${fixture.revisionId}#location`],
+                  })
+                : unknown,
+            deadline_at:
+              fixture.index < 2
+                ? JSON.stringify({
+                    state: "known",
+                    value:
+                      fixture.index === 0
+                        ? "2026-09-20T00:00:00.000Z"
+                        : "2026-09-10T00:00:00.000Z",
+                    evidenceRefs: [`${fixture.revisionId}#deadline`],
                   })
                 : unknown,
             responsibilities: "Synthetic product research responsibilities.",
@@ -820,6 +835,7 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
     expect(ListApplicationCasesResponseSchema.parse(otherOwnerList.json())).toEqual({
       items: [],
       nextCursor: null,
+      total: 0,
     });
 
     const otherOwnerRead = await app.inject({
@@ -832,9 +848,16 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       url: `/v1/application-cases/${randomUUID()}`,
       headers,
     });
+    const invalidRead = await app.inject({
+      method: "GET",
+      url: "/v1/application-cases/not-a-case-id",
+      headers,
+    });
     expect(otherOwnerRead.statusCode).toBe(404);
     expect(missingRead.statusCode).toBe(404);
+    expect(invalidRead.statusCode).toBe(404);
     expect(otherOwnerRead.json().code).toBe(missingRead.json().code);
+    expect(invalidRead.json().code).toBe(missingRead.json().code);
 
     const crossOwnerPrivate = await app.inject({
       method: "POST",
@@ -974,6 +997,7 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
     const firstPageBody = ListApplicationCasesResponseSchema.parse(firstPage.json());
     expect(firstPageBody.items.map(({ id }) => id)).toEqual(expectedIds.slice(0, 2));
     expect(firstPageBody.nextCursor).toBeTruthy();
+    expect(firstPageBody.total).toBe(4);
 
     const secondPage = await app.inject({
       method: "GET",
@@ -983,6 +1007,93 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
     const secondPageBody = ListApplicationCasesResponseSchema.parse(secondPage.json());
     expect(secondPageBody.items.map(({ id }) => id)).toEqual(expectedIds.slice(2));
     expect(secondPageBody.nextCursor).toBeNull();
+    expect(secondPageBody.total).toBe(4);
+
+    const cityPage = await app.inject({
+      method: "GET",
+      url: "/v1/application-cases?city=Shanghai&sort=deadline&limit=1",
+      headers,
+    });
+    expect(cityPage.statusCode).toBe(200);
+    const cityPageBody = ListApplicationCasesResponseSchema.parse(cityPage.json());
+    expect(cityPageBody).toMatchObject({
+      total: 1,
+      nextCursor: null,
+      items: [{ id: secondPublicBody.applicationCase.id }],
+    });
+
+    const deadlinePage = await app.inject({
+      method: "GET",
+      url: "/v1/application-cases?sort=deadline&limit=2",
+      headers,
+    });
+    expect(deadlinePage.statusCode).toBe(200);
+    const deadlinePageBody = ListApplicationCasesResponseSchema.parse(deadlinePage.json());
+    expect(deadlinePageBody.items.map(({ id }) => id)).toEqual([
+      secondPublicBody.applicationCase.id,
+      createdBody.applicationCase.id,
+    ]);
+    expect(deadlinePageBody.total).toBe(4);
+    expect(deadlinePageBody.nextCursor).toBeTruthy();
+
+    const boardResponse = await app.inject({
+      method: "GET",
+      url: "/v1/application-cases/board?sort=deadline&limitPerStage=2",
+      headers,
+    });
+    expect(boardResponse.statusCode).toBe(200);
+    const board = ApplicationBoardResponseSchema.parse(boardResponse.json());
+    expect(board.filters).toEqual({ city: null, sort: "deadline" });
+    expect(board.columns.map(({ stage }) => stage)).toEqual([
+      "interested",
+      "preparing",
+      "applied",
+      "interviewing",
+      "resolved",
+    ]);
+    expect(board.columns[0]).toMatchObject({
+      stage: "interested",
+      total: 4,
+      items: [
+        { id: secondPublicBody.applicationCase.id },
+        { id: createdBody.applicationCase.id },
+      ],
+    });
+    expect(board.columns[0]?.nextCursor).toBeTruthy();
+    expect(board.columns.slice(1).every(({ total, items }) => total === 0 && items.length === 0)).toBe(
+      true,
+    );
+
+    const interestedContinuation = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases?stage=interested&sort=deadline&limit=2&cursor=${encodeURIComponent(board.columns[0]?.nextCursor as string)}`,
+      headers,
+    });
+    expect(interestedContinuation.statusCode).toBe(200);
+    const interestedContinuationBody = ListApplicationCasesResponseSchema.parse(
+      interestedContinuation.json(),
+    );
+    expect(interestedContinuationBody.total).toBe(4);
+    expect(interestedContinuationBody.items).toHaveLength(2);
+    expect(interestedContinuationBody.nextCursor).toBeNull();
+
+    const crossSortCursor = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases?sort=updated&cursor=${encodeURIComponent(deadlinePageBody.nextCursor as string)}`,
+      headers,
+    });
+    expect(crossSortCursor.statusCode).toBe(400);
+    expect(crossSortCursor.json()).toMatchObject({ code: "INVALID_APPLICATION_CASE_CURSOR" });
+
+    const invalidBoardQuery = await app.inject({
+      method: "GET",
+      url: "/v1/application-cases/board?limitPerStage=101",
+      headers,
+    });
+    expect(invalidBoardQuery.statusCode).toBe(400);
+    expect(invalidBoardQuery.json()).toMatchObject({
+      code: "INVALID_APPLICATION_BOARD_QUERY",
+    });
 
     const crossFilterCursor = await app.inject({
       method: "GET",
@@ -1008,6 +1119,7 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
     expect(ListApplicationCasesResponseSchema.parse(resolvedCases.json())).toEqual({
       items: [],
       nextCursor: null,
+      total: 0,
     });
 
     const legacyDecisions = await app.inject({
@@ -1416,6 +1528,83 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       .where("owner_id", "=", firstSession.context.ownerId)
       .executeTakeFirstOrThrow();
     expect(deletedSnapshot.deleted_at).not.toBeNull();
+  }, 40_000);
+
+  it("paginates more than one hundred Cases without leaking deleted or stale owner epochs", async () => {
+    const fixture = publicFixtures[2];
+    if (!fixture) throw new Error("PUBLIC_FIXTURE_MISSING");
+    const baseTime = Date.now() + 120_000;
+    const visibleIds = Array.from({ length: 105 }, () => randomUUID());
+    const deletedId = randomUUID();
+    const staleEpochId = randomUUID();
+    const rows = [...visibleIds, deletedId, staleEpochId].map((id, index) => {
+      const createdAt = new Date(baseTime + index * 1_000);
+      return {
+        id,
+        owner_id: boardScaleSession.context.ownerId,
+        owner_epoch:
+          id === staleEpochId
+            ? boardScaleSession.context.ownerEpoch + 1
+            : boardScaleSession.context.ownerEpoch,
+        published_job_id: fixture.jobId,
+        published_job_version_id: fixture.versionId,
+        requirement_set_id: fixture.requirementSetId,
+        job_context_kind: "public",
+        private_job_snapshot_id: null,
+        job_context_revision: 1,
+        stage: "resolved",
+        outcome: "withdrawn",
+        revision: 1,
+        creation_idempotency_key: `board-scale-${index}-${id}`,
+        creation_request_hash: "b".repeat(64),
+        expires_at: null,
+        ended_at: createdAt,
+        deleted_at: id === deletedId ? createdAt : null,
+        created_at: createdAt,
+        updated_at: createdAt,
+      };
+    });
+    await db.insertInto("application.application_cases").values(rows).execute();
+
+    const headers = sessionHeaders(boardScaleSession);
+    const firstPage = await app.inject({
+      method: "GET",
+      url: "/v1/application-cases?stage=resolved&limit=100",
+      headers,
+    });
+    expect(firstPage.statusCode).toBe(200);
+    const firstPageBody = ListApplicationCasesResponseSchema.parse(firstPage.json());
+    expect(firstPageBody.total).toBe(105);
+    expect(firstPageBody.items).toHaveLength(100);
+    expect(firstPageBody.nextCursor).toBeTruthy();
+
+    const secondPage = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases?stage=resolved&limit=100&cursor=${encodeURIComponent(firstPageBody.nextCursor as string)}`,
+      headers,
+    });
+    expect(secondPage.statusCode).toBe(200);
+    const secondPageBody = ListApplicationCasesResponseSchema.parse(secondPage.json());
+    expect(secondPageBody.total).toBe(105);
+    expect(secondPageBody.items).toHaveLength(5);
+    expect(secondPageBody.nextCursor).toBeNull();
+    const returnedIds = [...firstPageBody.items, ...secondPageBody.items].map(({ id }) => id);
+    expect(new Set(returnedIds)).toEqual(new Set(visibleIds));
+    expect(returnedIds).not.toContain(deletedId);
+    expect(returnedIds).not.toContain(staleEpochId);
+
+    const boardResponse = await app.inject({
+      method: "GET",
+      url: "/v1/application-cases/board?limitPerStage=1",
+      headers,
+    });
+    expect(boardResponse.statusCode).toBe(200);
+    const board = ApplicationBoardResponseSchema.parse(boardResponse.json());
+    expect(board.columns.find(({ stage }) => stage === "resolved")).toMatchObject({
+      total: 105,
+      items: [expect.objectContaining({ stage: "resolved" })],
+    });
+    expect(board.columns.find(({ stage }) => stage === "resolved")?.nextCursor).toBeTruthy();
   }, 40_000);
 
   it("records an application only through an explicit Case command and exposes its timeline", async () => {

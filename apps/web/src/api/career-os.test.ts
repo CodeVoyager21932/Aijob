@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
+  applicationBoardPath,
+  applicationCaseTransitionPath,
   applicationCaseEventsPath,
   applicationCaseListPath,
   caseDebriefConfirmationPath,
@@ -14,8 +16,29 @@ import {
 describe("Career OS API paths", () => {
   it("loads at most one hundred Cases and preserves an opaque cursor", () => {
     expect(applicationCaseListPath()).toBe("/v1/application-cases?limit=100");
-    expect(applicationCaseListPath({ limit: 20, cursor: "opaque+/=" })).toBe(
-      "/v1/application-cases?limit=20&cursor=opaque%2B%2F%3D",
+    expect(
+      applicationCaseListPath({
+        limit: 20,
+        stage: "preparing",
+        city: "上海",
+        sort: "deadline",
+        cursor: "opaque+/=",
+      }),
+    ).toBe(
+      "/v1/application-cases?limit=20&stage=preparing&city=%E4%B8%8A%E6%B5%B7&sort=deadline&cursor=opaque%2B%2F%3D",
+    );
+  });
+
+  it("keeps the board snapshot and stage command on canonical Case routes", () => {
+    expect(applicationBoardPath()).toBe(
+      "/v1/application-cases/board?sort=updated&limitPerStage=20",
+    );
+    expect(applicationBoardPath({ city: "深圳", sort: "deadline", limitPerStage: 12 })).toBe(
+      "/v1/application-cases/board?city=%E6%B7%B1%E5%9C%B3&sort=deadline&limitPerStage=12",
+    );
+    const caseId = randomUUID();
+    expect(applicationCaseTransitionPath(caseId)).toBe(
+      `/v1/application-cases/${caseId}/transitions`,
     );
   });
 

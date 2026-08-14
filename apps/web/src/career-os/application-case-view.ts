@@ -11,6 +11,8 @@ export interface ApplicationCaseView {
   deadlineLabel: string;
   updatedAt: string;
   stage: ApplicationCaseWithJobContext["stage"];
+  outcome: ApplicationCaseWithJobContext["outcome"];
+  revision: number;
   sourceLabel: string;
   sourceMeta: string;
   sourceKind: "catalog" | "owner_private";
@@ -51,6 +53,8 @@ export function toApplicationCaseView(
     deadlineLabel: displayField(deadline, (value) => value.slice(0, 10)),
     updatedAt: applicationCase.updatedAt,
     stage: applicationCase.stage,
+    outcome: applicationCase.outcome,
+    revision: applicationCase.revision,
     sourceLabel: source.displayName,
     sourceMeta,
     sourceKind: source.kind,

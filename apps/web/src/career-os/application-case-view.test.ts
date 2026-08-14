@@ -56,6 +56,8 @@ describe("Career OS application Case view model", () => {
       sourceKind: "owner_private",
       externalUrl: null,
       externalUrlVerified: false,
+      outcome: null,
+      revision: 1,
     });
   });
 

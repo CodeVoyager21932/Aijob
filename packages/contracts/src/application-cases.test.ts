@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import {
+  ApplicationBoardQuerySchema,
+  ApplicationBoardResponseSchema,
   ApplicationCaseCommandResponseSchema,
   ApplicationCaseCursorSchema,
   ApplicationCaseEventSchema,
@@ -28,6 +30,7 @@ import {
   LegacyApplicationCaseEventSchema,
   ListApplicationCaseEventsQuerySchema,
   ListApplicationCaseEventsResponseSchema,
+  ListApplicationCasesQuerySchema,
   ListApplicationCasesResponseSchema,
   PrivateJobSnapshotSchema,
   PrivateRequirementContextSchema,
@@ -384,8 +387,35 @@ describe("ApplicationCase contracts", () => {
       ListApplicationCasesResponseSchema.safeParse({
         items: [applicationCase],
         nextCursor: "opaque-cursor",
+        total: 1,
       }).success,
     ).toBe(true);
+    expect(
+      ApplicationBoardResponseSchema.safeParse({
+        schemaVersion: "application-board-v1",
+        generatedAt: "2026-08-06T00:00:00.000Z",
+        filters: { city: null, sort: "updated" },
+        columns: CaseStageSchema.options.map((stage) => ({
+          stage,
+          total: stage === "interested" ? 1 : 0,
+          items: stage === "interested" ? [applicationCase] : [],
+          nextCursor: null,
+        })),
+      }).success,
+    ).toBe(true);
+    expect(
+      ApplicationBoardResponseSchema.safeParse({
+        schemaVersion: "application-board-v1",
+        generatedAt: "2026-08-06T00:00:00.000Z",
+        filters: { city: null, sort: "updated" },
+        columns: CaseStageSchema.options.toReversed().map((stage) => ({
+          stage,
+          total: 0,
+          items: [],
+          nextCursor: null,
+        })),
+      }).success,
+    ).toBe(false);
     expect(
       CreateApplicationCaseResponseSchema.safeParse({
         applicationCase,
@@ -864,25 +894,72 @@ describe("ApplicationCase contracts", () => {
     ).toBe(false);
   });
 
-  it("requires every cursor sort column and rejects extra cursor fields", () => {
+  it("binds list and board queries to explicit server-side collection semantics", () => {
+    expect(ListApplicationCasesQuerySchema.parse({})).toEqual({ limit: 20, sort: "updated" });
+    expect(
+      ListApplicationCasesQuerySchema.parse({
+        limit: "100",
+        stage: "preparing",
+        city: " 上海 ",
+        sort: "deadline",
+      }),
+    ).toEqual({ limit: 100, stage: "preparing", city: "上海", sort: "deadline" });
+    expect(ListApplicationCasesQuerySchema.safeParse({ city: "" }).success).toBe(false);
+    expect(ListApplicationCasesQuerySchema.safeParse({ sort: "company" }).success).toBe(false);
+
+    expect(ApplicationBoardQuerySchema.parse({})).toEqual({
+      sort: "updated",
+      limitPerStage: 20,
+    });
+    expect(
+      ApplicationBoardQuerySchema.parse({
+        city: "深圳",
+        sort: "deadline",
+        limitPerStage: "100",
+      }),
+    ).toEqual({ city: "深圳", sort: "deadline", limitPerStage: 100 });
+    expect(ApplicationBoardQuerySchema.safeParse({ limitPerStage: 101 }).success).toBe(false);
+    expect(ApplicationBoardQuerySchema.safeParse({ stage: "applied" }).success).toBe(false);
+  });
+
+  it("requires every cursor sort column and rejects cross-sort cursor fields", () => {
     expect(
       ApplicationCaseCursorSchema.safeParse({
+        sort: "updated",
         updatedAt: "2026-08-05T00:00:00.000Z",
         id: ids.case,
       }).success,
     ).toBe(true);
     expect(
       ApplicationCaseCursorSchema.safeParse({
+        sort: "updated",
         updatedAt: "2026-08-05T00:00:00.000Z",
       }).success,
     ).toBe(false);
     expect(
       ApplicationCaseCursorSchema.safeParse({
+        sort: "updated",
         updatedAt: "2026-08-05T00:00:00.000Z",
         id: ids.case,
-        ownerId: ids.owner,
+        deadlineAt: "2026-08-31T00:00:00.000Z",
       }).success,
     ).toBe(false);
+    expect(
+      ApplicationCaseCursorSchema.safeParse({
+        sort: "deadline",
+        deadlineAt: "2026-08-31T00:00:00.000Z",
+        updatedAt: "2026-08-05T00:00:00.000Z",
+        id: ids.case,
+      }).success,
+    ).toBe(true);
+    expect(
+      ApplicationCaseCursorSchema.safeParse({
+        sort: "deadline",
+        deadlineAt: null,
+        updatedAt: "2026-08-05T00:00:00.000Z",
+        id: ids.case,
+      }).success,
+    ).toBe(true);
   });
 
   it("keeps Case deletion choices explicit and its result non-overlapping", () => {

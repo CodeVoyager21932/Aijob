@@ -1,9 +1,12 @@
 import type {
+  ApplicationBoardResponse,
   ApplicationCaseCommandResponse,
   ApplicationCaseMutationResponse,
   ApplicationCaseRequirements,
+  ApplicationCaseSort,
   ApplicationCaseWithJobContext,
   CareerDataScopeResponse,
+  CaseStage,
   ConfirmCaseDebriefRequest,
   ConfirmCaseDebriefResponse,
   CreateApplicationCaseResponse,
@@ -48,18 +51,34 @@ import type {
   ResumeEvidenceRevision,
   SubmitInterviewAnswerRequest,
   SubmitInterviewAnswerResponse,
+  TransitionApplicationCaseRequest,
   UpdateCaseQuestionRequest,
 } from "@aijob/contracts";
 import {
+  ApplicationBoardResponseSchema,
+  ApplicationCaseCommandResponseSchema,
   ApplicationCaseWithJobContextSchema,
   CreateApplicationCaseResponseSchema,
+  ListApplicationCasesResponseSchema,
 } from "@aijob/contracts";
 import { apiRequest } from "./client";
 
 export const careerOsQueryKeys = {
   all: ["career-os"] as const,
   cases: ["career-os", "application-cases"] as const,
-  caseList: () => ["career-os", "application-cases", "list"] as const,
+  caseList: (filters?: { stage?: CaseStage | "all"; city?: string; sort?: ApplicationCaseSort }) =>
+    filters
+      ? ([
+          "career-os",
+          "application-cases",
+          "list",
+          filters.stage ?? "all",
+          filters.city ?? "all",
+          filters.sort ?? "updated",
+        ] as const)
+      : (["career-os", "application-cases", "list"] as const),
+  applicationBoard: (filters: { city?: string; sort: ApplicationCaseSort }) =>
+    ["career-os", "application-cases", "board", filters.city ?? "all", filters.sort] as const,
   caseDetail: (caseId: string) => ["career-os", "application-cases", "detail", caseId] as const,
   caseEvents: (caseId: string) => ["career-os", "application-cases", caseId, "events"] as const,
   requirements: (caseId: string) =>
@@ -101,17 +120,47 @@ export function getCareerDataScope(signal?: AbortSignal) {
 export interface ListApplicationCasesInput {
   cursor?: string;
   limit?: number;
+  stage?: CaseStage;
+  city?: string;
+  sort?: ApplicationCaseSort;
 }
 
 export function applicationCaseListPath(input: ListApplicationCasesInput = {}): string {
   const params = new URLSearchParams();
   params.set("limit", String(input.limit ?? 100));
+  if (input.stage) params.set("stage", input.stage);
+  if (input.city) params.set("city", input.city);
+  if (input.sort) params.set("sort", input.sort);
   if (input.cursor) params.set("cursor", input.cursor);
   return `/v1/application-cases?${params.toString()}`;
 }
 
 export function listApplicationCases(input: ListApplicationCasesInput = {}, signal?: AbortSignal) {
-  return apiRequest<ListApplicationCasesResponse>(applicationCaseListPath(input), { signal });
+  return apiRequest<ListApplicationCasesResponse>(applicationCaseListPath(input), {
+    signal,
+    responseSchema: ListApplicationCasesResponseSchema,
+  });
+}
+
+export interface ApplicationBoardInput {
+  city?: string;
+  sort?: ApplicationCaseSort;
+  limitPerStage?: number;
+}
+
+export function applicationBoardPath(input: ApplicationBoardInput = {}): string {
+  const params = new URLSearchParams();
+  if (input.city) params.set("city", input.city);
+  params.set("sort", input.sort ?? "updated");
+  params.set("limitPerStage", String(input.limitPerStage ?? 20));
+  return `/v1/application-cases/board?${params.toString()}`;
+}
+
+export function getApplicationBoard(input: ApplicationBoardInput = {}, signal?: AbortSignal) {
+  return apiRequest<ApplicationBoardResponse>(applicationBoardPath(input), {
+    signal,
+    responseSchema: ApplicationBoardResponseSchema,
+  });
 }
 
 export function getApplicationCase(caseId: string, signal?: AbortSignal) {
@@ -130,6 +179,23 @@ export function createApplicationCase(
     body: request,
     idempotencyKey,
     responseSchema: CreateApplicationCaseResponseSchema,
+  });
+}
+
+export function applicationCaseTransitionPath(caseId: string): string {
+  return `/v1/application-cases/${encodeURIComponent(caseId)}/transitions`;
+}
+
+export function transitionApplicationCase(
+  caseId: string,
+  request: TransitionApplicationCaseRequest,
+  idempotencyKey: string,
+) {
+  return apiRequest<ApplicationCaseCommandResponse>(applicationCaseTransitionPath(caseId), {
+    method: "POST",
+    body: request,
+    idempotencyKey,
+    responseSchema: ApplicationCaseCommandResponseSchema,
   });
 }
 

@@ -5,16 +5,12 @@ import { careerOsQueryKeys, getApplicationCase } from "../api/career-os";
 import { ProductApiError } from "../api/client";
 import { AlphaAccessGate } from "../components/AlphaAccessGate";
 import { toApplicationCaseView } from "./application-case-view";
-import { ContextInspector } from "./components/ContextInspector";
-import { ContextInspectorFrame } from "./components/ContextInspector";
+import { ContextInspector, ContextInspectorFrame } from "./components/ContextInspector";
 import { GlobalSidebar } from "./components/GlobalSidebar";
 import { ModalSurface } from "./components/ModalSurface";
 import { ResizablePane } from "./components/ResizablePane";
 import { UtilityBar } from "./components/UtilityBar";
-import {
-  WorkspaceRouteBoundary,
-  WorkspaceRouteLoading,
-} from "./components/WorkspaceRouteBoundary";
+import { WorkspaceRouteBoundary, WorkspaceRouteLoading } from "./components/WorkspaceRouteBoundary";
 import { readWorkspacePreferences, writeWorkspacePreferences } from "./ui-preferences";
 import { useMediaQuery } from "./use-media-query";
 import "./career-os.css";
@@ -25,11 +21,12 @@ export function WorkspaceShell({ accessRequired = false }: { accessRequired?: bo
   const [preferences, setPreferences] = useState(readWorkspacePreferences);
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const [accessGranted, setAccessGranted] = useState(!accessRequired);
+  const [inspectorMutationPending, setInspectorMutationPending] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
   const inspectorCloseRef = useRef<HTMLButtonElement>(null);
   const previousPeekRef = useRef<string | null>(null);
   const peekCaseId = location.pathname === "/applications" ? searchParams.get("peek") : null;
-  const inspectorIsOverlay = useMediaQuery("(max-width: 1023px)");
+  const inspectorIsOverlay = useMediaQuery("(max-width: 1439px)");
   const peekQuery = useQuery({
     queryKey: careerOsQueryKeys.caseDetail(peekCaseId ?? ""),
     queryFn: ({ signal }) => getApplicationCase(peekCaseId ?? "", signal),
@@ -60,29 +57,25 @@ export function WorkspaceShell({ accessRequired = false }: { accessRequired?: bo
       });
     }
     previousPeekRef.current = peekCaseId;
+    setInspectorMutationPending(false);
   }, [location.pathname, peekCaseId]);
 
-  useEffect(() => {
-    if (!peekCaseId || !(peekQuery.error instanceof ProductApiError)) return;
-    if (peekQuery.error.status !== 404) return;
-    const next = new URLSearchParams(searchParams);
-    next.delete("peek");
-    setSearchParams(next, { replace: true });
-  }, [peekCaseId, peekQuery.error, searchParams, setSearchParams]);
-
   const closeInspector = () => {
+    if (inspectorMutationPending) return;
     const next = new URLSearchParams(searchParams);
     next.delete("peek");
     setSearchParams(next);
   };
   const showInspector = Boolean(peekCaseId && accessGranted);
   const inspectorTitleId = "career-case-inspector-title";
+  const peekNotFound = peekQuery.error instanceof ProductApiError && peekQuery.error.status === 404;
   const inspectorContent = peekCase ? (
     <ContextInspector
       applicationCase={peekCase}
       onClose={closeInspector}
       titleId={inspectorTitleId}
       closeButtonRef={inspectorCloseRef}
+      onMutationPendingChange={setInspectorMutationPending}
     />
   ) : (
     <ContextInspectorFrame
@@ -97,9 +90,19 @@ export function WorkspaceShell({ accessRequired = false }: { accessRequired?: bo
     >
       {peekQuery.isError ? (
         <div className="career-inline-error" role="alert">
+          <strong>{peekNotFound ? "没有找到该求职项目" : "侧览暂时无法读取"}</strong>
           <span>
-            {peekQuery.error instanceof Error ? peekQuery.error.message : "请关闭后重试。"}
+            {peekNotFound
+              ? "记录不存在、已删除或不属于当前账户。你可以关闭侧览并继续查看当前集合。"
+              : peekQuery.error instanceof Error
+                ? peekQuery.error.message
+                : "请关闭后重试。"}
           </span>
+          {!peekNotFound ? (
+            <button type="button" onClick={() => void peekQuery.refetch()}>
+              重新读取
+            </button>
+          ) : null}
         </div>
       ) : (
         <output className="career-inspector__copy">正在加载固定岗位信息…</output>
@@ -162,6 +165,7 @@ export function WorkspaceShell({ accessRequired = false }: { accessRequired?: bo
           labelledBy={inspectorTitleId}
           initialFocusRef={inspectorCloseRef}
           closeLabel="关闭岗位侧览"
+          dismissible={!inspectorMutationPending}
           onClose={closeInspector}
           returnFocus={() =>
             peekCaseId
