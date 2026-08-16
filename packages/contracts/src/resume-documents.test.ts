@@ -25,6 +25,7 @@ import {
   ResumeDocumentSchema,
   ResumeLayoutSettingsSchema,
   ResumeReviewDecisionSchema,
+  ResumeReviewFindingSchema,
   ResumeReviewRunSchema,
   ResumeReviewSuggestionSchema,
   ResumeSemanticContentSchema,
@@ -705,7 +706,17 @@ describe("Resume Document V2 contracts", () => {
         mode: "controlled_ai",
       }).success,
     ).toBe(false);
-    expect(CurrentResumeReviewResponseSchema.parse({ review: null })).toEqual({ review: null });
+    expect(
+      CreateResumeReviewRequestSchema.safeParse({
+        expectedRevision: 2,
+        mode: "controlled_ai",
+        privacyConsent: true,
+      }).success,
+    ).toBe(true);
+    expect(CurrentResumeReviewResponseSchema.parse({ review: null })).toEqual({
+      review: null,
+      requirements: [],
+    });
   });
 
   it("keeps private review runs owner-scoped", () => {
@@ -739,6 +750,34 @@ describe("Resume Document V2 contracts", () => {
       updatedAt: "2026-08-06T00:00:00.000Z",
     };
     expect(ResumeReviewRunSchema.safeParse(reviewRun).success).toBe(true);
+    const controlledAiV2 = {
+      ...reviewRun,
+      schemaVersion: "resume-review-run-v2" as const,
+      mode: "controlled_ai" as const,
+      generationProvenanceVersion: "resume-review-generation-v1" as const,
+      templateVersion: "resume-review-template-v2",
+      privacyConsentAt: "2026-08-06T00:00:00.000Z",
+      providerAdapter: "openai-compatible-v1",
+      model: "synthetic-review-model",
+      promptVersion: "resume-review-prompt-v1",
+      outputSchemaVersion: "resume-review-output-v1",
+      safetyPolicyVersion: "confirmed-evidence-and-fixed-requirements-v1",
+      parametersVersion: "temperature-zero-v1",
+      usedTemplateFallback: false,
+      fallbackReasonCode: null,
+      failureCode: null,
+    };
+    expect(ResumeReviewRunSchema.safeParse(controlledAiV2).success).toBe(true);
+    expect(
+      ResumeReviewRunSchema.safeParse({ ...controlledAiV2, privacyConsentAt: null }).success,
+    ).toBe(false);
+    expect(
+      ResumeReviewRunSchema.safeParse({
+        ...controlledAiV2,
+        usedTemplateFallback: true,
+        fallbackReasonCode: null,
+      }).success,
+    ).toBe(false);
     expect(
       ResumeReviewRunSchema.safeParse({
         ...reviewRun,
@@ -765,6 +804,50 @@ describe("Resume Document V2 contracts", () => {
         jobContext: { ...reviewRun.jobContext, ownerId: randomUUID() },
       }).success,
     ).toBe(false);
+  });
+
+  it("keeps v2 requirement citations explicit and unique", () => {
+    const finding = {
+      schemaVersion: "resume-review-finding-v2" as const,
+      id: ids.finding,
+      ownerId: ids.owner,
+      ownerEpoch: 1,
+      reviewRunId: ids.reviewRun,
+      category: "content_relevance" as const,
+      severity: "warning" as const,
+      sourceBlockId: ids.block,
+      evidenceIds: ["evidence-1"],
+      requirementIds: ["requirement-user-research"],
+      reasonCode: "JOB_REQUIREMENT_EVIDENCE_REWRITE",
+      createdAt: "2026-08-06T00:00:00.000Z",
+    };
+    expect(ResumeReviewFindingSchema.safeParse(finding).success).toBe(true);
+    expect(
+      ResumeReviewFindingSchema.safeParse({
+        ...finding,
+        requirementIds: ["requirement-user-research", "requirement-user-research"],
+      }).success,
+    ).toBe(false);
+
+    const suggestion = {
+      schemaVersion: "resume-review-suggestion-v2" as const,
+      id: ids.suggestion,
+      ownerId: ids.owner,
+      ownerEpoch: 1,
+      reviewRunId: ids.reviewRun,
+      findingId: ids.finding,
+      targetType: "block" as const,
+      targetIds: [ids.block],
+      changeType: "rewrite_block" as const,
+      suggestedText: "基于用户研究证据形成岗位表达",
+      evidenceIds: ["evidence-1"],
+      requirementIds: ["requirement-user-research"],
+      decision: "pending" as const,
+      revision: 1,
+      createdAt: "2026-08-06T00:00:00.000Z",
+      updatedAt: "2026-08-06T00:00:00.000Z",
+    };
+    expect(ResumeReviewSuggestionSchema.safeParse(suggestion).success).toBe(true);
   });
 
   it("keeps single-document deletion revision guarded and auditable", () => {

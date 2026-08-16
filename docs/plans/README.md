@@ -4,9 +4,9 @@
 
 ## 当前执行
 
-- [Career OS 前后端同步改进计划](career-os-current-delivery-plan.md)：当前唯一活动计划；UX-0 与 OS-1–OS-4 五项 Gate 均已关闭，下一候选切片是 OS-5 Resume Studio 与唯一 Review 写入，尚未实施并等待 coco 指令。
+- [Career OS 前后端同步改进计划](career-os-current-delivery-plan.md)：当前唯一活动计划；UX-0 与 OS-1–OS-5 五项 Gate 均已关闭，下一候选切片是 OS-6 投递、面试、复盘与数据控制，尚未实施并等待 coco 指令。
 - [Career OS 端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)：OS-1–OS-7 必须遵守的系统归属、Contracts/Platform/DB/Web、路由、状态、视觉、响应式、焦点和夹具规则；不提供新的任务顺序。
-- [UX-0 页面—系统—证据追踪矩阵](career-os-ux-0-end-to-end-traceability-matrix.md)：逐用例记录规范路由、Contracts、Platform/DB、权限/并发/删除语义、Web 状态、真实测试和 `R / A / E / M / X` 处置；OS-1–OS-4 关闭注记不改写 UX-0 审计时点事实，未决行关闭前不得实现对应页面。
+- [UX-0 页面—系统—证据追踪矩阵](career-os-ux-0-end-to-end-traceability-matrix.md)：逐用例记录规范路由、Contracts、Platform/DB、权限/并发/删除语义、Web 状态、真实测试和 `R / A / E / M / X` 处置；OS-1–OS-5 关闭注记不改写 UX-0 审计时点事实，未决行关闭前不得实现对应页面。
 - [MVP 路线与当前决策面板](../06-mvp-roadmap.md)：当前阶段、真实分母、Gate 和下一决定的最高动态事实源。
 - [当前项目交接](../handoffs/current.md)：当前分支、工程基线、当前切片、代码入口和安全边界。
 

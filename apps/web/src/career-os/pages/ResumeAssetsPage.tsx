@@ -442,6 +442,7 @@ export function ResumeAssetsPage() {
                   resumeDocument={selectedDocument}
                   {...(selectedDocument.kind === "case_derived"
                     ? {
+                        evidenceRevisionId: selectedDocument.evidenceRevisionId,
                         contextLabel: selectedDocument.detachedFromCaseId
                           ? "已保留的独立岗位简历"
                           : "求职项目岗位简历",

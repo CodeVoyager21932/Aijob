@@ -12,7 +12,10 @@ import {
   runOwnerRetentionMaintenance,
 } from "../profile/retention-service.js";
 import { processResumeAnalysis, purgeExpiredResumeContent } from "../resume/analysis-service.js";
-import { processResumeReview } from "../resume-documents/review-service.js";
+import {
+  processResumeReview,
+  processResumeReviewV2,
+} from "../resume-documents/review-service.js";
 import { purgeExpiredResumeExports } from "../tailoring/export-retention.js";
 import { processResumeExport, processTailoringRun } from "../tailoring/service.js";
 import { type OwnerTaskLease, OwnerTaskLeaseLostError } from "./owner-task-lease.js";
@@ -26,6 +29,7 @@ const OWNER_TASK_TYPES = [
   "resume_tailoring",
   "resume_export",
   "resume_review",
+  "resume_review_v2",
   "owner_deletion",
 ] as const;
 
@@ -249,6 +253,11 @@ async function dispatchTask(
       await processResumeReview(db, owner, runId, lease);
       return;
     }
+    case "resume_review_v2": {
+      const { runId } = RunPayloadSchema.parse(task.payload);
+      await processResumeReviewV2(db, config, owner, runId, lease, fetchImpl, signal);
+      return;
+    }
     case "owner_deletion": {
       const { deletionId } = DeletionPayloadSchema.parse(task.payload);
       await processOwnerDeletion({
@@ -454,6 +463,7 @@ export const workerTaskPayloadSchemas = {
   resume_tailoring: RunPayloadSchema,
   resume_export: ExportPayloadSchema,
   resume_review: RunPayloadSchema,
+  resume_review_v2: RunPayloadSchema,
   owner_deletion: DeletionPayloadSchema,
 } as const;
 

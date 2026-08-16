@@ -795,6 +795,7 @@ export interface ResumeLayoutRevisionTable {
 
 export interface ResumeReviewRunTable {
   id: Generated<string>;
+  schema_version: Generated<string>;
   owner_id: string;
   owner_epoch: number;
   case_id: string | null;
@@ -813,6 +814,18 @@ export interface ResumeReviewRunTable {
   revision: Generated<number>;
   creation_idempotency_key: string;
   creation_request_hash: string;
+  generation_provenance_version: string | null;
+  template_version: string | null;
+  privacy_consent_at: Timestamp | null;
+  provider_adapter: string | null;
+  model: string | null;
+  prompt_version: string | null;
+  output_schema_version: string | null;
+  safety_policy_version: string | null;
+  parameters_version: string | null;
+  used_template_fallback: Generated<boolean>;
+  fallback_reason_code: string | null;
+  failure_code: string | null;
   completed_at: Timestamp | null;
   deleted_at: Timestamp | null;
   created_at: Generated<Timestamp>;
@@ -829,6 +842,7 @@ export interface ResumeReviewFindingTable {
   severity: string;
   source_block_id: string;
   evidence_ids: Generated<JsonValue>;
+  requirement_ids: Generated<JsonValue>;
   reason_code: string;
   created_at: Generated<Timestamp>;
 }
@@ -845,6 +859,7 @@ export interface ResumeReviewSuggestionTable {
   change_type: string;
   suggested_text: string | null;
   evidence_ids: Generated<JsonValue>;
+  requirement_ids: Generated<JsonValue>;
   decision: Generated<string>;
   revision: Generated<number>;
   created_at: Generated<Timestamp>;

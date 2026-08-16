@@ -119,7 +119,10 @@ export function buildApp(input: { config: AppConfig; db: Kysely<Database> }): Fa
     appEnv: input.config.appEnv,
     deletionReceiptSecret: sha256(`${input.config.resumeEncryptionKey}:deletion-receipt-v1`),
   });
-  registerResumeDocumentRoutes(app, { db: input.db });
+  registerResumeDocumentRoutes(app, {
+    db: input.db,
+    reviewV2WriteEnabled: input.config.resumeReviewV2WriteEnabled,
+  });
   registerMatchingRoutes(app, {
     db: input.db,
     enableLocalMvp: input.config.enableLocalMvp,

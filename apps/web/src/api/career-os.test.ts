@@ -9,6 +9,7 @@ import {
   caseDebriefConfirmationPath,
   caseDebriefPath,
   createCaseMatchRun,
+  getCurrentResumeReview,
   interviewSessionListPath,
   resumeDocumentDocxPath,
   resumeDocumentListPath,
@@ -139,6 +140,23 @@ describe("Career OS API paths", () => {
     expect(resumeDocumentDocxPath({ documentId, contentRevisionId, layoutRevisionId })).toBe(
       `/v1/resume-documents/${documentId}/docx?contentRevisionId=${contentRevisionId}&layoutRevisionId=${layoutRevisionId}`,
     );
+  });
+
+  it("rejects a malformed Review v2 response at the runtime boundary", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ review: null, requirements: "not-an-array" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })) as typeof fetch;
+    try {
+      await expect(getCurrentResumeReview(randomUUID())).rejects.toMatchObject({
+        status: 502,
+        code: "INVALID_API_RESPONSE",
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it("keeps the complete data scope under the owner profile namespace", () => {

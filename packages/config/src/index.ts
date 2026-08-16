@@ -49,6 +49,11 @@ const BooleanEnvironmentValueSchema = z
   .optional()
   .transform((value) => value === "true");
 
+const OptionalBooleanEnvironmentValueSchema = z
+  .enum(["true", "false"])
+  .optional()
+  .transform((value) => (value === undefined ? undefined : value === "true"));
+
 const HttpsUrlSchema = z
   .string()
   .url()
@@ -160,6 +165,7 @@ const RawEnvironmentSchema = z
     ENABLE_INTERNAL_PREVIEW: BooleanEnvironmentValueSchema,
     ENABLE_SOURCE_PROBE: BooleanEnvironmentValueSchema,
     ENABLE_LOCAL_MVP: BooleanEnvironmentValueSchema,
+    RESUME_REVIEW_V2_WRITE_ENABLED: OptionalBooleanEnvironmentValueSchema,
     RESUME_ENCRYPTION_KEY: EncryptionKeySchema.optional(),
     RESUME_MAX_BYTES: z.coerce
       .number()
@@ -349,6 +355,7 @@ export const AppConfigSchema = z
     enableInternalPreview: z.boolean(),
     enableSourceProbe: z.boolean(),
     enableLocalMvp: z.boolean(),
+    resumeReviewV2WriteEnabled: z.boolean().optional(),
     resumeEncryptionKey: EncryptionKeySchema,
     resumeMaxBytes: z
       .number()
@@ -441,6 +448,9 @@ export const parseAppConfig = (
       environment.ENABLE_LOCAL_MVP === undefined
         ? localCapabilitiesDefault
         : parsed.ENABLE_LOCAL_MVP,
+    // Remote environments remain closed by default until their compatible reader/worker rollout Gate.
+    resumeReviewV2WriteEnabled:
+      parsed.RESUME_REVIEW_V2_WRITE_ENABLED ?? localCapabilitiesDefault,
     resumeEncryptionKey,
     resumeMaxBytes: parsed.RESUME_MAX_BYTES,
     resumeParser: {

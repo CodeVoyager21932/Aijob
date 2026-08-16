@@ -59,6 +59,7 @@ function config(): AppConfig {
     enableInternalPreview: true,
     enableSourceProbe: false,
     enableLocalMvp: true,
+    resumeReviewV2WriteEnabled: true,
     resumeEncryptionKey: encryptionKey,
     resumeMaxBytes: 5 * 1024 * 1024,
     ai: { enabled: false, requestTimeoutMs: 30_000 },
@@ -242,6 +243,7 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
   let m4Candidate: M4CompleteFlowCandidate | null = null;
   let ownerDeletionId: string | null = null;
   const publicRequirementItemV1Id = "m4-public-requirement-research";
+  const privateRequirementItemId = "m4-private-requirement-evidence";
   const noEvidenceCaseId = randomUUID();
   const privateSnapshotId = randomUUID();
   const privateSnapshotRevisionId = randomUUID();
@@ -508,7 +510,18 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
           official_url: "https://private-job.example.test/apply",
           source_provided: true,
           content_text: "Synthetic private JD content.",
-          requirements: JSON.stringify([]),
+          requirements: JSON.stringify([
+            {
+              id: privateRequirementItemId,
+              kind: "experience",
+              operator: "contains",
+              expectedValue: ["Synthetic confirmed evidence"],
+              sourceText: "Synthetic confirmed evidence is required.",
+              evidenceRefs: [`${privateSnapshotRevisionId}#requirements`],
+              sourceSpan: null,
+              necessity: "required",
+            },
+          ]),
           content_hash: "d".repeat(64),
         })
         .execute();
@@ -1416,9 +1429,9 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       headers: mainHeaders,
     });
     expect(emptyReviewResponse.statusCode).toBe(200);
-    expect(CurrentResumeReviewResponseSchema.parse(emptyReviewResponse.json())).toEqual({
-      review: null,
-    });
+    const emptyReview = CurrentResumeReviewResponseSchema.parse(emptyReviewResponse.json());
+    expect(emptyReview.review).toBeNull();
+    expect(emptyReview.requirements.map(({ id }) => id)).toEqual([publicRequirementItemV1Id]);
 
     const publicReviewKey = `public-review-${randomUUID()}`;
     const publicReviewRequest = {
@@ -1440,12 +1453,17 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       created: true,
       review: {
         reviewRun: {
+          schemaVersion: "resume-review-run-v2",
           documentId: publicCreated.resumeDocument.id,
           contentRevisionId: initializedDerivedBody.contentRevision.id,
           evidenceRevisionId: mainResume.evidenceRevisionId,
           status: "pending",
           mode: "template",
           jobContext: { kind: "public", publishedJobVersionId: publicVersionV1Id },
+          promptVersion: null,
+          outputSchemaVersion: null,
+          safetyPolicyVersion: null,
+          parametersVersion: null,
         },
         findings: [],
         suggestions: [],
@@ -1464,10 +1482,10 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       .selectFrom("task_queue.tasks")
       .select(["task_type", "status", "payload"])
       .where("owner_id", "=", mainSession.context.ownerId)
-      .where("task_type", "=", "resume_review")
+      .where("task_type", "=", "resume_review_v2")
       .where("payload", "@>", JSON.stringify({ runId: publicReviewCreated.review.reviewRun.id }))
       .executeTakeFirstOrThrow();
-    expect(queuedReviewTask).toMatchObject({ task_type: "resume_review", status: "queued" });
+    expect(queuedReviewTask).toMatchObject({ task_type: "resume_review_v2", status: "queued" });
     expect(await runOneOwnerTask({ db, config: config(), workerId: "review-worker-public" })).toBe(
       true,
     );
@@ -1482,6 +1500,18 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       ).json(),
     );
     expect(publicReviewCompleted.review?.reviewRun.status).toBe("completed");
+    expect(publicReviewCompleted.review?.reviewRun).toMatchObject({
+      schemaVersion: "resume-review-run-v2",
+      mode: "template",
+      providerAdapter: null,
+      model: null,
+      usedTemplateFallback: false,
+      fallbackReasonCode: null,
+      failureCode: null,
+    });
+    expect(publicReviewCompleted.requirements.map(({ id }) => id)).toEqual([
+      publicRequirementItemV1Id,
+    ]);
     expect(publicReviewCompleted.review?.findings).toHaveLength(1);
     expect(publicReviewCompleted.review?.suggestions).toHaveLength(1);
     const publicSuggestion = publicReviewCompleted.review?.suggestions[0];
@@ -1490,6 +1520,7 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       targetIds: [mainResume.blockId],
       changeType: "rewrite_block",
       evidenceIds: [mainResume.evidenceId],
+      requirementIds: [publicRequirementItemV1Id],
       decision: "pending",
       revision: 1,
     });
@@ -1571,8 +1602,15 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
         })
       ).json(),
     );
+    expect(privateReviewCompleted.requirements.map(({ id }) => id)).toEqual([
+      privateRequirementItemId,
+    ]);
     const privateSuggestion = privateReviewCompleted.review?.suggestions[0];
     if (!privateSuggestion) throw new Error("PRIVATE_REVIEW_SUGGESTION_MISSING");
+    if (privateSuggestion.schemaVersion !== "resume-review-suggestion-v2") {
+      throw new Error("PRIVATE_REVIEW_SUGGESTION_NOT_V2");
+    }
+    expect(privateSuggestion.requirementIds).toEqual([privateRequirementItemId]);
     const editedResponse = await app.inject({
       method: "POST",
       url: `/v1/resume-documents/${privateCreated.resumeDocument.id}/reviews/${privateReviewCreated.review.reviewRun.id}/suggestions/${privateSuggestion.id}/decisions`,
@@ -1820,6 +1858,305 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       resumeDocumentId: publicCreated.resumeDocument.id,
       resumeDocumentRevision: editedPublic.documentRevision,
     };
+  });
+
+  it("keeps Review v1 readable and processes controlled AI v2 only through offline providers", async () => {
+    const candidate = m4Candidate;
+    if (!candidate) throw new Error("OS5_REVIEW_CANDIDATE_MISSING");
+    const headers = sessionHeaders(mainSession);
+    const legacyConfig = { ...config(), resumeReviewV2WriteEnabled: false };
+    const legacyApp = buildApp({ config: legacyConfig, db });
+    try {
+      const disabledControlledAi = await legacyApp.inject({
+        method: "POST",
+        url: `/v1/resume-documents/${candidate.resumeDocumentId}/reviews`,
+        headers: { ...headers, "idempotency-key": `legacy-ai-disabled-${randomUUID()}` },
+        payload: {
+          expectedRevision: candidate.resumeDocumentRevision,
+          mode: "controlled_ai",
+          privacyConsent: true,
+        },
+      });
+      expect(disabledControlledAi.statusCode).toBe(503);
+      expect(disabledControlledAi.json()).toMatchObject({
+        code: "RESUME_REVIEW_V2_WRITE_DISABLED",
+      });
+
+      const legacyResponse = await legacyApp.inject({
+        method: "POST",
+        url: `/v1/resume-documents/${candidate.resumeDocumentId}/reviews`,
+        headers: { ...headers, "idempotency-key": `legacy-template-${randomUUID()}` },
+        payload: { expectedRevision: candidate.resumeDocumentRevision, mode: "template" },
+      });
+      expect(legacyResponse.statusCode, JSON.stringify(legacyResponse.json())).toBe(202);
+      const legacy = CreateResumeReviewResponseSchema.parse(legacyResponse.json());
+      expect(legacy.review.reviewRun.schemaVersion).toBe("resume-review-run-v1");
+      expect(await runOneOwnerTask({ db, config: legacyConfig, workerId: "review-v1-worker" })).toBe(
+        true,
+      );
+      const legacyStored = await db
+        .selectFrom("profile.resume_review_runs")
+        .select([
+          "schema_version",
+          "generation_provenance_version",
+          "template_version",
+          "prompt_version",
+          "failure_code",
+        ])
+        .where("id", "=", legacy.review.reviewRun.id)
+        .executeTakeFirstOrThrow();
+      expect(legacyStored).toEqual({
+        schema_version: "resume-review-run-v1",
+        generation_provenance_version: null,
+        template_version: null,
+        prompt_version: null,
+        failure_code: null,
+      });
+      expect(
+        CurrentResumeReviewResponseSchema.parse(
+          (
+            await app.inject({
+              method: "GET",
+              url: `/v1/resume-documents/${candidate.resumeDocumentId}/review`,
+              headers,
+            })
+          ).json(),
+        ).review?.reviewRun.schemaVersion,
+      ).toBe("resume-review-run-v1");
+    } finally {
+      await legacyApp.close();
+    }
+
+    const consentRequired = await app.inject({
+      method: "POST",
+      url: `/v1/resume-documents/${candidate.resumeDocumentId}/reviews`,
+      headers: { ...headers, "idempotency-key": `consent-required-${randomUUID()}` },
+      payload: { expectedRevision: candidate.resumeDocumentRevision, mode: "controlled_ai" },
+    });
+    expect(consentRequired.statusCode).toBe(400);
+    expect(consentRequired.json()).toMatchObject({ code: "CONTROLLED_AI_CONSENT_REQUIRED" });
+
+    const aiConfig: AppConfig = {
+      ...config(),
+      ai: {
+        enabled: true,
+        baseUrl: "https://127.0.0.1/v1",
+        model: "synthetic-review-model",
+        apiKey: "synthetic-offline-key",
+        requestTimeoutMs: 5_000,
+      },
+    };
+    const createControlledAiReview = async (label: string) => {
+      const response = await app.inject({
+        method: "POST",
+        url: `/v1/resume-documents/${candidate.resumeDocumentId}/reviews`,
+        headers: { ...headers, "idempotency-key": `${label}-${randomUUID()}` },
+        payload: {
+          expectedRevision: candidate.resumeDocumentRevision,
+          mode: "controlled_ai",
+          privacyConsent: true,
+        },
+      });
+      expect(response.statusCode, JSON.stringify(response.json())).toBe(202);
+      return CreateResumeReviewResponseSchema.parse(response.json());
+    };
+    const currentReview = async () =>
+      CurrentResumeReviewResponseSchema.parse(
+        (
+          await app.inject({
+            method: "GET",
+            url: `/v1/resume-documents/${candidate.resumeDocumentId}/review`,
+            headers,
+          })
+        ).json(),
+      );
+
+    const successfulRun = await createControlledAiReview("controlled-ai-success");
+    let providerCalls = 0;
+    const successfulFetch: typeof fetch = async (url, init) => {
+      providerCalls += 1;
+      expect(new URL(String(url)).hostname).toBe("127.0.0.1");
+      expect(init?.redirect).toBe("error");
+      const requestBody = String(init?.body);
+      expect(requestBody).toContain(publicRequirementItemV1Id);
+      expect(requestBody).toContain(mainResume.evidenceId);
+      return new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  rewrites: [
+                    {
+                      sourceBlockId: mainResume.blockId,
+                      suggestedText: "Synthetic confirmed evidence claim.",
+                      requirementIds: [publicRequirementItemV1Id],
+                      evidenceIds: [mainResume.evidenceId],
+                    },
+                  ],
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    };
+    expect(
+      await runOneOwnerTask({
+        db,
+        config: aiConfig,
+        workerId: "review-v2-ai-success",
+        fetchImpl: successfulFetch,
+      }),
+    ).toBe(true);
+    expect(providerCalls).toBe(1);
+    const successful = await currentReview();
+    expect(successful.review?.reviewRun).toMatchObject({
+      id: successfulRun.review.reviewRun.id,
+      schemaVersion: "resume-review-run-v2",
+      mode: "controlled_ai",
+      status: "completed",
+      providerAdapter: "openai-compatible-v1",
+      model: "synthetic-review-model",
+      usedTemplateFallback: false,
+      fallbackReasonCode: null,
+      failureCode: null,
+    });
+    expect(successful.review?.suggestions[0]).toMatchObject({
+      schemaVersion: "resume-review-suggestion-v2",
+      suggestedText: "Synthetic confirmed evidence claim.",
+      requirementIds: [publicRequirementItemV1Id],
+      evidenceIds: [mainResume.evidenceId],
+    });
+    const successfulFindingId = successful.review?.findings.find(
+      (finding) =>
+        finding.schemaVersion === "resume-review-finding-v2" && finding.requirementIds.length > 0,
+    )?.id;
+    const successfulSuggestionId = successful.review?.suggestions.find(
+      (suggestion) =>
+        suggestion.schemaVersion === "resume-review-suggestion-v2" &&
+        suggestion.requirementIds.length > 0,
+    )?.id;
+    expect(successfulFindingId).toBeTruthy();
+    expect(successfulSuggestionId).toBeTruthy();
+    await expect(
+      db
+        .updateTable("profile.resume_review_findings")
+        .set({ requirement_ids: JSON.stringify([]) })
+        .where("id", "=", successfulFindingId as string)
+        .execute(),
+    ).rejects.toThrow("IMMUTABLE_PROFILE_REVISION");
+    await expect(
+      db
+        .updateTable("profile.resume_review_suggestions")
+        .set({ requirement_ids: JSON.stringify([]) })
+        .where("id", "=", successfulSuggestionId as string)
+        .execute(),
+    ).rejects.toThrow("IMMUTABLE_REVIEW_SUGGESTION");
+    await expect(
+      db
+        .updateTable("profile.resume_review_runs")
+        .set({
+          template_version: "mutated-template-version",
+          revision: successful.review?.reviewRun.revision
+            ? successful.review.reviewRun.revision + 1
+            : 3,
+        })
+        .where("id", "=", successfulRun.review.reviewRun.id)
+        .execute(),
+    ).rejects.toThrow("IMMUTABLE_REVIEW_GENERATION_PROVENANCE");
+
+    await expect(
+      db
+        .insertInto("profile.resume_review_findings")
+        .values({
+          id: randomUUID(),
+          owner_id: mainSession.context.ownerId,
+          owner_epoch: mainSession.context.ownerEpoch,
+          review_run_id: successfulRun.review.reviewRun.id,
+          schema_version: "resume-review-finding-v2",
+          category: "content_relevance",
+          severity: "warning",
+          source_block_id: mainResume.blockId,
+          evidence_ids: JSON.stringify([]),
+          requirement_ids: JSON.stringify(["not-in-the-fixed-requirement-set"]),
+          reason_code: "INVALID_REFERENCE_TEST",
+        })
+        .execute(),
+    ).rejects.toThrow("RESUME_REVIEW_REQUIREMENT_REFERENCE_INVALID");
+
+    const disabledFallbackRun = await createControlledAiReview("controlled-ai-disabled-fallback");
+    expect(
+      await runOneOwnerTask({ db, config: config(), workerId: "review-v2-ai-disabled" }),
+    ).toBe(true);
+    expect((await currentReview()).review?.reviewRun).toMatchObject({
+      id: disabledFallbackRun.review.reviewRun.id,
+      status: "completed",
+      providerAdapter: null,
+      model: null,
+      usedTemplateFallback: true,
+      fallbackReasonCode: "AI_DISABLED",
+    });
+
+    const schemaFallbackRun = await createControlledAiReview("controlled-ai-schema-fallback");
+    const invalidSchemaFetch: typeof fetch = async () =>
+      new Response(
+        JSON.stringify({ choices: [{ message: { content: JSON.stringify({ rewrites: [] }) } }] }),
+        { status: 200 },
+      );
+    expect(
+      await runOneOwnerTask({
+        db,
+        config: aiConfig,
+        workerId: "review-v2-ai-schema",
+        fetchImpl: invalidSchemaFetch,
+      }),
+    ).toBe(true);
+    expect((await currentReview()).review?.reviewRun).toMatchObject({
+      id: schemaFallbackRun.review.reviewRun.id,
+      status: "completed",
+      usedTemplateFallback: true,
+      fallbackReasonCode: "AI_RESPONSE_INVALID",
+    });
+
+    const referenceFallbackRun = await createControlledAiReview("controlled-ai-reference-fallback");
+    const invalidReferenceFetch: typeof fetch = async () =>
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  rewrites: [
+                    {
+                      sourceBlockId: mainResume.blockId,
+                      suggestedText: "Synthetic confirmed evidence claim.",
+                      requirementIds: ["invalid-requirement-reference"],
+                      evidenceIds: [mainResume.evidenceId],
+                    },
+                  ],
+                }),
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      );
+    expect(
+      await runOneOwnerTask({
+        db,
+        config: aiConfig,
+        workerId: "review-v2-ai-reference",
+        fetchImpl: invalidReferenceFetch,
+      }),
+    ).toBe(true);
+    expect((await currentReview()).review?.reviewRun).toMatchObject({
+      id: referenceFallbackRun.review.reviewRun.id,
+      status: "completed",
+      usedTemplateFallback: true,
+      fallbackReasonCode: "AI_REQUIREMENT_REFERENCE_INVALID",
+    });
   });
 
   it("converts legacy V1 without writes and appends immutable base content/layout revisions", async () => {

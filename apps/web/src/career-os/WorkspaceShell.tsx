@@ -9,6 +9,7 @@ import { ContextInspector, ContextInspectorFrame } from "./components/ContextIns
 import { GlobalSidebar } from "./components/GlobalSidebar";
 import { ModalSurface } from "./components/ModalSurface";
 import { ResizablePane } from "./components/ResizablePane";
+import { SessionMutationRecoveryNotice } from "./components/SessionMutationRecoveryNotice";
 import { UtilityBar } from "./components/UtilityBar";
 import { WorkspaceRouteBoundary, WorkspaceRouteLoading } from "./components/WorkspaceRouteBoundary";
 import { readWorkspacePreferences, writeWorkspacePreferences } from "./ui-preferences";
@@ -131,6 +132,7 @@ export function WorkspaceShell({ accessRequired = false }: { accessRequired?: bo
       />
       <div className="career-workspace">
         <UtilityBar onOpenMobileNavigation={() => setMobileNavigationOpen(true)} />
+        <SessionMutationRecoveryNotice />
         <div className="career-workspace__body">
           <main ref={mainRef} className="career-main product-main" id="career-main" tabIndex={-1}>
             <AlphaAccessGate

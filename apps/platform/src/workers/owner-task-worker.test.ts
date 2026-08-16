@@ -16,6 +16,11 @@ describe("owner task payload contracts", () => {
     expect(
       workerTaskPayloadSchemas.resume_review.parse(ownerTaskPayload("resume_review", "review-1")),
     ).toEqual({ runId: "review-1" });
+    expect(
+      workerTaskPayloadSchemas.resume_review_v2.parse(
+        ownerTaskPayload("resume_review_v2", "review-v2-1"),
+      ),
+    ).toEqual({ runId: "review-v2-1" });
   });
 
   it("rejects a payload from another task type", () => {

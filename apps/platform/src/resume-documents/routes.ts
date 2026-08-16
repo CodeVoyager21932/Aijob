@@ -12,6 +12,7 @@ import {
   ResumeDocumentRevisionPageQuerySchema,
   ResumeReviewSuggestionDecisionIdSchema,
 } from "@aijob/contracts";
+import type { AppConfig } from "@aijob/config";
 import type { Database } from "@aijob/database";
 import type { FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
@@ -36,6 +37,25 @@ import {
 import { createResumeDocument, getResumeDocument, listResumeDocuments } from "./service.js";
 
 const IdempotencyKeySchema = z.string().trim().min(1).max(200);
+
+function parseCreateResumeReviewRequest(body: unknown) {
+  const parsed = CreateResumeReviewRequestSchema.safeParse(body);
+  if (parsed.success) return parsed.data;
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "mode" in body &&
+    body.mode === "controlled_ai" &&
+    (!("privacyConsent" in body) || body.privacyConsent !== true)
+  ) {
+    throw new ServiceError(
+      400,
+      "CONTROLLED_AI_CONSENT_REQUIRED",
+      "使用受控 AI 审阅前必须由用户在本次操作中明确同意去标识化处理。",
+    );
+  }
+  throw parsed.error;
+}
 
 function requireIdempotencyKey(headers: Record<string, unknown>): string {
   const rawIdempotencyKey = headers["idempotency-key"];
@@ -74,7 +94,7 @@ function handleError(
 
 export function registerResumeDocumentRoutes(
   app: FastifyInstance,
-  options: { db: Kysely<Database> },
+  options: { db: Kysely<Database>; reviewV2WriteEnabled?: AppConfig["resumeReviewV2WriteEnabled"] },
 ): void {
   app.get("/v1/resume-documents", async (request, reply) => {
     try {
@@ -242,7 +262,7 @@ export function registerResumeDocumentRoutes(
     try {
       const owner = requireOwnerContext(request);
       const { documentId } = ResumeDocumentIdSchema.parse(request.params);
-      const body = CreateResumeReviewRequestSchema.parse(request.body);
+      const body = parseCreateResumeReviewRequest(request.body);
       const idempotencyKey = requireIdempotencyKey(request.headers);
       const result = await createResumeReview({
         db: options.db,
@@ -250,6 +270,9 @@ export function registerResumeDocumentRoutes(
         documentId,
         request: body,
         idempotencyKey,
+        ...(options.reviewV2WriteEnabled === undefined
+          ? {}
+          : { reviewV2WriteEnabled: options.reviewV2WriteEnabled }),
       });
       return reply.code(result.created ? 202 : 200).send(result);
     } catch (error) {

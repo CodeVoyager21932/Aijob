@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { JobContextSchema } from "./application-cases.js";
 import {
+  IdentifierSchema,
   JsonRecordSchema,
   RevisionSchema,
   Sha256Schema,
@@ -8,6 +9,7 @@ import {
   UuidSchema,
 } from "./common.js";
 import { ResumeSuggestionDecisionSchema } from "./enums.js";
+import { JobRequirementSchema } from "./matching.js";
 
 export const ResumeDocumentKindSchema = z.enum(["base", "case_derived"]);
 export type ResumeDocumentKind = z.infer<typeof ResumeDocumentKindSchema>;
@@ -328,27 +330,52 @@ export const ResumeReviewRunStatusSchema = z.enum([
 ]);
 export type ResumeReviewRunStatus = z.infer<typeof ResumeReviewRunStatusSchema>;
 
+const ResumeReviewVersionLabelSchema = z.string().trim().min(1).max(100);
+const ResumeReviewOptionalVersionLabelSchema = ResumeReviewVersionLabelSchema.nullable();
+
+const ResumeReviewRunFieldsSchema = z.object({
+  id: UuidSchema,
+  ownerId: UuidSchema,
+  ownerEpoch: z.number().int().positive(),
+  caseId: UuidSchema.nullable(),
+  detachedFromCaseId: UuidSchema.nullable(),
+  documentId: UuidSchema,
+  contentRevisionId: UuidSchema,
+  jobContext: JobContextSchema,
+  evidenceRevisionId: UuidSchema,
+  mode: ResumeReviewRunModeSchema,
+  status: ResumeReviewRunStatusSchema,
+  revision: RevisionSchema,
+  completedAt: TimestampSchema.nullable(),
+  deletedAt: TimestampSchema.nullable(),
+  createdAt: TimestampSchema,
+  updatedAt: TimestampSchema,
+});
+
+export const ResumeReviewRunV1Schema = ResumeReviewRunFieldsSchema.extend({
+  schemaVersion: z.literal("resume-review-run-v1"),
+}).strict();
+export type ResumeReviewRunV1 = z.infer<typeof ResumeReviewRunV1Schema>;
+
+export const ResumeReviewRunV2Schema = ResumeReviewRunFieldsSchema.extend({
+  schemaVersion: z.literal("resume-review-run-v2"),
+  generationProvenanceVersion: z.literal("resume-review-generation-v1"),
+  templateVersion: ResumeReviewVersionLabelSchema,
+  privacyConsentAt: TimestampSchema.nullable(),
+  providerAdapter: ResumeReviewOptionalVersionLabelSchema,
+  model: ResumeReviewOptionalVersionLabelSchema,
+  promptVersion: ResumeReviewOptionalVersionLabelSchema,
+  outputSchemaVersion: ResumeReviewOptionalVersionLabelSchema,
+  safetyPolicyVersion: ResumeReviewOptionalVersionLabelSchema,
+  parametersVersion: ResumeReviewOptionalVersionLabelSchema,
+  usedTemplateFallback: z.boolean(),
+  fallbackReasonCode: ResumeReviewOptionalVersionLabelSchema,
+  failureCode: ResumeReviewOptionalVersionLabelSchema,
+}).strict();
+export type ResumeReviewRunV2 = z.infer<typeof ResumeReviewRunV2Schema>;
+
 export const ResumeReviewRunSchema = z
-  .object({
-    schemaVersion: z.literal("resume-review-run-v1"),
-    id: UuidSchema,
-    ownerId: UuidSchema,
-    ownerEpoch: z.number().int().positive(),
-    caseId: UuidSchema.nullable(),
-    detachedFromCaseId: UuidSchema.nullable(),
-    documentId: UuidSchema,
-    contentRevisionId: UuidSchema,
-    jobContext: JobContextSchema,
-    evidenceRevisionId: UuidSchema,
-    mode: ResumeReviewRunModeSchema,
-    status: ResumeReviewRunStatusSchema,
-    revision: RevisionSchema,
-    completedAt: TimestampSchema.nullable(),
-    deletedAt: TimestampSchema.nullable(),
-    createdAt: TimestampSchema,
-    updatedAt: TimestampSchema,
-  })
-  .strict()
+  .discriminatedUnion("schemaVersion", [ResumeReviewRunV1Schema, ResumeReviewRunV2Schema])
   .superRefine((value, context) => {
     if ((value.caseId === null) === (value.detachedFromCaseId === null)) {
       context.addIssue({
@@ -383,6 +410,64 @@ export const ResumeReviewRunSchema = z
         message: "deletedAt must be present exactly when the review is deleted",
       });
     }
+    if (value.schemaVersion !== "resume-review-run-v2") return;
+    if ((value.providerAdapter === null) !== (value.model === null)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["providerAdapter"],
+        message: "providerAdapter and model must be recorded together",
+      });
+    }
+    if (value.usedTemplateFallback !== (value.fallbackReasonCode !== null)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["fallbackReasonCode"],
+        message: "fallbackReasonCode must be present exactly when template fallback was used",
+      });
+    }
+    if (
+      (value.status === "failed" && value.failureCode === null) ||
+      (!["failed", "deleted"].includes(value.status) && value.failureCode !== null)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["failureCode"],
+        message: "failureCode must be present exactly when the v2 review failed",
+      });
+    }
+    if (value.mode === "template") {
+      if (
+        value.privacyConsentAt !== null ||
+        value.providerAdapter !== null ||
+        value.model !== null ||
+        value.promptVersion !== null ||
+        value.outputSchemaVersion !== null ||
+        value.safetyPolicyVersion !== null ||
+        value.parametersVersion !== null ||
+        value.usedTemplateFallback
+      ) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["mode"],
+          message: "template review cannot carry controlled AI provenance",
+        });
+      }
+    } else {
+      const missingControlledAiProvenance = [
+        value.privacyConsentAt,
+        value.promptVersion,
+        value.outputSchemaVersion,
+        value.safetyPolicyVersion,
+        value.parametersVersion,
+      ].some((item) => item === null);
+      if (missingControlledAiProvenance) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["privacyConsentAt"],
+          message: "controlled AI review requires consent and generation provenance",
+        });
+      }
+    }
   });
 export type ResumeReviewRun = z.infer<typeof ResumeReviewRunSchema>;
 
@@ -405,26 +490,43 @@ const ResumeReviewReasonCodeSchema = z
   .max(100)
   .regex(/^[A-Z0-9_]+$/);
 
-export const ResumeReviewFindingSchema = z
-  .object({
-    schemaVersion: z.literal("resume-review-finding-v1"),
-    id: UuidSchema,
-    ownerId: UuidSchema,
-    ownerEpoch: z.number().int().positive(),
-    reviewRunId: UuidSchema,
-    category: ResumeReviewFindingCategorySchema,
-    severity: ResumeReviewFindingSeveritySchema,
-    sourceBlockId: UuidSchema,
-    evidenceIds: z
-      .array(EvidenceIdSchema)
-      .max(500)
-      .refine((ids) => new Set(ids).size === ids.length, {
-        message: "evidenceIds must be unique",
-      }),
-    reasonCode: ResumeReviewReasonCodeSchema,
-    createdAt: TimestampSchema,
-  })
-  .strict();
+const RequirementIdSchema = IdentifierSchema;
+const RequirementIdsSchema = z
+  .array(RequirementIdSchema)
+  .max(500)
+  .refine((ids) => new Set(ids).size === ids.length, {
+    message: "requirementIds must be unique",
+  });
+
+const ResumeReviewFindingFieldsSchema = z.object({
+  id: UuidSchema,
+  ownerId: UuidSchema,
+  ownerEpoch: z.number().int().positive(),
+  reviewRunId: UuidSchema,
+  category: ResumeReviewFindingCategorySchema,
+  severity: ResumeReviewFindingSeveritySchema,
+  sourceBlockId: UuidSchema,
+  evidenceIds: z
+    .array(EvidenceIdSchema)
+    .max(500)
+    .refine((ids) => new Set(ids).size === ids.length, {
+      message: "evidenceIds must be unique",
+    }),
+  reasonCode: ResumeReviewReasonCodeSchema,
+  createdAt: TimestampSchema,
+});
+
+export const ResumeReviewFindingV1Schema = ResumeReviewFindingFieldsSchema.extend({
+  schemaVersion: z.literal("resume-review-finding-v1"),
+}).strict();
+export const ResumeReviewFindingV2Schema = ResumeReviewFindingFieldsSchema.extend({
+  schemaVersion: z.literal("resume-review-finding-v2"),
+  requirementIds: RequirementIdsSchema,
+}).strict();
+export const ResumeReviewFindingSchema = z.discriminatedUnion("schemaVersion", [
+  ResumeReviewFindingV1Schema,
+  ResumeReviewFindingV2Schema,
+]);
 export type ResumeReviewFinding = z.infer<typeof ResumeReviewFindingSchema>;
 
 export const ResumeReviewChangeTypeSchema = z.enum([
@@ -440,30 +542,40 @@ export type ResumeReviewChangeType = z.infer<typeof ResumeReviewChangeTypeSchema
 export const ResumeReviewTargetTypeSchema = z.enum(["block", "section"]);
 export type ResumeReviewTargetType = z.infer<typeof ResumeReviewTargetTypeSchema>;
 
+const ResumeReviewSuggestionFieldsSchema = z.object({
+  id: UuidSchema,
+  ownerId: UuidSchema,
+  ownerEpoch: z.number().int().positive(),
+  reviewRunId: UuidSchema,
+  findingId: UuidSchema,
+  targetType: ResumeReviewTargetTypeSchema,
+  targetIds: z.array(UuidSchema).min(1).max(500),
+  changeType: ResumeReviewChangeTypeSchema,
+  suggestedText: z.string().trim().min(1).max(10_000).nullable(),
+  evidenceIds: z
+    .array(EvidenceIdSchema)
+    .max(500)
+    .refine((ids) => new Set(ids).size === ids.length, {
+      message: "evidenceIds must be unique",
+    }),
+  decision: ResumeSuggestionDecisionSchema,
+  revision: RevisionSchema,
+  createdAt: TimestampSchema,
+  updatedAt: TimestampSchema,
+});
+
+export const ResumeReviewSuggestionV1Schema = ResumeReviewSuggestionFieldsSchema.extend({
+  schemaVersion: z.literal("resume-review-suggestion-v1"),
+}).strict();
+export const ResumeReviewSuggestionV2Schema = ResumeReviewSuggestionFieldsSchema.extend({
+  schemaVersion: z.literal("resume-review-suggestion-v2"),
+  requirementIds: RequirementIdsSchema,
+}).strict();
 export const ResumeReviewSuggestionSchema = z
-  .object({
-    schemaVersion: z.literal("resume-review-suggestion-v1"),
-    id: UuidSchema,
-    ownerId: UuidSchema,
-    ownerEpoch: z.number().int().positive(),
-    reviewRunId: UuidSchema,
-    findingId: UuidSchema,
-    targetType: ResumeReviewTargetTypeSchema,
-    targetIds: z.array(UuidSchema).min(1).max(500),
-    changeType: ResumeReviewChangeTypeSchema,
-    suggestedText: z.string().trim().min(1).max(10_000).nullable(),
-    evidenceIds: z
-      .array(EvidenceIdSchema)
-      .max(500)
-      .refine((ids) => new Set(ids).size === ids.length, {
-        message: "evidenceIds must be unique",
-      }),
-    decision: ResumeSuggestionDecisionSchema,
-    revision: RevisionSchema,
-    createdAt: TimestampSchema,
-    updatedAt: TimestampSchema,
-  })
-  .strict()
+  .discriminatedUnion("schemaVersion", [
+    ResumeReviewSuggestionV1Schema,
+    ResumeReviewSuggestionV2Schema,
+  ])
   .superRefine((value, context) => {
     const uniqueTargetIds = new Set(value.targetIds);
     if (uniqueTargetIds.size !== value.targetIds.length) {
@@ -519,6 +631,17 @@ export const ResumeReviewSuggestionSchema = z
         code: z.ZodIssueCode.custom,
         path: ["evidenceIds"],
         message: "Text suggestions must cite confirmed evidence",
+      });
+    }
+    if (
+      value.schemaVersion === "resume-review-suggestion-v2" &&
+      !removesText &&
+      value.requirementIds.length === 0
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["requirementIds"],
+        message: "V2 text suggestions must cite a fixed job requirement",
       });
     }
   });
@@ -616,12 +739,21 @@ export type DecideResumeReviewSuggestionRequest = z.infer<
   typeof DecideResumeReviewSuggestionRequestSchema
 >;
 
-export const CreateResumeReviewRequestSchema = z
-  .object({
-    expectedRevision: RevisionSchema,
-    mode: z.literal("template"),
-  })
-  .strict();
+export const CreateResumeReviewRequestSchema = z.discriminatedUnion("mode", [
+  z
+    .object({
+      expectedRevision: RevisionSchema,
+      mode: z.literal("template"),
+    })
+    .strict(),
+  z
+    .object({
+      expectedRevision: RevisionSchema,
+      mode: z.literal("controlled_ai"),
+      privacyConsent: z.literal(true),
+    })
+    .strict(),
+]);
 export type CreateResumeReviewRequest = z.infer<typeof CreateResumeReviewRequestSchema>;
 
 export const ResumeReviewRunIdSchema = z
@@ -655,6 +787,7 @@ export type ResumeReviewBundle = z.infer<typeof ResumeReviewBundleSchema>;
 export const CurrentResumeReviewResponseSchema = z
   .object({
     review: ResumeReviewBundleSchema.nullable(),
+    requirements: z.array(JobRequirementSchema).max(500).default([]),
   })
   .strict();
 export type CurrentResumeReviewResponse = z.infer<typeof CurrentResumeReviewResponseSchema>;
@@ -662,6 +795,7 @@ export type CurrentResumeReviewResponse = z.infer<typeof CurrentResumeReviewResp
 export const CreateResumeReviewResponseSchema = z
   .object({
     review: ResumeReviewBundleSchema,
+    requirements: z.array(JobRequirementSchema).max(500).default([]),
     created: z.boolean(),
   })
   .strict();

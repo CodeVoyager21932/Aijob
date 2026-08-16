@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type {
   ResumeDocumentContentRevisionReadModel,
+  ResumeReviewRun,
   ResumeReviewSuggestion,
 } from "@aijob/contracts";
 import { describe, expect, it } from "vitest";
@@ -8,7 +9,9 @@ import {
   orderResumeReviewSuggestions,
   resumeReviewBlockText,
   resumeReviewDecisionLabel,
+  resumeReviewGenerationLabel,
   resumeReviewReasonLabel,
+  resumeReviewRequirementIds,
 } from "./resume-review-view";
 
 function suggestion(input: {
@@ -84,5 +87,73 @@ describe("resume review view", () => {
       "accepted",
       "pending",
     ]);
+  });
+
+  it("does not forge provenance for v1 and explains a controlled AI fallback", () => {
+    const ownerId = randomUUID();
+    const v1 = {
+      schemaVersion: "resume-review-run-v1",
+      id: randomUUID(),
+      ownerId,
+      ownerEpoch: 1,
+      caseId: randomUUID(),
+      detachedFromCaseId: null,
+      documentId: randomUUID(),
+      contentRevisionId: randomUUID(),
+      jobContext: {
+        kind: "private",
+        snapshotId: randomUUID(),
+        ownerId,
+        title: "合成岗位",
+        companyName: null,
+        sourceLabel: "合成输入",
+        contentRevision: 1,
+        requirementSetRevision: 1,
+        sourceProvided: false,
+      },
+      evidenceRevisionId: randomUUID(),
+      mode: "template",
+      status: "completed",
+      revision: 2,
+      completedAt: "2026-08-16T00:00:00.000Z",
+      deletedAt: null,
+      createdAt: "2026-08-16T00:00:00.000Z",
+      updatedAt: "2026-08-16T00:00:00.000Z",
+    } satisfies ResumeReviewRun;
+    const fallback = {
+      ...v1,
+      schemaVersion: "resume-review-run-v2",
+      mode: "controlled_ai",
+      generationProvenanceVersion: "resume-review-generation-v1",
+      templateVersion: "resume-review-template-v2",
+      privacyConsentAt: "2026-08-16T00:00:00.000Z",
+      providerAdapter: null,
+      model: null,
+      promptVersion: "resume-review-prompt-v1",
+      outputSchemaVersion: "resume-review-output-v1",
+      safetyPolicyVersion: "confirmed-evidence-and-fixed-requirements-v1",
+      parametersVersion: "temperature-zero-v1",
+      usedTemplateFallback: true,
+      fallbackReasonCode: "AI_DISABLED",
+      failureCode: null,
+    } satisfies ResumeReviewRun;
+
+    expect(resumeReviewGenerationLabel(v1)).toContain("生成来源未记录");
+    expect(resumeReviewGenerationLabel(fallback)).toBe(
+      "受控 AI 未启用，已改用确定性模板",
+    );
+  });
+
+  it("shows only persisted v2 requirement citations", () => {
+    const requirementId = "requirement-1";
+    const v1 = suggestion({ id: randomUUID(), targetId: randomUUID() });
+    const v2 = {
+      ...v1,
+      schemaVersion: "resume-review-suggestion-v2",
+      requirementIds: [requirementId],
+    } satisfies ResumeReviewSuggestion;
+
+    expect(resumeReviewRequirementIds(v1)).toEqual([]);
+    expect(resumeReviewRequirementIds(v2)).toEqual([requirementId]);
   });
 });

@@ -35,7 +35,9 @@ import {
   updateResumeSection,
   validateResumeDraft,
 } from "../resume-editor-state";
+import { useMediaQuery } from "../use-media-query";
 import { Icon } from "./Icon";
+import { ResumeDraftNavigationGuard } from "./ResumeDraftNavigationGuard";
 import { ResumeReviewPanel } from "./ResumeReviewPanel";
 
 const DEFAULT_LAYOUT_SETTINGS: ResumeLayoutSettings = {
@@ -84,6 +86,12 @@ function sectionOrderEquals(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
+type ResumeStudioPane = "structure" | "document" | "review";
+
+function resumeStudioPane(value: string | null): ResumeStudioPane {
+  return value === "structure" || value === "review" ? value : "document";
+}
+
 export function ResumeDocumentEditor({
   resumeDocument,
   contextLabel = "基础简历",
@@ -105,8 +113,10 @@ export function ResumeDocumentEditor({
   const [layoutConflict, setLayoutConflict] = useState(false);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [reviewBusy, setReviewBusy] = useState(false);
+  const compactStudio = useMediaQuery("(max-width: 1023px)");
   const contentCommandRef = useRef<{ signature: string; key: string } | null>(null);
   const layoutCommandRef = useRef<{ signature: string; key: string } | null>(null);
+  const pendingBlockSelectionRef = useRef<string | null>(null);
 
   const contentQuery = useQuery({
     queryKey: careerOsQueryKeys.resumeContent(resumeDocument.id),
@@ -217,6 +227,8 @@ export function ResumeDocumentEditor({
   }, [draftContent, reconciledLayoutOrder]);
 
   const requestedBlockId = searchParams.get("block");
+  const requestedRequirementId = searchParams.get("requirement");
+  const activeStudioPane = resumeStudioPane(searchParams.get("studio"));
   const allBlocks = orderedSections.flatMap((section) =>
     section.blocks.map((block) => ({ section, block })),
   );
@@ -224,28 +236,75 @@ export function ResumeDocumentEditor({
     allBlocks.find(({ block }) => block.id === requestedBlockId) ?? allBlocks[0] ?? null;
 
   useEffect(() => {
+    const pendingBlockId = pendingBlockSelectionRef.current;
+    if (!pendingBlockId || !allBlocks.some(({ block }) => block.id === pendingBlockId)) return;
+    pendingBlockSelectionRef.current = null;
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set("block", pendingBlockId);
+      next.delete("requirement");
+      return next;
+    });
+  }, [allBlocks, setSearchParams]);
+
+  useEffect(() => {
     if (!requestedBlockId || allBlocks.length === 0) return;
-    if (allBlocks.some(({ block }) => block.id === requestedBlockId)) return;
-    const next = new URLSearchParams(searchParams);
-    next.delete("block");
-    setSearchParams(next, { replace: true });
+    if (allBlocks.some(({ block }) => block.id === requestedBlockId)) {
+      if (pendingBlockSelectionRef.current === requestedBlockId) {
+        pendingBlockSelectionRef.current = null;
+      }
+      return;
+    }
+    if (pendingBlockSelectionRef.current === requestedBlockId) return;
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        next.delete("block");
+        return next;
+      },
+      { replace: true },
+    );
     window.requestAnimationFrame(() => {
       document
         .querySelector<HTMLElement>(`[data-resume-editor-block="${allBlocks[0]?.block.id}"]`)
         ?.focus();
     });
-  }, [allBlocks, requestedBlockId, searchParams, setSearchParams]);
+  }, [allBlocks, requestedBlockId, setSearchParams]);
 
   const updateDraft = (updater: (current: ResumeSemanticContent) => ResumeSemanticContent) => {
     setDraftContent((current) => (current ? updater(current) : current));
     setContentTouched(true);
     setSavedMessage(null);
   };
-  const selectBlock = (blockId: string) => {
-    const next = new URLSearchParams(searchParams);
-    next.set("block", blockId);
-    next.delete("requirement");
-    setSearchParams(next);
+  const selectBlock = (
+    blockId: string,
+    options: { pane?: ResumeStudioPane; replace?: boolean } = {},
+  ) => {
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        next.set("block", blockId);
+        next.delete("requirement");
+        if (options.pane) next.set("studio", options.pane);
+        return next;
+      },
+      { replace: options.replace ?? false },
+    );
+  };
+  const selectRequirement = (requirementId: string) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set("requirement", requirementId);
+      next.set("studio", "review");
+      return next;
+    });
+  };
+  const selectStudioPane = (pane: ResumeStudioPane) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set("studio", pane);
+      return next;
+    });
   };
 
   const contentMutation = useMutation({
@@ -520,6 +579,27 @@ export function ResumeDocumentEditor({
         </div>
       </header>
 
+      <ResumeDraftNavigationGuard active={hasUnsavedChanges} />
+      {compactStudio ? (
+        <nav className="career-resume-editor__mode-switch" aria-label="简历工作室视图">
+          {([
+            ["structure", "结构"],
+            ["document", "文稿"],
+            ["review", "建议"],
+          ] as const).map(([pane, label]) => (
+            <button
+              key={pane}
+              type="button"
+              aria-pressed={activeStudioPane === pane}
+              aria-controls={`career-resume-editor-pane-${pane}`}
+              onClick={() => selectStudioPane(pane)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      ) : null}
+
       {contentConflict ? (
         <section className="career-resume-editor__conflict" role="alert">
           <Icon name="warning" size={19} />
@@ -610,71 +690,178 @@ export function ResumeDocumentEditor({
       ) : null}
 
       <div className="career-resume-editor__body">
-        <aside className="career-resume-editor__structure" aria-label="简历章节结构">
-          <header>
-            <strong>章节结构</strong>
-            <span>{orderedSections.length}</span>
-          </header>
-          <ol>
-            {orderedSections.map((section, index) => {
-              const active = selectedEntry?.section.id === section.id;
-              return (
-                <li key={section.id} className={active ? "is-active" : undefined}>
-                  <button type="button" onClick={() => selectBlock(section.blocks[0]?.id ?? "")}>
-                    <span>{section.title || "未命名章节"}</span>
-                    <small>{section.blocks.length} 段</small>
-                  </button>
-                  <div>
-                    <button
-                      type="button"
-                      aria-label={`上移章节 ${section.title}`}
-                      disabled={index === 0 || busy}
-                      onClick={() => {
-                        setLayoutOrderDraft((current) =>
-                          moveResumeSectionId(current, section.id, "up"),
-                        );
-                        setLayoutTouched(true);
-                        setSavedMessage(null);
-                      }}
-                    >
-                      上移
+        <aside
+          id="career-resume-editor-pane-structure"
+          className="career-resume-editor__rail"
+          aria-label="简历结构、版本与证据"
+          hidden={compactStudio && activeStudioPane !== "structure"}
+        >
+          <section className="career-resume-editor__structure" aria-label="简历章节结构">
+            <header>
+              <strong>章节结构</strong>
+              <span>{orderedSections.length}</span>
+            </header>
+            <ol>
+              {orderedSections.map((section, index) => {
+                const active = selectedEntry?.section.id === section.id;
+                return (
+                  <li key={section.id} className={active ? "is-active" : undefined}>
+                    <button type="button" onClick={() => selectBlock(section.blocks[0]?.id ?? "")}>
+                      <span>{section.title || "未命名章节"}</span>
+                      <small>{section.blocks.length} 段</small>
                     </button>
-                    <button
-                      type="button"
-                      aria-label={`下移章节 ${section.title}`}
-                      disabled={index === orderedSections.length - 1 || busy}
-                      onClick={() => {
-                        setLayoutOrderDraft((current) =>
-                          moveResumeSectionId(current, section.id, "down"),
-                        );
-                        setLayoutTouched(true);
-                        setSavedMessage(null);
-                      }}
-                    >
-                      下移
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-          <button
-            className="career-resume-editor__add-section"
-            type="button"
-            disabled={busy || draftContent.sections.length >= 100}
-            onClick={() => {
-              const sectionId = crypto.randomUUID();
-              const blockId = crypto.randomUUID();
-              updateDraft((current) => addResumeSection(current, { sectionId, blockId }));
-              setLayoutOrderDraft((current) => [...current, sectionId]);
-              selectBlock(blockId);
-            }}
-          >
-            + 新增章节
-          </button>
+                    <div>
+                      <button
+                        type="button"
+                        aria-label={`上移章节 ${section.title}`}
+                        disabled={index === 0 || busy}
+                        onClick={() => {
+                          setLayoutOrderDraft((current) =>
+                            moveResumeSectionId(current, section.id, "up"),
+                          );
+                          setLayoutTouched(true);
+                          setSavedMessage(null);
+                        }}
+                      >
+                        上移
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`下移章节 ${section.title}`}
+                        disabled={index === orderedSections.length - 1 || busy}
+                        onClick={() => {
+                          setLayoutOrderDraft((current) =>
+                            moveResumeSectionId(current, section.id, "down"),
+                          );
+                          setLayoutTouched(true);
+                          setSavedMessage(null);
+                        }}
+                      >
+                        下移
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+            <button
+              className="career-resume-editor__add-section"
+              type="button"
+              disabled={busy || draftContent.sections.length >= 100}
+              onClick={() => {
+                const sectionId = crypto.randomUUID();
+                const blockId = crypto.randomUUID();
+                pendingBlockSelectionRef.current = blockId;
+                updateDraft((current) => addResumeSection(current, { sectionId, blockId }));
+                setLayoutOrderDraft((current) => [...current, sectionId]);
+              }}
+            >
+              + 新增章节
+            </button>
+          </section>
+
+          <section className="career-resume-editor__versions" aria-label="不可变修订记录">
+            <header>
+              <div>
+                <p>追溯</p>
+                <strong>版本记录</strong>
+              </div>
+              <span>{contentQuery.data.items.length + layoutQuery.data.items.length}</span>
+            </header>
+            <dl>
+              <div>
+                <dt>当前正文</dt>
+                <dd>修订 {serverContentRevision.documentRevision}</dd>
+              </div>
+              <div>
+                <dt>当前布局</dt>
+                <dd>修订 {serverLayout.layoutRevision}</dd>
+              </div>
+            </dl>
+            <details>
+              <summary>查看最近修订</summary>
+              <ol>
+                {contentQuery.data.items.slice(0, 4).map((revision) => (
+                  <li key={revision.id}>
+                    <span>正文修订 {revision.documentRevision}</span>
+                    <time dateTime={revision.createdAt}>
+                      {new Date(revision.createdAt).toLocaleDateString("zh-CN")}
+                    </time>
+                  </li>
+                ))}
+                {layoutQuery.data.items.slice(0, 3).map((revision) => (
+                  <li key={revision.id}>
+                    <span>布局修订 {revision.layoutRevision}</span>
+                    <time dateTime={revision.createdAt}>
+                      {new Date(revision.createdAt).toLocaleDateString("zh-CN")}
+                    </time>
+                  </li>
+                ))}
+              </ol>
+            </details>
+          </section>
+
+          <section className="career-resume-editor__evidence" aria-label="当前区块证据">
+            <header>
+              <p>事实边界</p>
+              <strong>已确认证据</strong>
+              <span>
+                {selectedEntry ? `当前区块已关联 ${selectedEvidenceIds.length} 条` : "未选择区块"}
+              </span>
+            </header>
+            {evidenceQuery.isPending ? (
+              <output>正在读取证据…</output>
+            ) : evidenceQuery.isError ? (
+              <div className="career-inline-error" role="alert">
+                <span>{errorMessage(evidenceQuery.error)}</span>
+              </div>
+            ) : confirmedEvidence.length === 0 ? (
+              <div className="career-resume-editor__evidence-empty">
+                <p>尚无已确认的经历证据。正文仍可编辑，但专业建议不会使用未确认事实。</p>
+                <Link to="/resumes/import">前往确认简历证据</Link>
+              </div>
+            ) : selectedEntry ? (
+              <ul>
+                {confirmedEvidence.map((evidence) => (
+                  <li key={evidence.id}>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={selectedEvidenceIds.includes(evidence.id)}
+                        disabled={busy}
+                        onChange={() =>
+                          updateDraft((current) =>
+                            toggleResumeBlockEvidence(
+                              current,
+                              selectedEntry.section.id,
+                              selectedEntry.block.id,
+                              evidence.id,
+                            ),
+                          )
+                        }
+                      />
+                      <span>
+                        <strong>{evidence.section}</strong>
+                        <small>{evidenceCopy(evidence)}</small>
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <footer>
+              <Icon name="check" size={16} />
+              只有已确认、属于当前账户的证据 ID 才能保存。
+            </footer>
+          </section>
         </aside>
 
-        <main className="career-resume-editor__document" aria-label="结构化简历正文">
+        <main
+          id="career-resume-editor-pane-document"
+          className="career-resume-editor__document"
+          aria-label="结构化简历正文"
+          hidden={compactStudio && activeStudioPane !== "document"}
+        >
           <div className="career-resume-editor__paper-meta">
             <span>A4 结构编辑</span>
             <span>自动保存已关闭</span>
@@ -775,7 +962,7 @@ export function ResumeDocumentEditor({
                         disabled={busy}
                         value={block.text}
                         aria-label={`${section.title} 第 ${blockIndex + 1} 个区块正文`}
-                        onFocus={() => selectBlock(block.id)}
+                        onFocus={() => selectBlock(block.id, { replace: true })}
                         onChange={(event) =>
                           updateDraft((current) =>
                             updateResumeBlock(current, section.id, block.id, {
@@ -794,8 +981,8 @@ export function ResumeDocumentEditor({
                   disabled={busy || section.blocks.length >= 500}
                   onClick={() => {
                     const blockId = crypto.randomUUID();
+                    pendingBlockSelectionRef.current = blockId;
                     updateDraft((current) => addResumeBlock(current, section.id, blockId));
-                    selectBlock(blockId);
                   }}
                 >
                   + 添加内容区块
@@ -805,73 +992,46 @@ export function ResumeDocumentEditor({
           </article>
         </main>
 
-        <aside className="career-resume-editor__evidence" aria-label="当前区块证据">
-          <header>
-            <p>事实边界</p>
-            <strong>已确认证据</strong>
-            <span>
-              {selectedEntry ? `当前区块已关联 ${selectedEvidenceIds.length} 条` : "未选择区块"}
-            </span>
-          </header>
-          {evidenceQuery.isPending ? (
-            <output>正在读取证据…</output>
-          ) : evidenceQuery.isError ? (
-            <div className="career-inline-error" role="alert">
-              <span>{errorMessage(evidenceQuery.error)}</span>
-            </div>
-          ) : confirmedEvidence.length === 0 ? (
-            <div className="career-resume-editor__evidence-empty">
-              <p>尚无已确认的经历证据。正文仍可编辑，但专业建议不会使用未确认事实。</p>
-              <Link to="/resumes/import">前往确认简历证据</Link>
-            </div>
-          ) : selectedEntry ? (
-            <ul>
-              {confirmedEvidence.map((evidence) => (
-                <li key={evidence.id}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={selectedEvidenceIds.includes(evidence.id)}
-                      disabled={busy}
-                      onChange={() =>
-                        updateDraft((current) =>
-                          toggleResumeBlockEvidence(
-                            current,
-                            selectedEntry.section.id,
-                            selectedEntry.block.id,
-                            evidence.id,
-                          ),
-                        )
-                      }
-                    />
-                    <span>
-                      <strong>{evidence.section}</strong>
-                      <small>{evidenceCopy(evidence)}</small>
-                    </span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          <footer>
-            <Icon name="check" size={16} />
-            只有已确认、属于当前账户的证据 ID 才能保存。
-          </footer>
+        <aside
+          id="career-resume-editor-pane-review"
+          className="career-resume-editor__review-pane"
+          aria-label={resumeDocument.kind === "case_derived" ? "岗位要求与审阅建议" : "简历建议"}
+          hidden={compactStudio && activeStudioPane !== "review"}
+        >
+          {resumeDocument.kind === "case_derived" ? (
+            <ResumeReviewPanel
+              documentId={resumeDocument.id}
+              documentRevision={contentQuery.data.documentRevision}
+              currentContentRevisionId={serverContentRevision.id}
+              contentRevisions={contentQuery.data.items}
+              selectedBlockId={selectedEntry?.block.id ?? null}
+              selectedRequirementId={requestedRequirementId}
+              disabled={hasUnsavedChanges || contentConflict || layoutConflict || busy}
+              onBusyChange={setReviewBusy}
+              onSelectBlock={(blockId) => selectBlock(blockId, { pane: "document" })}
+              onSelectRequirement={selectRequirement}
+            />
+          ) : (
+            <section className="career-resume-review career-resume-review--base">
+              <header>
+                <div>
+                  <p>基础简历</p>
+                  <h3>建议属于具体岗位</h3>
+                  <span>基础简历只保存可复用事实；不会在没有固定岗位要求时生成定向改写。</span>
+                </div>
+              </header>
+              <div className="career-resume-review__empty">
+                <Icon name="document" size={22} />
+                <div>
+                  <strong>从求职项目创建岗位简历</strong>
+                  <p>进入同一 Case 后，右栏会显示固定要求、证据引用和逐条建议。</p>
+                </div>
+              </div>
+            </section>
+          )}
         </aside>
       </div>
       {printDocument}
-      {resumeDocument.kind === "case_derived" ? (
-        <ResumeReviewPanel
-          documentId={resumeDocument.id}
-          documentRevision={contentQuery.data.documentRevision}
-          currentContentRevisionId={serverContentRevision.id}
-          contentRevisions={contentQuery.data.items}
-          selectedBlockId={selectedEntry?.block.id ?? null}
-          disabled={hasUnsavedChanges || contentConflict || layoutConflict || busy}
-          onBusyChange={setReviewBusy}
-          onSelectBlock={selectBlock}
-        />
-      ) : null}
     </section>
   );
 }

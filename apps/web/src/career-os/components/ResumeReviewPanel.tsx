@@ -1,5 +1,6 @@
 import type {
   ResumeDocumentContentRevisionReadModel,
+  ResumeReviewRunMode,
   ResumeReviewSuggestion,
 } from "@aijob/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,7 +21,9 @@ import {
   resumeReviewBlockText,
   resumeReviewChangeLabel,
   resumeReviewDecisionLabel,
+  resumeReviewGenerationLabel,
   resumeReviewReasonLabel,
+  resumeReviewRequirementIds,
   resumeReviewStatusLabel,
 } from "../resume-review-view";
 import { Icon } from "./Icon";
@@ -29,6 +32,8 @@ interface DecisionCommand {
   signature: string;
   idempotencyKey: string;
 }
+
+const startReviewCommands = new Map<string, { signature: string; key: string }>();
 
 function requestUuid(): string {
   return crypto.randomUUID();
@@ -47,8 +52,25 @@ function reviewErrorMessage(error: unknown): string {
       return "目标区块已变化，系统没有覆盖新内容。请重新审阅当前修订。";
     case "RESUME_REVIEW_NOT_READY":
       return "审阅任务尚未完成，请稍后再决定。";
+    case "CONTROLLED_AI_CONSENT_REQUIRED":
+      return "请先明确同意本次去标识化处理，再开始受控 AI 审阅。";
+    case "RESUME_REVIEW_V2_WRITE_DISABLED":
+      return "当前环境尚未开放 Review v2 新写入；模板审阅仍可沿用兼容路径。";
     default:
       return error.message;
+  }
+}
+
+function requirementNecessityLabel(necessity: string): string {
+  switch (necessity) {
+    case "required":
+      return "必须";
+    case "preferred":
+      return "优先";
+    case "optional":
+      return "可选";
+    default:
+      return "未说明";
   }
 }
 
@@ -58,22 +80,29 @@ export function ResumeReviewPanel({
   currentContentRevisionId,
   contentRevisions,
   selectedBlockId,
+  selectedRequirementId,
   disabled,
   onBusyChange,
   onSelectBlock,
+  onSelectRequirement,
 }: {
   documentId: string;
   documentRevision: number;
   currentContentRevisionId: string;
   contentRevisions: ResumeDocumentContentRevisionReadModel[];
   selectedBlockId: string | null;
+  selectedRequirementId: string | null;
   disabled: boolean;
   onBusyChange: (busy: boolean) => void;
   onSelectBlock: (blockId: string) => void;
+  onSelectRequirement: (requirementId: string) => void;
 }) {
   const queryClient = useQueryClient();
   const [decisionDraft, setDecisionDraft] = useState<ResumeReviewDecisionDraft | null>(null);
-  const startCommandRef = useRef<{ signature: string; key: string } | null>(null);
+  const [privacyConsent, setPrivacyConsent] = useState(false);
+  const startCommandRef = useRef<{ signature: string; key: string } | null>(
+    startReviewCommands.get(documentId) ?? null,
+  );
   const decisionCommandsRef = useRef<Map<string, DecisionCommand>>(new Map());
 
   const reviewQuery = useQuery({
@@ -83,6 +112,11 @@ export function ResumeReviewPanel({
       query.state.data?.review?.reviewRun.status === "pending" ? 1_000 : false,
   });
   const review = reviewQuery.data?.review ?? null;
+  const requirements = reviewQuery.data?.requirements ?? [];
+  const requirementById = useMemo(
+    () => new Map(requirements.map((requirement) => [requirement.id, requirement])),
+    [requirements],
+  );
   const reviewedRevision = useMemo(
     () =>
       review
@@ -112,21 +146,28 @@ export function ResumeReviewPanel({
   };
 
   const startMutation = useMutation({
-    mutationFn: () => {
-      const request = { expectedRevision: documentRevision, mode: "template" as const };
+    mutationFn: (mode: ResumeReviewRunMode) => {
+      const request =
+        mode === "template"
+          ? ({ expectedRevision: documentRevision, mode } as const)
+          : ({ expectedRevision: documentRevision, mode, privacyConsent: true } as const);
       const signature = JSON.stringify(request);
       if (!startCommandRef.current || startCommandRef.current.signature !== signature) {
         startCommandRef.current = {
           signature,
           key: createIdempotencyKey("resume-review"),
         };
+        startReviewCommands.set(documentId, startCommandRef.current);
       }
       return createResumeReview(documentId, request, startCommandRef.current.key);
     },
     retry: false,
     onMutate: () => onBusyChange(true),
-    onSuccess: async () => {
+    onSuccess: async (_response, mode) => {
+      startReviewCommands.delete(documentId);
+      startCommandRef.current = null;
       setDecisionDraft(null);
+      if (mode === "controlled_ai") setPrivacyConsent(false);
       await invalidateReviewState();
     },
     onSettled: () => onBusyChange(false),
@@ -178,19 +219,99 @@ export function ResumeReviewPanel({
     <section className="career-resume-review" aria-labelledby="career-resume-review-heading">
       <header>
         <div>
-          <p>专业审阅 · 确定性模板</p>
-          <h3 id="career-resume-review-heading">逐条核对岗位简历建议</h3>
-          <span>当前阶段不调用 AI；建议只使用岗位简历固定的已确认证据。</span>
+          <p>岗位要求 · 证据 · 建议</p>
+          <h3 id="career-resume-review-heading">岗位审阅</h3>
+          <span>
+            {review
+              ? resumeReviewGenerationLabel(review.reviewRun)
+              : "先核对固定岗位要求，再由你明确选择审阅方式。"}
+          </span>
         </div>
+      </header>
+
+      <section
+        className="career-resume-review__composer"
+        aria-labelledby="career-resume-review-composer-title"
+      >
+        <div>
+          <strong id="career-resume-review-composer-title">生成当前修订的建议</strong>
+          <span>两种方式都只生成待决定建议，不会自动改写正文。</span>
+        </div>
+        <button
+          className="career-button career-button--quiet"
+          type="button"
+          disabled={disabled || mutationBusy || currentReviewIsPending}
+          onClick={() => startMutation.mutate("template")}
+        >
+          {startMutation.isPending && startMutation.variables === "template"
+            ? "正在创建…"
+            : "运行确定性模板"}
+        </button>
+        <label className="career-resume-review__consent">
+          <input
+            type="checkbox"
+            checked={privacyConsent}
+            disabled={disabled || mutationBusy || currentReviewIsPending}
+            onChange={(event) => setPrivacyConsent(event.currentTarget.checked)}
+          />
+          <span>
+            <strong>本次同意去标识化处理</strong>
+            <small>仅发送固定要求、已确认证据和去标识化正文；远程环境默认关闭。</small>
+          </span>
+        </label>
         <button
           className="career-button career-button--primary"
           type="button"
-          disabled={disabled || mutationBusy || currentReviewIsPending}
-          onClick={() => startMutation.mutate()}
+          disabled={
+            !privacyConsent || disabled || mutationBusy || currentReviewIsPending
+          }
+          onClick={() => startMutation.mutate("controlled_ai")}
         >
-          {startMutation.isPending ? "正在创建审阅…" : review ? "重新审阅当前修订" : "开始模板审阅"}
+          {startMutation.isPending && startMutation.variables === "controlled_ai"
+            ? "正在创建…"
+            : "使用受控 AI 审阅"}
         </button>
-      </header>
+      </section>
+
+      <section
+        className="career-resume-review__requirements"
+        aria-labelledby="career-resume-review-requirements-title"
+      >
+        <header>
+          <div>
+            <p>固定输入</p>
+            <strong id="career-resume-review-requirements-title">岗位要求</strong>
+          </div>
+          <span>{requirements.length}</span>
+        </header>
+        {requirements.length > 0 ? (
+          <ol>
+            {requirements.map((requirement, index) => (
+              <li
+                key={requirement.id}
+                className={requirement.id === selectedRequirementId ? "is-selected" : undefined}
+              >
+                <button
+                  type="button"
+                  aria-pressed={requirement.id === selectedRequirementId}
+                  onClick={() => onSelectRequirement(requirement.id)}
+                >
+                  <span>
+                    要求 {index + 1} · {requirementNecessityLabel(requirement.necessity)}
+                  </span>
+                  <strong>{requirement.sourceText}</strong>
+                </button>
+              </li>
+            ))}
+          </ol>
+        ) : reviewQuery.isPending ? (
+          <output>正在读取固定岗位要求…</output>
+        ) : (
+          <p className="career-resume-review__requirements-empty">
+            当前固定岗位版本没有可引用的结构化要求；系统不会补写未知要求。
+          </p>
+        )}
+      </section>
 
       {disabled && !mutationBusy ? (
         <p className="career-resume-review__notice">
@@ -245,10 +366,24 @@ export function ResumeReviewPanel({
             <span>{review.suggestions.length} 条可决定建议</span>
           </div>
 
+          {review.reviewRun.schemaVersion === "resume-review-run-v2" &&
+          review.reviewRun.usedTemplateFallback ? (
+            <p className="career-resume-review__notice is-fallback">
+              {resumeReviewGenerationLabel(review.reviewRun)}。降级原因已随本次 Run 保存，正文没有被自动修改。
+            </p>
+          ) : null}
+          {review.reviewRun.schemaVersion === "resume-review-run-v1" ? (
+            <p className="career-resume-review__notice">
+              这是兼容读取的历史 v1 审阅；系统不会用当前模板或 AI 配置伪造它的生成来源。
+            </p>
+          ) : null}
+
           {currentReviewIsPending ? (
             <output className="career-resume-review__processing">
               <Icon name="calendar" size={18} />
-              模板任务正在隔离队列中处理；完成后会自动刷新，不会调用外部模型。
+              {review.reviewRun.mode === "controlled_ai"
+                ? "受控审阅正在隔离队列中处理；不可用时会明确降级为确定性模板。"
+                : "确定性模板正在隔离队列中处理；完成后会自动刷新。"}
             </output>
           ) : null}
           {review.reviewRun.status === "failed" ? (
@@ -269,6 +404,7 @@ export function ResumeReviewPanel({
                   ? resumeReviewBlockText(reviewedRevision, targetBlockId)
                   : null;
                 const finding = review.findings.find((item) => item.id === suggestion.findingId);
+                const requirementIds = resumeReviewRequirementIds(suggestion);
                 const savedDecision = review.decisions.find(
                   (item) => item.suggestionId === suggestion.id,
                 );
@@ -313,6 +449,31 @@ export function ResumeReviewPanel({
                         ? suggestion.evidenceIds.join("、")
                         : "无；因此只允许删除建议，不生成新经历。"}
                     </p>
+                    <div className="career-resume-review__requirement-refs">
+                      <span>岗位要求引用</span>
+                      {requirementIds.length > 0 ? (
+                        <div>
+                          {requirementIds.map((requirementId) => {
+                            const requirement = requirementById.get(requirementId);
+                            return (
+                              <button
+                                key={requirementId}
+                                type="button"
+                                onClick={() => onSelectRequirement(requirementId)}
+                              >
+                                {requirement?.sourceText ?? "固定要求已保留，但当前投影不可读"}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <small>
+                          {suggestion.schemaVersion === "resume-review-suggestion-v1"
+                            ? "历史 v1 没有伪造岗位要求引用。"
+                            : "此建议不包含岗位要求文本引用。"}
+                        </small>
+                      )}
+                    </div>
 
                     {suggestion.decision === "pending" ? (
                       activeDraft ? (
@@ -444,7 +605,19 @@ export function ResumeReviewPanel({
                     <button type="button" onClick={() => onSelectBlock(finding.sourceBlockId)}>
                       定位区块
                     </button>
-                    <span>{resumeReviewReasonLabel(finding.reasonCode)}</span>
+                    <span>
+                      {resumeReviewReasonLabel(finding.reasonCode)}
+                      {resumeReviewRequirementIds(finding).length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onSelectRequirement(resumeReviewRequirementIds(finding)[0] ?? "")
+                          }
+                        >
+                          查看岗位要求
+                        </button>
+                      ) : null}
+                    </span>
                   </li>
                 ))}
               </ul>

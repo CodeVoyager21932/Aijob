@@ -9,6 +9,7 @@ import {
   createOwnerClaimChallenge,
   getSessionStatus,
   subscribeToSessionBoundary,
+  subscribeToSessionMutationRecovery,
 } from "./client";
 
 const sessionStatus = {
@@ -478,8 +479,12 @@ describe("product API client", () => {
     const documentState = { cookie: "aijob_csrf=stale-token" };
     let mutationRequests = 0;
     let boundaryNotifications = 0;
+    const recoveryMessages: string[] = [];
     const unsubscribe = subscribeToSessionBoundary(() => {
       boundaryNotifications += 1;
+    });
+    const unsubscribeRecovery = subscribeToSessionMutationRecovery((message) => {
+      recoveryMessages.push(message);
     });
     vi.stubGlobal("document", documentState);
     vi.stubGlobal(
@@ -504,7 +509,11 @@ describe("product API client", () => {
       apiRequest("/v1/protected-write", { method: "PUT", body: { draft: "保留" } }),
     ).rejects.toMatchObject({ code: "SESSION_RECOVERED_RETRY_REQUIRED" });
     unsubscribe();
+    unsubscribeRecovery();
     expect(mutationRequests).toBe(1);
     expect(boundaryNotifications).toBe(1);
+    expect(recoveryMessages).toEqual([
+      "本机会话已经更新。系统没有自动重放刚才的修改，请核对页面内容后再次提交。",
+    ]);
   });
 });

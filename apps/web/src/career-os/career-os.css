@@ -273,7 +273,7 @@
 .career-workspace {
   display: grid;
   min-width: 0;
-  grid-template-rows: var(--co-header-height) minmax(0, 1fr);
+  grid-template-rows: var(--co-header-height) auto minmax(0, 1fr);
   overflow: hidden;
 }
 
@@ -548,6 +548,7 @@
 .career-workspace__body {
   position: relative;
   display: flex;
+  grid-row: 3;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -6492,7 +6493,17 @@
 }
 
 .career-modal-surface:focus {
-  outline: none;
+  outline: 2px solid var(--co-action);
+  outline-offset: 2px;
+}
+
+.career-modal-surface button:focus,
+.career-modal-surface a:focus,
+.career-modal-surface input:focus,
+.career-modal-surface select:focus,
+.career-modal-surface textarea:focus {
+  outline: 2px solid var(--co-action);
+  outline-offset: 2px;
 }
 
 .career-modal-layer--command {
@@ -6595,6 +6606,44 @@
   border: 1px solid var(--co-border);
   border-radius: var(--co-radius-lg);
   background: var(--co-surface);
+}
+
+.career-session-mutation-notice {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 24px;
+  border-bottom: 1px solid #e4cf9e;
+  background: #fff9e8;
+  color: #624816;
+}
+
+.career-session-mutation-notice > div {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: 2px;
+}
+
+.career-session-mutation-notice strong,
+.career-session-mutation-notice span {
+  overflow-wrap: anywhere;
+}
+
+.career-session-mutation-notice span {
+  font-size: 0.77rem;
+}
+
+.career-session-mutation-notice button {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border: 1px solid #cfb774;
+  border-radius: 8px;
+  background: white;
+  color: inherit;
+  font-weight: 720;
+  cursor: pointer;
 }
 
 .career-route-state > p,
@@ -9493,5 +9542,608 @@
   .career-version-requirements > article svg {
     grid-column: 1;
     transform: rotate(90deg);
+  }
+}
+
+/* OS-5 Resume Studio: one document, one review writer, three coordinated panes. */
+.career-resume-editor {
+  overflow: clip;
+  border: 1px solid var(--co-border);
+  border-radius: var(--co-radius-lg);
+  background: var(--co-surface);
+  box-shadow: var(--co-shadow-low);
+}
+
+.career-resume-editor__toolbar {
+  background:
+    linear-gradient(90deg, rgba(47, 93, 168, 0.035), transparent 42%),
+    var(--co-surface);
+}
+
+.career-resume-editor__mode-switch {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 7px;
+  border-bottom: 1px solid var(--co-border);
+  background: #f7f9fc;
+}
+
+.career-resume-editor__mode-switch button {
+  min-height: 40px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--co-text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.career-resume-editor__mode-switch button[aria-pressed="true"] {
+  border-color: #cbdaf2;
+  background: white;
+  color: var(--co-accent-strong);
+  box-shadow: 0 3px 10px rgba(29, 52, 86, 0.06);
+}
+
+.career-resume-editor__body {
+  grid-template-columns: minmax(176px, 0.72fr) minmax(360px, 1.75fr) minmax(250px, 1fr);
+  align-items: start;
+  background: #eef1f5;
+}
+
+.career-resume-editor__rail,
+.career-resume-editor__review-pane {
+  position: sticky;
+  top: calc(var(--co-header-height) + 10px);
+  min-width: 0;
+  max-height: calc(100dvh - var(--co-header-height) - 20px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #fbfcfe;
+  scrollbar-width: thin;
+}
+
+.career-resume-editor__rail {
+  border-right: 1px solid var(--co-border);
+}
+
+.career-resume-editor__structure {
+  border-right: 0;
+}
+
+.career-resume-editor__versions {
+  border-top: 1px solid var(--co-border);
+}
+
+.career-resume-editor__versions > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 13px 9px;
+}
+
+.career-resume-editor__versions > header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.career-resume-editor__versions p,
+.career-resume-editor__versions strong,
+.career-resume-editor__versions dt,
+.career-resume-editor__versions dd {
+  margin: 0;
+}
+
+.career-resume-editor__versions p {
+  color: var(--co-text-muted);
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.career-resume-editor__versions strong {
+  font-size: 0.75rem;
+}
+
+.career-resume-editor__versions > header > span {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 999px;
+  background: #edf1f6;
+  color: var(--co-text-muted);
+  font-size: 0.61rem;
+  font-weight: 760;
+}
+
+.career-resume-editor__versions dl {
+  display: grid;
+  gap: 5px;
+  padding: 0 10px 10px;
+  margin: 0;
+}
+
+.career-resume-editor__versions dl > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid #e1e6ed;
+  border-radius: 7px;
+  background: white;
+  color: var(--co-text-muted);
+  font-size: 0.63rem;
+}
+
+.career-resume-editor__versions dd {
+  color: var(--co-text);
+  font-weight: 760;
+}
+
+.career-resume-editor__versions details {
+  padding: 0 10px 13px;
+}
+
+.career-resume-editor__versions summary {
+  color: var(--co-accent-strong);
+  cursor: pointer;
+  font-size: 0.64rem;
+  font-weight: 730;
+}
+
+.career-resume-editor__versions ol {
+  display: grid;
+  gap: 5px;
+  padding: 8px 0 0;
+  margin: 0;
+  list-style: none;
+}
+
+.career-resume-editor__versions li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  color: var(--co-text-muted);
+  font-size: 0.6rem;
+}
+
+.career-resume-editor__versions time {
+  white-space: nowrap;
+}
+
+.career-resume-editor__rail .career-resume-editor__evidence {
+  border-top: 1px solid var(--co-border);
+  border-left: 0;
+}
+
+.career-resume-editor__rail .career-resume-editor__evidence ul {
+  max-height: 330px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.career-resume-editor__document {
+  min-height: 720px;
+  padding: 18px clamp(10px, 2vw, 28px) 36px;
+  background:
+    radial-gradient(circle at 50% 0, rgba(255, 255, 255, 0.72), transparent 36%),
+    #eef1f5;
+}
+
+.career-resume-editor__document > article {
+  gap: 30px;
+  border-color: #d2d8e1;
+  box-shadow: 0 20px 50px rgba(27, 39, 58, 0.1);
+}
+
+.career-resume-editor__review-pane {
+  border-left: 1px solid var(--co-border);
+  background: #f7f9fc;
+}
+
+.career-resume-editor__review-pane .career-resume-review {
+  gap: 12px;
+  padding: 13px;
+  border-top: 0;
+  background: transparent;
+}
+
+.career-resume-editor__review-pane .career-resume-review > header {
+  padding: 13px;
+  border-color: #d8e1ef;
+  box-shadow: 0 6px 18px rgba(30, 53, 88, 0.035);
+}
+
+.career-resume-review__composer {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid #d8e1ef;
+  border-radius: 10px;
+  background: white;
+}
+
+.career-resume-review__composer > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.career-resume-review__composer strong {
+  font-size: 0.72rem;
+}
+
+.career-resume-review__composer > div:first-child span {
+  color: var(--co-text-muted);
+  font-size: 0.62rem;
+  line-height: 1.55;
+}
+
+.career-resume-review__composer > .career-button {
+  width: 100%;
+  min-height: 38px;
+  justify-content: center;
+}
+
+.career-resume-review__consent {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  padding: 9px;
+  border: 1px dashed #c9d6e9;
+  border-radius: 8px;
+  background: #f8faff;
+  cursor: pointer;
+}
+
+.career-resume-review__consent input {
+  margin-top: 2px;
+}
+
+.career-resume-review__consent > span {
+  display: grid;
+  gap: 3px;
+}
+
+.career-resume-review__consent strong {
+  font-size: 0.64rem;
+}
+
+.career-resume-review__consent small {
+  color: var(--co-text-muted);
+  font-size: 0.58rem;
+  line-height: 1.5;
+}
+
+.career-resume-review__requirements {
+  overflow: hidden;
+  border: 1px solid #dce3ec;
+  border-radius: 10px;
+  background: white;
+}
+
+.career-resume-review__requirements > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid #e4e8ee;
+}
+
+.career-resume-review__requirements > header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.career-resume-review__requirements p,
+.career-resume-review__requirements strong {
+  margin: 0;
+}
+
+.career-resume-review__requirements > header p {
+  color: var(--co-positive);
+  font-size: 0.57rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.career-resume-review__requirements > header strong {
+  font-size: 0.73rem;
+}
+
+.career-resume-review__requirements > header > span {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 999px;
+  background: #edf4ef;
+  color: var(--co-positive);
+  font-size: 0.61rem;
+  font-weight: 760;
+}
+
+.career-resume-review__requirements ol {
+  display: grid;
+  max-height: 250px;
+  overflow-y: auto;
+  padding: 6px;
+  margin: 0;
+  list-style: none;
+}
+
+.career-resume-review__requirements li + li {
+  border-top: 1px solid #edf0f4;
+}
+
+.career-resume-review__requirements li.is-selected {
+  border-color: transparent;
+  border-radius: 7px;
+  background: #edf3fd;
+  box-shadow: inset 3px 0 0 var(--co-accent);
+}
+
+.career-resume-review__requirements li > button {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 4px;
+  padding: 9px;
+  border: 0;
+  background: transparent;
+  color: var(--co-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.career-resume-review__requirements li > button span {
+  color: var(--co-text-muted);
+  font-size: 0.57rem;
+  font-weight: 720;
+}
+
+.career-resume-review__requirements li > button strong {
+  overflow-wrap: anywhere;
+  font-size: 0.64rem;
+  font-weight: 660;
+  line-height: 1.55;
+}
+
+.career-resume-review__requirements > output,
+.career-resume-review__requirements-empty {
+  display: block;
+  padding: 13px;
+  color: var(--co-text-muted);
+  font-size: 0.63rem;
+  line-height: 1.6;
+}
+
+.career-resume-editor__review-pane .career-resume-review__suggestions {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.career-resume-editor__review-pane .career-resume-review__suggestions > li {
+  padding: 13px;
+}
+
+.career-resume-editor__review-pane .career-resume-review__comparison {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.career-resume-review__requirement-refs {
+  display: grid;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed #dfe4ea;
+}
+
+.career-resume-review__requirement-refs > span {
+  color: var(--co-text-muted);
+  font-size: 0.57rem;
+  font-weight: 760;
+}
+
+.career-resume-review__requirement-refs > div {
+  display: grid;
+  gap: 5px;
+}
+
+.career-resume-review__requirement-refs button {
+  padding: 7px 8px;
+  border: 1px solid #d5e0f1;
+  border-radius: 7px;
+  background: #f5f8fe;
+  color: var(--co-accent-strong);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.59rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.career-resume-review__requirement-refs small {
+  color: var(--co-text-muted);
+  font-size: 0.59rem;
+  line-height: 1.5;
+}
+
+.career-resume-review__notice.is-fallback {
+  border-color: #e6cf99;
+  background: #fff9eb;
+  color: #765415;
+}
+
+.career-resume-review__findings li > span > button {
+  display: block;
+  margin-top: 4px;
+}
+
+.career-resume-review--base {
+  min-height: 100%;
+}
+
+.career-resume-draft-guard {
+  display: grid;
+  width: min(460px, calc(100vw - 32px));
+  gap: 10px;
+  padding: 24px;
+}
+
+.career-resume-draft-guard > p,
+.career-resume-draft-guard h2 {
+  margin: 0;
+}
+
+.career-resume-draft-guard > p:first-child {
+  color: var(--co-danger);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.career-resume-draft-guard h2 {
+  font-size: 1.25rem;
+}
+
+.career-resume-draft-guard > p:nth-of-type(2) {
+  color: var(--co-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.7;
+}
+
+.career-resume-draft-guard > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+@media (max-width: 1023px) {
+  .career-resume-editor__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .career-resume-editor__rail,
+  .career-resume-editor__review-pane {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    border: 0;
+  }
+
+  .career-resume-editor__structure {
+    border-bottom: 0;
+  }
+
+  .career-resume-editor__rail .career-resume-editor__evidence ul {
+    max-height: none;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .career-resume-editor__document {
+    min-height: 0;
+  }
+
+  .career-resume-editor__review-pane .career-resume-review {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 767px) {
+  .career-resume-editor {
+    margin-inline: -1px;
+    border-radius: 12px;
+  }
+
+  .career-resume-editor__toolbar {
+    padding: 15px;
+  }
+
+  .career-resume-editor__save-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .career-resume-editor__save-actions .career-button,
+  .career-resume-editor__template-picker {
+    width: 100%;
+  }
+
+  .career-resume-editor__save-actions .career-button {
+    min-height: 42px;
+  }
+
+  .career-resume-editor__rail .career-resume-editor__evidence ul {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .career-resume-editor__document {
+    padding: 8px 6px 24px;
+  }
+
+  .career-resume-editor__paper-meta {
+    padding-inline: 3px;
+  }
+
+  .career-resume-editor__document > article,
+  .career-resume-editor__paper.is-compact-technical {
+    width: 100%;
+    padding: 22px 13px 30px;
+    border-right: 0;
+    border-left: 0;
+    box-shadow: none;
+  }
+
+  .career-resume-editor__block > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .career-resume-editor__block > header > div {
+    width: 100%;
+  }
+
+  .career-resume-editor__block > header > div button {
+    min-height: 34px;
+    flex: 1;
+  }
+
+  .career-resume-editor__block textarea {
+    min-height: 128px;
+    font-size: 0.78rem;
+  }
+
+  .career-resume-editor__review-pane .career-resume-review {
+    padding: 10px;
+  }
+
+  .career-resume-review__composer,
+  .career-resume-review__requirements,
+  .career-resume-review__suggestions > li {
+    border-radius: 9px;
+  }
+
+  .career-resume-draft-guard {
+    width: calc(100vw - 24px);
+    padding: 20px;
+  }
+
+  .career-resume-draft-guard > div {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .career-resume-draft-guard .career-button {
+    width: 100%;
+    justify-content: center;
   }
 }

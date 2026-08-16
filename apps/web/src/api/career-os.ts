@@ -64,7 +64,19 @@ import {
   ApplicationCaseWithJobContextSchema,
   CaseMatchStateSchema,
   CreateApplicationCaseResponseSchema,
+  CreateResumeDocumentResponseSchema,
+  CreateResumeReviewResponseSchema,
+  CurrentResumeReviewResponseSchema,
+  DecideResumeReviewSuggestionResponseSchema,
+  DeleteResumeDocumentResponseSchema,
+  LegacyResumeContentConversionSchema,
   ListApplicationCasesResponseSchema,
+  ListResumeDocumentContentRevisionsResponseSchema,
+  ListResumeDocumentLayoutRevisionsResponseSchema,
+  ListResumeDocumentsResponseSchema,
+  PutResumeDocumentContentRevisionResponseSchema,
+  PutResumeDocumentLayoutRevisionResponseSchema,
+  ResumeDocumentSchema,
 } from "@aijob/contracts";
 import { apiRequest } from "./client";
 
@@ -491,7 +503,10 @@ export function resumeDocumentListPath(input: ListResumeDocumentsInput = {}): st
 }
 
 export function listResumeDocuments(input: ListResumeDocumentsInput = {}, signal?: AbortSignal) {
-  return apiRequest<ListResumeDocumentsResponse>(resumeDocumentListPath(input), { signal });
+  return apiRequest<ListResumeDocumentsResponse>(resumeDocumentListPath(input), {
+    signal,
+    responseSchema: ListResumeDocumentsResponseSchema,
+  });
 }
 
 export function createResumeDocument(request: CreateResumeDocumentRequest, idempotencyKey: string) {
@@ -499,19 +514,21 @@ export function createResumeDocument(request: CreateResumeDocumentRequest, idemp
     method: "POST",
     body: request,
     idempotencyKey,
+    responseSchema: CreateResumeDocumentResponseSchema,
   });
 }
 
 export function getResumeDocument(documentId: string, signal?: AbortSignal) {
   return apiRequest<ResumeDocument>(`/v1/resume-documents/${encodeURIComponent(documentId)}`, {
     signal,
+    responseSchema: ResumeDocumentSchema,
   });
 }
 
 export function deleteResumeDocument(documentId: string, request: DeleteResumeDocumentRequest) {
   return apiRequest<DeleteResumeDocumentResponse>(
     `/v1/resume-documents/${encodeURIComponent(documentId)}`,
-    { method: "DELETE", body: request },
+    { method: "DELETE", body: request, responseSchema: DeleteResumeDocumentResponseSchema },
   );
 }
 
@@ -521,21 +538,21 @@ export function getLegacyResumeContentConversion(
 ) {
   return apiRequest<LegacyResumeContentConversion>(
     `/v1/resume-documents/legacy-source/${encodeURIComponent(legacySourceRevisionId)}`,
-    { signal },
+    { signal, responseSchema: LegacyResumeContentConversionSchema },
   );
 }
 
 export function listResumeDocumentContent(documentId: string, signal?: AbortSignal) {
   return apiRequest<ListResumeDocumentContentRevisionsResponse>(
     `/v1/resume-documents/${encodeURIComponent(documentId)}/revisions`,
-    { signal },
+    { signal, responseSchema: ListResumeDocumentContentRevisionsResponseSchema },
   );
 }
 
 export function listResumeDocumentLayout(documentId: string, signal?: AbortSignal) {
   return apiRequest<ListResumeDocumentLayoutRevisionsResponse>(
     `/v1/resume-documents/${encodeURIComponent(documentId)}/layout-revisions`,
-    { signal },
+    { signal, responseSchema: ListResumeDocumentLayoutRevisionsResponseSchema },
   );
 }
 
@@ -558,7 +575,12 @@ export function putResumeDocumentContent(
 ) {
   return apiRequest<PutResumeDocumentContentRevisionResponse>(
     `/v1/resume-documents/${encodeURIComponent(documentId)}/revisions`,
-    { method: "POST", body: request, idempotencyKey },
+    {
+      method: "POST",
+      body: request,
+      idempotencyKey,
+      responseSchema: PutResumeDocumentContentRevisionResponseSchema,
+    },
   );
 }
 
@@ -569,14 +591,19 @@ export function putResumeDocumentLayout(
 ) {
   return apiRequest<PutResumeDocumentLayoutRevisionResponse>(
     `/v1/resume-documents/${encodeURIComponent(documentId)}/layout-revisions`,
-    { method: "POST", body: request, idempotencyKey },
+    {
+      method: "POST",
+      body: request,
+      idempotencyKey,
+      responseSchema: PutResumeDocumentLayoutRevisionResponseSchema,
+    },
   );
 }
 
 export function getCurrentResumeReview(documentId: string, signal?: AbortSignal) {
   return apiRequest<CurrentResumeReviewResponse>(
     `/v1/resume-documents/${encodeURIComponent(documentId)}/review`,
-    { signal },
+    { signal, responseSchema: CurrentResumeReviewResponseSchema },
   );
 }
 
@@ -587,7 +614,12 @@ export function createResumeReview(
 ) {
   return apiRequest<CreateResumeReviewResponse>(
     `/v1/resume-documents/${encodeURIComponent(documentId)}/reviews`,
-    { method: "POST", body: request, idempotencyKey },
+    {
+      method: "POST",
+      body: request,
+      idempotencyKey,
+      responseSchema: CreateResumeReviewResponseSchema,
+    },
   );
 }
 
@@ -599,6 +631,10 @@ export function decideResumeReviewSuggestion(
 ) {
   return apiRequest<DecideResumeReviewSuggestionResponse>(
     `/v1/resume-documents/${encodeURIComponent(documentId)}/reviews/${encodeURIComponent(reviewRunId)}/suggestions/${encodeURIComponent(suggestionId)}/decisions`,
-    { method: "POST", body: request },
+    {
+      method: "POST",
+      body: request,
+      responseSchema: DecideResumeReviewSuggestionResponseSchema,
+    },
   );
 }

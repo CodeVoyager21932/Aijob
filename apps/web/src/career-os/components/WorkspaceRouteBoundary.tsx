@@ -34,7 +34,11 @@ class RouteErrorBoundary extends Component<{ children: ReactNode }, { failed: bo
 
 export function WorkspaceRouteBoundary({ children }: { children: ReactNode }) {
   const location = useLocation();
-  return <RouteErrorBoundary key={location.key}>{children}</RouteErrorBoundary>;
+  return <RouteErrorBoundary key={workspaceRouteBoundaryKey(location)}>{children}</RouteErrorBoundary>;
+}
+
+export function workspaceRouteBoundaryKey(location: { pathname: string; search?: string }): string {
+  return location.pathname;
 }
 
 export function WorkspaceRouteLoading() {

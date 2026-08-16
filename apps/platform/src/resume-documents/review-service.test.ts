@@ -51,11 +51,13 @@ describe("deterministic resume review", () => {
         sourceBlockId: blockId,
         category: "ats_readability",
         evidenceIds: ["evidence-1"],
+        requirementIds: [],
         reasonCode: "EVIDENCE_BACKED_ATS_REWRITE",
         suggestion: {
           changeType: "rewrite_block",
           suggestedText: "完成用户访谈并形成结论",
           evidenceIds: ["evidence-1"],
+          requirementIds: [],
         },
       }),
     ]);
@@ -137,7 +139,12 @@ describe("deterministic resume review", () => {
       sourceBlockId: unsupportedId,
       severity: "warning",
       reasonCode: "BLOCK_WITHOUT_CONFIRMED_EVIDENCE",
-      suggestion: { changeType: "remove_block", suggestedText: null, evidenceIds: [] },
+      suggestion: {
+        changeType: "remove_block",
+        suggestedText: null,
+        evidenceIds: [],
+        requirementIds: [],
+      },
     });
   });
 

@@ -70,12 +70,24 @@ function currentCsrfToken(): string | null {
 let sessionBootstrapPromise: Promise<SessionStatus> | null = null;
 let knownOwnerKey: string | null = null;
 const sessionBoundaryListeners = new Set<() => void>();
+const sessionMutationRecoveryListeners = new Set<(message: string) => void>();
 let sessionBoundaryGeneration = 0;
 const OWNER_CONTEXT_HEADER_NAME = "x-aijob-owner-context";
 
 export function subscribeToSessionBoundary(listener: () => void): () => void {
   sessionBoundaryListeners.add(listener);
   return () => sessionBoundaryListeners.delete(listener);
+}
+
+export function subscribeToSessionMutationRecovery(
+  listener: (message: string) => void,
+): () => void {
+  sessionMutationRecoveryListeners.add(listener);
+  return () => sessionMutationRecoveryListeners.delete(listener);
+}
+
+function notifySessionMutationRecovery(message: string): void {
+  for (const listener of sessionMutationRecoveryListeners) listener(message);
 }
 
 function recordOwnerKey(nextOwnerKey: string | null, forceNotify = false): boolean {
@@ -229,8 +241,11 @@ async function apiRequestInternal<T>(
         return apiRequestInternal<T>(path, options, true);
       }
       if (recovered && isMutation(method)) {
+        const message =
+          "本机会话已经更新。系统没有自动重放刚才的修改，请核对页面内容后再次提交。";
+        notifySessionMutationRecovery(message);
         throw new ProductApiError(
-          "本机会话已经更新。系统没有自动重放刚才的修改，请核对页面内容后再次提交。",
+          message,
           409,
           "SESSION_RECOVERED_RETRY_REQUIRED",
           problem.correlationId,
