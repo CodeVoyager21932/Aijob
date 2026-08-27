@@ -1,10 +1,10 @@
 # Career OS 端到端体验与系统契约
 
-> 状态：Active / UX-0 基线已接受，OS-1–OS-5 触达范围已关闭
+> 状态：Active / UX-0 基线已接受，OS-1–OS-6 触达范围已关闭
 >
 > 生效日期：2026-08-13
 >
-> 当前验收状态：UX-0 与 OS-1–OS-5 已通过各自 Gate；OS-5 已完成三栏 Resume Studio、Review v1/v2 expand、固定 requirement/evidence 引用、唯一新写入、草稿/409/session、DOCX/打印与四视口 Gate。下一候选切片为 OS-6，尚未实施；见 [OS-5 证据](evidence/product/career-os-v2/os-5-resume-studio-and-review-v2-acceptance-2026-08-16.md)。
+> 当前验收状态：UX-0 与 OS-1–OS-6 已通过各自 Gate；OS-6 已完成今日单一 Board read model、显式投递、模板面试、revision 冲突保稿、复盘确认与 `debrief_confirmed` 回流、选择性/全部删除、删除回执、兼容 URL 和四视口 Gate。下一候选切片为 OS-7，尚未实施；见 [OS-6 证据](evidence/product/career-os-v2/os-6-application-interview-debrief-data-control-acceptance-2026-08-28.md)。
 >
 > 动态任务只看 [MVP 路线](06-mvp-roadmap.md)、[当前交接](handoffs/current.md)和[当前交付计划](plans/career-os-current-delivery-plan.md)。本文固定设计规则，不生成新的任务顺序。
 
@@ -71,8 +71,8 @@ flowchart LR
 | 简历导入/确认 | 后端主体已由规范 `/resumes/import*` 承接，资料当前态与一次性确认响应使用共享 runtime schema | `R/A` 已关闭 | OS-2 已关闭 |
 | Resume V2 / Review / DOCX | OS-5 已完成固定 Requirements 进入 template/controlled AI 生成链、持久 requirement 引用、v1/v2 provenance/failure/fallback、草稿与响应式 | `E + M` 已关闭；migration 033 expand-only | OS-5 已关闭 |
 | 旧 Tailoring / 受控 AI | OS-5 已将新写入统一归 Resume Review，双读/双 handler；旧 Tailoring 只读，受控 AI 逐次同意且公开/远程默认关闭 | `E + M` 已关闭；不复活旧写入 | OS-5 已关闭 |
-| 投递 / 面试 / 复盘 / 删除 | 后端主体与现有 V2 主路径存在 | `R/A` | OS-6 |
-| 完整浏览器夹具 | OS-1–OS-5 已有真实 API、隔离 PostgreSQL 与四视口 runner；后续仍需逐切片扩展并由 OS-7 总验 | `E`（测试基础设施）触达范围已关闭 | UX-0、OS-1–OS-5；OS-7 总验 |
+| 投递 / 面试 / 复盘 / 删除 | OS-6 已统一显式投递、模板 Session、回答/反馈、复盘逐项决定、确认后回流、选择性/全部删除与删除回执；旧 Tailoring 只读 | `R/A` 触达范围已关闭；无新 migration | OS-6 已关闭 |
+| 完整浏览器夹具 | OS-1–OS-6 已有真实 API、隔离 PostgreSQL 与四视口 runner；后续由 OS-7 总验 | `E`（测试基础设施）触达范围已关闭 | UX-0、OS-1–OS-6；OS-7 总验 |
 
 详细代码证据和当前判定见 [UX-0 端到端审计](evidence/product/career-os-v2/ux-0-end-to-end-contract-and-baseline-2026-08-13.md)，字段级请求、响应、Problem 与断言见 [UX-0 页面—系统—证据追踪矩阵](plans/career-os-ux-0-end-to-end-traceability-matrix.md)。
 
@@ -252,7 +252,7 @@ Career OS 是一个**高密度、克制、可信的专业求职驾驶舱**：像
 | 三轴 matching run 没有 V2 Case 可恢复入口，现有 Worker 又拒绝 Case 固定旧版本 | 是 | Case-scoped adapter + `case_pinned` 任务上下文已由 OS-4 关闭 |
 | Resume Studio 草稿可能丢失；Review 未读取固定 Requirements、无 requirement 引用，controlled_ai 与 provenance 也未实现 | 是 | Review 唯一新写入 + v1/v2 expand migration 033 已由 OS-5 关闭 |
 | recommendation / insights 在 V2 仅兼容说明；`/resumes/import*` 缺失、岗位筛选不进 URL | 是 | OS-2 已关闭：规范 `/jobs*` 与 `/resumes/import*` 已接入 |
-| 今日、岗位详情、设置、旧只读页的错误语义不一致 | 是 | 岗位详情触达范围由 OS-2 关闭；其余归 OS-6 |
+| 今日、岗位详情、设置、旧只读页的错误语义不一致 | 是 | 岗位详情触达范围由 OS-2 关闭；今日、设置、删除回执和旧 Tailoring 只读由 OS-6 关闭 |
 | 通用 `apiRequest<T>` 对多数业务响应不做运行时 schema 解析 | 是 | 随 OS-1–OS-6 触达端点修正；OS-7 总验 |
 | 刷新部署、全路由键盘、性能和回退总验证 | 是 | OS-7 |
 

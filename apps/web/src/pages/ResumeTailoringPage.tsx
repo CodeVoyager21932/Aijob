@@ -2,7 +2,7 @@ import type { ResumeTailoringSegment } from "@aijob/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { fileDownloadUrl } from "../api/client";
+import { fileDownloadUrl, ProductApiError } from "../api/client";
 import {
   createResumeExport,
   getResumeExport,
@@ -48,6 +48,8 @@ export function ResumeTailoringPage({ readOnly = false }: { readOnly?: boolean }
     queryKey: ["product", "tailoring", runId],
     queryFn: ({ signal }) => getResumeTailoring(runId, signal),
     enabled: Boolean(runId),
+    retry: (failureCount, error) =>
+      error instanceof ProductApiError && error.status === 404 ? false : failureCount < 1,
     refetchInterval: (query) =>
       ["queued", "processing"].includes(query.state.data?.status ?? "") ? 800 : false,
   });
@@ -136,11 +138,51 @@ export function ResumeTailoringPage({ readOnly = false }: { readOnly?: boolean }
     }
   }
 
-  if (runQuery.isPending) return <ProductLoading label="正在读取简历优化任务" />;
-  if (runQuery.isError) return <ProductError error={runQuery.error} />;
+  if (runQuery.isPending) {
+    return readOnly ? (
+      <section className="career-legacy-tailoring career-legacy-tailoring--state">
+        <output className="career-request-state">正在读取旧版简历优化历史…</output>
+      </section>
+    ) : (
+      <ProductLoading label="正在读取简历优化任务" />
+    );
+  }
+  if (runQuery.isError) {
+    if (readOnly) {
+      const notFound =
+        runQuery.error instanceof ProductApiError && runQuery.error.status === 404;
+      return (
+        <section className="career-legacy-tailoring career-legacy-tailoring--state">
+          <div className="career-inline-error" role="alert">
+            <strong>{notFound ? "没有找到这条旧版优化历史" : "旧版优化历史暂时不可用"}</strong>
+            <span>
+              {notFound
+                ? "记录不存在、已删除或不属于当前 owner。"
+                : runQuery.error instanceof Error
+                  ? runQuery.error.message
+                  : "请稍后重试。"}
+            </span>
+            {!notFound ? (
+              <button type="button" onClick={() => void runQuery.refetch()}>
+                重新读取
+              </button>
+            ) : null}
+            <Link to="/resumes">返回简历资产</Link>
+          </div>
+        </section>
+      );
+    }
+    return <ProductError error={runQuery.error} />;
+  }
   const run = runQuery.data;
   if (run.status === "queued" || run.status === "processing") {
-    return <ProductLoading label="正在生成可追溯的逐段修改稿" />;
+    return readOnly ? (
+      <section className="career-legacy-tailoring career-legacy-tailoring--state">
+        <output className="career-request-state">旧版优化记录仍在处理中…</output>
+      </section>
+    ) : (
+      <ProductLoading label="正在生成可追溯的逐段修改稿" />
+    );
   }
   if (run.status !== "succeeded") {
     return (
@@ -160,7 +202,7 @@ export function ResumeTailoringPage({ readOnly = false }: { readOnly?: boolean }
   }
 
   return (
-    <>
+    <div className={readOnly ? "career-legacy-tailoring" : undefined}>
       {readOnly ? null : <JourneySteps current={4} />}
       <header className="product-hero">
         <div>
@@ -356,7 +398,7 @@ export function ResumeTailoringPage({ readOnly = false }: { readOnly?: boolean }
           <ExportStatus exportResult={exportQuery.data} />
         ) : null}
       </section>
-    </>
+    </div>
   );
 }
 

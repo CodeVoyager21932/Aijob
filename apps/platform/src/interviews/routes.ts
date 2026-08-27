@@ -31,6 +31,35 @@ const RootSessionParamsSchema = z.object({ sessionId: z.string().uuid() }).stric
 const DebriefParamsSchema = z.object({ debriefId: z.string().uuid() }).strict();
 const IdempotencyKeySchema = z.string().trim().min(1).max(200);
 
+function requireRouteParams<T>(
+  schema: z.ZodType<T>,
+  params: unknown,
+  code: "APPLICATION_CASE_NOT_FOUND" | "INTERVIEW_SESSION_NOT_FOUND" | "DEBRIEF_NOT_FOUND",
+  message: string,
+): T {
+  const parsed = schema.safeParse(params);
+  if (!parsed.success) throw new ServiceError(404, code, message);
+  return parsed.data;
+}
+
+function requireCaseParams(params: unknown): z.infer<typeof CaseParamsSchema> {
+  return requireRouteParams(
+    CaseParamsSchema,
+    params,
+    "APPLICATION_CASE_NOT_FOUND",
+    "记录不存在、已删除或不属于当前账户。",
+  );
+}
+
+function requireSessionParams(params: unknown): z.infer<typeof SessionParamsSchema> {
+  return requireRouteParams(
+    SessionParamsSchema,
+    params,
+    "INTERVIEW_SESSION_NOT_FOUND",
+    "面试记录不存在、已删除或不属于当前账户。",
+  );
+}
+
 function requireIdempotencyKey(headers: Record<string, unknown>): string {
   const value = headers["idempotency-key"];
   if (typeof value !== "string") {
@@ -73,7 +102,7 @@ export function registerInterviewRoutes(
   app.get("/v1/application-cases/:caseId/debrief", async (request, reply) => {
     try {
       const owner = requireOwnerContext(request);
-      const { caseId } = CaseParamsSchema.parse(request.params);
+      const { caseId } = requireCaseParams(request.params);
       return reply.send(await getCaseDebrief({ db: options.db, owner, caseId }));
     } catch (error) {
       return handleError(error, request, reply);
@@ -83,7 +112,7 @@ export function registerInterviewRoutes(
   app.put("/v1/application-cases/:caseId/debrief", async (request, reply) => {
     try {
       const owner = requireOwnerContext(request);
-      const { caseId } = CaseParamsSchema.parse(request.params);
+      const { caseId } = requireCaseParams(request.params);
       const body = PrepareCaseDebriefRequestSchema.parse(request.body);
       const idempotencyKey = requireIdempotencyKey(request.headers);
       const result = await prepareCaseDebrief({
@@ -102,7 +131,7 @@ export function registerInterviewRoutes(
   app.post("/v1/application-cases/:caseId/debrief/confirmations", async (request, reply) => {
     try {
       const owner = requireOwnerContext(request);
-      const { caseId } = CaseParamsSchema.parse(request.params);
+      const { caseId } = requireCaseParams(request.params);
       const body = ConfirmCaseDebriefRequestSchema.parse(request.body);
       const idempotencyKey = requireIdempotencyKey(request.headers);
       const result = await confirmCaseDebrief({
@@ -121,7 +150,7 @@ export function registerInterviewRoutes(
   app.get("/v1/application-cases/:caseId/interview-sessions", async (request, reply) => {
     try {
       const owner = requireOwnerContext(request);
-      const { caseId } = CaseParamsSchema.parse(request.params);
+      const { caseId } = requireCaseParams(request.params);
       const query = ListInterviewSessionsQuerySchema.parse(request.query);
       return reply.send(await listInterviewSessions({ db: options.db, owner, caseId, query }));
     } catch (error) {
@@ -132,7 +161,7 @@ export function registerInterviewRoutes(
   app.post("/v1/application-cases/:caseId/interview-sessions", async (request, reply) => {
     try {
       const owner = requireOwnerContext(request);
-      const { caseId } = CaseParamsSchema.parse(request.params);
+      const { caseId } = requireCaseParams(request.params);
       const body = CreateInterviewSessionRequestSchema.parse(request.body);
       const idempotencyKey = requireIdempotencyKey(request.headers);
       return reply.code(201).send(
@@ -152,7 +181,7 @@ export function registerInterviewRoutes(
   app.get("/v1/application-cases/:caseId/interview-sessions/:sessionId", async (request, reply) => {
     try {
       const owner = requireOwnerContext(request);
-      const { caseId, sessionId } = SessionParamsSchema.parse(request.params);
+      const { caseId, sessionId } = requireSessionParams(request.params);
       const detail = await getInterviewSession({ db: options.db, owner, caseId, sessionId });
       if (!detail) {
         return sendApiProblem(
@@ -177,7 +206,7 @@ export function registerInterviewRoutes(
     async (request, reply) => {
       try {
         const owner = requireOwnerContext(request);
-        const { caseId, sessionId } = SessionParamsSchema.parse(request.params);
+        const { caseId, sessionId } = requireSessionParams(request.params);
         const body = SubmitInterviewAnswerRequestSchema.parse(request.body);
         const idempotencyKey = requireIdempotencyKey(request.headers);
         return reply.send(
@@ -199,7 +228,12 @@ export function registerInterviewRoutes(
   app.delete("/v1/interview-sessions/:sessionId", async (request, reply) => {
     try {
       const owner = requireOwnerContext(request);
-      const { sessionId } = RootSessionParamsSchema.parse(request.params);
+      const { sessionId } = requireRouteParams(
+        RootSessionParamsSchema,
+        request.params,
+        "INTERVIEW_SESSION_NOT_FOUND",
+        "面试记录不存在、已删除或不属于当前账户。",
+      );
       const body = DeleteInterviewSessionRequestSchema.parse(request.body);
       return reply.send(
         await deleteInterviewSession({
@@ -217,7 +251,12 @@ export function registerInterviewRoutes(
   app.delete("/v1/debriefs/:debriefId", async (request, reply) => {
     try {
       const owner = requireOwnerContext(request);
-      const { debriefId } = DebriefParamsSchema.parse(request.params);
+      const { debriefId } = requireRouteParams(
+        DebriefParamsSchema,
+        request.params,
+        "DEBRIEF_NOT_FOUND",
+        "复盘记录不存在、已删除或不属于当前账户。",
+      );
       const body = DeleteDebriefRequestSchema.parse(request.body);
       return reply.send(
         await deleteDebrief({

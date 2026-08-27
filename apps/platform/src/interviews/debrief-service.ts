@@ -763,6 +763,7 @@ export async function confirmCaseDebrief(input: {
   request: ConfirmCaseDebriefRequest;
   idempotencyKey: string;
 }): Promise<ConfirmCaseDebriefResponse> {
+  const requestHash = hashCanonicalJson({ caseId: input.caseId, request: input.request });
   const idempotencyKeyHash = hashCanonicalJson({
     scope: "case-debrief-confirmation-v1",
     ownerId: input.owner.ownerId,
@@ -779,7 +780,7 @@ export async function confirmCaseDebrief(input: {
 
     const applicationCase = await transaction
       .selectFrom("application.application_cases")
-      .select("id")
+      .select(["id", "revision"])
       .where("id", "=", input.caseId)
       .where("owner_id", "=", input.owner.ownerId)
       .where("owner_epoch", "=", input.owner.ownerEpoch)
@@ -869,6 +870,41 @@ export async function confirmCaseDebrief(input: {
         based_on_debrief_revision: debrief.revision,
         idempotency_key_hash: idempotencyKeyHash,
         decision_projection_version: "itemized_v1",
+      })
+      .execute();
+    const nextCaseRevision = Number(applicationCase.revision) + 1;
+    const updatedCase = await transaction
+      .updateTable("application.application_cases")
+      .set({
+        revision: nextCaseRevision,
+        updated_at: sql<Date>`GREATEST(updated_at, clock_timestamp())`,
+      })
+      .where("id", "=", input.caseId)
+      .where("owner_id", "=", input.owner.ownerId)
+      .where("owner_epoch", "=", input.owner.ownerEpoch)
+      .where("revision", "=", Number(applicationCase.revision))
+      .where("deleted_at", "is", null)
+      .executeTakeFirst();
+    if (Number(updatedCase.numUpdatedRows) !== 1) throw applicationCaseNotFound();
+    await transaction
+      .insertInto("application.case_events")
+      .values({
+        id: randomUUID(),
+        owner_id: input.owner.ownerId,
+        owner_epoch: input.owner.ownerEpoch,
+        case_id: input.caseId,
+        sequence: nextCaseRevision,
+        event_type: "debrief_confirmed",
+        actor_type: "owner",
+        event_data: JSON.stringify({
+          schemaVersion: "case-event-v1",
+          debriefId: debrief.id,
+          evidenceRevisionId: debrief.evidenceRevisionId,
+        }) as unknown as JsonValue,
+        schema_version: "case-event-v1",
+        idempotency_scope: "case-debrief:confirm",
+        idempotency_key: input.idempotencyKey,
+        request_hash: requestHash,
       })
       .execute();
     return confirmationResponse(transaction, input.owner, debrief.id, true);

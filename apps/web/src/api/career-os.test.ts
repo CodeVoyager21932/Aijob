@@ -9,8 +9,12 @@ import {
   caseDebriefConfirmationPath,
   caseDebriefPath,
   createCaseMatchRun,
+  getApplicationCaseRequirements,
+  getCareerDataScope,
   getCurrentResumeReview,
+  getInterviewSession,
   interviewSessionListPath,
+  listApplicationCaseEvents,
   resumeDocumentDocxPath,
   resumeDocumentListPath,
 } from "./career-os";
@@ -151,6 +155,49 @@ describe("Career OS API paths", () => {
       })) as typeof fetch;
     try {
       await expect(getCurrentResumeReview(randomUUID())).rejects.toMatchObject({
+        status: 502,
+        code: "INVALID_API_RESPONSE",
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("rejects malformed OS-6 timeline, interview and data-scope responses", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ malformed: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })) as typeof fetch;
+    try {
+      const caseId = randomUUID();
+      await expect(listApplicationCaseEvents(caseId)).rejects.toMatchObject({
+        status: 502,
+        code: "INVALID_API_RESPONSE",
+      });
+      await expect(getInterviewSession(caseId, randomUUID())).rejects.toMatchObject({
+        status: 502,
+        code: "INVALID_API_RESPONSE",
+      });
+      await expect(getCareerDataScope()).rejects.toMatchObject({
+        status: 502,
+        code: "INVALID_API_RESPONSE",
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("rejects a malformed Requirements response instead of trusting an OS-4 payload", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ requirements: "not-an-array" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })) as typeof fetch;
+    try {
+      await expect(getApplicationCaseRequirements(randomUUID())).rejects.toMatchObject({
         status: 502,
         code: "INVALID_API_RESPONSE",
       });

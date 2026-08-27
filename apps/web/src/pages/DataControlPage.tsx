@@ -1,6 +1,7 @@
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { suppressSessionBootstrapAfterOwnerDeletion } from "../api/client";
 import {
   deleteProfile,
   getJobDecisions,
@@ -48,6 +49,7 @@ export function DataControlPage() {
   const deletion = useMutation({
     mutationFn: deleteProfile,
     onSuccess: () => {
+      suppressSessionBootstrapAfterOwnerDeletion();
       clearDeletedOwnerCache(queryClient);
       clearJourneyState();
       navigate(careerOsV2Enabled ? "/settings/data/deletion" : "/data-control/deletion", {

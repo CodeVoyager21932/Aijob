@@ -19,12 +19,21 @@ export interface BreadcrumbItem {
   to?: string;
 }
 
+export function isDeletionReceiptRoute(pathname: string): boolean {
+  return (
+    pathname === "/settings/data/deletion" ||
+    pathname === "/data-control/deletion" ||
+    pathname.startsWith("/data-control/deletion/")
+  );
+}
+
 const routeLabels = new Map([
   ["/today", "今日"],
   ["/jobs", "发现岗位"],
   ["/applications", "我的求职"],
   ["/resumes", "简历资产"],
   ["/settings/data", "数据与设置"],
+  ["/settings/data/deletion", "删除回执"],
 ]);
 
 export function getWorkspaceBreadcrumbs(pathname: string): BreadcrumbItem[] {
@@ -67,6 +76,10 @@ export function getWorkspaceBreadcrumbs(pathname: string): BreadcrumbItem[] {
 
   if (/^\/resumes\/[^/]+$/.test(pathname)) {
     return [{ label: "简历资产", to: "/resumes" }, { label: "基础简历" }];
+  }
+
+  if (/^\/resume-tailorings\/[^/]+$/.test(pathname)) {
+    return [{ label: "简历资产", to: "/resumes" }, { label: "旧版优化历史" }];
   }
 
   const legacyLabels = new Map([["/data-control", "数据控制"]]);

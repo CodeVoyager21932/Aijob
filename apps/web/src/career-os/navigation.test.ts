@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getWorkspaceBreadcrumbs, workspaceNavigation } from "./navigation";
+import {
+  getWorkspaceBreadcrumbs,
+  isDeletionReceiptRoute,
+  workspaceNavigation,
+} from "./navigation";
 
 describe("Career OS workspace navigation", () => {
   it("keeps one global navigation with the approved labels", () => {
@@ -33,5 +37,20 @@ describe("Career OS workspace navigation", () => {
       { label: "准备简历", to: "/resumes/import" },
       { label: "确认资料" },
     ]);
+    expect(getWorkspaceBreadcrumbs("/settings/data/deletion")).toEqual([
+      { label: "删除回执" },
+    ]);
+    expect(getWorkspaceBreadcrumbs("/resume-tailorings/history-one")).toEqual([
+      { label: "简历资产", to: "/resumes" },
+      { label: "旧版优化历史" },
+    ]);
+  });
+
+  it("keeps canonical and compatibility deletion receipts outside session bootstrap", () => {
+    expect(isDeletionReceiptRoute("/settings/data/deletion")).toBe(true);
+    expect(isDeletionReceiptRoute("/data-control/deletion")).toBe(true);
+    expect(isDeletionReceiptRoute("/data-control/deletion/legacy-tail")).toBe(true);
+    expect(isDeletionReceiptRoute("/settings/data")).toBe(false);
+    expect(isDeletionReceiptRoute("/data-control")).toBe(false);
   });
 });

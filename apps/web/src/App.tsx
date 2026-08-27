@@ -24,6 +24,11 @@ const CareerDataControlPage = lazy(() =>
     default: module.CareerDataControlPage,
   })),
 );
+const CareerDeletionStatusPage = lazy(() =>
+  import("./career-os/pages/CareerDeletionStatusPage").then((module) => ({
+    default: module.CareerDeletionStatusPage,
+  })),
+);
 const CareerOsHomePage = lazy(() =>
   import("./career-os/pages/CareerOsHomePage").then((module) => ({
     default: module.CareerOsHomePage,
@@ -191,7 +196,7 @@ export function App() {
               <Route path="/resumes" element={<ResumeAssetsPage />} />
               <Route path="/resumes/:documentId" element={<ResumeAssetsPage />} />
               <Route path="/settings/data" element={<CareerDataControlPage />} />
-              <Route path="/settings/data/deletion" element={<DeletionStatusPage />} />
+              <Route path="/settings/data/deletion" element={<CareerDeletionStatusPage />} />
               <Route
                 path="/recommendations/*"
                 element={<Navigate to="/jobs/recommended" replace />}
@@ -206,6 +211,11 @@ export function App() {
                 path="/data-control/deletion"
                 element={<Navigate to="/settings/data/deletion" replace />}
               />
+              <Route
+                path="/data-control/deletion/*"
+                element={<Navigate to="/settings/data/deletion" replace />}
+              />
+              <Route path="/data-control/*" element={<Navigate to="/settings/data" replace />} />
               <Route path="*" element={<WorkspaceNotFoundPage />} />
             </>
           ) : (

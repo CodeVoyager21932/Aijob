@@ -1,10 +1,10 @@
 # UX-0 页面—系统—证据追踪矩阵
 
-> 状态：Accepted baseline / UX-0 已完成代码反证、Review 兼容核验与四视口当前运行基线；OS-1–OS-5 触达行已关闭，后续实现继续按 OS-6–OS-7 逐行关闭
+> 状态：Accepted baseline / UX-0 已完成代码反证、Review 兼容核验与四视口当前运行基线；OS-1–OS-6 触达行已关闭，后续只剩 OS-7 系统总 Gate
 >
-> 基线日期：2026-08-13；后续关闭更新：2026-08-16
+> 基线日期：2026-08-13；后续关闭更新：2026-08-28
 
-> 后续关闭记录：OS-1 已完成唯一 WorkspaceShell、访问/session、统一 overlay/focus 与运行时响应基础；OS-2 已完成规范岗位目录/详情、服务器派生推荐、市场洞察、简历导入/确认、Case 创建、URL 恢复及对应 owner/session/runtime schema Gate；OS-3 已完成 Case list/board 完整集合、Peek、显式阶段命令、owner/404/409/session 与四视口 Gate；OS-4 已完成固定版本 Case match state/create、`case_pinned` Worker、岗位版本 diff/显式升级、Requirements 深链与对应竞态/四视口 Gate；OS-5 已完成三栏 Resume Studio、Review v1/v2 expand、固定 requirement/evidence 引用、唯一新写入、草稿/409/session、DOCX/打印与四视口 Gate。见 [OS-1 验收证据](../evidence/product/career-os-v2/os-1-system-shell-and-runtime-contract-acceptance-2026-08-13.md)、[OS-2 验收证据](../evidence/product/career-os-v2/os-2-profile-and-trusted-job-entry-acceptance-2026-08-13.md)、[OS-3 验收证据](../evidence/product/career-os-v2/os-3-application-board-and-case-command-acceptance-2026-08-14.md)、[OS-4 验收证据](../evidence/product/career-os-v2/os-4-case-decision-and-pinned-match-acceptance-2026-08-14.md)与 [OS-5 验收证据](../evidence/product/career-os-v2/os-5-resume-studio-and-review-v2-acceptance-2026-08-16.md)。下表的 UX-0 审计时点反证保留历史事实，不能据此把已关闭的 OS-1–OS-5 重新生成成任务。
+> 后续关闭记录：OS-1 已完成唯一 WorkspaceShell、访问/session、统一 overlay/focus 与运行时响应基础；OS-2 已完成规范岗位目录/详情、服务器派生推荐、市场洞察、简历导入/确认、Case 创建、URL 恢复及对应 owner/session/runtime schema Gate；OS-3 已完成 Case list/board 完整集合、Peek、显式阶段命令、owner/404/409/session 与四视口 Gate；OS-4 已完成固定版本 Case match state/create、`case_pinned` Worker、岗位版本 diff/显式升级、Requirements 深链与对应竞态/四视口 Gate；OS-5 已完成三栏 Resume Studio、Review v1/v2 expand、固定 requirement/evidence 引用、唯一新写入、草稿/409/session、DOCX/打印与四视口 Gate；OS-6 已完成今日单一 Board read model、显式投递、模板面试、复盘确认事件与回流、选择性/全部删除、删除回执/session 边界、旧 Tailoring 只读和四视口 Gate。见 [OS-1 验收证据](../evidence/product/career-os-v2/os-1-system-shell-and-runtime-contract-acceptance-2026-08-13.md)、[OS-2 验收证据](../evidence/product/career-os-v2/os-2-profile-and-trusted-job-entry-acceptance-2026-08-13.md)、[OS-3 验收证据](../evidence/product/career-os-v2/os-3-application-board-and-case-command-acceptance-2026-08-14.md)、[OS-4 验收证据](../evidence/product/career-os-v2/os-4-case-decision-and-pinned-match-acceptance-2026-08-14.md)、[OS-5 验收证据](../evidence/product/career-os-v2/os-5-resume-studio-and-review-v2-acceptance-2026-08-16.md)与 [OS-6 验收证据](../evidence/product/career-os-v2/os-6-application-interview-debrief-data-control-acceptance-2026-08-28.md)。下表的 UX-0 审计时点反证保留历史事实，不能据此把已关闭的 OS-1–OS-6 重新生成成任务。
 >
 > 本矩阵是[当前交付计划](career-os-current-delivery-plan.md)的 UX-0 工作产物，不生成新的任务顺序。稳定规则见[端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)。
 
@@ -42,11 +42,11 @@
 | 简历资产 `/resumes` | 查看基础/岗位/脱离资产，创建/删除 | Resume document list/create/delete contracts | `resume-documents` immutable document/revisions；Case link/detach | owner、idempotency、revision、选择性删除、删除后 404 | **OS-5 触达范围已关闭**：基础/岗位资产进入同一 Studio，删除与 Case 派生语义保留 | cursor、三种资产、跨 owner、删除/detach、空态 | `R/A` 已按 OS-5 触达范围关闭 |
 | Resume Studio `/resumes/:id` 与 Case resume tab | 编辑内容/布局、针对固定 JD 的 Review 决策、DOCX/打印 | OS-5 已扩展 Content/Layout、Review v1/v2、Decision、DOCX 与 requirement citation contracts | `resume-documents` revisions、review runs、decisions；template/controlled AI 均读取 Run 固定的 public/private Requirements、内容修订和确认证据 | 409 保稿、已确认证据与岗位要求分别引用、无自动写入、owner、删除 | **OS-5 已关闭**：三栏/三模式、URL 恢复、草稿导航保护、409/session、逐建议决定、DOCX/打印 | public/private 固定要求、save/409/导航、接受/编辑/拒绝、DOCX、打印、删除 | `E + M` 已关闭；migration 033 expand-only |
 | 模板/受控 AI Review 与历史 Tailoring | 新写入只在岗位 Resume Review；旧 run 只读 | Create Review union、生成 provenance、failure/fallback 与 requirement 引用；旧 Tailoring API 保留读 | v1/v2 双读、`resume_review`/`resume_review_v2` 双 handler；固定要求 DB guard；复用低层 provider/去标识化/结构化校验 | 显式同意、去标识化、要求与证据白名单、模拟 provider 离线 Gate；公开/远程默认关闭；关闭/失败时明确模板降级 | **OS-5 已关闭**：Review 是唯一新写入，fallback/provenance 可见，旧 Tailoring V2 只读 | template/模拟 AI/关闭与失败回退、provenance、逐建议决策、历史可读/404、无真实请求 | `E + M` 已关闭；不复活旧 service |
-| 投递 `/applications/:id/application` | 打开官方链接、显式记录已投递、查看时间线 | ManualApplication、Case events、可能的 transition | `applications` events 与 Case stage | 外链打开不等于投递；CSRF、幂等、409 | 已接入显式投递与事件 | 外链无 mutation、显式投递一次、409、前后退、删除 | `R/A` |
-| 面试 `/applications/:id/interview` | 创建模板会话、回答、查看反馈 | Interview contracts/routes | `interviews` sessions/turns/feedback | owner、idempotency、revision、无真实 AI/语音视频 | 已接入；路由焦点和冲突呈现待收敛 | 创建/恢复/回答/反馈/404/409/删除 | `R/A` |
-| 复盘 `/applications/:id/debrief` | 准备、逐项决定、确认并回流 | Debrief prepare/confirm/delete contracts | `interviews` debrief/confirmations/decisions；`applications` event | 确认前不回流；owner、revision、幂等、删除 | 与 Interview 共组件，tab 不聚焦复盘 | draft/confirmed/回流、409、刷新、删除、深链焦点 | `R/A` |
-| 数据设置 `/settings/data*` | 查看范围、单项/Case/全部删除 | CareerDataScope、Delete Case/Resume/Interview/Debrief/Profile | 各领域删除 + `profile/identity` owner 删除 | 删除中/已删除、不可枚举、session boundary、资产处置 | 主体接入；错误/session 回接待统一 | 每种选择性删除、全量删除、轮询、原 URL 404、公共岗位保留 | `R/A` |
-| flag 回退 | 关闭 V2 使用旧 ProductShell/岗位页 | `VITE_CAREER_OS_V2`、兼容模式 | 不改变后端事实 | 不访问真实外部系统；旧 URL 可用 | 已有基础 | true/false 两套 smoke、旧导入/岗位、无 V2 chunk 越界 | `R` |
+| 投递 `/applications/:id/application` | 打开官方链接、显式记录已投递、查看时间线 | ManualApplication、Case events 与 transition | `applications` append-only event 与 Case stage/revision | 外链打开不等于投递；CSRF、幂等、409 | **OS-6 已关闭**：外链与显式确认分离，成功状态 URL 可恢复，时间线即时刷新 | 外链无 mutation、显式投递一次、409、前后退、删除 | `R/A` 已关闭 |
+| 面试 `/applications/:id/interview` | 创建模板会话、回答、查看反馈 | Interview contracts/routes 与 runtime parser | `interviews` sessions/turns/feedback | owner、idempotency、revision、无真实 AI/语音视频 | **OS-6 已关闭**：Session 与 Debrief 分离；按 Session 保存草稿，409 保稿并显式丢弃，成功回答即时更新 | 创建/恢复/回答/反馈/404/409/删除 | `R/A` 已关闭 |
+| 复盘 `/applications/:id/debrief` | 准备、逐项决定、确认并回流 | Debrief prepare/confirm/delete contracts 与 Case events | `interviews` debrief/confirmations/decisions；同事务追加 `debrief_confirmed` | 确认前不回流；owner、revision、幂等、删除 | **OS-6 已关闭**：逐项决定、离开保护、确认后唯一回流与 Case 列表/事件刷新 | draft/confirmed/回流、409、刷新、删除、深链焦点 | `R/A` 已关闭 |
+| 数据设置 `/settings/data*` | 查看范围、单项/Case/全部删除 | CareerDataScope、Delete Case/Resume/Interview/Debrief/Profile 与 deletion receipt parser | 各领域删除 + `profile/identity` owner 删除；成功回执在签名 cookie TTL 内可重复读取 | 删除中/已删除、不可枚举、session boundary、资产处置 | **OS-6 已关闭**：选择性删除成功后重读；全量删除不新建 session；规范/旧回执 URL 可刷新 | 每种选择性删除、全量删除、轮询、原 URL 404、公共岗位保留 | `R/A` 已关闭 |
+| flag 回退 | 关闭 V2 使用旧 ProductShell/岗位页 | `VITE_CAREER_OS_V2`、兼容模式 | 不改变后端事实 | 不访问真实外部系统；旧 URL 可用 | **OS-6 触达范围已关闭**：V2=false 的旧壳与岗位页继续可用 | true/false 两套 smoke、旧导入/岗位、无 V2 chunk 越界 | `R` 已按 OS-6 回归；OS-7 总验 |
 
 ## 3. UX-0 架构决定与关闭条件
 
@@ -57,7 +57,7 @@
 | A-03 | Insights 与单岗 Requirements 边界 | **已实现：市场洞察归 `/jobs/insights*`，从 Case JD 明确排除** | OS-2 兼容跳转、scope/Run 深链、刷新与错误 Gate 已关闭 |
 | A-04 | Recommendation 入口与候选冻结 | **已实现：归 `/jobs/recommended*`；复用 RecommendationRun 的 search create 与 view adapter** | OS-2 scope 同义、服务器冻结、岗位投影、owner/session、请求数与空目录 Gate 已关闭 |
 | A-05 | Tailoring / Review 唯一写入所有权 | **已实现：Review 唯一新写入，受控 AI 与岗位要求引用使用 migration 033 expand-only；Tailoring 历史只读** | OS-5 已通过 v1/v2、双任务 handler、固定引用、模拟 provider、fallback、决定、删除与四视口 Gate |
-| A-06 | Web 核心响应运行时校验 | **已选并由 OS-1 建立基础；OS-2–OS-4 扩展岗位/Case，OS-5 扩展 Resume/Review/Decision** | OS-1–OS-5 的畸形响应、敏感 payload、session、触达 parser 与包体断言已关闭；OS-6 随触达端点扩展，OS-7 扫描余量 |
+| A-06 | Web 核心响应运行时校验 | **已选并由 OS-1 建立基础；OS-2–OS-5 扩展岗位/Case/Resume，OS-6 扩展 timeline/application/interview/debrief/data scope/legacy/export/deletion** | OS-1–OS-6 的畸形响应、敏感 payload、session、触达 parser 与包体断言已关闭；OS-7 扫描余量 |
 
 ### 3.1 UX-0 代码反证结论
 
@@ -321,6 +321,7 @@ new ProductApiError(
 | Recommendation | search scope runtime schema、view schema | 与 jobs query 同义、1100 上限、候选/requirements/freshness 冻结、一次岗位投影、owner 404 | 规范深链、空目录、stale/invalid、加入 Case 前重验，无 1100 岗浏览器拉取/N+1 |
 | Insights | 复用现有 schema | scope 幂等、样本不足成功、owner 404 | URL 表单、run 深链、刷新恢复，Case 页面零 Insights 请求 |
 | Review v2 | **OS-5 已关闭**：v1/v2 read union、request union、requirement citations、provenance | **OS-5 已关闭**：fresh/up/legacy/down guard；同队列 versioned task 的新旧 Worker fail-closed；public/private requirement guard；template/模拟 AI/关闭/失败 fallback；删除与迟到任务 | **OS-5 已关闭**：唯一新写入、逐建议决策、fallback 明示、历史 Tailoring 只读、无真实 AI |
-| Runtime parse | parser option、共享 response/Problem schema | 畸形测试 fixture 不进入生产服务 | 502 可重试、session mutation 不重放、payload 不进 console、主包增量守门 |
+| Application / Interview / Debrief / Data | **OS-6 已关闭**：触达响应 parser、稳定 Problem、删除回执 | **OS-6 已关闭**：事件/Case revision 同事务、幂等确认、owner 404、删除后不可读、回执 TTL 重读 | **OS-6 已关闭**：显式投递、Session 草稿/409、复盘确认后回流、全量删除无 session bootstrap、兼容 URL |
+| Runtime parse | parser option、共享 response/Problem schema | 畸形测试 fixture 不进入生产服务 | **OS-1–OS-6 触达范围已关闭**：502 可重试、session mutation 不重放、payload 不进 console、主包增量守门；OS-7 扫描余量 |
 
 上表任何一列缺失，都不能以另一列的测试数量代替。实施中若发现现有代码事实与本草案冲突，先停在对应 UX 切片修订契约和证据，不在 Web 或 SQL 中静默发明第三种语义。

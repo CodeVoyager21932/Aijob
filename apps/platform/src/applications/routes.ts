@@ -46,6 +46,18 @@ const QuestionParamsSchema = z
   .strict();
 const IdempotencyKeySchema = z.string().trim().min(1).max(200);
 
+function requireCaseParams(params: unknown): z.infer<typeof ParamsSchema> {
+  const parsed = ParamsSchema.safeParse(params);
+  if (!parsed.success) {
+    throw new ServiceError(
+      404,
+      "APPLICATION_CASE_NOT_FOUND",
+      "记录不存在、已删除或不属于当前账户。",
+    );
+  }
+  return parsed.data;
+}
+
 function requireIdempotencyKey(headers: Record<string, unknown>): string {
   const rawIdempotencyKey = headers["idempotency-key"];
   if (typeof rawIdempotencyKey !== "string") {
@@ -182,7 +194,7 @@ export function registerApplicationCaseRoutes(
   app.delete("/v1/application-cases/:caseId", async (request, reply) => {
     try {
       const owner = requireOwnerContext(request);
-      const { caseId } = ParamsSchema.parse(request.params);
+      const { caseId } = requireCaseParams(request.params);
       const body = DeleteApplicationCaseRequestSchema.parse(request.body);
       return reply.send(
         await deleteApplicationCase({
@@ -200,7 +212,7 @@ export function registerApplicationCaseRoutes(
   app.get("/v1/application-cases/:caseId/events", async (request, reply) => {
     try {
       const owner = requireOwnerContext(request);
-      const { caseId } = ParamsSchema.parse(request.params);
+      const { caseId } = requireCaseParams(request.params);
       const query = ListApplicationCaseEventsQuerySchema.parse(request.query);
       return reply.send(await listApplicationCaseEvents({ db: options.db, owner, caseId, query }));
     } catch (error) {
@@ -211,7 +223,7 @@ export function registerApplicationCaseRoutes(
   app.post("/v1/application-cases/:caseId/manual-applications", async (request, reply) => {
     try {
       const owner = requireOwnerContext(request);
-      const { caseId } = ParamsSchema.parse(request.params);
+      const { caseId } = requireCaseParams(request.params);
       const body = RecordManualApplicationRequestSchema.parse(request.body);
       const idempotencyKey = requireIdempotencyKey(request.headers);
       return reply.send(

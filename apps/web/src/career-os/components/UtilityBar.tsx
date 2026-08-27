@@ -2,7 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { getSessionStatus } from "../../api/client";
-import { getWorkspaceBreadcrumbs, workspaceNavigation } from "../navigation";
+import {
+  getWorkspaceBreadcrumbs,
+  isDeletionReceiptRoute,
+  workspaceNavigation,
+} from "../navigation";
 import { Icon } from "./Icon";
 import { ModalSurface } from "./ModalSurface";
 
@@ -13,6 +17,7 @@ interface UtilityBarProps {
 export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
   const location = useLocation();
   const breadcrumbs = getWorkspaceBreadcrumbs(location.pathname);
+  const deletionReceiptOnly = isDeletionReceiptRoute(location.pathname);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [utilityPopover, setUtilityPopover] = useState<"notifications" | "account" | null>(null);
@@ -20,6 +25,7 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
   const sessionQuery = useQuery({
     queryKey: ["identity", "session"],
     queryFn: ({ signal }) => getSessionStatus(signal),
+    enabled: !deletionReceiptOnly,
     staleTime: 30_000,
     retry: 1,
   });
@@ -53,7 +59,9 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
     () => workspaceNavigation.filter((item) => item.label.toLowerCase().includes(normalizedQuery)),
     [normalizedQuery],
   );
-  const sessionLabel = sessionQuery.isPending
+  const sessionLabel = deletionReceiptOnly
+    ? "删除回执"
+    : sessionQuery.isPending
     ? "会话检查中"
     : sessionQuery.isError
       ? "状态未知"
@@ -62,7 +70,9 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
         : sessionQuery.data.owner.retentionMode === "account_managed"
           ? "长期账号"
           : "本机会话";
-  const sessionDescription = sessionQuery.isPending
+  const sessionDescription = deletionReceiptOnly
+    ? "当前只读取删除回执，不会建立新的 owner 会话。"
+    : sessionQuery.isPending
     ? "正在读取当前访问与数据保留状态。"
     : sessionQuery.isError
       ? "当前无法确认会话状态，请刷新后重试。"
@@ -149,7 +159,7 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
               <div className="career-utility-popover career-utility-popover--account">
                 <strong>{sessionLabel}</strong>
                 <span>{sessionDescription}</span>
-                {sessionQuery.data?.authenticated ? (
+                {!deletionReceiptOnly && sessionQuery.data?.authenticated ? (
                   <Link to="/settings/data" onClick={() => setUtilityPopover(null)}>
                     管理个人数据
                   </Link>

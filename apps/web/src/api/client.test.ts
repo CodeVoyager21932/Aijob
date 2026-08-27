@@ -8,8 +8,10 @@ import {
   createEmailVerificationChallenge,
   createOwnerClaimChallenge,
   getSessionStatus,
+  resumeSessionBootstrapAfterOwnerDeletion,
   subscribeToSessionBoundary,
   subscribeToSessionMutationRecovery,
+  suppressSessionBootstrapAfterOwnerDeletion,
 } from "./client";
 
 const sessionStatus = {
@@ -34,6 +36,7 @@ const sessionStatus = {
 
 describe("product API client", () => {
   afterEach(() => {
+    resumeSessionBootstrapAfterOwnerDeletion();
     vi.unstubAllGlobals();
   });
 
@@ -94,6 +97,68 @@ describe("product API client", () => {
 
     expect(sessionRequests).toBe(1);
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("can read a deletion receipt without bootstrapping or recovering an owner session", async () => {
+    const requestedPaths: string[] = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      requestedPaths.push(String(input));
+      return new Response(JSON.stringify({ status: "receipt-only" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    vi.stubGlobal("document", { cookie: "" });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      apiRequest<{ status: string }>("/v1/profile/deletion", {
+        skipSessionBootstrap: true,
+      }),
+    ).resolves.toEqual({ status: "receipt-only" });
+
+    expect(requestedPaths).toEqual(["/v1/profile/deletion"]);
+  });
+
+  it("does not bootstrap a replacement owner after deletion until the user explicitly resumes", async () => {
+    const requestedPaths: string[] = [];
+    const documentState = { cookie: "" };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      requestedPaths.push(String(input));
+      documentState.cookie = "aijob_csrf=fresh-token";
+      return new Response(JSON.stringify(sessionStatus), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    vi.stubGlobal("document", documentState);
+    vi.stubGlobal("fetch", fetchMock);
+
+    suppressSessionBootstrapAfterOwnerDeletion();
+    await expect(getSessionStatus()).resolves.toEqual({ authenticated: false });
+    expect(requestedPaths).toEqual([]);
+
+    resumeSessionBootstrapAfterOwnerDeletion();
+    await expect(getSessionStatus()).resolves.toEqual(sessionStatus);
+    expect(requestedPaths).toEqual(["/v1/session"]);
+  });
+
+  it("does not recover a session-boundary response for a receipt-only request", async () => {
+    const requestedPaths: string[] = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      requestedPaths.push(String(input));
+      return new Response(
+        JSON.stringify({ detail: "删除回执已过期", code: "SESSION_REQUIRED" }),
+        { status: 401, headers: { "Content-Type": "application/json" } },
+      );
+    });
+    vi.stubGlobal("document", { cookie: "" });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      apiRequest("/v1/profile/deletion", { skipSessionBootstrap: true }),
+    ).rejects.toMatchObject({ status: 401, code: "SESSION_REQUIRED" });
+    expect(requestedPaths).toEqual(["/v1/profile/deletion"]);
   });
 
   it("shares the first session bootstrap with an explicit session query and protected reads", async () => {

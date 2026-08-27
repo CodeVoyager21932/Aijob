@@ -45,10 +45,13 @@ import {
   JobSearchResponseSchema,
   MatchRunSchema,
   MAX_RECOMMENDATION_CANDIDATES,
+  ProfileDeletionSchema,
   ProfileFactRevisionSchema,
   RecommendationRunSchema,
   ResumeAnalysisViewSchema,
   ResumeEvidenceRevisionSchema,
+  ResumeExportSchema,
+  ResumeTailoringRunSchema,
   JobPreferenceRevisionSchema,
 } from "@aijob/contracts";
 import { apiRequest, createIdempotencyKey } from "./client";
@@ -371,6 +374,7 @@ export function createResumeTailoring(body: CreateResumeTailoringRequest) {
 export function getResumeTailoring(id: string, signal?: AbortSignal) {
   return apiRequest<ResumeTailoringRun>(`/v1/resume-tailorings/${encodeURIComponent(id)}`, {
     signal,
+    responseSchema: ResumeTailoringRunSchema,
   });
 }
 
@@ -389,19 +393,28 @@ export function createResumeExport(runId: string) {
   return apiRequest<ResumeExport>(`/v1/resume-tailorings/${encodeURIComponent(runId)}/exports`, {
     method: "POST",
     idempotencyKey: createIdempotencyKey("resume-export"),
+    responseSchema: ResumeExportSchema,
   });
 }
 
 export function getResumeExport(id: string, signal?: AbortSignal) {
   return apiRequest<ResumeExport>(`/v1/resume-exports/${encodeURIComponent(id)}`, {
     signal,
+    responseSchema: ResumeExportSchema,
   });
 }
 
 export function deleteProfile() {
-  return apiRequest<ProfileDeletion>("/v1/profile", { method: "DELETE" });
+  return apiRequest<ProfileDeletion>("/v1/profile", {
+    method: "DELETE",
+    responseSchema: ProfileDeletionSchema,
+  });
 }
 
 export function getProfileDeletion(signal?: AbortSignal) {
-  return apiRequest<ProfileDeletion>("/v1/profile/deletion", { signal });
+  return apiRequest<ProfileDeletion>("/v1/profile/deletion", {
+    signal,
+    responseSchema: ProfileDeletionSchema,
+    skipSessionBootstrap: true,
+  });
 }

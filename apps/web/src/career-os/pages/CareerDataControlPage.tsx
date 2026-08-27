@@ -8,8 +8,11 @@ import {
   deleteInterviewSession,
   getCareerDataScope,
 } from "../../api/career-os";
+import {
+  ProductApiError,
+  suppressSessionBootstrapAfterOwnerDeletion,
+} from "../../api/client";
 import { deleteProfile } from "../../api/product";
-import { ProductError, ProductLoading } from "../../components/ProductStates";
 import { clearDeletedOwnerCache } from "../../product/privacy-cache";
 import { clearJourneyState } from "../../product/session-state";
 import { AssetDeletionDialog } from "../components/AssetDeletionDialog";
@@ -40,15 +43,38 @@ function AssetCountCard({ label, value, note }: { label: string; value: number; 
   );
 }
 
+function DataPageHeading() {
+  return (
+    <header className="career-page-heading career-data-page__heading">
+      <div>
+        <p>数据与设置</p>
+        <h1 id="career-data-title">由你决定保留什么</h1>
+        <span>查看真实保存范围、处理脱离项目的资产，或主动删除全部个人数据。</span>
+      </div>
+    </header>
+  );
+}
+
+export async function publishAssetDeletionAfterRefresh(
+  refresh: () => Promise<unknown>,
+  publish: () => void,
+): Promise<void> {
+  await refresh();
+  publish();
+}
+
 export function CareerDataControlPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [confirmation, setConfirmation] = useState("");
   const [understood, setUnderstood] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<DetachedCareerAsset | null>(null);
+  const [assetNotice, setAssetNotice] = useState<string | null>(null);
   const scopeQuery = useQuery({
     queryKey: careerOsQueryKeys.dataScope,
     queryFn: ({ signal }) => getCareerDataScope(signal),
+    retry: (failureCount, error) =>
+      error instanceof ProductApiError && error.status === 404 ? false : failureCount < 1,
   });
   const assetDeletion = useMutation({
     retry: false,
@@ -64,22 +90,65 @@ export function CareerDataControlPage() {
     },
     onSuccess: async () => {
       setSelectedAsset(null);
-      await queryClient.invalidateQueries({ queryKey: careerOsQueryKeys.dataScope });
+      await publishAssetDeletionAfterRefresh(
+        () => queryClient.invalidateQueries({ queryKey: careerOsQueryKeys.dataScope }),
+        () => setAssetNotice("独立资产已删除，数据范围已重新读取。"),
+      );
+    },
+    onError: async (error, asset) => {
+      if (
+        !(error instanceof ProductApiError) ||
+        (error.status !== 404 && !error.code?.includes("REVISION_CONFLICT"))
+      ) {
+        return;
+      }
+      const latest = await scopeQuery.refetch();
+      const latestAsset = latest.data?.detachedAssets.find(
+        (candidate) => candidate.kind === asset.kind && candidate.id === asset.id,
+      );
+      if (latestAsset) {
+        setSelectedAsset(latestAsset);
+        setAssetNotice("该资产修订已经变化。最新数据已载入，页面选择仍保留，请重新确认。");
+      } else {
+        setSelectedAsset(null);
+        setAssetNotice("该资产已删除或不再属于当前 owner，最新数据范围已载入。");
+      }
     },
   });
   const deletion = useMutation({
     retry: false,
     mutationFn: deleteProfile,
     onSuccess: () => {
+      suppressSessionBootstrapAfterOwnerDeletion();
       clearDeletedOwnerCache(queryClient);
       clearJourneyState();
       navigate("/settings/data/deletion", { replace: true });
     },
   });
 
-  if (scopeQuery.isPending) return <ProductLoading label="正在读取真实数据范围" />;
+  if (scopeQuery.isPending) {
+    return (
+      <section className="career-data-page" aria-labelledby="career-data-title">
+        <DataPageHeading />
+        <output className="career-request-state">正在读取真实数据范围…</output>
+      </section>
+    );
+  }
   if (scopeQuery.isError) {
-    return <ProductError title="暂时无法读取数据范围" error={scopeQuery.error} />;
+    return (
+      <section className="career-data-page" aria-labelledby="career-data-title">
+        <DataPageHeading />
+        <div className="career-inline-error" role="alert">
+          <strong>暂时无法读取数据范围</strong>
+          <span>
+            {scopeQuery.error instanceof Error ? scopeQuery.error.message : "请稍后重试。"}
+          </span>
+          <button type="button" onClick={() => void scopeQuery.refetch()}>
+            重新读取
+          </button>
+        </div>
+      </section>
+    );
   }
 
   const scope = scopeQuery.data;
@@ -95,13 +164,14 @@ export function CareerDataControlPage() {
 
   return (
     <section className="career-data-page" aria-labelledby="career-data-title">
-      <header className="career-page-heading career-data-page__heading">
-        <div>
-          <p>数据与设置</p>
-          <h1 id="career-data-title">由你决定保留什么</h1>
-          <span>查看真实保存范围、处理脱离项目的资产，或主动删除全部个人数据。</span>
-        </div>
-      </header>
+      <DataPageHeading />
+
+      {assetNotice ? (
+        <output className="career-data-notice">
+          <Icon name="check" size={18} />
+          <span>{assetNotice}</span>
+        </output>
+      ) : null}
 
       <section className="career-data-retention" aria-labelledby="retention-mode-title">
         <div className="career-data-retention__icon">
@@ -201,6 +271,7 @@ export function CareerDataControlPage() {
                   type="button"
                   onClick={() => {
                     assetDeletion.reset();
+                    setAssetNotice(null);
                     setSelectedAsset(asset);
                   }}
                 >
@@ -321,7 +392,14 @@ export function CareerDataControlPage() {
         >
           {deletion.isPending ? "正在撤销访问…" : "永久删除全部个人数据"}
         </button>
-        {deletion.isError ? <ProductError title="删除请求没有成功" error={deletion.error} /> : null}
+        {deletion.isError ? (
+          <div className="career-inline-error" role="alert">
+            <strong>删除请求没有成功，系统没有自动重放</strong>
+            <span>
+              {deletion.error instanceof Error ? deletion.error.message : "请核对后重新提交。"}
+            </span>
+          </div>
+        ) : null}
       </section>
 
       <AssetDeletionDialog

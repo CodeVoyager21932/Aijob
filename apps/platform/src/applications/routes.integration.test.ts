@@ -1650,6 +1650,39 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
     expect(crossOwnerTimeline.statusCode).toBe(404);
     expect(crossOwnerTimeline.json()).toMatchObject({ code: "APPLICATION_CASE_NOT_FOUND" });
 
+    const invalidTimeline = await app.inject({
+      method: "GET",
+      url: "/v1/application-cases/not-a-case-id/events",
+      headers,
+    });
+    expect(invalidTimeline.statusCode).toBe(404);
+    expect(invalidTimeline.json()).toMatchObject({ code: "APPLICATION_CASE_NOT_FOUND" });
+
+    const invalidManualApplication = await app.inject({
+      method: "POST",
+      url: "/v1/application-cases/not-a-case-id/manual-applications",
+      headers: { ...headers, "idempotency-key": `m3-invalid-case-${randomUUID()}` },
+      payload: { expectedRevision: 1 },
+    });
+    expect(invalidManualApplication.statusCode).toBe(404);
+    expect(invalidManualApplication.json()).toMatchObject({
+      code: "APPLICATION_CASE_NOT_FOUND",
+    });
+
+    const invalidCaseDelete = await app.inject({
+      method: "DELETE",
+      url: "/v1/application-cases/not-a-case-id",
+      headers,
+      payload: {
+        expectedRevision: 1,
+        resumeDocuments: "detach",
+        interviewSessions: "detach",
+        debriefs: "detach",
+      },
+    });
+    expect(invalidCaseDelete.statusCode).toBe(404);
+    expect(invalidCaseDelete.json()).toMatchObject({ code: "APPLICATION_CASE_NOT_FOUND" });
+
     const missingCsrf = await app.inject({
       method: "POST",
       url: `/v1/application-cases/${applicationCase.id}/manual-applications`,

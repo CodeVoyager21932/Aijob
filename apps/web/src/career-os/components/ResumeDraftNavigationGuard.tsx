@@ -47,7 +47,21 @@ function shouldGuardDestination(href: string): boolean {
   return shouldGuardResumeNavigation(href, window.location.href);
 }
 
-export function ResumeDraftNavigationGuard({ active }: { active: boolean }) {
+export function ResumeDraftNavigationGuard({
+  active,
+  eyebrow = "未保存草稿",
+  title = "要离开这份简历吗？",
+  description = "当前正文、章节顺序或模板仍有本地修改。离开后这些草稿不会写入服务器。",
+  stayLabel = "继续编辑",
+  leaveLabel = "放弃草稿并离开",
+}: {
+  active: boolean;
+  eyebrow?: string;
+  title?: string;
+  description?: string;
+  stayLabel?: string;
+  leaveLabel?: string;
+}) {
   const navigate = useNavigate();
   const leaveButtonRef = useRef<HTMLButtonElement>(null);
   const bypassNextNavigationRef = useRef(false);
@@ -148,18 +162,16 @@ export function ResumeDraftNavigationGuard({ active }: { active: boolean }) {
       closeLabel="继续留在简历工作室"
       onClose={() => updatePending(null)}
     >
-      <p>未保存草稿</p>
-      <h2 id="career-resume-draft-guard-title">要离开这份简历吗？</h2>
-      <p id="career-resume-draft-guard-description">
-        当前正文、章节顺序或模板仍有本地修改。离开后这些草稿不会写入服务器。
-      </p>
+      <p>{eyebrow}</p>
+      <h2 id="career-resume-draft-guard-title">{title}</h2>
+      <p id="career-resume-draft-guard-description">{description}</p>
       <div>
         <button
           className="career-button career-button--quiet"
           type="button"
           onClick={() => updatePending(null)}
         >
-          继续编辑
+          {stayLabel}
         </button>
         <button
           ref={leaveButtonRef}
@@ -167,7 +179,7 @@ export function ResumeDraftNavigationGuard({ active }: { active: boolean }) {
           type="button"
           onClick={continueNavigation}
         >
-          放弃草稿并离开
+          {leaveLabel}
         </button>
       </div>
     </ModalSurface>

@@ -40,6 +40,7 @@ import {
   findActiveSession,
   type OwnerContext,
 } from "../identity/session-repository.js";
+import { DELETION_RECEIPT_COOKIE_NAME } from "../profile/routes.js";
 import { runOneOwnerTask } from "../workers/owner-task-worker.js";
 
 const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
@@ -2977,7 +2978,7 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       ).json(),
     );
     expect(backflowRequirements).toMatchObject({
-      revision: 6,
+      revision: 7,
       states: [{ requirementId: publicRequirementItemV1Id, state: "confirmed" }],
       evidenceLinks: [{ evidenceId: mainResume.evidenceId, removedAt: null }],
     });
@@ -3017,7 +3018,7 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       url: `/v1/application-cases/${candidate.caseId}`,
       headers,
       payload: {
-        expectedRevision: 6,
+        expectedRevision: 7,
         resumeDocuments: "detach",
         interviewSessions: "detach",
         debriefs: "detach",
@@ -3027,7 +3028,7 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
     const deletedCase = DeleteApplicationCaseResponseSchema.parse(caseDeleteResponse.json());
     expect(deletedCase).toMatchObject({
       caseId: candidate.caseId,
-      revision: 7,
+      revision: 8,
       relatedAssets: {
         resumeDocuments: { deletedIds: [], detachedIds: [candidate.resumeDocumentId] },
         interviewSessions: { deletedIds: [], detachedIds: [interview.sessionId] },
@@ -3093,6 +3094,12 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
     const ownerDeletion = ProfileDeletionSchema.parse(ownerDeletionResponse.json());
     ownerDeletionId = ownerDeletion.id;
     expect(ownerDeletion.status).toBe("queued");
+    const deletionReceiptCookie = [ownerDeletionResponse.headers["set-cookie"]]
+      .flat()
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => value.split(";", 1)[0])
+      .find((value) => value.startsWith(`${DELETION_RECEIPT_COOKIE_NAME}=`));
+    expect(deletionReceiptCookie).toBeDefined();
     expect(await findActiveSession({ db, sessionToken: mainSession.sessionToken })).toBeNull();
     expect(
       await db
@@ -3116,6 +3123,23 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
         .where("id", "=", ownerDeletion.id)
         .executeTakeFirstOrThrow(),
     ).toMatchObject({ status: "succeeded", failure_code: null, completed_at: expect.any(Date) });
+
+    for (let read = 0; read < 2; read += 1) {
+      const deletionReceiptResponse = await app.inject({
+        method: "GET",
+        url: "/v1/profile/deletion",
+        headers: { cookie: deletionReceiptCookie as string },
+      });
+      expect(
+        deletionReceiptResponse.statusCode,
+        JSON.stringify(deletionReceiptResponse.json()),
+      ).toBe(200);
+      expect(ProfileDeletionSchema.parse(deletionReceiptResponse.json())).toMatchObject({
+        id: ownerDeletion.id,
+        status: "succeeded",
+      });
+      expect(deletionReceiptResponse.headers["set-cookie"]).toBeUndefined();
+    }
 
     const personalTableCounts = await Promise.all([
       db

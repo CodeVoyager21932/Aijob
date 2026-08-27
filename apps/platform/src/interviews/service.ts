@@ -791,15 +791,15 @@ export async function submitInterviewAnswer(input: {
       await assertCaseExists(transaction, input.owner, input.caseId);
       throw interviewSessionNotFound();
     }
+    if (Number(session.revision) !== input.request.expectedRevision) {
+      throw interviewSessionRevisionConflict();
+    }
     if (session.status !== "active") {
       throw new ServiceError(
         409,
         "INTERVIEW_SESSION_NOT_ACTIVE",
         "当前面试练习已结束，不能继续追加回答。",
       );
-    }
-    if (Number(session.revision) !== input.request.expectedRevision) {
-      throw interviewSessionRevisionConflict();
     }
 
     const pendingSequence = input.request.expectedRevision * 2 - 1;

@@ -3,10 +3,12 @@ import type {
   ConfirmCaseDebriefRequest,
   GetCaseDebriefResponse,
   InterviewSession,
+  InterviewSessionDetail,
+  SubmitInterviewAnswerResponse,
 } from "@aijob/contracts";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   careerOsQueryKeys,
   confirmCaseDebrief,
@@ -23,6 +25,7 @@ import { createIdempotencyKey, ProductApiError } from "../../api/client";
 import { AssetDeletionDialog } from "../components/AssetDeletionDialog";
 import { DebriefConfirmationPanel } from "../components/DebriefConfirmationPanel";
 import { Icon } from "../components/Icon";
+import { ResumeDraftNavigationGuard } from "../components/ResumeDraftNavigationGuard";
 import {
   caseDebriefSessionState,
   currentInterviewQuestion,
@@ -41,16 +44,71 @@ function sessionTime(value: string): string {
   }).format(new Date(value));
 }
 
+export function InterviewAnswerConflictRecovery({
+  draft,
+  onDiscard,
+}: {
+  draft: string;
+  onDiscard: () => void;
+}) {
+  return (
+    <section
+      className="career-interview-answer career-interview-answer--conflict"
+      aria-labelledby="interview-answer-conflict-title"
+    >
+      <div className="career-inline-error" role="alert">
+        <strong id="interview-answer-conflict-title">这轮练习已经变化</strong>
+        <span>服务器已有更新，本地草稿仍保留且没有重新提交。</span>
+      </div>
+      <label htmlFor="interview-answer-conflict-draft">未提交的本地草稿</label>
+      <textarea
+        id="interview-answer-conflict-draft"
+        aria-label="你的回答"
+        value={draft}
+        rows={7}
+        readOnly
+      />
+      <div>
+        <span>{draft.length.toLocaleString("zh-CN")} / 20,000</span>
+        <button className="career-button career-button--quiet" type="button" onClick={onDiscard}>
+          放弃本地草稿，采用服务器进度
+        </button>
+      </div>
+    </section>
+  );
+}
+
+export function applyInterviewAnswerResult(
+  detail: InterviewSessionDetail | undefined,
+  result: SubmitInterviewAnswerResponse,
+): InterviewSessionDetail | undefined {
+  if (!detail || detail.session.id !== result.answer.interviewSessionId) return detail;
+  const additions = [result.answer, result.nextQuestion].filter(
+    (turn): turn is NonNullable<typeof turn> =>
+      Boolean(turn && !detail.turns.some((existing) => existing.id === turn.id)),
+  );
+  return {
+    ...detail,
+    session: { ...detail.session, revision: result.appliedRevision },
+    turns: [...detail.turns, ...additions].sort((left, right) => left.sequence - right.sequence),
+  };
+}
+
 export function CaseInterviewWorkspace({
   applicationCase,
+  surface,
 }: {
   applicationCase: ApplicationCaseWithJobContext;
+  surface: "interview" | "debrief";
 }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [draft, setDraft] = useState("");
+  const [answerDrafts, setAnswerDrafts] = useState<Record<string, string>>({});
+  const [debriefDraftActive, setDebriefDraftActive] = useState(false);
   const [sessionDeleteOpen, setSessionDeleteOpen] = useState(false);
   const [debriefDeleteOpen, setDebriefDeleteOpen] = useState(false);
+  const surfaceHeadingRef = useRef<HTMLHeadingElement>(null);
   const createCommandRef = useRef<{ signature: string; key: string } | null>(null);
   const answerCommandRef = useRef<{ signature: string; key: string } | null>(null);
   const prepareDebriefCommandRef = useRef<{ signature: string; key: string } | null>(null);
@@ -70,8 +128,24 @@ export function CaseInterviewWorkspace({
     () => (sessionsQuery.data?.pages ?? []).flatMap((page) => page.items),
     [sessionsQuery.data?.pages],
   );
+  const debriefQuery = useQuery({
+    queryKey: careerOsQueryKeys.caseDebrief(applicationCase.id),
+    queryFn: ({ signal }) => getCaseDebrief(applicationCase.id, signal),
+    retry: (failureCount, error) =>
+      error instanceof ProductApiError && error.status === 404 ? false : failureCount < 1,
+  });
   const requestedSessionId = searchParams.get("session");
-  const selectedSessionId = requestedSessionId ?? sessions[0]?.id ?? null;
+  const defaultSessionId =
+    surface === "debrief" && debriefQuery.isPending
+      ? null
+      : surface === "debrief"
+        ? (debriefQuery.data?.debrief?.interviewSessionId ??
+          sessions.find((session) => session.status === "completed")?.id ??
+          sessions[0]?.id ??
+          null)
+        : (sessions[0]?.id ?? null);
+  const selectedSessionId = requestedSessionId ?? defaultSessionId;
+  const draft = selectedSessionId ? (answerDrafts[selectedSessionId] ?? "") : "";
   const detailQuery = useQuery({
     queryKey: careerOsQueryKeys.interviewSession(applicationCase.id, selectedSessionId ?? "none"),
     queryFn: ({ signal }) =>
@@ -80,19 +154,43 @@ export function CaseInterviewWorkspace({
     retry: (failureCount, error) =>
       error instanceof ProductApiError && error.status === 404 ? false : failureCount < 1,
   });
-  const debriefQuery = useQuery({
-    queryKey: careerOsQueryKeys.caseDebrief(applicationCase.id),
-    queryFn: ({ signal }) => getCaseDebrief(applicationCase.id, signal),
-    retry: (failureCount, error) =>
-      error instanceof ProductApiError && error.status === 404 ? false : failureCount < 1,
-  });
+
+  useEffect(() => {
+    surfaceHeadingRef.current?.focus({ preventScroll: true });
+  }, []);
+
+  useEffect(() => {
+    if (requestedSessionId || !selectedSessionId) return;
+    const next = new URLSearchParams(searchParams);
+    next.set("session", selectedSessionId);
+    setSearchParams(next, { replace: true });
+  }, [requestedSessionId, searchParams, selectedSessionId, setSearchParams]);
+
+  const hasUnsavedDrafts =
+    debriefDraftActive || Object.values(answerDrafts).some((value) => value.trim().length > 0);
+
+  useEffect(() => {
+    if (!hasUnsavedDrafts) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [hasUnsavedDrafts]);
 
   const selectSession = (sessionId: string) => {
     const next = new URLSearchParams(searchParams);
     next.set("session", sessionId);
     setSearchParams(next);
-    setDraft("");
     answerCommandRef.current = null;
+  };
+
+  const surfacePath = (nextSurface: "interview" | "debrief", sessionId = selectedSessionId) => {
+    const params = new URLSearchParams();
+    if (sessionId) params.set("session", sessionId);
+    const query = params.toString();
+    return `/applications/${applicationCase.id}/${nextSurface}${query ? `?${query}` : ""}`;
   };
 
   const createMutation = useMutation({
@@ -117,6 +215,9 @@ export function CaseInterviewWorkspace({
           queryKey: careerOsQueryKeys.caseDetail(applicationCase.id),
         }),
         queryClient.invalidateQueries({ queryKey: careerOsQueryKeys.caseList() }),
+        queryClient.invalidateQueries({
+          queryKey: ["career-os", "application-cases", "board"],
+        }),
         queryClient.invalidateQueries({
           queryKey: careerOsQueryKeys.caseEvents(applicationCase.id),
         }),
@@ -155,10 +256,18 @@ export function CaseInterviewWorkspace({
       key: string;
     }) => submitInterviewAnswer(applicationCase.id, sessionId, { expectedRevision, answer }, key),
     retry: false,
-    onSuccess: async (_result, variables) => {
-      setDraft("");
+    onSuccess: (result, variables) => {
+      setAnswerDrafts((current) => {
+        const next = { ...current };
+        delete next[variables.sessionId];
+        return next;
+      });
       answerCommandRef.current = null;
-      await Promise.all([
+      queryClient.setQueryData<InterviewSessionDetail>(
+        careerOsQueryKeys.interviewSession(applicationCase.id, variables.sessionId),
+        (current) => applyInterviewAnswerResult(current, result),
+      );
+      void Promise.all([
         queryClient.invalidateQueries({
           queryKey: careerOsQueryKeys.interviewSession(applicationCase.id, variables.sessionId),
         }),
@@ -170,7 +279,8 @@ export function CaseInterviewWorkspace({
     onError: async (error, variables) => {
       if (
         error instanceof ProductApiError &&
-        error.code === "INTERVIEW_SESSION_REVISION_CONFLICT"
+        (error.code === "INTERVIEW_SESSION_REVISION_CONFLICT" ||
+          error.code === "INTERVIEW_SESSION_NOT_ACTIVE")
       ) {
         await queryClient.invalidateQueries({
           queryKey: careerOsQueryKeys.interviewSession(applicationCase.id, variables.sessionId),
@@ -203,6 +313,7 @@ export function CaseInterviewWorkspace({
         itemDecisions: [],
         confirmation: null,
       });
+      navigate(surfacePath("debrief", result.debrief.interviewSessionId));
     },
     onError: async (error, variables) => {
       if (
@@ -239,6 +350,18 @@ export function CaseInterviewWorkspace({
               }
             : current,
       );
+      void Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: careerOsQueryKeys.caseDetail(applicationCase.id),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: careerOsQueryKeys.caseEvents(applicationCase.id),
+        }),
+        queryClient.invalidateQueries({ queryKey: careerOsQueryKeys.caseList() }),
+        queryClient.invalidateQueries({
+          queryKey: ["career-os", "application-cases", "board"],
+        }),
+      ]);
     },
     onError: async (error) => {
       if (
@@ -264,6 +387,11 @@ export function CaseInterviewWorkspace({
     retry: false,
     onSuccess: async (_result, variables) => {
       setSessionDeleteOpen(false);
+      setAnswerDrafts((current) => {
+        const next = { ...current };
+        delete next[variables.sessionId];
+        return next;
+      });
       queryClient.removeQueries({
         queryKey: careerOsQueryKeys.interviewSession(applicationCase.id, variables.sessionId),
       });
@@ -356,6 +484,16 @@ export function CaseInterviewWorkspace({
       key: answerCommandRef.current.key,
     });
   };
+  const discardAnswerDraft = () => {
+    if (!selectedSessionId) return;
+    setAnswerDrafts((current) => {
+      const next = { ...current };
+      delete next[selectedSessionId];
+      return next;
+    });
+    answerCommandRef.current = null;
+    answerMutation.reset();
+  };
   const prepareDebrief = () => {
     if (!detail || detail.session.status !== "completed") return;
     const signature = `${detail.session.id}:${detail.session.revision}`;
@@ -392,15 +530,63 @@ export function CaseInterviewWorkspace({
     createMutation.error.code === "APPLICATION_CASE_REVISION_CONFLICT";
   const answerConflict =
     answerMutation.error instanceof ProductApiError &&
-    answerMutation.error.code === "INTERVIEW_SESSION_REVISION_CONFLICT";
+    (answerMutation.error.code === "INTERVIEW_SESSION_REVISION_CONFLICT" ||
+      answerMutation.error.code === "INTERVIEW_SESSION_NOT_ACTIVE");
   const debriefConflict =
     prepareDebriefMutation.error instanceof ProductApiError &&
     (prepareDebriefMutation.error.code === "INTERVIEW_SESSION_REVISION_CONFLICT" ||
       prepareDebriefMutation.error.code === "CASE_DEBRIEF_ALREADY_EXISTS");
+  const transcript = detail ? (
+    <ol className="career-interview-transcript">
+      {detail.turns.map((turn) => (
+        <li key={turn.id} className={`is-${turn.kind}`}>
+          <header>
+            <strong>{interviewTurnLabel(turn.kind)}</strong>
+            <span>#{turn.sequence}</span>
+          </header>
+          <p>{turn.content}</p>
+          {turn.requirementIds.length > 0 ? (
+            <small>引用固定 JD 要求 · {turn.requirementIds.join("、")}</small>
+          ) : null}
+        </li>
+      ))}
+    </ol>
+  ) : null;
 
   return (
-    <div className="career-interview-workspace">
-      <section className="career-interview-guardrail" aria-labelledby="interview-guardrail-title">
+    <div className="career-interview-workspace" data-surface={surface}>
+      <section className="career-interview-surface-heading" aria-labelledby="interview-surface-title">
+        <div>
+          <p>{surface === "interview" ? "练习工作区" : "确认与回流"}</p>
+          <h2 ref={surfaceHeadingRef} id="interview-surface-title" tabIndex={-1}>
+            {surface === "interview" ? "模板面试" : "面试复盘"}
+          </h2>
+          <span>
+            {surface === "interview"
+              ? "创建或继续一轮固定输入的文字练习；回答保存前只保留在当前浏览器草稿。"
+              : "查看确定性反馈，逐项确认后再回到证据或岗位简历工作区。"}
+          </span>
+        </div>
+        <nav aria-label="面试与复盘工作区">
+          <Link
+            className={surface === "interview" ? "is-active" : undefined}
+            aria-current={surface === "interview" ? "page" : undefined}
+            to={surfacePath("interview")}
+          >
+            面试
+          </Link>
+          <Link
+            className={surface === "debrief" ? "is-active" : undefined}
+            aria-current={surface === "debrief" ? "page" : undefined}
+            to={surfacePath("debrief")}
+          >
+            复盘
+          </Link>
+        </nav>
+      </section>
+
+      {surface === "interview" ? (
+        <section className="career-interview-guardrail" aria-labelledby="interview-guardrail-title">
         <span>
           <Icon name="interview" />
         </span>
@@ -421,8 +607,9 @@ export function CaseInterviewWorkspace({
           {createMutation.isPending ? "正在固定输入…" : "开始一轮模板面试"}
         </button>
       </section>
+      ) : null}
 
-      {debriefQuery.data?.debrief ? (
+      {surface === "debrief" && debriefQuery.data?.debrief ? (
         <div className="career-asset-actions">
           <span>当前复盘 · 修订 {debriefQuery.data.debrief.revision}</span>
           <button
@@ -435,7 +622,7 @@ export function CaseInterviewWorkspace({
         </div>
       ) : null}
 
-      {createMutation.isError ? (
+      {surface === "interview" && createMutation.isError ? (
         <div className="career-inline-error" role="alert">
           <strong>
             {createNeedsResume
@@ -475,8 +662,17 @@ export function CaseInterviewWorkspace({
       ) : null}
       {!sessionsQuery.isPending && !sessionsQuery.isError && sessions.length === 0 ? (
         <section className="career-interview-empty">
-          <h2>还没有面试练习</h2>
-          <p>点击“开始一轮模板面试”后才会固定当前岗位简历和证据；打开页面本身不会写入数据。</p>
+          <h2>{surface === "interview" ? "还没有面试练习" : "还没有可复盘的面试练习"}</h2>
+          <p>
+            {surface === "interview"
+              ? "点击“开始一轮模板面试”后才会固定当前岗位简历和证据；打开页面本身不会写入数据。"
+              : "先完成一轮模板面试，再由你显式生成并确认复盘；打开复盘页面本身不会写入数据。"}
+          </p>
+          {surface === "debrief" ? (
+            <Link className="career-button career-button--primary" to={surfacePath("interview")}>
+              前往模板面试
+            </Link>
+          ) : null}
         </section>
       ) : null}
 
@@ -484,7 +680,7 @@ export function CaseInterviewWorkspace({
         <div className="career-interview-layout">
           <aside className="career-interview-history" aria-label="面试练习历史">
             <header>
-              <strong>练习历史</strong>
+              <strong>{surface === "interview" ? "练习历史" : "复盘来源"}</strong>
               <span>{sessions.length} 轮已加载</span>
             </header>
             <ol>
@@ -494,6 +690,18 @@ export function CaseInterviewWorkspace({
                     type="button"
                     className={session.id === selectedSessionId ? "is-active" : undefined}
                     aria-current={session.id === selectedSessionId ? "true" : undefined}
+                    disabled={
+                      surface === "debrief" &&
+                      debriefDraftActive &&
+                      session.id !== selectedSessionId
+                    }
+                    title={
+                      surface === "debrief" &&
+                      debriefDraftActive &&
+                      session.id !== selectedSessionId
+                        ? "请先确认当前复盘，或离开页面并明确放弃草稿"
+                        : undefined
+                    }
                     onClick={() => selectSession(session.id)}
                   >
                     <span>第 {sessions.length - index} 轮</span>
@@ -548,14 +756,18 @@ export function CaseInterviewWorkspace({
                 <header className="career-interview-session__header">
                   <div className="career-interview-session__identity">
                     <p>{interviewStatusLabels[detail.session.status]}</p>
-                    <h2>固定输入的模板面试</h2>
-                    <button
-                      className="career-button career-button--danger-quiet"
-                      type="button"
-                      onClick={() => setSessionDeleteOpen(true)}
-                    >
-                      删除本轮练习
-                    </button>
+                    <h2>
+                      {surface === "interview" ? "固定输入的模板面试" : "复盘所依据的面试记录"}
+                    </h2>
+                    {surface === "interview" ? (
+                      <button
+                        className="career-button career-button--danger-quiet"
+                        type="button"
+                        onClick={() => setSessionDeleteOpen(true)}
+                      >
+                        删除本轮练习
+                      </button>
+                    ) : null}
                   </div>
                   <dl>
                     <div>
@@ -577,22 +789,16 @@ export function CaseInterviewWorkspace({
                   </dl>
                 </header>
 
-                <ol className="career-interview-transcript">
-                  {detail.turns.map((turn) => (
-                    <li key={turn.id} className={`is-${turn.kind}`}>
-                      <header>
-                        <strong>{interviewTurnLabel(turn.kind)}</strong>
-                        <span>#{turn.sequence}</span>
-                      </header>
-                      <p>{turn.content}</p>
-                      {turn.requirementIds.length > 0 ? (
-                        <small>引用固定 JD 要求 · {turn.requirementIds.join("、")}</small>
-                      ) : null}
-                    </li>
-                  ))}
-                </ol>
+                {surface === "interview" ? (
+                  transcript
+                ) : (
+                  <details className="career-interview-source-transcript">
+                    <summary>查看本次复盘引用的完整面试记录</summary>
+                    {transcript}
+                  </details>
+                )}
 
-                {currentQuestion ? (
+                {surface === "interview" && currentQuestion ? (
                   <form
                     className="career-interview-answer"
                     onSubmit={(event) => {
@@ -609,7 +815,11 @@ export function CaseInterviewWorkspace({
                       placeholder="只写真实发生过的经历；没有相关经历时可以直接说明。"
                       disabled={answerMutation.isPending}
                       onChange={(event) => {
-                        setDraft(event.target.value);
+                        if (!selectedSessionId) return;
+                        setAnswerDrafts((current) => ({
+                          ...current,
+                          [selectedSessionId]: event.target.value,
+                        }));
                         answerMutation.reset();
                       }}
                     />
@@ -628,7 +838,7 @@ export function CaseInterviewWorkspace({
                         <strong>{answerConflict ? "这轮练习已经变化" : "回答没有保存"}</strong>
                         <span>
                           {answerConflict
-                            ? "草稿仍在，请核对最新问题后再次保存。"
+                            ? "服务器已有更新，本地草稿仍保留且没有重新提交。请核对最新问题后再决定是否保存。"
                             : answerMutation.error instanceof Error
                               ? answerMutation.error.message
                               : "请稍后重试。"}
@@ -636,6 +846,28 @@ export function CaseInterviewWorkspace({
                       </div>
                     ) : null}
                   </form>
+                ) : null}
+
+                {surface === "interview" && !currentQuestion && answerConflict && draft ? (
+                  <InterviewAnswerConflictRecovery
+                    draft={draft}
+                    onDiscard={discardAnswerDraft}
+                  />
+                ) : null}
+
+                {surface === "debrief" && detail.session.status !== "completed" ? (
+                  <div className="career-interview-review__prepare">
+                    <div>
+                      <strong>这轮练习尚未完成</strong>
+                      <p>复盘只基于已完成的固定面试记录。当前回答草稿不会在这里自动提交。</p>
+                    </div>
+                    <Link
+                      className="career-button career-button--primary"
+                      to={surfacePath("interview", detail.session.id)}
+                    >
+                      继续这轮面试
+                    </Link>
+                  </div>
                 ) : null}
 
                 {detail.session.status === "completed" ? (
@@ -646,7 +878,9 @@ export function CaseInterviewWorkspace({
                     <header className="career-interview-complete">
                       <Icon name="check" />
                       <span className="career-interview-complete__copy">
-                        <strong id="interview-review-title">本轮模板面试已完成</strong>
+                        <strong id="interview-review-title">
+                          {surface === "interview" ? "本轮模板面试已完成" : "复盘来源已固定"}
+                        </strong>
                         <span>
                           反馈只检查回答中可观察的结构、长度和显式证据关联，不判断经历真伪、ATS
                           得分或录用概率。
@@ -654,6 +888,30 @@ export function CaseInterviewWorkspace({
                       </span>
                     </header>
 
+                    {surface === "interview" ? (
+                      <div className="career-interview-review-entry">
+                        <div>
+                          <strong>
+                            {debriefQuery.data?.debrief
+                              ? "本求职项目已有复盘记录"
+                              : "下一步：生成并确认复盘"}
+                          </strong>
+                          <p>
+                            面试页面只保存逐题回答；反馈、逐项决定和回流集中在独立复盘工作区。
+                          </p>
+                        </div>
+                        <Link
+                          className="career-button career-button--primary"
+                          to={surfacePath(
+                            "debrief",
+                            debriefQuery.data?.debrief?.interviewSessionId ?? detail.session.id,
+                          )}
+                        >
+                          {debriefQuery.data?.debrief ? "打开已有复盘" : "进入复盘工作区"}
+                        </Link>
+                      </div>
+                    ) : (
+                      <>
                     {debriefQuery.isPending ? (
                       <output className="career-request-state">正在读取本求职项目的复盘…</output>
                     ) : null}
@@ -835,9 +1093,12 @@ export function CaseInterviewWorkspace({
                           pending={confirmDebriefMutation.isPending}
                           error={confirmDebriefMutation.error}
                           onConfirm={confirmDebrief}
+                          onDraftStateChange={setDebriefDraftActive}
                         />
                       </div>
                     ) : null}
+                      </>
+                    )}
                   </section>
                 ) : null}
               </>
@@ -846,7 +1107,7 @@ export function CaseInterviewWorkspace({
         </div>
       ) : null}
       <AssetDeletionDialog
-        open={sessionDeleteOpen && Boolean(detail)}
+        open={surface === "interview" && sessionDeleteOpen && Boolean(detail)}
         title="删除这轮面试练习？"
         description="只删除当前选择的面试练习，不删除求职项目或岗位简历。"
         consequence="已经生成的复盘不会自动删除；你可以继续保留，或使用单独的复盘删除入口。"
@@ -866,7 +1127,9 @@ export function CaseInterviewWorkspace({
         }}
       />
       <AssetDeletionDialog
-        open={debriefDeleteOpen && Boolean(debriefQuery.data?.debrief)}
+        open={
+          surface === "debrief" && debriefDeleteOpen && Boolean(debriefQuery.data?.debrief)
+        }
         title="删除当前复盘？"
         description="删除表达问题、证据缺口、练习计划和本次确认记录。"
         consequence="关联面试练习、岗位简历和求职项目不会被连带删除。"
@@ -885,6 +1148,14 @@ export function CaseInterviewWorkspace({
             expectedRevision: currentDebrief.revision,
           });
         }}
+      />
+      <ResumeDraftNavigationGuard
+        active={hasUnsavedDrafts}
+        eyebrow="未提交的面试或复盘草稿"
+        title="要离开当前练习吗？"
+        description="尚未保存的回答或尚未确认的复盘选择会留在当前页面内存中；离开后不会写入服务器。"
+        stayLabel="继续处理"
+        leaveLabel="放弃草稿并离开"
       />
     </div>
   );

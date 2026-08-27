@@ -61,22 +61,36 @@ import {
   ApplicationBoardResponseSchema,
   ApplicationCaseCommandResponseSchema,
   ApplicationCaseJobVersionDiffResponseSchema,
+  ApplicationCaseMutationResponseSchema,
+  ApplicationCaseRequirementsSchema,
   ApplicationCaseWithJobContextSchema,
+  CareerDataScopeResponseSchema,
   CaseMatchStateSchema,
+  ConfirmCaseDebriefResponseSchema,
   CreateApplicationCaseResponseSchema,
+  CreateInterviewSessionResponseSchema,
   CreateResumeDocumentResponseSchema,
   CreateResumeReviewResponseSchema,
   CurrentResumeReviewResponseSchema,
   DecideResumeReviewSuggestionResponseSchema,
+  DeleteApplicationCaseResponseSchema,
+  DeleteDebriefResponseSchema,
+  DeleteInterviewSessionResponseSchema,
   DeleteResumeDocumentResponseSchema,
+  GetCaseDebriefResponseSchema,
+  InterviewSessionDetailSchema,
   LegacyResumeContentConversionSchema,
+  ListApplicationCaseEventsResponseSchema,
   ListApplicationCasesResponseSchema,
+  ListInterviewSessionsResponseSchema,
   ListResumeDocumentContentRevisionsResponseSchema,
   ListResumeDocumentLayoutRevisionsResponseSchema,
   ListResumeDocumentsResponseSchema,
+  PrepareCaseDebriefResponseSchema,
   PutResumeDocumentContentRevisionResponseSchema,
   PutResumeDocumentLayoutRevisionResponseSchema,
   ResumeDocumentSchema,
+  SubmitInterviewAnswerResponseSchema,
 } from "@aijob/contracts";
 import { apiRequest } from "./client";
 
@@ -135,7 +149,10 @@ export const careerOsQueryKeys = {
 };
 
 export function getCareerDataScope(signal?: AbortSignal) {
-  return apiRequest<CareerDataScopeResponse>("/v1/profile/data-scope", { signal });
+  return apiRequest<CareerDataScopeResponse>("/v1/profile/data-scope", {
+    signal,
+    responseSchema: CareerDataScopeResponseSchema,
+  });
 }
 
 export interface ListApplicationCasesInput {
@@ -269,7 +286,7 @@ export function transitionApplicationCase(
 export function deleteApplicationCase(caseId: string, request: DeleteApplicationCaseRequest) {
   return apiRequest<DeleteApplicationCaseResponse>(
     `/v1/application-cases/${encodeURIComponent(caseId)}`,
-    { method: "DELETE", body: request },
+    { method: "DELETE", body: request, responseSchema: DeleteApplicationCaseResponseSchema },
   );
 }
 
@@ -295,6 +312,7 @@ export function listApplicationCaseEvents(
 ) {
   return apiRequest<ListApplicationCaseEventsResponse>(applicationCaseEventsPath(caseId, input), {
     signal,
+    responseSchema: ListApplicationCaseEventsResponseSchema,
   });
 }
 
@@ -305,7 +323,12 @@ export function recordManualApplication(
 ) {
   return apiRequest<ApplicationCaseCommandResponse>(
     `/v1/application-cases/${encodeURIComponent(caseId)}/manual-applications`,
-    { method: "POST", body: request, idempotencyKey },
+    {
+      method: "POST",
+      body: request,
+      idempotencyKey,
+      responseSchema: ApplicationCaseCommandResponseSchema,
+    },
   );
 }
 
@@ -331,6 +354,7 @@ export function listInterviewSessions(
 ) {
   return apiRequest<ListInterviewSessionsResponse>(interviewSessionListPath(caseId, input), {
     signal,
+    responseSchema: ListInterviewSessionsResponseSchema,
   });
 }
 
@@ -341,14 +365,19 @@ export function createInterviewSession(
 ) {
   return apiRequest<CreateInterviewSessionResponse>(
     `/v1/application-cases/${encodeURIComponent(caseId)}/interview-sessions`,
-    { method: "POST", body: request, idempotencyKey },
+    {
+      method: "POST",
+      body: request,
+      idempotencyKey,
+      responseSchema: CreateInterviewSessionResponseSchema,
+    },
   );
 }
 
 export function getInterviewSession(caseId: string, sessionId: string, signal?: AbortSignal) {
   return apiRequest<InterviewSessionDetail>(
     `/v1/application-cases/${encodeURIComponent(caseId)}/interview-sessions/${encodeURIComponent(sessionId)}`,
-    { signal },
+    { signal, responseSchema: InterviewSessionDetailSchema },
   );
 }
 
@@ -360,14 +389,19 @@ export function submitInterviewAnswer(
 ) {
   return apiRequest<SubmitInterviewAnswerResponse>(
     `/v1/application-cases/${encodeURIComponent(caseId)}/interview-sessions/${encodeURIComponent(sessionId)}/answers`,
-    { method: "POST", body: request, idempotencyKey },
+    {
+      method: "POST",
+      body: request,
+      idempotencyKey,
+      responseSchema: SubmitInterviewAnswerResponseSchema,
+    },
   );
 }
 
 export function deleteInterviewSession(sessionId: string, request: DeleteInterviewSessionRequest) {
   return apiRequest<DeleteInterviewSessionResponse>(
     `/v1/interview-sessions/${encodeURIComponent(sessionId)}`,
-    { method: "DELETE", body: request },
+    { method: "DELETE", body: request, responseSchema: DeleteInterviewSessionResponseSchema },
   );
 }
 
@@ -376,7 +410,10 @@ export function caseDebriefPath(caseId: string): string {
 }
 
 export function getCaseDebrief(caseId: string, signal?: AbortSignal) {
-  return apiRequest<GetCaseDebriefResponse>(caseDebriefPath(caseId), { signal });
+  return apiRequest<GetCaseDebriefResponse>(caseDebriefPath(caseId), {
+    signal,
+    responseSchema: GetCaseDebriefResponseSchema,
+  });
 }
 
 export function prepareCaseDebrief(
@@ -388,6 +425,7 @@ export function prepareCaseDebrief(
     method: "PUT",
     body: request,
     idempotencyKey,
+    responseSchema: PrepareCaseDebriefResponseSchema,
   });
 }
 
@@ -404,6 +442,7 @@ export function confirmCaseDebrief(
     method: "POST",
     body: request,
     idempotencyKey,
+    responseSchema: ConfirmCaseDebriefResponseSchema,
   });
 }
 
@@ -411,13 +450,14 @@ export function deleteDebrief(debriefId: string, request: DeleteDebriefRequest) 
   return apiRequest<DeleteDebriefResponse>(`/v1/debriefs/${encodeURIComponent(debriefId)}`, {
     method: "DELETE",
     body: request,
+    responseSchema: DeleteDebriefResponseSchema,
   });
 }
 
 export function getApplicationCaseRequirements(caseId: string, signal?: AbortSignal) {
   return apiRequest<ApplicationCaseRequirements>(
     `/v1/application-cases/${encodeURIComponent(caseId)}/requirements`,
-    { signal },
+    { signal, responseSchema: ApplicationCaseRequirementsSchema },
   );
 }
 
@@ -428,7 +468,7 @@ export function putApplicationCaseRequirementState(
 ) {
   return apiRequest<ApplicationCaseMutationResponse>(
     `/v1/application-cases/${encodeURIComponent(caseId)}/requirements/${encodeURIComponent(requirementId)}`,
-    { method: "PUT", body: request },
+    { method: "PUT", body: request, responseSchema: ApplicationCaseMutationResponseSchema },
   );
 }
 
@@ -439,7 +479,7 @@ export function putApplicationCaseRequirementEvidence(
 ) {
   return apiRequest<ApplicationCaseMutationResponse>(
     `/v1/application-cases/${encodeURIComponent(caseId)}/requirements/${encodeURIComponent(requirementId)}/evidence-links`,
-    { method: "PUT", body: request },
+    { method: "PUT", body: request, responseSchema: ApplicationCaseMutationResponseSchema },
   );
 }
 
@@ -450,7 +490,12 @@ export function createApplicationCaseQuestion(
 ) {
   return apiRequest<ApplicationCaseMutationResponse>(
     `/v1/application-cases/${encodeURIComponent(caseId)}/questions`,
-    { method: "POST", body: request, idempotencyKey },
+    {
+      method: "POST",
+      body: request,
+      idempotencyKey,
+      responseSchema: ApplicationCaseMutationResponseSchema,
+    },
   );
 }
 
@@ -461,7 +506,7 @@ export function updateApplicationCaseQuestion(
 ) {
   return apiRequest<ApplicationCaseMutationResponse>(
     `/v1/application-cases/${encodeURIComponent(caseId)}/questions/${encodeURIComponent(questionId)}`,
-    { method: "PUT", body: request },
+    { method: "PUT", body: request, responseSchema: ApplicationCaseMutationResponseSchema },
   );
 }
 

@@ -528,6 +528,17 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
     expect(completedDetail.turns.map(({ sequence }) => sequence)).toEqual([1, 2, 3, 4]);
     expect(completedDetail.turns.every(({ evidenceIds }) => evidenceIds.length === 0)).toBe(true);
 
+    const completedStaleAnswer = await app.inject({
+      method: "POST",
+      url: `/v1/application-cases/${createdCase.id}/interview-sessions/${createdBody.sessionId}/answers`,
+      headers: { ...headers, "idempotency-key": `completed-stale-answer-${randomUUID()}` },
+      payload: { expectedRevision: 2, answer: "已完成页面上的过期回答。" },
+    });
+    expect(completedStaleAnswer.statusCode).toBe(409);
+    expect(completedStaleAnswer.json()).toMatchObject({
+      code: "INTERVIEW_SESSION_REVISION_CONFLICT",
+    });
+
     const debriefKey = `case-debrief-${randomUUID()}`;
     const preparedDebrief = await app.inject({
       method: "PUT",
@@ -677,6 +688,28 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
       ...confirmedBody,
       created: false,
     });
+    const confirmedCase = await db
+      .selectFrom("application.application_cases")
+      .select("revision")
+      .where("id", "=", createdCase.id)
+      .executeTakeFirstOrThrow();
+    expect(Number(confirmedCase.revision)).toBe(6);
+    const confirmationEvents = await db
+      .selectFrom("application.case_events")
+      .select(["sequence", "event_type", "event_data"])
+      .where("owner_id", "=", mainSession.context.ownerId)
+      .where("case_id", "=", createdCase.id)
+      .where("event_type", "=", "debrief_confirmed")
+      .execute();
+    expect(confirmationEvents).toHaveLength(1);
+    expect(confirmationEvents[0]).toMatchObject({
+      sequence: 6,
+      event_type: "debrief_confirmed",
+      event_data: expect.objectContaining({
+        debriefId: preparedBody.debrief.id,
+        evidenceRevisionId,
+      }),
+    });
     const confirmationKeyReuse = await app.inject({
       method: "POST",
       url: `/v1/application-cases/${createdCase.id}/debrief/confirmations`,
@@ -733,7 +766,7 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
       method: "POST",
       url: `/v1/application-cases/${createdCase.id}/interview-sessions`,
       headers: { ...headers, "idempotency-key": `second-session-${randomUUID()}` },
-      payload: { expectedCaseRevision: 5 },
+      payload: { expectedCaseRevision: 6 },
     });
     expect(secondSessionResponse.statusCode, JSON.stringify(secondSessionResponse.json())).toBe(
       201,
@@ -789,6 +822,41 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
     });
     expect(crossOwnerConfirmation.statusCode).toBe(404);
     expect(crossOwnerConfirmation.json()).toMatchObject({ code: "APPLICATION_CASE_NOT_FOUND" });
+
+    const invalidCaseSessions = await app.inject({
+      method: "GET",
+      url: "/v1/application-cases/not-a-case-id/interview-sessions",
+      headers,
+    });
+    expect(invalidCaseSessions.statusCode).toBe(404);
+    expect(invalidCaseSessions.json()).toMatchObject({ code: "APPLICATION_CASE_NOT_FOUND" });
+
+    const invalidSessionRead = await app.inject({
+      method: "GET",
+      url: `/v1/application-cases/${createdCase.id}/interview-sessions/not-a-session-id`,
+      headers,
+    });
+    expect(invalidSessionRead.statusCode).toBe(404);
+    expect(invalidSessionRead.json()).toMatchObject({ code: "INTERVIEW_SESSION_NOT_FOUND" });
+
+    const invalidSessionDelete = await app.inject({
+      method: "DELETE",
+      url: "/v1/interview-sessions/not-a-session-id",
+      headers,
+      payload: { expectedRevision: 1 },
+    });
+    expect(invalidSessionDelete.statusCode).toBe(404);
+    expect(invalidSessionDelete.json()).toMatchObject({ code: "INTERVIEW_SESSION_NOT_FOUND" });
+
+    const invalidDebriefDelete = await app.inject({
+      method: "DELETE",
+      url: "/v1/debriefs/not-a-debrief-id",
+      headers,
+      payload: { expectedRevision: 1 },
+    });
+    expect(invalidDebriefDelete.statusCode).toBe(404);
+    expect(invalidDebriefDelete.json()).toMatchObject({ code: "DEBRIEF_NOT_FOUND" });
+
     const invalidCursor = await app.inject({
       method: "GET",
       url: `/v1/application-cases/${createdCase.id}/interview-sessions?cursor=invalid`,
@@ -848,7 +916,7 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
       url: `/v1/application-cases/${createdCase.id}`,
       headers: headersWithoutCsrf,
       payload: {
-        expectedRevision: 6,
+        expectedRevision: 7,
         resumeDocuments: "detach",
         interviewSessions: "detach",
         debriefs: "detach",
@@ -861,7 +929,7 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
       url: `/v1/application-cases/${createdCase.id}`,
       headers,
       payload: {
-        expectedRevision: 5,
+        expectedRevision: 6,
         resumeDocuments: "detach",
         interviewSessions: "detach",
         debriefs: "detach",
@@ -871,7 +939,7 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
     expect(staleCaseDelete.json()).toMatchObject({ code: "APPLICATION_CASE_REVISION_CONFLICT" });
 
     const caseDeleteRequest = {
-      expectedRevision: 6,
+      expectedRevision: 7,
       resumeDocuments: "detach" as const,
       interviewSessions: "detach" as const,
       debriefs: "detach" as const,
@@ -887,7 +955,7 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
     const deletedCase = DeleteApplicationCaseResponseSchema.parse(deletedCaseResponse.json());
     expect(deletedCase).toMatchObject({
       caseId: createdCase.id,
-      revision: 7,
+      revision: 8,
       relatedAssets: {
         resumeDocuments: { deletedIds: [], detachedIds: [derivedDocument.id] },
         interviewSessions: { deletedIds: [] },

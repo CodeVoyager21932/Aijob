@@ -2,9 +2,12 @@ import type { CareerDataScopeResponse } from "@aijob/contracts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { careerOsQueryKeys } from "../../api/career-os";
-import { CareerDataControlPage } from "./CareerDataControlPage";
+import {
+  CareerDataControlPage,
+  publishAssetDeletionAfterRefresh,
+} from "./CareerDataControlPage";
 
 const timestamp = "2026-08-12T00:00:00.000Z";
 
@@ -121,5 +124,25 @@ describe("Career data control truth", () => {
     expect(html).toContain("没有固定自动到期日");
     expect(html).not.toContain("本机匿名兼容模式");
     expect(html).not.toContain("用邮箱认领这个本机身份");
+  });
+
+  it("publishes deletion success only after the data scope refresh finishes", async () => {
+    let finishRefresh: (() => void) | undefined;
+    const refresh = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRefresh = resolve;
+        }),
+    );
+    const publish = vi.fn();
+
+    const completion = publishAssetDeletionAfterRefresh(refresh, publish);
+    await Promise.resolve();
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(publish).not.toHaveBeenCalled();
+
+    finishRefresh?.();
+    await completion;
+    expect(publish).toHaveBeenCalledOnce();
   });
 });

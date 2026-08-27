@@ -1,7 +1,11 @@
 import type { JobSearchResponse } from "@aijob/contracts";
+import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import {
   collectRecommendationCandidateJobs,
+  getProfileDeletion,
+  getResumeExport,
+  getResumeTailoring,
   type JobFilters,
   jobSearchPath,
   recommendationCandidateVersionIds,
@@ -148,5 +152,32 @@ describe("recommendation catalog pagination", () => {
         { ...recommendationJob(2), publishedJobVersionId: "version-1" },
       ]),
     ).toThrow("重复岗位版本");
+  });
+});
+
+describe("OS-6 historical and deletion runtime boundaries", () => {
+  it("rejects malformed Tailoring, export and deletion receipt payloads", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ malformed: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })) as typeof fetch;
+    try {
+      await expect(getResumeTailoring(randomUUID())).rejects.toMatchObject({
+        status: 502,
+        code: "INVALID_API_RESPONSE",
+      });
+      await expect(getResumeExport(randomUUID())).rejects.toMatchObject({
+        status: 502,
+        code: "INVALID_API_RESPONSE",
+      });
+      await expect(getProfileDeletion()).rejects.toMatchObject({
+        status: 502,
+        code: "INVALID_API_RESPONSE",
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

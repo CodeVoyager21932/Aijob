@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { resumeSessionBootstrapAfterOwnerDeletion } from "../api/client";
 import { getProfileDeletion } from "../api/product";
 import { ProductError, ProductLoading } from "../components/ProductStates";
 
@@ -18,7 +19,11 @@ export function DeletionStatusPage() {
         title="删除回执无法读取"
         error={query.error}
         action={
-          <Link className="button button--secondary" to="/jobs">
+          <Link
+            className="button button--secondary"
+            to="/jobs"
+            onClick={resumeSessionBootstrapAfterOwnerDeletion}
+          >
             返回岗位首页
           </Link>
         }
@@ -53,7 +58,11 @@ export function DeletionStatusPage() {
       <p>
         旧匿名会话已失效。返回岗位首页时会建立一个全新的本地匿名会话，旧任务不能恢复已删除数据。
       </p>
-      <Link className="button button--primary" to="/jobs">
+      <Link
+        className="button button--primary"
+        to="/jobs"
+        onClick={resumeSessionBootstrapAfterOwnerDeletion}
+      >
         重新浏览岗位
       </Link>
     </section>

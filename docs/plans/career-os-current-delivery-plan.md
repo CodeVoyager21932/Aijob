@@ -1,13 +1,13 @@
 # Aijob Career OS 前后端同步改进当前交付计划
 
-- 状态：**Active / UX-0 与 OS-1–OS-5 五项 Gate 已关闭；OS-6 是下一候选前后端同步切片，尚未实施**
-- 生效日期：2026-08-16
+- 状态：**Active / UX-0 与 OS-1–OS-6 五项 Gate 已关闭；OS-7 是下一候选系统总 Gate，尚未实施**
+- 生效日期：2026-08-28
 - 当前分支：`codex/career-os-ux-convergence`
-- 当前切片：`OS-6 投递、面试、复盘与数据控制（待 coco 指令开始）`
+- 当前切片：`OS-7 系统总 Gate（待 coco 指令开始）`
 - 稳定契约：[Career OS 端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)
 - 追踪矩阵：[UX-0 页面—系统—证据追踪矩阵](career-os-ux-0-end-to-end-traceability-matrix.md)
-- 上一切片关闭证据：[OS-5 Resume Studio 与唯一 Review 写入验收](../evidence/product/career-os-v2/os-5-resume-studio-and-review-v2-acceptance-2026-08-16.md)
-- 上游关闭证据：[OS-4 单 Case 决策与固定版本匹配验收](../evidence/product/career-os-v2/os-4-case-decision-and-pinned-match-acceptance-2026-08-14.md)
+- 上一切片关闭证据：[OS-6 投递、面试、复盘与数据控制验收](../evidence/product/career-os-v2/os-6-application-interview-debrief-data-control-acceptance-2026-08-28.md)
+- 上游关闭证据：[OS-5 Resume Studio 与唯一 Review 写入验收](../evidence/product/career-os-v2/os-5-resume-studio-and-review-v2-acceptance-2026-08-16.md)
 - 上游审计基线：[UX-0 端到端契约与基线审计](../evidence/product/career-os-v2/ux-0-end-to-end-contract-and-baseline-2026-08-13.md)
 - 动态进度：[MVP 路线与当前决策面板](../06-mvp-roadmap.md)
 - 工程入口：[当前项目交接](../handoffs/current.md)
@@ -65,25 +65,26 @@ flowchart LR
 | 简历导入与确认 | 解析、原文保留边界、profile/evidence 确认均已存在 | `/resumes/import*` 已承接文本/PDF/DOCX 与一次性确认，旧 V2 `/resume*` 重定向 | **OS-2 已关闭规范入口与 runtime 契约** |
 | Resume V2 / Review / DOCX | OS-5 已以 migration 033 扩展 Review v1/v2、固定 public/private Requirements、requirement 引用和 provenance/failure/fallback；旧 v1 不伪造历史 | 三栏 Studio、窄屏三模式、草稿/409/session、逐建议决定、DOCX/打印与 runtime parse 已接入 | **OS-5 已关闭；Review 为唯一新写入** |
 | 旧 Tailoring / 受控 AI | Review v2 已复用低层 provider、去标识化和结构化校验；双任务 handler 与写入开关保持滚动部署 fail-closed | 旧 Tailoring 继续历史只读；controlled AI 逐次同意，公开/远程默认关闭，离线 Gate 使用模拟 provider/模板降级 | **OS-5 已关闭；没有复活旧写入流程** |
-| 投递、面试、复盘 | 显式投递、模板面试、反馈、复盘确认/回流和选择性删除均已存在 | 已接入但 interview/debrief 路由焦点、冲突和错误体验未统一 | **主体匹配**；OS-6 |
-| 数据范围与全量删除 | owner 数据范围、删除状态和不可读语义已存在 | 新设置入口已接入，错误与 session 回接需统一 | **主体匹配**；OS-6、OS-7 |
-| Web API 边界 | Platform 路由会解析请求，服务/测试大量使用 schema | OS-1 建立 parser-aware `apiRequest`；OS-2–OS-4 扩展岗位/Case，OS-5 扩展 Resume 文档、Review 和建议决定响应 | **OS-1–OS-5 触达范围已关闭**；OS-6 随触达端点扩展，OS-7 扫描余量 |
-| 浏览器证据 | Platform 集成测试覆盖大量 404/409/幂等/删除语义 | OS-5 已用真实 API 四视口 Gate 覆盖 public/private Review v2、草稿/409/session、模拟 AI 降级、DOCX/打印、删除、lazy load 与 flag 回退 | **OS-5 触达范围已关闭**；OS-6 扩展，OS-7 总验 |
+| 投递、面试、复盘 | 显式投递、模板面试、反馈、复盘确认/回流和选择性删除沿用现有聚合；确认同事务追加 Case event | OS-6 已分离 application/interview/debrief 页面，关闭 revision 409 保稿、session 不重放、确认后唯一回流和刷新/深链 | **OS-6 已关闭；无新 migration** |
+| 数据范围与全量删除 | owner 数据范围、选择性删除、全量删除、签名回执和不可读语义继续由现有 Platform/PostgreSQL 承担 | OS-6 已关闭删除后不 bootstrap 新 session、回执 TTL 内可刷新、规范/兼容 URL 和错误恢复 | **OS-6 已关闭**；OS-7 总验 |
+| Web API 边界 | Platform 路由会解析请求，服务/测试大量使用 schema | OS-1 建立 parser-aware `apiRequest`；OS-2–OS-5 扩展岗位/Case/Resume，OS-6 扩展 timeline/application/interview/debrief/data scope/legacy/export/deletion 响应 | **OS-1–OS-6 触达范围已关闭**；OS-7 扫描余量 |
+| 浏览器证据 | Platform 集成测试覆盖大量 404/409/幂等/删除语义 | OS-6 已用真实 API 四视口 Gate 覆盖投递、面试冲突、复盘事件/回流、旧 Tailoring、选择性/全部删除、回执刷新、lazy load 与 flag 回退 | **OS-6 触达范围已关闭**；OS-7 总验 |
 
-以上主体差距来自 UX-0 代码与运行反证；OS-1 的身份/Shell、OS-2 的岗位与资料入口/推荐/洞察、OS-3 的申请集合/Peek/阶段命令、OS-4 的单 Case Requirements/固定版本/三轴匹配，以及 OS-5 的 Resume Studio/Review 唯一写入与对应 runtime parse、浏览器 Gate 均已实现并通过。OS-6–OS-7 不因此自动完成。详细逐用例事实和字段级契约见[追踪矩阵](career-os-ux-0-end-to-end-traceability-matrix.md)。
+以上主体差距来自 UX-0 代码与运行反证；OS-1 的身份/Shell、OS-2 的岗位与资料入口/推荐/洞察、OS-3 的申请集合/Peek/阶段命令、OS-4 的单 Case Requirements/固定版本/三轴匹配、OS-5 的 Resume Studio/Review 唯一写入，以及 OS-6 的投递/面试/复盘/数据控制与对应 runtime parse、浏览器 Gate 均已实现并通过。OS-7 不因此自动完成。详细逐用例事实和字段级契约见[追踪矩阵](career-os-ux-0-end-to-end-traceability-matrix.md)。
 
 ### 3.1 已选择的防返工架构
 
-以下 1–6 项均已随 OS-1–OS-5 触达范围实施；它们继续作为后续回归架构边界：
+以下 1–7 项均已随 OS-1–OS-6 触达范围实施；它们继续作为后续回归架构边界：
 
 1. **看板集合：`E`，OS-3 已实现且无语义 migration。** Case list 已增加 `city / sort / total` 和 query-bound cursor；`GET /v1/application-cases/board` 在同一 repeatable-read 快照返回五阶段首批 items、逐列 total 与 cursor。后续单列加载复用 stage list；浏览器不再对分页子集计算全局筛选、排序或计数。隔离库 `EXPLAIN ANALYZE` 未证明需要新索引。
 2. **三轴匹配：`E`，OS-4 已实现且不新增 Case 外键。** Case-scoped match adapter 由服务端从 Case 派生固定公共岗位版本、固定 requirement set 和当前已确认资料修订，返回 `not_applicable_private / profile_incomplete / not_run / queued / processing / current / stale / failed`。现有 MatchRun 和同一 Worker 保留；新任务使用严格 schema 的 `case_pinned` 上下文，计算前和写回前都重验 owner、epoch、Case revision、删除状态与固定上下文。幂等 hash 包含请求和全部服务端派生 revisions。结果不复制进 Case；目录 `stale/closed` 与运行输入 stale 分开表达。
 3. **市场洞察：`A`，OS-2 已实现。** 规范入口为 `/jobs/insights` 与 `/jobs/insights/:runId`；Run ID 是已持久化结果的深链。Case Requirements 只显示单岗官方/私有要求。V2 的旧 `/insights` 跳转规范入口，V2=false 仍保留旧页。
 4. **推荐：`E`，OS-2 已实现且未创建第二种 Run。** 规范页面为 `/jobs/recommended` 与 `/jobs/recommended/:runId`。Platform 已在现有 `/v1/recommendation-runs` 资源下增加“按岗位筛选创建”和“带岗位投影读取”adapter，根据规范筛选和当前确认资料在服务器事务内冻结候选集；浏览器不再先拉取最多 1100 个岗位后提交 ID，也不逐项 N+1。旧 `/recommendations` 在 V2 中跳转新入口。
 5. **简历优化：`E + M`，OS-5 已实现且只保留一个新写入所有者。** Resume V2 Review 是模板与受控 AI 的唯一新写入聚合；旧 Tailoring 历史只读。migration 033 以 expand-only 方式加入 Run v2 provenance/failure/fallback、Finding/Suggestion `requirementIds` 与 `resume_review_v2` 任务类型；reader/Worker 双读双 handler，旧 Worker 不领取 v2。public/private 固定 Requirements 在 Platform 和数据库 guard 同时验证。AI 关闭或 provider/schema/引用失败明确模板降级并记录原因；离线验收只用注入的 loopback provider，真实 AI、公开/远程启用仍受原 Gate 约束。一旦存在 v2 Run，pre-v2 应用回滚禁止，只能前向修复。
-6. **Web 响应契约：`A`，OS-1–OS-5 触达范围已实现。** `apiRequest` 接受运行时 parser，session/identity/Case、岗位、推荐、洞察、简历/资料、Case list/board/transition/match-state/job-version，以及 Resume 文档/Review/建议决定响应使用共享 schema；解析失败统一为 Shell 内可重试且不泄露 payload 的 `INVALID_API_RESPONSE`。后续切片触达的核心 adapter 仍必须同步接入，不能再把 `apiRequest<T>` 泛型断言当作契约验证。
+6. **Web 响应契约：`A`，OS-1–OS-6 触达范围已实现。** `apiRequest` 接受运行时 parser，session/identity/Case、岗位、推荐、洞察、简历/资料、Case list/board/transition/match-state/job-version、Resume 文档/Review/建议决定，以及 timeline/application/interview/debrief/data scope/legacy/export/deletion 响应使用共享 schema；解析失败统一为 Shell 内可重试且不泄露 payload 的 `INVALID_API_RESPONSE`。OS-7 仍需扫描余量，不能再把 `apiRequest<T>` 泛型断言当作契约验证。
+7. **投递到删除：`A`，OS-6 已实现且无新 migration。** `/today` 使用单一 Board read model；官方外链与显式投递命令分离；模板 Session、回答/反馈和复盘使用现有 `interviews` 聚合，首次确认在同一事务增加 Case revision 与唯一 `debrief_confirmed` 事件。选择性删除成功后先重读范围再提示；全量 owner 删除后禁止隐式创建新 session，签名回执在既有 24 小时 TTL 内可刷新，只有用户明确开始新身份才恢复 bootstrap。旧 Tailoring 保持只读，旧数据控制 URL 只做兼容归位。
 
-这些选择保持一个 Platform 模块化单体和一个 PostgreSQL 事实源。OS-1 关闭 Requirements 并发一致性读；OS-2 关闭首次并发 session 多 owner 风险并对推荐创建做有界事务重试；OS-3 关闭申请完整集合快照与阶段 mutation 的冲突/不重放语义；OS-4 关闭 Case 固定版本与资料 revisions 的服务端派生、Worker 前后重验和显式升级冲突语义；OS-5 关闭 Review expand-only、双读/双 handler、v2 写入开关、唯一写入和 Resume Studio 视口/草稿缺口。OS-6–OS-7 不因此自动完成。
+这些选择保持一个 Platform 模块化单体和一个 PostgreSQL 事实源。OS-1 关闭 Requirements 并发一致性读；OS-2 关闭首次并发 session 多 owner 风险并对推荐创建做有界事务重试；OS-3 关闭申请完整集合快照与阶段 mutation 的冲突/不重放语义；OS-4 关闭 Case 固定版本与资料 revisions 的服务端派生、Worker 前后重验和显式升级冲突语义；OS-5 关闭 Review expand-only、双读/双 handler、v2 写入开关、唯一写入和 Resume Studio 视口/草稿缺口；OS-6 关闭投递、面试、复盘确认事件、数据删除、回执和删除后 session 边界。OS-7 不因此自动完成。
 
 ## 4. 串行纵向里程碑
 
@@ -95,8 +96,8 @@ flowchart LR
 | OS-3 申请看板与 Case 命令 | 看板/列表/Peek；列表 read model、分页、筛选、计数、阶段命令和固定版本入口 | 不依赖“已加载子集”得出完整结果；owner/409/幂等/刷新真实通过 | **已完成五项 Gate；见独立证据** |
 | OS-4 单 Case 决策与固定版本匹配 | Case Header、Requirements/Evidence、问题、岗位版本与三轴匹配 | 同一固定岗位版本与资料修订可追溯；无匹配总分；刷新后结果可恢复 | **已完成五项 Gate；见独立证据** |
 | OS-5 Resume Studio 与唯一 Review 写入 | 基础/岗位简历、修订、Review、DOCX；旧 Tailoring 历史承接 | 不存在两套可写简历流程；草稿/409/证据引用/删除/DOCX 真实通过 | **已完成五项 Gate；见独立证据** |
-| OS-6 投递、面试、复盘与数据控制 | 今日、显式投递、面试、复盘、设置、访问、历史只读和兼容 URL | 同一 Case 贯通投递到回流；删除和兼容行为端到端通过 | **下一候选切片；尚未实施，等待 coco 指令** |
-| OS-7 系统总 Gate | 全前台视觉、功能、Contracts、Platform、数据库语义、可访问性、性能、离线与回退 | 全新隔离库、全仓质量、四视口、网络/控制台、删除与 flag 回退全部通过 | 待 OS-6 Gate |
+| OS-6 投递、面试、复盘与数据控制 | 今日、显式投递、面试、复盘、设置、访问、历史只读和兼容 URL | 同一 Case 贯通投递到回流；删除和兼容行为端到端通过 | **已完成五项 Gate；见独立证据** |
+| OS-7 系统总 Gate | 全前台视觉、功能、Contracts、Platform、数据库语义、可访问性、性能、离线与回退 | 全新隔离库、全仓质量、四视口、网络/控制台、删除与 flag 回退全部通过 | **下一候选切片；尚未实施，等待 coco 指令** |
 
 原“全部 UX 约 9–12 个有效开发日”估算建立在主要前端收敛假设上，现已撤回。UX-0 已暴露匹配固定版本、岗位定制 Review、列表投影和浏览器夹具的真实后端/运行成本；后续只在每个 OS 切片启动时按其五项状态单独估时，不恢复未经验证的全局总工期。
 

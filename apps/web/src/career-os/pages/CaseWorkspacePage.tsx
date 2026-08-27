@@ -134,7 +134,11 @@ function renderCaseTab(tab: CaseTab, applicationCase: ApplicationCaseWithJobCont
   if (tab === "interview" || tab === "debrief") {
     return (
       <Suspense fallback={<output className="career-request-state">正在打开面试工作区…</output>}>
-        <CaseInterviewWorkspace key={applicationCase.id} applicationCase={applicationCase} />
+        <CaseInterviewWorkspace
+          key={`${applicationCase.id}:${tab}`}
+          applicationCase={applicationCase}
+          surface={tab}
+        />
       </Suspense>
     );
   }

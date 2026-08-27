@@ -1330,35 +1330,52 @@ export async function getApplicationBoard(input: {
   owner: OwnerScope;
   query: ApplicationBoardQuery;
 }): Promise<ApplicationBoardResponse> {
-  return input.db
-    .transaction()
-    .setIsolationLevel("repeatable read")
-    .execute(async (transaction) => {
-      await assertActiveOwnerEpoch(transaction, input.owner.ownerId, input.owner.ownerEpoch);
-      const timestamp = await transaction
-        .selectNoFrom(sql<Date>`transaction_timestamp()`.as("generated_at"))
-        .executeTakeFirstOrThrow();
-      const columns: ApplicationBoardResponse["columns"] = [];
-      for (const stage of CaseStageSchema.options) {
-        const result = await readApplicationCaseCollection({
-          db: transaction,
-          owner: input.owner,
-          query: {
-            stage,
-            limit: input.query.limitPerStage,
-            sort: input.query.sort,
-            ...(input.query.city ? { city: input.query.city } : {}),
-          },
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      return await input.db
+        .transaction()
+        .setIsolationLevel("repeatable read")
+        .execute(async (transaction) => {
+          await assertActiveOwnerEpoch(transaction, input.owner.ownerId, input.owner.ownerEpoch);
+          const timestamp = await transaction
+            .selectNoFrom(sql<Date>`transaction_timestamp()`.as("generated_at"))
+            .executeTakeFirstOrThrow();
+          const columns: ApplicationBoardResponse["columns"] = [];
+          for (const stage of CaseStageSchema.options) {
+            const result = await readApplicationCaseCollection({
+              db: transaction,
+              owner: input.owner,
+              query: {
+                stage,
+                limit: input.query.limitPerStage,
+                sort: input.query.sort,
+                ...(input.query.city ? { city: input.query.city } : {}),
+              },
+            });
+            columns.push({ stage, ...result });
+          }
+          return ApplicationBoardResponseSchema.parse({
+            schemaVersion: "application-board-v1",
+            generatedAt: toIso(timestamp.generated_at),
+            filters: { city: input.query.city ?? null, sort: input.query.sort },
+            columns,
+          });
         });
-        columns.push({ stage, ...result });
+    } catch (error) {
+      const code =
+        error && typeof error === "object" && "code" in error ? error.code : undefined;
+      if (code !== "40001") throw error;
+      if (attempt === 3) {
+        throw new ServiceError(
+          503,
+          "CONSISTENT_READ_RETRY_EXHAUSTED",
+          "申请看板正在同步更新，请稍后重新读取。",
+        );
       }
-      return ApplicationBoardResponseSchema.parse({
-        schemaVersion: "application-board-v1",
-        generatedAt: toIso(timestamp.generated_at),
-        filters: { city: input.query.city ?? null, sort: input.query.sort },
-        columns,
-      });
-    });
+      await new Promise((resolve) => setTimeout(resolve, attempt * 5));
+    }
+  }
+  throw new Error("CONSISTENT_BOARD_READ_RETRY_UNREACHABLE");
 }
 
 function encodeEventCursor(caseId: string, beforeSequence: number): string {

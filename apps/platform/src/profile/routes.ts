@@ -310,14 +310,6 @@ export function registerProfileRoutes(app: FastifyInstance, options: ProfileRout
         ),
       );
     }
-    if (deletion.status === "succeeded") {
-      reply.clearCookie(DELETION_RECEIPT_COOKIE_NAME, {
-        path: "/v1/profile/deletion",
-        httpOnly: true,
-        sameSite: "strict",
-        secure: cookieSecure(options.appEnv),
-      });
-    }
     return reply.send(deletion);
   });
 }

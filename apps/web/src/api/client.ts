@@ -68,11 +68,21 @@ function currentCsrfToken(): string | null {
 }
 
 let sessionBootstrapPromise: Promise<SessionStatus> | null = null;
+let sessionBootstrapSuppressedAfterDeletion = false;
 let knownOwnerKey: string | null = null;
 const sessionBoundaryListeners = new Set<() => void>();
 const sessionMutationRecoveryListeners = new Set<(message: string) => void>();
 let sessionBoundaryGeneration = 0;
 const OWNER_CONTEXT_HEADER_NAME = "x-aijob-owner-context";
+const signedOutSessionStatus: SessionStatus = { authenticated: false };
+
+export function suppressSessionBootstrapAfterOwnerDeletion(): void {
+  sessionBootstrapSuppressedAfterDeletion = true;
+}
+
+export function resumeSessionBootstrapAfterOwnerDeletion(): void {
+  sessionBootstrapSuppressedAfterDeletion = false;
+}
 
 export function subscribeToSessionBoundary(listener: () => void): () => void {
   sessionBoundaryListeners.add(listener);
@@ -116,6 +126,7 @@ async function requestSessionStatus(signal?: AbortSignal): Promise<SessionStatus
 }
 
 async function ensureSessionBootstrap(): Promise<SessionStatus> {
+  if (sessionBootstrapSuppressedAfterDeletion) return signedOutSessionStatus;
   if (!sessionBootstrapPromise) {
     sessionBootstrapPromise = requestSessionStatus()
       .then((status) => {
@@ -176,6 +187,7 @@ export interface ApiRequestOptions<T = unknown> {
   idempotencyKey?: string;
   headers?: HeadersInit;
   responseSchema?: RuntimeResponseSchema<T>;
+  skipSessionBootstrap?: boolean;
 }
 
 function isMutation(method: string): boolean {
@@ -203,7 +215,12 @@ async function apiRequestInternal<T>(
   recoveryAttempted: boolean,
 ): Promise<T> {
   const method = options.method ?? "GET";
-  if (typeof document !== "undefined" && path !== "/v1/session" && !currentCsrfToken()) {
+  if (
+    typeof document !== "undefined" &&
+    path !== "/v1/session" &&
+    !options.skipSessionBootstrap &&
+    !currentCsrfToken()
+  ) {
     await ensureSessionBootstrap();
   }
   const headers = new Headers(options.headers);
@@ -235,7 +252,7 @@ async function apiRequestInternal<T>(
   const boundaryNotified = responseOwnerKey ? recordOwnerKey(responseOwnerKey) : false;
   if (!response.ok) {
     const problem = await readProblem(response);
-    if (!recoveryAttempted && isSessionBoundaryProblem(problem)) {
+    if (!options.skipSessionBootstrap && !recoveryAttempted && isSessionBoundaryProblem(problem)) {
       const recovered = await recoverSessionBoundary(!boundaryNotified);
       if (recovered && !isMutation(method)) {
         return apiRequestInternal<T>(path, options, true);
@@ -314,6 +331,7 @@ export function apiDownload(path: string, signal?: AbortSignal): Promise<ApiDown
 }
 
 export function getSessionStatus(signal?: AbortSignal): Promise<SessionStatus> {
+  if (sessionBootstrapSuppressedAfterDeletion) return Promise.resolve(signedOutSessionStatus);
   if (!currentCsrfToken()) return ensureSessionBootstrap();
   return requestSessionStatus(signal).then((status) => {
     recordSessionStatus(status);

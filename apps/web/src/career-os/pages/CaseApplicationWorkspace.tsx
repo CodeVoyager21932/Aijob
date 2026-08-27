@@ -1,6 +1,7 @@
 import type { ApplicationCaseWithJobContext } from "@aijob/contracts";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   careerOsQueryKeys,
   listApplicationCaseEvents,
@@ -35,8 +36,21 @@ export function CaseApplicationWorkspace({
   applicationCase: ApplicationCaseWithJobContext;
 }) {
   const queryClient = useQueryClient();
-  const [confirming, setConfirming] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const confirmationRef = useRef<HTMLFieldSetElement>(null);
+  const confirming = searchParams.get("confirm") === "application";
   const commandRef = useRef<{ signature: string; idempotencyKey: string } | null>(null);
+  const setConfirming = (nextConfirming: boolean, replace = false) => {
+    const next = new URLSearchParams(searchParams);
+    if (nextConfirming) next.set("confirm", "application");
+    else next.delete("confirm");
+    setSearchParams(next, { replace });
+  };
+
+  useEffect(() => {
+    if (!confirming) return;
+    window.requestAnimationFrame(() => confirmationRef.current?.focus({ preventScroll: true }));
+  }, [confirming]);
   const eventsQuery = useInfiniteQuery({
     queryKey: careerOsQueryKeys.caseEvents(applicationCase.id),
     initialPageParam: null as string | null,
@@ -59,12 +73,15 @@ export function CaseApplicationWorkspace({
     retry: false,
     onSuccess: async () => {
       commandRef.current = null;
-      setConfirming(false);
+      setConfirming(false, true);
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: careerOsQueryKeys.caseDetail(applicationCase.id),
         }),
         queryClient.invalidateQueries({ queryKey: careerOsQueryKeys.caseList() }),
+        queryClient.invalidateQueries({
+          queryKey: ["career-os", "application-cases", "board"],
+        }),
         queryClient.invalidateQueries({
           queryKey: careerOsQueryKeys.caseEvents(applicationCase.id),
         }),
@@ -148,12 +165,18 @@ export function CaseApplicationWorkspace({
               mutation.reset();
               setConfirming(true);
             }}
+            aria-expanded={confirming}
           >
             我已在官方页面完成投递
           </button>
         ) : null}
         {canRecord && confirming ? (
-          <fieldset className="career-application-confirmation__check" aria-label="确认投递状态">
+          <fieldset
+            ref={confirmationRef}
+            className="career-application-confirmation__check"
+            aria-label="确认投递状态"
+            tabIndex={-1}
+          >
             <strong>确认已经完成最终提交？</strong>
             <p>只有看到官方页面的提交成功提示后再确认。这个动作会进入求职时间线。</p>
             {mutation.isError ? (
@@ -184,7 +207,7 @@ export function CaseApplicationWorkspace({
                 onClick={() => {
                   mutation.reset();
                   commandRef.current = null;
-                  setConfirming(false);
+                  setConfirming(false, true);
                 }}
               >
                 取消

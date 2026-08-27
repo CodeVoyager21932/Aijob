@@ -6,7 +6,7 @@ import type {
   DebriefItemDecisionInput,
   DebriefItemDecisionValue,
 } from "@aijob/contracts";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   debriefActionItems,
@@ -36,6 +36,7 @@ export function DebriefConfirmationPanel({
   pending,
   error,
   onConfirm,
+  onDraftStateChange,
 }: {
   caseId: string;
   debrief: Debrief;
@@ -44,6 +45,7 @@ export function DebriefConfirmationPanel({
   pending: boolean;
   error: Error | null;
   onConfirm: (request: ConfirmCaseDebriefRequest) => void;
+  onDraftStateChange?: (hasDrafts: boolean) => void;
 }) {
   const actionItems = useMemo(() => debriefActionItems(debrief), [debrief]);
   const [drafts, setDrafts] = useState<Record<string, DebriefItemDecisionInput | undefined>>({});
@@ -56,6 +58,12 @@ export function DebriefConfirmationPanel({
   );
   const confirmed = debrief.status === "confirmed" && confirmation !== null;
   const ready = debriefConfirmationReady(debrief, drafts);
+  const hasDrafts = !confirmed && Object.keys(drafts).length > 0;
+
+  useEffect(() => {
+    onDraftStateChange?.(hasDrafts);
+    return () => onDraftStateChange?.(false);
+  }, [hasDrafts, onDraftStateChange]);
 
   const choose = (item: (typeof actionItems)[number], decision: DebriefItemDecisionValue) => {
     const key = debriefDecisionKey(item);
@@ -181,8 +189,8 @@ export function DebriefConfirmationPanel({
 
       {error ? (
         <div className="career-inline-error" role="alert">
-          <strong>本次复盘没有确认</strong>
-          <span>{error.message}</span>
+          <strong>本次复盘没有确认，页面内选择仍保留</strong>
+          <span>{error.message} 请核对最新修订后再次确认。</span>
         </div>
       ) : null}
 

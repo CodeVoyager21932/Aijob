@@ -4,6 +4,7 @@ import { Outlet, useLocation, useSearchParams } from "react-router-dom";
 import { careerOsQueryKeys, getApplicationCase } from "../api/career-os";
 import { ProductApiError } from "../api/client";
 import { AlphaAccessGate } from "../components/AlphaAccessGate";
+import { isDeletionReceiptRoute } from "./navigation";
 import { toApplicationCaseView } from "./application-case-view";
 import { ContextInspector, ContextInspectorFrame } from "./components/ContextInspector";
 import { GlobalSidebar } from "./components/GlobalSidebar";
@@ -26,6 +27,7 @@ export function WorkspaceShell({ accessRequired = false }: { accessRequired?: bo
   const mainRef = useRef<HTMLElement>(null);
   const inspectorCloseRef = useRef<HTMLButtonElement>(null);
   const previousPeekRef = useRef<string | null>(null);
+  const deletionReceiptOnly = isDeletionReceiptRoute(location.pathname);
   const peekCaseId = location.pathname === "/applications" ? searchParams.get("peek") : null;
   const inspectorIsOverlay = useMediaQuery("(max-width: 1439px)");
   const peekQuery = useQuery({
@@ -136,7 +138,8 @@ export function WorkspaceShell({ accessRequired = false }: { accessRequired?: bo
         <div className="career-workspace__body">
           <main ref={mainRef} className="career-main product-main" id="career-main" tabIndex={-1}>
             <AlphaAccessGate
-              enabled={accessRequired}
+              key={deletionReceiptOnly ? "deletion-receipt" : "workspace-access"}
+              enabled={accessRequired && !deletionReceiptOnly}
               variant="workspace"
               onAccessChange={setAccessGranted}
             >

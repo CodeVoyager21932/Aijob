@@ -317,6 +317,8 @@ describeWithDatabase("migrations 026B through 033 forward repairs and Review v2 
         expires_at: new Date("2026-08-20T00:00:00.000Z"),
         ended_at: null,
         deleted_at: null,
+        created_at: now,
+        updated_at: now,
       })
       .execute();
     await db
@@ -440,6 +442,8 @@ describeWithDatabase("migrations 026B through 033 forward repairs and Review v2 
         creation_request_hash: "2".repeat(64),
         expires_at: new Date("2026-08-20T00:00:00.000Z"),
         deleted_at: null,
+        created_at: now,
+        updated_at: now,
       })
       .execute();
     await db
@@ -512,6 +516,8 @@ describeWithDatabase("migrations 026B through 033 forward repairs and Review v2 
         creation_request_hash: "a".repeat(64),
         expires_at: new Date("2026-08-20T00:00:00.000Z"),
         deleted_at: null,
+        created_at: now,
+        updated_at: now,
       })
       .execute();
     await db
