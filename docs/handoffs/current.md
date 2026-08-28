@@ -1,10 +1,10 @@
-# 当前项目交接：OS-6 已关闭，OS-7 待开始
+# 当前项目交接：OS-7 进行中暂停
 
 > 交接日期：2026-08-28
 >
 > 当前分支：`codex/career-os-ux-convergence`
 >
-> OS-6 起始 HEAD：`9d44a0d feat(career-os): close os5 resume studio`
+> OS-7 起始 HEAD：`e56ceae feat(career-os): close os6 lifecycle and data control`
 >
 > 精确 HEAD、远端跟踪与工作树以 `git log -1`、`git status` 为准。
 
@@ -16,83 +16,76 @@
 
 当前追踪矩阵：[UX-0 页面—系统—证据追踪矩阵](../plans/career-os-ux-0-end-to-end-traceability-matrix.md)
 
-上一切片关闭证据：[OS-6 投递、面试、复盘与数据控制验收](../evidence/product/career-os-v2/os-6-application-interview-debrief-data-control-acceptance-2026-08-28.md)
+当前暂停检查点：[OS-7 系统总 Gate 暂停检查点](../evidence/product/career-os-v2/os-7-system-gate-checkpoint-2026-08-28.md)
 
-上游关闭证据：[OS-5 Resume Studio 与唯一 Review 写入验收](../evidence/product/career-os-v2/os-5-resume-studio-and-review-v2-acceptance-2026-08-16.md)
+上一切片关闭证据：[OS-6 投递、面试、复盘与数据控制验收](../evidence/product/career-os-v2/os-6-application-interview-debrief-data-control-acceptance-2026-08-28.md)
 
 ## 1. 当前决定
 
-coco 要求每个纵向切片同步关闭 Contract、Database/Platform、Web、Integrated Gate 与 Evidence，不做前端或后端单层优化。
+coco 要求暂停当前 OS-7 执行、同步项目状态并完整推送检查点。**OS-7 已开始但尚未完成；当前状态为“进行中暂停”，不得写成已通过，也不得回退成尚未实施。**
 
-**OS-6 投递、面试、复盘与数据控制已经按五项状态关闭。`/today`、同一 Case 的显式投递、模板面试、复盘确认与回流、选择性/全部删除、删除回执、旧 Tailoring 只读和兼容 URL 已在规范 Career OS 路径中贯通。当前决定为“完成 OS-6，进入 OS-7 准备”；OS-7 尚未实施，等待 coco 明确指令。**
+OS-7 已形成 runtime schema 补齐、视觉 token 收敛、旧页面在 Career OS 内的字号/字重融合、双库总 runner 和可复用 fixture 修正。最后一次完整 runner 走到全路由视觉检查，发现 `/resumes/import` 继承旧 650/750 字重；该缺口已定点修复并通过局部探针，但修复后的完整 runner、全仓工程 Gate 和 acceptance 尚未运行。
 
-不得从 PA-1、旧 M4、历史 Phase 2、供给扩容或 Private Alpha Gate 自动选择任务。
+等待 coco 明确继续后，从当前检查点恢复 OS-7；不得从 PA-1、旧 M4、历史 Phase 2、供给扩容或 Private Alpha Gate 自动选择任务。
 
-## 2. 可信工程与产品基线
+## 2. 可信基线与五项状态
 
-- M1–M4、PA-1、UX-0 与 OS-1–OS-6 已完成；这只代表对应本地工程与体验 Gate。
-- OS-6 最终全仓 Config 20、Contracts 86、Database 54、Platform 466、Web 175，共 801/801。
-- `pnpm lint` 483 files、typecheck、build、标准 audit、全新隔离 PostgreSQL、四视口真实 API 浏览器 Gate 与 diff check 均通过。
-- Web main 401.31 kB（gzip 117.03 kB）；Resume Editor 38.32 kB（gzip 11.74 kB）、Interview 30.24 kB（gzip 9.03 kB）、数据设置 13.84 kB（gzip 5.18 kB）、删除回执 3.81 kB（gzip 1.84 kB），重工作区保持 lazy load；主包较 OS-5 增加 0.84 kB。
-- 产品证据仍为 E0；可信供给仍为 22 岗 / 3 家企业 / 3 个官方 ATS，公共与 Alpha 岗位均为 0。
-- 工程闭环、合成满态和视觉验收均不得冒充用户价值、真实供给、生产或 Private Alpha 就绪。
+- M1–M4、PA-1、UX-0 与 OS-1–OS-6 已完成；可信完成基线仍是 OS-6。
+- OS-6 最终 Config 20、Contracts 86、Database 54、Platform 466、Web 175，共 801/801；lint 483 files、typecheck、build、audit、隔离 PostgreSQL、四视口浏览器 Gate 和 diff check 通过。
+- OS-7 当前局部检查：一次 Web 全包 180/180 通过（命令参数误触发，之后未重复）；视觉契约 4/4、Web typecheck、触达文件 Biome、脚本语法和 diff check 通过。
+- OS-7 没有最终 `passed: true` 浏览器结果，没有最终全仓 tests/build/audit/包体结果，也没有 acceptance。
 
-### 当前本机运行状态（2026-08-28 OS-6 清理后核验）
+| 状态项 | 当前状态 |
+|---|---|
+| Contract | 进行中 |
+| Database/Platform | 进行中 |
+| Web | 进行中 |
+| Integrated Gate | 进行中，最终 runner 未通过 |
+| Evidence | 进行中，只有暂停检查点 |
 
-- `127.0.0.1:3000`、`127.0.0.1:5173`、`127.0.0.1:5174`、`127.0.0.1:5432` 均未监听。
-- 名称精确匹配 `aijob_os6_test_*` 的本轮隔离库已全部删除；Platform、V2 Web、flag-off Web 与项目 PostgreSQL 均已停止。19 个 `aijob-os6-f057-*` 目录已核验为空，Windows 执行策略拒绝删除空目录壳；其中没有文件、数据或进程。
-- 浏览器成功路径没有 console warning/error 或外部请求；只使用预期的本地错误注入。未生成截图。
-- 运行边界继续保持离线：不访问真实招聘来源、真实 AI、真实邮件、真实简历或远程服务器。
+产品证据仍为 E0；可信供给仍为 22 岗 / 3 家企业 / 3 个官方 ATS，公共与 Alpha 岗位均为 0。工程检查点不得冒充用户价值、真实供给、Private Alpha 或生产就绪。
 
-## 3. OS-6 已关闭结果
+## 3. 当前代码状态
 
-1. **Contract 通过**：复用既有 application timeline/manual application、interview/debrief、data scope、legacy Tailoring、export 和 deletion receipt 契约；触达成功响应都在 Web 边界运行时解析，畸形 payload 统一为可重试 502。
-2. **Database/Platform 通过**：无新 migration；非法/跨 owner Case、Session、Debrief 为不可枚举 404；Interview revision 冲突先于 completed 状态；首次复盘确认同事务递增 Case revision 并追加唯一 `debrief_confirmed`；签名删除回执在既有 TTL 内可重复读取。
-3. **Web 通过**：`/today` 使用单一 Board read model；投递、Interview、Debrief 独立；Session 草稿与 409 保留、确认后回流、选择性删除重读、全量删除后不创建新 session、规范/兼容回执 URL 刷新均已接入。
-4. **Integrated Gate 通过**：真实 Platform API、PostgreSQL 与 1536/1280/768/320 浏览器覆盖显式投递、面试冲突、复盘事件/回流、旧 Tailoring、owner/404/session、选择性/全部删除、删除回执、lazy load 与 flag 回退；网络仅 loopback。
-5. **Evidence 通过**：独立证据、README、路线图、计划索引、当前计划、追踪矩阵、稳定契约、证据索引和本交接已同步；决定只关闭 OS-6。
+### 已修改
 
-### 关键修复与复核说明
+- `apps/web/src/api/career-os.ts`、`product.ts`：补齐当前/固定证据、旧岗位决定、旧 Tailoring 的运行时响应 schema。
+- `apps/web/src/api/career-os.test.ts`、`product.test.ts`：畸形成功 payload 的 502 反证。
+- `apps/web/src/career-os/career-os.css`：Career OS 最小 12px、标准数字字重、32px 主标题上限，以及旧 Import/Tailoring 的 scoped 融合。
+- `apps/web/scripts/m1-browser-gate.cjs`：多公共合成岗位参数和 owner revision 顺延 fixture。
 
-- 浏览器反证确认 Debrief confirmation 原本缺少 `debrief_confirmed` Case event；现已在 confirmation 同一事务追加并以 integration test 证明 replay 不重复。
-- 选择性删除成功提示现在等待范围查询重新读取；避免旧计数与成功提示竞争。
-- 全量 owner 删除后 Web 抑制 session bootstrap，只有用户明确开始新身份才恢复；规范与旧删除回执 URL 都在 Shell 初始化前识别。
-- 删除回执不再首次读取即清 cookie，在签名 TTL 内支持刷新和重复 poll；删除后私有资源仍不可读。
-- `/today` 的 Board read model 对 PostgreSQL `40001` 只做有限读取重试，不重放 mutation；Case 首屏没有卡片级 N+1。
-- Database legacy date fixture 补齐既有 `created_at` / `updated_at` 要求，只修测试证据，不改变生产 schema。
-- 第一次完整 Platform 回归有一个既有 parser 子进程瞬态 10 秒超时（465/466）；对应文件 2/2 与同一最终代码的严格 Platform workspace 466/466 随后通过，未修改生产超时。
+### 新增
 
-## 4. 最终隔离 Gate
+- `apps/web/src/career-os/visual-contract.test.ts`：4 项静态视觉契约。
+- `apps/web/scripts/os7-browser-gate.cjs`：完整满态库 + 真实空库的 OS-7 总 runner。
+- `docs/evidence/product/career-os-v2/os-7-system-gate-checkpoint-2026-08-28.md`：本暂停检查点，不是 acceptance。
 
-- 浏览器库：`aijob_os6_test_20260828_f057_browser19`；最终结果 `passed: true`、`applicationCommands: 1`、`answerCommands: 3`、`viewports: [1536, 1280, 768, 320]`、`ownerDeleted: true`。
-- 工程库：`aijob_os6_test_20260828_f057_final3`；最终 801/801。
-- `pnpm audit:ci` 退出码 0，1 个既有 high 由已提交审计基线忽略；本切片未新增依赖。
-- 浏览器仅使用合成岗位、owner、简历和证据；没有成功业务响应 mock、真实 provider、真实来源或外部网络。
+没有生产 Platform、Contracts、Database migration 或依赖改动。
 
-## 5. 下一候选切片与未完成边界
+## 4. 浏览器反证与已修正夹具
 
-OS-7 `系统总 Gate` 尚未实施。它只在 coco 明确继续后启动，固定方向来自当前计划和追踪矩阵，而不是本交接自动生成任务：
+完整 runner 的失败点依次为：非 ASCII 幂等头、基础简历 owner revision 冲突、面试 Case 缺派生简历、StrictMode 下聚合 Board 两次读取、键盘遍历起点、旧 Import 非标准字重。前五项为 Gate/fixture 表达问题，第六项为真实 Web 融合缺口。
 
-- 对完整 Career OS 做最终视觉一致性、路由/状态、Contracts、Platform、数据库语义、可访问性、性能、离线与 flag 回退总验。
-- 使用全新隔离数据库和合成数据，覆盖规范旅程的刷新、深链、前进/后退、键盘、焦点、网络/控制台与删除边界。
-- 只在发现可复现的当前系统阻塞时做最小修复，不扩建 Private Alpha、真实供给、邮件、服务器或未来服务。
+所有问题均已做最小修正或定点证明；没有放宽 owner、revision、面试前置、N+1、session 或删除语义。修复第六项后按 coco 指令暂停，所以没有再跑完整 runner。
 
-以下仍明确未完成：
+详细命令结果、边界和恢复顺序只看 [OS-7 暂停检查点](../evidence/product/career-os-v2/os-7-system-gate-checkpoint-2026-08-28.md)。
 
-- OS-7 系统总 Gate。
-- 真实供给、真实 AI、真实邮件、解析镜像、服务器、参与者和 Private Alpha。
+## 5. 当前本机运行与数据状态
 
-## 6. 主要代码入口
+- 3000、3001、5173、5174、5175、5432 均未监听。
+- Platform、V2 Web、flag-off Web、empty Web 和项目 PostgreSQL 容器/网络均已停止。
+- 本轮 8 个精确 `aijob_ux_*_test_*` 数据库已删除。
+- `C:\Users\72998\AppData\Local\Temp\aijob-os7-f057-final` 只剩 `full/`、`empty/` 两个空目录壳；本机策略拒绝递归删除，其中没有文件、数据或进程。
+- 未生成或保留截图、下载产物、真实简历或外部响应。
 
-- `apps/platform/src/applications/service.ts`、`routes.ts`：Case board/timeline、显式投递、revision/owner 与有限读取重试。
-- `apps/platform/src/interviews/service.ts`、`debrief-service.ts`、`routes.ts`：Session、回答/反馈、复盘确认、Case event 和 404/409 语义。
-- `apps/platform/src/profile/routes.ts`：全量删除与签名 deletion receipt TTL。
-- `apps/web/src/api/career-os.ts`、`product.ts`、`client.ts`：OS-6 runtime parsers、session bootstrap 抑制/恢复与 API 错误边界。
-- `apps/web/src/career-os/pages/CaseApplicationWorkspace.tsx`、`CaseInterviewWorkspace.tsx`：显式投递、Session 草稿、冲突恢复和复盘入口。
-- `apps/web/src/career-os/components/DebriefConfirmationPanel.tsx`：复盘决定、离开保护、确认与回流刷新。
-- `apps/web/src/career-os/pages/CareerDataControlPage.tsx`、`CareerDeletionStatusPage.tsx`：选择性删除、全量删除和可刷新回执。
-- `apps/web/src/career-os/navigation.ts`、`WorkspaceShell.tsx`：规范/兼容删除回执路由与 session 初始化边界。
-- `apps/web/scripts/os6-browser-gate.cjs`：OS-6 loopback 浏览器回归脚本，不是产品演示模式。
+## 6. 恢复 OS-7 的固定顺序
+
+1. 依次读取 `AGENTS.md`、README、路线图、本交接、计划索引、当前计划、稳定契约和 OS-7 暂停检查点。
+2. 正常 `git fetch`，核对本分支 HEAD/远端、tracked 工作树、容器和 3000/3001/5173/5174/5175/5432；冲突先报告。
+3. 不重复 OS-1–OS-6 独立 Gate；不因暂停重新设计架构或回退已形成改动。
+4. 创建一组全新 `aijob_ux_full_test_*` / `aijob_ux_empty_test_*` 数据库，只运行一次最终 OS-7 双库 runner。
+5. 若 runner 通过，再只运行一次全仓 lint、typecheck、串行全新库 tests、build、audit 和 diff check。
+6. 五项状态全部通过后才新增 OS-7 acceptance，并作“进入 Private Alpha 准备 / 修改 / 回退 / 停止”之一的决定。
 
 ## 7. 固定排除与数据安全
 
@@ -101,12 +94,3 @@ OS-7 `系统总 Gate` 尚未实施。它只在 coco 明确继续后启动，固�
 - 不读取、修改、暂存、覆盖、清理或提交 `.claude/`、`.data/`、密钥、令牌、真实简历原文、本地业务数据库、下载产物或截图。
 - 测试数据库必须全新且匹配 `aijob_*_test_*`，只写合成数据；浏览器和服务只允许 loopback。
 - Private Alpha Gate 只用于守门，不得从中生成当前任务。
-
-## 8. 新任务接手检查表
-
-1. 依次读取 `AGENTS.md`、`README.md`、路线图、本交接、计划索引、当前交付计划和 OS-6 证据。
-2. 核对分支、HEAD、远端跟踪、tracked 工作树、最近提交、容器和 3000/5173/5174/5432；冲突先报告。
-3. 不重复 UX-0 或 OS-1–OS-6，不从 Private Alpha 抢跑。只有 coco 明确继续后才开始 OS-7。
-4. OS-7 仍按 `Contract → Database/Platform → Web → Integrated Gate → Evidence` 串行关闭，不能只迁页面或只扩后端。
-5. OS-6 的显式投递、Interview revision 保稿、Debrief confirmation/event 唯一性、删除后无 session bootstrap、回执刷新、runtime parse、lazy load 和 flag 回退必须作为回归基线。
-6. OS-7 五项状态全部通过并追加独立证据后，只作进入 Private Alpha 准备、修改、回退或停止之一。

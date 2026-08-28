@@ -1,13 +1,17 @@
-import type { JobSearchResponse } from "@aijob/contracts";
 import { randomUUID } from "node:crypto";
+import type { JobSearchResponse } from "@aijob/contracts";
 import { describe, expect, it, vi } from "vitest";
 import {
   collectRecommendationCandidateJobs,
+  createResumeTailoring,
+  getJobDecisions,
   getProfileDeletion,
   getResumeExport,
   getResumeTailoring,
   type JobFilters,
   jobSearchPath,
+  putJobDecision,
+  putTailoringSegment,
   recommendationCandidateVersionIds,
 } from "./product";
 
@@ -142,9 +146,7 @@ describe("recommendation catalog pagination", () => {
     ).rejects.toThrow("分页游标没有前进");
 
     expect(() =>
-      recommendationCandidateVersionIds([
-        { ...recommendationJob(1), publishedJobVersionId: null },
-      ]),
+      recommendationCandidateVersionIds([{ ...recommendationJob(1), publishedJobVersionId: null }]),
     ).toThrow("未物化版本");
     expect(() =>
       recommendationCandidateVersionIds([
@@ -176,6 +178,39 @@ describe("OS-6 historical and deletion runtime boundaries", () => {
         status: 502,
         code: "INVALID_API_RESPONSE",
       });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe("OS-7 remaining user API runtime boundaries", () => {
+  it("rejects malformed legacy decision and Tailoring mutation payloads", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ malformed: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })) as typeof fetch;
+    try {
+      await expect(getJobDecisions()).rejects.toMatchObject({
+        status: 502,
+        code: "INVALID_API_RESPONSE",
+      });
+      await expect(
+        putJobDecision(randomUUID(), { expectedRevision: 0, status: "saved", reason: null }),
+      ).rejects.toMatchObject({ status: 502, code: "INVALID_API_RESPONSE" });
+      await expect(
+        createResumeTailoring({
+          resumeAnalysisId: randomUUID(),
+          publishedJobVersionId: randomUUID(),
+          evidenceRevisionId: randomUUID(),
+          privacyConsent: true,
+        }),
+      ).rejects.toMatchObject({ status: 502, code: "INVALID_API_RESPONSE" });
+      await expect(
+        putTailoringSegment(randomUUID(), randomUUID(), { decision: "accepted" }),
+      ).rejects.toMatchObject({ status: 502, code: "INVALID_API_RESPONSE" });
     } finally {
       globalThis.fetch = originalFetch;
     }

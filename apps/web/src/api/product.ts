@@ -13,9 +13,10 @@ import type {
   JobDecision,
   JobDetail,
   JobInsightRun,
-  JobRecommendationRunView,
   JobPreferenceRevision,
+  JobRecommendationRunView,
   JobSearchResponse,
+  LegacyResumeAnalysisResult,
   MatchRun,
   ProfileDeletion,
   ProfileFactRevision,
@@ -26,7 +27,6 @@ import type {
   PutSavedResumeEvidenceSelectionRequest,
   PutTailoringSegmentRequest,
   RecommendationRun,
-  LegacyResumeAnalysisResult,
   ResumeAnalysisResult,
   ResumeAnalysisView,
   ResumeEvidenceRevision,
@@ -39,12 +39,14 @@ import {
   CurrentProfileFactsSchema,
   CurrentProfilePreferencesSchema,
   CurrentResumeDocumentSchema,
+  JobDecisionSchema,
   JobDetailSchema,
   JobInsightRunSchema,
+  JobPreferenceRevisionSchema,
   JobRecommendationRunViewSchema,
   JobSearchResponseSchema,
-  MatchRunSchema,
   MAX_RECOMMENDATION_CANDIDATES,
+  MatchRunSchema,
   ProfileDeletionSchema,
   ProfileFactRevisionSchema,
   RecommendationRunSchema,
@@ -52,7 +54,7 @@ import {
   ResumeEvidenceRevisionSchema,
   ResumeExportSchema,
   ResumeTailoringRunSchema,
-  JobPreferenceRevisionSchema,
+  ResumeTailoringSegmentSchema,
 } from "@aijob/contracts";
 import { apiRequest, createIdempotencyKey } from "./client";
 
@@ -347,13 +349,17 @@ export function getRecommendationRunView(id: string, signal?: AbortSignal) {
 }
 
 export function getJobDecisions(signal?: AbortSignal) {
-  return apiRequest<JobDecision[]>("/v1/job-decisions", { signal });
+  return apiRequest<JobDecision[]>("/v1/job-decisions", {
+    signal,
+    responseSchema: JobDecisionSchema.array(),
+  });
 }
 
 export function putJobDecision(jobId: string, body: PutJobDecisionRequest) {
   return apiRequest<JobDecision>(`/v1/job-decisions/${encodeURIComponent(jobId)}`, {
     method: "PUT",
     body,
+    responseSchema: JobDecisionSchema,
   });
 }
 
@@ -368,6 +374,7 @@ export function createResumeTailoring(body: CreateResumeTailoringRequest) {
     method: "POST",
     body,
     idempotencyKey: createIdempotencyKey("tailoring"),
+    responseSchema: ResumeTailoringRunSchema,
   });
 }
 
@@ -385,7 +392,7 @@ export function putTailoringSegment(
 ) {
   return apiRequest<ResumeTailoringRun["segments"][number]>(
     `/v1/resume-tailorings/${encodeURIComponent(runId)}/segments/${encodeURIComponent(segmentId)}`,
-    { method: "PUT", body },
+    { method: "PUT", body, responseSchema: ResumeTailoringSegmentSchema },
   );
 }
 

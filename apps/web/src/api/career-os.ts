@@ -20,6 +20,7 @@ import type {
   CreateResumeDocumentResponse,
   CreateResumeReviewRequest,
   CreateResumeReviewResponse,
+  CurrentProfileEvidence,
   CurrentResumeReviewResponse,
   DecideResumeReviewSuggestionRequest,
   DecideResumeReviewSuggestionResponse,
@@ -71,6 +72,7 @@ import {
   CreateInterviewSessionResponseSchema,
   CreateResumeDocumentResponseSchema,
   CreateResumeReviewResponseSchema,
+  CurrentProfileEvidenceSchema,
   CurrentResumeReviewResponseSchema,
   DecideResumeReviewSuggestionResponseSchema,
   DeleteApplicationCaseResponseSchema,
@@ -90,6 +92,7 @@ import {
   PutResumeDocumentContentRevisionResponseSchema,
   PutResumeDocumentLayoutRevisionResponseSchema,
   ResumeDocumentSchema,
+  ResumeEvidenceRevisionSchema,
   SubmitInterviewAnswerResponseSchema,
 } from "@aijob/contracts";
 import { apiRequest } from "./client";
@@ -510,24 +513,19 @@ export function updateApplicationCaseQuestion(
   );
 }
 
-export type CareerOsEvidenceResponse =
-  | ResumeEvidenceRevision
-  | {
-      revision: 0;
-      resumeAnalysisId: null;
-      schemaVersion: "resume-evidence-v2";
-      documentRevisionId: null;
-      evidence: [];
-    };
+export type CareerOsEvidenceResponse = CurrentProfileEvidence;
 
 export function getCareerOsEvidence(signal?: AbortSignal) {
-  return apiRequest<CareerOsEvidenceResponse>("/v1/profile/evidence", { signal });
+  return apiRequest<CareerOsEvidenceResponse>("/v1/profile/evidence", {
+    signal,
+    responseSchema: CurrentProfileEvidenceSchema,
+  });
 }
 
 export function getCareerOsEvidenceRevision(evidenceRevisionId: string, signal?: AbortSignal) {
   return apiRequest<ResumeEvidenceRevision>(
     `/v1/profile/evidence/${encodeURIComponent(evidenceRevisionId)}`,
-    { signal },
+    { signal, responseSchema: ResumeEvidenceRevisionSchema },
   );
 }
 

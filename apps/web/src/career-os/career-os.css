@@ -151,12 +151,12 @@
   box-shadow: 0 7px 16px rgba(17, 24, 39, 0.16);
   color: white;
   font-size: 1rem;
-  font-weight: 850;
+  font-weight: 800;
 }
 
 .career-brand__name {
   font-size: 1.22rem;
-  font-weight: 830;
+  font-weight: 800;
   letter-spacing: -0.03em;
   white-space: nowrap;
 }
@@ -208,7 +208,7 @@
   border-radius: 10px;
   color: #465267;
   font-size: 0.9rem;
-  font-weight: 650;
+  font-weight: 700;
   text-decoration: none;
   white-space: nowrap;
 }
@@ -223,7 +223,7 @@
 .career-sidebar__settings.is-active {
   background: #f0f4fb;
   color: var(--career-blue-deep);
-  font-weight: 760;
+  font-weight: 700;
 }
 
 .career-sidebar__nav a.is-active::before,
@@ -324,7 +324,7 @@
 .career-breadcrumbs strong {
   overflow: hidden;
   color: var(--career-ink);
-  font-weight: 720;
+  font-weight: 700;
   text-overflow: ellipsis;
 }
 
@@ -364,7 +364,7 @@
   background: #f7f8fa;
   color: #798396;
   font-family: inherit;
-  font-size: 0.68rem;
+  font-size: var(--co-text-xs);
   white-space: nowrap;
 }
 
@@ -401,7 +401,7 @@
   background: #e8ecef;
   color: #3f4b5d;
   font-size: 0.78rem;
-  font-weight: 780;
+  font-weight: 800;
 }
 
 .career-account-button strong {
@@ -438,7 +438,7 @@
 .career-utility-popover span,
 .career-utility-popover a {
   color: var(--career-muted);
-  font-size: 0.74rem;
+  font-size: var(--co-text-xs);
   line-height: 1.5;
 }
 
@@ -510,8 +510,8 @@
 .career-command-menu__results > div > p {
   margin: 10px 10px 5px;
   color: #8a94a4;
-  font-size: 0.68rem;
-  font-weight: 760;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-command-menu__results a {
@@ -637,7 +637,7 @@
   margin-bottom: 6px;
   color: var(--career-muted);
   font-size: 0.76rem;
-  font-weight: 720;
+  font-weight: 700;
 }
 
 .career-inspector__header h2 {
@@ -650,7 +650,7 @@
   display: block;
   margin-top: 8px;
   color: var(--career-muted);
-  font-size: 0.74rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-inspector__scroll {
@@ -667,7 +667,7 @@
   margin: 0 0 13px;
   color: #364154;
   font-size: 0.76rem;
-  font-weight: 780;
+  font-weight: 800;
 }
 
 .career-next-task,
@@ -697,7 +697,7 @@
 .career-source-proof span {
   margin: 5px 0 0;
   color: var(--career-muted);
-  font-size: 0.72rem;
+  font-size: var(--co-text-xs);
   line-height: 1.65;
 }
 
@@ -721,14 +721,14 @@
 
 .career-axis-summary dt {
   color: var(--career-muted);
-  font-size: 0.72rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-axis-summary dd {
   margin: 0;
   color: var(--career-ink);
-  font-size: 0.74rem;
-  font-weight: 720;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-inspector__evidence {
@@ -763,7 +763,7 @@
   border: 1px solid transparent;
   border-radius: 9px;
   font-size: 0.79rem;
-  font-weight: 740;
+  font-weight: 700;
   text-decoration: none;
   cursor: pointer;
 }
@@ -805,8 +805,8 @@
   gap: 5px;
   padding: 3px 8px;
   border-radius: 7px;
-  font-size: 0.68rem;
-  font-weight: 760;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -861,7 +861,7 @@
 .career-page-heading h1 {
   margin: 0;
   font-family: "Songti SC", "Noto Serif CJK SC", STSong, serif;
-  font-size: clamp(2.2rem, 3.7vw, 3.45rem);
+  font-size: var(--co-title-lg);
   font-weight: 700;
   letter-spacing: -0.055em;
   line-height: 1.08;
@@ -916,7 +916,7 @@
   background: transparent;
   color: var(--career-muted);
   font-size: 0.75rem;
-  font-weight: 680;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -946,7 +946,7 @@
   background: white;
   color: #465267;
   font-size: 0.75rem;
-  font-weight: 650;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -1005,12 +1005,12 @@
   margin: 0;
   color: #33415a;
   font-size: 0.83rem;
-  font-weight: 790;
+  font-weight: 800;
 }
 
 .career-case-column > header span {
   color: var(--career-muted);
-  font-size: 0.72rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-case-column__items {
@@ -1023,7 +1023,7 @@
   padding: 22px 8px;
   margin: 0;
   color: #8b94a4;
-  font-size: 0.72rem;
+  font-size: var(--co-text-xs);
   text-align: center;
 }
 
@@ -1064,7 +1064,7 @@
 
 .career-case-card__open small {
   color: #7a8495;
-  font-size: 0.68rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-case-card__source {
@@ -1073,8 +1073,8 @@
   gap: 5px;
   margin: 0 14px 8px;
   color: var(--career-green);
-  font-size: 0.65rem;
-  font-weight: 730;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-case-card > a {
@@ -1086,8 +1086,8 @@
   padding: 8px 12px 8px 14px;
   border-top: 1px solid #eef0f4;
   color: var(--career-blue);
-  font-size: 0.68rem;
-  font-weight: 690;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
   text-decoration: none;
 }
 
@@ -1117,8 +1117,8 @@
   border-bottom: 1px solid var(--career-line);
   background: #f8f9fb;
   color: #7d8796;
-  font-size: 0.67rem;
-  font-weight: 730;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-case-row + .career-case-row {
@@ -1152,7 +1152,7 @@
 .career-case-row__identity small,
 .career-case-row__open > span {
   color: var(--career-muted);
-  font-size: 0.72rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-case-row__task {
@@ -1228,7 +1228,7 @@
   background: transparent;
   color: var(--career-blue);
   font: inherit;
-  font-weight: 740;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -1285,8 +1285,8 @@
 .career-private-jd-drawer > header p {
   margin-bottom: 5px;
   color: var(--career-muted);
-  font-size: 0.72rem;
-  font-weight: 720;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-private-jd-drawer > header h2 {
@@ -1312,7 +1312,7 @@
 .career-private-jd-form legend {
   color: #3d485a;
   font-size: 0.76rem;
-  font-weight: 760;
+  font-weight: 700;
 }
 
 .career-private-jd-form input[type="text"],
@@ -1337,7 +1337,7 @@
 
 .career-private-jd-form small {
   color: var(--career-muted);
-  font-size: 0.68rem;
+  font-size: var(--co-text-xs);
   line-height: 1.55;
 }
 
@@ -1377,7 +1377,7 @@
 .career-private-jd-notice p {
   margin: 6px 0 0;
   color: var(--career-muted);
-  font-size: 0.71rem;
+  font-size: var(--co-text-xs);
   line-height: 1.55;
 }
 
@@ -1426,7 +1426,7 @@
 
 .career-today-tasks > header span {
   color: var(--career-muted);
-  font-size: 0.72rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-today-tasks ol {
@@ -1475,7 +1475,7 @@
 
 .career-today-tasks li small {
   color: var(--career-muted);
-  font-size: 0.7rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-today-note {
@@ -1498,7 +1498,7 @@
 .career-today-note a {
   color: var(--career-blue-deep);
   font-size: 0.75rem;
-  font-weight: 720;
+  font-weight: 700;
 }
 
 .career-placeholder-page,
@@ -1572,7 +1572,7 @@
 .career-case-header h1 {
   margin: 0;
   font-family: "Songti SC", "Noto Serif CJK SC", STSong, serif;
-  font-size: clamp(2rem, 3.2vw, 3rem);
+  font-size: var(--co-title-lg);
   letter-spacing: -0.05em;
   line-height: 1.16;
 }
@@ -1583,7 +1583,7 @@
   gap: 16px;
   margin-top: 13px;
   color: var(--career-muted);
-  font-size: 0.74rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-case-header__meta span {
@@ -1614,7 +1614,7 @@
   border-radius: 9px;
   background: #fbfcfe;
   color: var(--career-muted);
-  font-size: 0.72rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-case-tabs {
@@ -1633,13 +1633,13 @@
   padding: 0 12px;
   color: #4f5b6d;
   font-size: 0.79rem;
-  font-weight: 680;
+  font-weight: 700;
   text-decoration: none;
 }
 
 .career-case-tabs a.is-active {
   color: var(--career-blue);
-  font-weight: 780;
+  font-weight: 800;
 }
 
 .career-case-tabs a.is-active::after {
@@ -1668,8 +1668,8 @@
   justify-content: center;
   gap: 8px;
   color: #7d8796;
-  font-size: 0.72rem;
-  font-weight: 690;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-case-progress li:not(:last-child)::after {
@@ -1693,7 +1693,7 @@
   border: 1px solid #d8dde5;
   border-radius: 50%;
   background: var(--career-shell);
-  font-size: 0.67rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-case-progress li.is-complete,
@@ -1722,7 +1722,7 @@
   border-radius: 9px;
   background: #f4f7fc;
   color: #536177;
-  font-size: 0.72rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-case-version-note svg {
@@ -1763,7 +1763,7 @@
 .career-case-overview__next p {
   margin: 5px 0 0;
   color: var(--career-muted);
-  font-size: 0.74rem;
+  font-size: var(--co-text-xs);
   line-height: 1.65;
 }
 
@@ -1787,7 +1787,7 @@
 .career-case-overview__evidence > header a {
   margin: 0;
   color: var(--career-muted);
-  font-size: 0.7rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-case-overview__evidence > header a {
@@ -1818,7 +1818,7 @@
 .career-case-overview__axes article > span,
 .career-case-overview__axes article small {
   color: var(--career-muted);
-  font-size: 0.69rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-case-overview__axes article strong {
@@ -1880,15 +1880,15 @@
   max-width: 720px;
   margin: 7px 0 0;
   color: var(--career-muted);
-  font-size: 0.74rem;
+  font-size: var(--co-text-xs);
   line-height: 1.7;
 }
 
 .career-application-eyebrow {
   margin: 0 0 6px;
   color: var(--career-blue);
-  font-size: 0.66rem;
-  font-weight: 780;
+  font-size: var(--co-text-xs);
+  font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -1899,7 +1899,7 @@
   border-radius: 8px;
   background: #f4f6f9;
   color: var(--career-muted);
-  font-size: 0.72rem;
+  font-size: var(--co-text-xs);
   line-height: 1.55;
 }
 
@@ -1924,7 +1924,7 @@
 .career-application-confirmation__check > p {
   margin: 0;
   color: var(--career-muted);
-  font-size: 0.72rem;
+  font-size: var(--co-text-xs);
   line-height: 1.6;
 }
 
@@ -1986,13 +1986,13 @@
 .career-application-timeline li time,
 .career-application-timeline li small {
   color: var(--career-muted);
-  font-size: 0.66rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-application-timeline li p {
   margin: 5px 0 0;
   color: var(--career-muted);
-  font-size: 0.72rem;
+  font-size: var(--co-text-xs);
   line-height: 1.6;
 }
 
@@ -2043,8 +2043,8 @@
 .career-interview-session__header p {
   margin: 0 0 5px;
   color: var(--career-blue);
-  font-size: 0.66rem;
-  font-weight: 780;
+  font-size: var(--co-text-xs);
+  font-weight: 800;
   letter-spacing: 0.06em;
 }
 
@@ -2060,7 +2060,7 @@
   max-width: 760px;
   margin: 7px 0 0;
   color: var(--career-muted);
-  font-size: 0.74rem;
+  font-size: var(--co-text-xs);
   line-height: 1.7;
 }
 
@@ -2113,7 +2113,7 @@
 .career-interview-history > header span,
 .career-interview-history time {
   color: var(--career-muted);
-  font-size: 0.64rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-interview-history ol {
@@ -2150,7 +2150,7 @@
 
 .career-interview-history li span,
 .career-interview-history li strong {
-  font-size: 0.72rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-interview-history time {
@@ -2192,14 +2192,14 @@
 
 .career-interview-session__header dt {
   color: var(--career-muted);
-  font-size: 0.6rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-interview-session__header dd {
   overflow: hidden;
   margin: 3px 0 0;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 0.67rem;
+  font-size: var(--co-text-xs);
   text-overflow: ellipsis;
 }
 
@@ -2233,13 +2233,13 @@
 }
 
 .career-interview-transcript li strong {
-  font-size: 0.7rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-interview-transcript li header span,
 .career-interview-transcript li small {
   color: var(--career-muted);
-  font-size: 0.62rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-interview-transcript li p {
@@ -2265,8 +2265,8 @@
 }
 
 .career-interview-answer > label {
-  font-size: 0.74rem;
-  font-weight: 760;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-interview-answer textarea {
@@ -2297,7 +2297,7 @@
 
 .career-interview-answer > div > span {
   color: var(--career-muted);
-  font-size: 0.64rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-interview-complete {
@@ -2320,7 +2320,7 @@
 }
 
 .career-interview-complete span {
-  font-size: 0.68rem;
+  font-size: var(--co-text-xs);
   line-height: 1.55;
 }
 
@@ -2348,7 +2348,7 @@
 .career-interview-review__prepare p {
   margin: 5px 0 0;
   color: var(--career-muted);
-  font-size: 0.68rem;
+  font-size: var(--co-text-xs);
   line-height: 1.6;
 }
 
@@ -2387,8 +2387,8 @@
 .career-interview-debrief-grid section > header > span {
   margin: 0;
   color: var(--career-blue);
-  font-size: 0.62rem;
-  font-weight: 760;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-interview-feedback-summary > p,
@@ -2396,7 +2396,7 @@
 .career-interview-debrief-grid section > p {
   margin: 10px 0 0;
   color: var(--career-muted);
-  font-size: 0.7rem;
+  font-size: var(--co-text-xs);
   line-height: 1.7;
 }
 
@@ -2413,7 +2413,7 @@
 .career-interview-feedback-summary li,
 .career-interview-debrief-grid li {
   color: var(--career-text);
-  font-size: 0.7rem;
+  font-size: var(--co-text-xs);
   line-height: 1.65;
 }
 
@@ -2437,7 +2437,7 @@
 }
 
 .career-interview-feedback-items li strong {
-  font-size: 0.7rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-interview-feedback-items li header span {
@@ -2445,8 +2445,8 @@
   border-radius: 999px;
   background: #eef3fa;
   color: #4e6078;
-  font-size: 0.58rem;
-  font-weight: 740;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-interview-feedback-items li header span[data-severity="warning"],
@@ -2457,7 +2457,7 @@
 
 .career-interview-feedback-items li p {
   margin: 8px 0 0;
-  font-size: 0.7rem;
+  font-size: var(--co-text-xs);
   line-height: 1.65;
 }
 
@@ -2465,7 +2465,7 @@
   display: block;
   margin-top: 6px;
   color: var(--career-muted);
-  font-size: 0.65rem;
+  font-size: var(--co-text-xs);
   line-height: 1.65;
 }
 
@@ -2481,7 +2481,7 @@
   border-left: 3px solid #a9b6c9;
   background: #f5f7fa;
   color: var(--career-muted);
-  font-size: 0.66rem;
+  font-size: var(--co-text-xs);
   line-height: 1.65;
 }
 
@@ -2513,8 +2513,8 @@
 
 .career-debrief-confirmation > header p {
   color: var(--career-blue);
-  font-size: 0.61rem;
-  font-weight: 780;
+  font-size: var(--co-text-xs);
+  font-weight: 800;
   letter-spacing: 0.04em;
 }
 
@@ -2526,7 +2526,7 @@
 .career-debrief-confirmation > header time,
 .career-debrief-decision-list small {
   color: var(--career-muted);
-  font-size: 0.61rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-debrief-confirmation__boundary {
@@ -2535,7 +2535,7 @@
   border-left: 3px solid var(--career-blue);
   background: #eef5ff;
   color: #42536b;
-  font-size: 0.67rem;
+  font-size: var(--co-text-xs);
   line-height: 1.65;
 }
 
@@ -2558,13 +2558,13 @@
 
 .career-debrief-decision-list > li > header span {
   color: var(--career-blue);
-  font-size: 0.63rem;
-  font-weight: 760;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-debrief-decision-list > li > p,
 .career-debrief-decision-result > p {
-  font-size: 0.7rem;
+  font-size: var(--co-text-xs);
   line-height: 1.65;
 }
 
@@ -2586,7 +2586,7 @@
   color: #526176;
   cursor: pointer;
   font: inherit;
-  font-size: 0.64rem;
+  font-size: var(--co-text-xs);
   font-weight: 700;
 }
 
@@ -2608,7 +2608,7 @@
 
 .career-debrief-decision-edit span {
   color: var(--career-muted);
-  font-size: 0.62rem;
+  font-size: var(--co-text-xs);
   font-weight: 700;
 }
 
@@ -2621,7 +2621,7 @@
   border-radius: 7px;
   color: var(--career-text);
   font: inherit;
-  font-size: 0.7rem;
+  font-size: var(--co-text-xs);
   line-height: 1.55;
 }
 
@@ -2632,7 +2632,7 @@
 
 .career-debrief-decision-result strong {
   color: #2f6b4f;
-  font-size: 0.66rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-debrief-decision-result > p {
@@ -2648,7 +2648,7 @@
 .career-debrief-confirmation > footer p {
   max-width: 650px;
   color: var(--career-muted);
-  font-size: 0.64rem;
+  font-size: var(--co-text-xs);
   line-height: 1.6;
 }
 
@@ -2678,8 +2678,8 @@
 .career-case-phase-placeholder p:first-child {
   margin: 0 0 7px;
   color: var(--career-amber);
-  font-size: 0.68rem;
-  font-weight: 760;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-case-phase-placeholder h2 {
@@ -2746,8 +2746,8 @@
 
 .career-workspace-heading p {
   color: var(--career-blue);
-  font-size: 0.68rem;
-  font-weight: 780;
+  font-size: var(--co-text-xs);
+  font-weight: 800;
 }
 
 .career-workspace-heading h2 {
@@ -2760,7 +2760,7 @@
   display: block;
   margin-top: 8px;
   color: var(--career-muted);
-  font-size: 0.74rem;
+  font-size: var(--co-text-xs);
   line-height: 1.65;
 }
 
@@ -2822,7 +2822,7 @@
 .career-requirement-group p {
   margin-top: 5px;
   color: var(--career-muted);
-  font-size: 0.69rem;
+  font-size: var(--co-text-xs);
   line-height: 1.55;
 }
 
@@ -2834,8 +2834,8 @@
   border-radius: 8px;
   background: #eef2f7;
   color: #526075;
-  font-size: 0.7rem;
-  font-weight: 760;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-requirement-group ul {
@@ -2905,7 +2905,7 @@
 .career-requirement-row__content small {
   overflow: hidden;
   color: var(--career-muted);
-  font-size: 0.66rem;
+  font-size: var(--co-text-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2926,14 +2926,14 @@
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.72);
   color: #687589;
-  font-size: 0.74rem;
+  font-size: var(--co-text-xs);
   font-weight: 700;
 }
 
 .career-add-question span {
   margin-left: auto;
   color: #9aa3b1;
-  font-size: 0.64rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-requirement-quote,
@@ -2957,14 +2957,14 @@
   display: block;
   margin-top: 10px;
   color: var(--career-muted);
-  font-size: 0.66rem;
+  font-size: var(--co-text-xs);
   font-style: normal;
 }
 
 .career-static-disclaimer {
   margin: 9px 0 0;
   color: var(--career-muted);
-  font-size: 0.67rem;
+  font-size: var(--co-text-xs);
   line-height: 1.55;
 }
 
@@ -2994,15 +2994,15 @@
 
 .career-inspector-empty p {
   margin: 0;
-  font-size: 0.72rem;
+  font-size: var(--co-text-xs);
   line-height: 1.65;
 }
 
 .career-inspector-empty a {
   grid-column: 2;
   color: var(--career-blue);
-  font-size: 0.71rem;
-  font-weight: 720;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-requirement-state-editor,
@@ -3015,8 +3015,8 @@
 .career-requirement-state-editor label,
 .career-question-composer {
   color: #4b576a;
-  font-size: 0.7rem;
-  font-weight: 720;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-requirement-state-editor label {
@@ -3035,7 +3035,7 @@
   background: white;
   color: var(--career-ink);
   font: inherit;
-  font-size: 0.74rem;
+  font-size: var(--co-text-xs);
   line-height: 1.55;
 }
 
@@ -3066,12 +3066,12 @@
 }
 
 .career-requirement-evidence-picker strong {
-  font-size: 0.71rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-requirement-evidence-picker small {
   color: var(--career-muted);
-  font-size: 0.68rem;
+  font-size: var(--co-text-xs);
   line-height: 1.55;
 }
 
@@ -3100,14 +3100,14 @@
 }
 
 .career-case-questions strong {
-  font-size: 0.71rem;
+  font-size: var(--co-text-xs);
   line-height: 1.5;
 }
 
 .career-case-questions span {
   flex: 0 0 auto;
   color: var(--career-muted);
-  font-size: 0.62rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-case-question-actions {
@@ -3121,8 +3121,8 @@
   border: 0;
   background: transparent;
   color: var(--career-blue);
-  font-size: 0.67rem;
-  font-weight: 720;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -3144,7 +3144,7 @@
 
 .career-revision-conflict p {
   margin: 5px 0 0;
-  font-size: 0.7rem;
+  font-size: var(--co-text-xs);
   line-height: 1.55;
 }
 
@@ -3177,13 +3177,13 @@
 
 .career-resume-toolbar p {
   color: #48566a;
-  font-size: 0.73rem;
-  font-weight: 720;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-resume-toolbar strong {
   color: var(--career-green);
-  font-size: 0.65rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-toolbar label {
@@ -3191,7 +3191,7 @@
   align-items: center;
   gap: 7px;
   color: var(--career-muted);
-  font-size: 0.66rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-toolbar select,
@@ -3210,7 +3210,7 @@
 
 .career-resume-toolbar button {
   padding: 0 11px;
-  font-size: 0.68rem;
+  font-size: var(--co-text-xs);
   font-weight: 700;
 }
 
@@ -3232,7 +3232,7 @@
 
 .career-resume-template-readonly span {
   color: var(--career-muted);
-  font-size: 0.63rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-prerequisite {
@@ -3265,8 +3265,8 @@
 
 .career-resume-prerequisite > div > p:first-child {
   color: var(--career-blue);
-  font-size: 0.68rem;
-  font-weight: 760;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-resume-prerequisite h2 {
@@ -3286,8 +3286,8 @@
   gap: 7px;
   margin-top: 18px;
   color: #465267;
-  font-size: 0.72rem;
-  font-weight: 720;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-resume-base-select select {
@@ -3340,7 +3340,7 @@
 .career-resume-rail h2,
 .career-resume-rail section > header > span {
   margin: 0;
-  font-size: 0.72rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-rail section > header > span {
@@ -3364,7 +3364,7 @@
   border-radius: 8px;
   background: white;
   color: #475467;
-  font-size: 0.69rem;
+  font-size: var(--co-text-xs);
   text-align: left;
   cursor: pointer;
 }
@@ -3397,7 +3397,7 @@
 }
 
 .career-resume-evidence-library li strong {
-  font-size: 0.69rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-preview {
@@ -3412,7 +3412,7 @@
   align-items: center;
   justify-content: space-between;
   color: #6b7687;
-  font-size: 0.68rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-sheet {
@@ -3447,12 +3447,12 @@
 .career-resume-sheet > header p {
   margin-top: 6px;
   color: #6f7886;
-  font-size: 0.62rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-sheet > header > strong {
   color: var(--career-blue-deep);
-  font-size: 0.72rem;
+  font-size: var(--co-text-xs);
   text-align: right;
 }
 
@@ -3495,18 +3495,18 @@
 }
 
 .career-resume-block__heading strong {
-  font-size: 0.73rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-block__heading small {
   color: #707989;
-  font-size: 0.59rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-block__bullet {
   position: relative;
   padding-left: 11px;
-  font-size: 0.64rem;
+  font-size: var(--co-text-xs);
   line-height: 1.65;
 }
 
@@ -3527,7 +3527,7 @@
 .career-resume-preview__note {
   margin: 12px auto 0;
   color: #788395;
-  font-size: 0.65rem;
+  font-size: var(--co-text-xs);
   text-align: center;
 }
 
@@ -3555,7 +3555,7 @@
   background: #fbfcfd;
   color: #475467;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 0.65rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-inspector__requirement {
@@ -3572,7 +3572,7 @@
 .career-resume-inspector__requirement p {
   margin: 7px 0 0;
   color: var(--career-muted);
-  font-size: 0.7rem;
+  font-size: var(--co-text-xs);
   line-height: 1.65;
 }
 
@@ -3593,8 +3593,8 @@
   border-radius: 999px;
   background: var(--career-blue-soft);
   color: var(--career-blue);
-  font-size: 0.62rem;
-  font-weight: 760;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-resume-suggestion-copy {
@@ -3606,8 +3606,8 @@
   display: grid;
   gap: 8px;
   color: #48566a;
-  font-size: 0.68rem;
-  font-weight: 720;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-suggestion-editor textarea {
@@ -3626,7 +3626,7 @@
 .career-suggestion-status {
   margin: 9px 0 0;
   color: var(--career-muted);
-  font-size: 0.66rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-suggestion-actions {
@@ -3707,7 +3707,7 @@
 
 .career-deletion-dialog > header p {
   color: #a33f3f;
-  font-size: 0.66rem;
+  font-size: var(--co-text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
 }
@@ -3731,7 +3731,7 @@
   border-radius: 9px;
   background: #fffaf1;
   color: #69533a;
-  font-size: 0.73rem;
+  font-size: var(--co-text-xs);
   line-height: 1.6;
 }
 
@@ -3791,12 +3791,12 @@
 }
 
 .career-deletion-choice strong {
-  font-size: 0.72rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-deletion-choice small {
   color: var(--career-muted);
-  font-size: 0.65rem;
+  font-size: var(--co-text-xs);
   line-height: 1.55;
 }
 
@@ -3827,15 +3827,15 @@
 
 .career-resume-assets__hero p {
   color: var(--career-green);
-  font-size: 0.7rem;
-  font-weight: 820;
+  font-size: var(--co-text-xs);
+  font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .career-resume-assets__hero h1 {
   font-family: "Songti SC", "Noto Serif CJK SC", STSong, serif;
-  font-size: clamp(2rem, 3.5vw, 3.25rem);
+  font-size: var(--co-title-lg);
   letter-spacing: -0.055em;
   line-height: 1.12;
 }
@@ -3868,7 +3868,7 @@
 }
 
 .career-resume-assets__notice span {
-  font-size: 0.74rem;
+  font-size: var(--co-text-xs);
   line-height: 1.55;
 }
 
@@ -3909,8 +3909,8 @@
 
 .career-resume-library > header p {
   color: var(--career-muted);
-  font-size: 0.64rem;
-  font-weight: 760;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
   letter-spacing: 0.08em;
 }
 
@@ -3927,8 +3927,8 @@
   border-radius: 999px;
   background: #f0f3f8;
   color: #5d687a;
-  font-size: 0.7rem;
-  font-weight: 780;
+  font-size: var(--co-text-xs);
+  font-weight: 800;
 }
 
 .career-resume-library nav {
@@ -3990,7 +3990,7 @@
 
 .career-resume-library nav small {
   color: var(--career-muted);
-  font-size: 0.66rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-library nav small.is-ready {
@@ -4003,7 +4003,7 @@
 
 .career-resume-library nav time {
   color: #8a93a2;
-  font-size: 0.62rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-library nav > a > svg {
@@ -4019,8 +4019,8 @@
   background: white;
   color: var(--career-blue-deep);
   cursor: pointer;
-  font-size: 0.7rem;
-  font-weight: 720;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-resume-library__group {
@@ -4045,7 +4045,7 @@
 
 .career-resume-library__group > header p {
   color: var(--career-muted);
-  font-size: 0.61rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-library__group > header h3 {
@@ -4055,7 +4055,7 @@
 
 .career-resume-library__group > header > span {
   color: var(--career-muted);
-  font-size: 0.7rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-library__group nav {
@@ -4064,7 +4064,7 @@
 
 .career-resume-library__empty {
   color: var(--career-muted);
-  font-size: 0.7rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-legacy-card {
@@ -4079,7 +4079,7 @@
 
 .career-resume-legacy-card__label {
   color: var(--career-amber);
-  font-size: 0.64rem;
+  font-size: var(--co-text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
 }
@@ -4095,7 +4095,7 @@
 
 .career-resume-legacy-card p {
   color: var(--career-muted);
-  font-size: 0.68rem;
+  font-size: var(--co-text-xs);
   line-height: 1.65;
 }
 
@@ -4148,7 +4148,7 @@
 .career-resume-asset-preview > header p,
 .career-resume-source-preview > header p {
   color: var(--career-green);
-  font-size: 0.64rem;
+  font-size: var(--co-text-xs);
   font-weight: 800;
   letter-spacing: 0.09em;
 }
@@ -4165,7 +4165,7 @@
   display: block;
   margin-top: 5px;
   color: var(--career-muted);
-  font-size: 0.7rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-asset-preview__status {
@@ -4174,8 +4174,8 @@
   border-radius: 999px;
   background: var(--career-green-soft);
   color: #116745;
-  font-size: 0.65rem;
-  font-weight: 760;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -4201,7 +4201,7 @@
   border-radius: 999px;
   background: #f2f4f7;
   color: #586477;
-  font-size: 0.63rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-asset-preview__document section,
@@ -4226,7 +4226,7 @@
   margin: 0;
   padding-left: 18px;
   color: #354155;
-  font-size: 0.73rem;
+  font-size: var(--co-text-xs);
   line-height: 1.75;
 }
 
@@ -4235,7 +4235,7 @@
   padding-top: 16px;
   border-top: 1px dashed #d8dee7;
   color: var(--career-muted);
-  font-size: 0.68rem;
+  font-size: var(--co-text-xs);
   line-height: 1.65;
 }
 
@@ -4270,7 +4270,7 @@
 
 .career-resume-editor__toolbar p {
   color: var(--career-green);
-  font-size: 0.62rem;
+  font-size: var(--co-text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
 }
@@ -4284,7 +4284,7 @@
 
 .career-resume-editor__toolbar > div:first-child > span {
   color: var(--career-muted);
-  font-size: 0.65rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-editor__save-actions {
@@ -4298,13 +4298,13 @@
 .career-resume-editor__save-actions > span {
   width: 100%;
   color: var(--career-muted);
-  font-size: 0.63rem;
+  font-size: var(--co-text-xs);
   text-align: right;
 }
 
 .career-resume-editor__save-actions > span.is-dirty {
   color: var(--career-amber);
-  font-weight: 760;
+  font-weight: 700;
 }
 
 .career-resume-editor__save-actions > span.is-saved {
@@ -4317,7 +4317,7 @@
   align-items: center;
   gap: 6px;
   color: var(--career-muted);
-  font-size: 0.61rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-editor__template-picker select {
@@ -4328,7 +4328,7 @@
   background: white;
   color: #344054;
   font: inherit;
-  font-weight: 680;
+  font-weight: 700;
 }
 
 .career-resume-editor__conflict {
@@ -4356,7 +4356,7 @@
 }
 
 .career-resume-editor__conflict p {
-  font-size: 0.67rem;
+  font-size: var(--co-text-xs);
   line-height: 1.55;
 }
 
@@ -4374,8 +4374,8 @@
   background: white;
   color: #754805;
   cursor: pointer;
-  font-size: 0.65rem;
-  font-weight: 720;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-resume-editor__validation {
@@ -4386,7 +4386,7 @@
   border-bottom: 1px solid #f0d7b1;
   background: #fffbf4;
   color: #8b5c16;
-  font-size: 0.67rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-editor__body {
@@ -4415,7 +4415,7 @@
 }
 
 .career-resume-editor__structure > header strong {
-  font-size: 0.73rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-editor__structure > header span {
@@ -4426,7 +4426,7 @@
   border-radius: 999px;
   background: #edf0f5;
   color: #667085;
-  font-size: 0.61rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-editor__structure ol {
@@ -4469,13 +4469,13 @@
 }
 
 .career-resume-editor__structure li > button span {
-  font-size: 0.69rem;
-  font-weight: 720;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-resume-editor__structure li > button small {
   color: var(--career-muted);
-  font-size: 0.59rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-editor__structure li > div {
@@ -4492,7 +4492,7 @@
   background: white;
   color: #566276;
   cursor: pointer;
-  font-size: 0.59rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-editor__structure button:disabled,
@@ -4507,7 +4507,7 @@
   padding-block: 8px;
   border-style: dashed;
   color: var(--career-blue-deep);
-  font-weight: 720;
+  font-weight: 700;
 }
 
 .career-resume-editor__document {
@@ -4523,7 +4523,7 @@
   gap: 12px;
   margin-bottom: 8px;
   color: #6f798a;
-  font-size: 0.59rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-editor__document > article {
@@ -4563,7 +4563,7 @@
 
 .career-resume-editor__paper.is-compact-technical .career-resume-editor__block textarea {
   padding: 7px 8px;
-  font-size: 0.65rem;
+  font-size: var(--co-text-xs);
   line-height: 1.55;
 }
 
@@ -4592,7 +4592,7 @@
   background: transparent;
   color: #1d2939;
   font-size: 0.84rem;
-  font-weight: 820;
+  font-weight: 800;
   letter-spacing: 0.05em;
 }
 
@@ -4603,7 +4603,7 @@
   background: transparent;
   color: #9a5550;
   cursor: pointer;
-  font-size: 0.58rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-editor__document > article > section > div {
@@ -4641,13 +4641,13 @@
   background: transparent;
   color: #5d6878;
   cursor: pointer;
-  font-size: 0.61rem;
-  font-weight: 720;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-resume-editor__block > header > button span {
   color: var(--career-green);
-  font-size: 0.57rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-editor__block > header > div {
@@ -4662,7 +4662,7 @@
   background: white;
   color: #667085;
   cursor: pointer;
-  font-size: 0.56rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-editor__block textarea {
@@ -4674,13 +4674,13 @@
   background: white;
   color: #344054;
   font: inherit;
-  font-size: 0.7rem;
+  font-size: var(--co-text-xs);
   line-height: 1.72;
 }
 
 .career-resume-editor__block > small {
   color: #929aa7;
-  font-size: 0.56rem;
+  font-size: var(--co-text-xs);
   text-align: right;
 }
 
@@ -4691,8 +4691,8 @@
   background: #fbfcfd;
   color: var(--career-blue-deep);
   cursor: pointer;
-  font-size: 0.63rem;
-  font-weight: 720;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-resume-editor__evidence {
@@ -4716,7 +4716,7 @@
 
 .career-resume-editor__evidence > header p {
   color: var(--career-green);
-  font-size: 0.59rem;
+  font-size: var(--co-text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
 }
@@ -4727,14 +4727,14 @@
 
 .career-resume-editor__evidence > header span {
   color: var(--career-muted);
-  font-size: 0.61rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-editor__evidence > output,
 .career-resume-editor__evidence-empty {
   padding: 15px 13px;
   color: var(--career-muted);
-  font-size: 0.65rem;
+  font-size: var(--co-text-xs);
   line-height: 1.6;
 }
 
@@ -4744,7 +4744,7 @@
 
 .career-resume-editor__evidence-empty a {
   color: var(--career-blue-deep);
-  font-weight: 720;
+  font-weight: 700;
 }
 
 .career-resume-editor__evidence ul {
@@ -4780,14 +4780,14 @@
 }
 
 .career-resume-editor__evidence li strong {
-  font-size: 0.62rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-editor__evidence li small {
   display: -webkit-box;
   overflow: hidden;
   color: var(--career-muted);
-  font-size: 0.58rem;
+  font-size: var(--co-text-xs);
   line-height: 1.45;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
@@ -4800,7 +4800,7 @@
   padding: 11px 13px;
   border-top: 1px solid var(--career-line);
   color: #596579;
-  font-size: 0.59rem;
+  font-size: var(--co-text-xs);
   line-height: 1.5;
 }
 
@@ -4846,8 +4846,8 @@
 
 .career-resume-review > header p {
   color: var(--career-blue);
-  font-size: 0.61rem;
-  font-weight: 820;
+  font-size: var(--co-text-xs);
+  font-weight: 800;
   letter-spacing: 0.08em;
 }
 
@@ -4857,7 +4857,7 @@
 
 .career-resume-review > header span {
   color: var(--career-muted);
-  font-size: 0.66rem;
+  font-size: var(--co-text-xs);
   line-height: 1.6;
 }
 
@@ -4868,7 +4868,7 @@
   border-radius: 8px;
   background: #fffbf2;
   color: #76591c;
-  font-size: 0.66rem;
+  font-size: var(--co-text-xs);
   line-height: 1.6;
 }
 
@@ -4878,7 +4878,7 @@
   align-items: center;
   gap: 7px;
   color: var(--career-muted);
-  font-size: 0.63rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-review__status > span {
@@ -4892,7 +4892,7 @@
   border-color: #c8d8f1;
   background: var(--career-blue-soft);
   color: var(--career-blue-deep);
-  font-weight: 760;
+  font-weight: 700;
 }
 
 .career-resume-review__status > span.is-completed {
@@ -4917,7 +4917,7 @@
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.78);
   color: #59677a;
-  font-size: 0.68rem;
+  font-size: var(--co-text-xs);
   line-height: 1.65;
 }
 
@@ -4978,8 +4978,8 @@
 
 .career-resume-review__suggestions > li > header span {
   color: var(--career-blue-deep);
-  font-size: 0.65rem;
-  font-weight: 760;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-resume-review__suggestions > li > header strong {
@@ -4987,7 +4987,7 @@
   border-radius: 999px;
   background: #edf5f0;
   color: #317052;
-  font-size: 0.57rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-review__suggestions > li > header > button,
@@ -4998,15 +4998,15 @@
   background: transparent;
   color: var(--career-blue);
   cursor: pointer;
-  font-size: 0.61rem;
-  font-weight: 720;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-resume-review__reason,
 .career-resume-review__evidence-copy {
   margin: 0;
   color: #5a6679;
-  font-size: 0.64rem;
+  font-size: var(--co-text-xs);
   line-height: 1.65;
 }
 
@@ -5034,14 +5034,14 @@
   display: block;
   margin-bottom: 6px;
   color: var(--career-muted);
-  font-size: 0.56rem;
-  font-weight: 760;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-resume-review__comparison p {
   margin: 0;
   color: #344054;
-  font-size: 0.65rem;
+  font-size: var(--co-text-xs);
   line-height: 1.65;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
@@ -5064,7 +5064,7 @@
 .career-resume-review__decision-draft .career-button {
   min-height: 34px;
   padding: 7px 10px;
-  font-size: 0.62rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-review__decision-draft {
@@ -5079,7 +5079,7 @@
 .career-resume-review__decision-draft p {
   margin: 0;
   color: #4c5a70;
-  font-size: 0.65rem;
+  font-size: var(--co-text-xs);
   line-height: 1.6;
 }
 
@@ -5087,8 +5087,8 @@
   display: grid;
   gap: 6px;
   color: #46546a;
-  font-size: 0.64rem;
-  font-weight: 720;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-resume-review__decision-draft textarea {
@@ -5100,13 +5100,13 @@
   background: white;
   color: var(--career-ink);
   font: inherit;
-  font-size: 0.66rem;
+  font-size: var(--co-text-xs);
   line-height: 1.65;
 }
 
 .career-resume-review__decision-draft small {
   color: var(--career-muted);
-  font-size: 0.56rem;
+  font-size: var(--co-text-xs);
   text-align: right;
 }
 
@@ -5118,7 +5118,7 @@
   border-radius: 8px;
   background: #eef8f2;
   color: #32664c;
-  font-size: 0.61rem;
+  font-size: var(--co-text-xs);
   line-height: 1.55;
 }
 
@@ -5135,7 +5135,7 @@
 
 .career-resume-review__findings h4 {
   margin: 0;
-  font-size: 0.71rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-review__findings ul {
@@ -5152,7 +5152,7 @@
   align-items: start;
   gap: 9px;
   color: #5b6778;
-  font-size: 0.63rem;
+  font-size: var(--co-text-xs);
   line-height: 1.55;
 }
 
@@ -5543,7 +5543,7 @@
   .career-case-progress li {
     flex-direction: column;
     gap: 5px;
-    font-size: 0.61rem;
+    font-size: var(--co-text-xs);
   }
 
   .career-case-progress li:not(:last-child)::after {
@@ -6642,7 +6642,7 @@
   border-radius: 8px;
   background: white;
   color: inherit;
-  font-weight: 720;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -6773,8 +6773,8 @@
 .career-today-stage-summary span {
   overflow: hidden;
   color: var(--career-muted);
-  font-size: 0.69rem;
-  font-weight: 720;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -6786,7 +6786,7 @@
 
 .career-today-task__action {
   color: var(--career-blue) !important;
-  font-weight: 730;
+  font-weight: 700;
 }
 
 .career-application-confirmation__check:focus {
@@ -6813,7 +6813,7 @@
 
 .career-interview-surface-heading p {
   color: var(--career-blue);
-  font-size: 0.64rem;
+  font-size: var(--co-text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
 }
@@ -6832,7 +6832,7 @@
   max-width: 700px;
   margin-top: 7px;
   color: var(--career-muted);
-  font-size: 0.72rem;
+  font-size: var(--co-text-xs);
   line-height: 1.65;
 }
 
@@ -6849,8 +6849,8 @@
   min-width: 76px;
   padding: 9px 13px;
   color: #566277;
-  font-size: 0.69rem;
-  font-weight: 740;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
   text-align: center;
   text-decoration: none;
 }
@@ -6882,8 +6882,8 @@
   padding: 12px 14px;
   color: var(--career-blue-deep);
   cursor: pointer;
-  font-size: 0.7rem;
-  font-weight: 740;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-interview-source-transcript[open] > summary {
@@ -6913,7 +6913,7 @@
   max-width: 680px;
   margin: 5px 0 0;
   color: var(--career-muted);
-  font-size: 0.69rem;
+  font-size: var(--co-text-xs);
   line-height: 1.6;
 }
 
@@ -6926,7 +6926,7 @@
   border-radius: 10px;
   background: #f3faf5;
   color: #2f6b4f;
-  font-size: 0.72rem;
+  font-size: var(--co-text-xs);
   line-height: 1.55;
 }
 
@@ -6988,7 +6988,7 @@
 
 .career-deletion-status__card > div > p:first-child {
   color: var(--career-blue);
-  font-size: 0.65rem;
+  font-size: var(--co-text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
 }
@@ -7022,12 +7022,12 @@
 
 .career-deletion-status__card dt {
   color: var(--career-muted);
-  font-size: 0.61rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-deletion-status__card dd {
   margin-top: 3px;
-  font-size: 0.7rem;
+  font-size: var(--co-text-xs);
   font-weight: 700;
 }
 
@@ -7045,7 +7045,7 @@
 .career-deletion-status__boundary strong,
 .career-deletion-status__boundary span {
   display: block;
-  font-size: 0.71rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-deletion-status__boundary span {
@@ -7085,6 +7085,25 @@
   padding: 22px;
 }
 
+.career-legacy-tailoring > .product-hero h1 {
+  font-size: var(--co-title-lg);
+}
+
+.career-os
+  :where(
+    .button,
+    .text-link,
+    .full-field,
+    .form-grid > label,
+    .file-drop,
+    .filter-more summary,
+    .consent-row,
+    .redacted-preview summary,
+    .inline-options legend
+  ) {
+  font-weight: 700;
+}
+
 .career-legacy-tailoring > .product-callout {
   padding: 16px 18px;
 }
@@ -7105,6 +7124,11 @@
 .career-legacy-tailoring .tailoring-segment > div,
 .career-legacy-tailoring > .product-panel {
   padding: 18px;
+}
+
+.career-legacy-tailoring .tailoring-segment > header div > span,
+.career-legacy-tailoring .segment-status {
+  font-size: var(--co-text-xs);
 }
 
 .career-legacy-tailoring textarea {
@@ -7555,7 +7579,9 @@
   border: 1px solid var(--co-border);
   border-radius: var(--co-radius-md);
   background: var(--co-surface);
-  transition: border-color 140ms ease, box-shadow 140ms ease;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
 }
 
 .career-job-card:hover,
@@ -7757,7 +7783,7 @@
   max-width: 28ch;
   margin: 0;
   font-family: var(--co-font-sans);
-  font-size: 34px;
+  font-size: var(--co-title-lg);
   font-weight: 800;
   letter-spacing: 0;
   line-height: 1.25;
@@ -8072,7 +8098,9 @@
   border: 1px solid var(--co-border);
   border-radius: var(--co-radius-md);
   background: var(--co-surface);
-  transition: border-color 140ms ease, box-shadow 140ms ease;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
 }
 
 .career-recommendation-card__identity > span.is-explicit_evidence {
@@ -9493,7 +9521,7 @@
   color: var(--co-action);
   cursor: pointer;
   font-size: var(--co-text-xs);
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .career-case-match {
@@ -9526,7 +9554,7 @@
 .career-case-match > header p {
   color: var(--co-action);
   font-size: var(--co-text-xs);
-  font-weight: 760;
+  font-weight: 700;
 }
 
 .career-case-match > header h2 {
@@ -9789,7 +9817,7 @@
 .career-version-dialog > header p {
   color: var(--co-action);
   font-size: var(--co-text-xs);
-  font-weight: 760;
+  font-weight: 700;
 }
 
 .career-version-dialog > header h2 {
@@ -9985,9 +10013,7 @@
 }
 
 .career-resume-editor__toolbar {
-  background:
-    linear-gradient(90deg, rgba(47, 93, 168, 0.035), transparent 42%),
-    var(--co-surface);
+  background: linear-gradient(90deg, rgba(47, 93, 168, 0.035), transparent 42%), var(--co-surface);
 }
 
 .career-resume-editor__mode-switch {
@@ -10008,7 +10034,7 @@
   cursor: pointer;
   font: inherit;
   font-size: 0.78rem;
-  font-weight: 760;
+  font-weight: 700;
 }
 
 .career-resume-editor__mode-switch button[aria-pressed="true"] {
@@ -10070,7 +10096,7 @@
 
 .career-resume-editor__versions p {
   color: var(--co-text-muted);
-  font-size: 0.6rem;
+  font-size: var(--co-text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -10088,8 +10114,8 @@
   border-radius: 999px;
   background: #edf1f6;
   color: var(--co-text-muted);
-  font-size: 0.61rem;
-  font-weight: 760;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-resume-editor__versions dl {
@@ -10109,12 +10135,12 @@
   border-radius: 7px;
   background: white;
   color: var(--co-text-muted);
-  font-size: 0.63rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-editor__versions dd {
   color: var(--co-text);
-  font-weight: 760;
+  font-weight: 700;
 }
 
 .career-resume-editor__versions details {
@@ -10124,8 +10150,8 @@
 .career-resume-editor__versions summary {
   color: var(--co-accent-strong);
   cursor: pointer;
-  font-size: 0.64rem;
-  font-weight: 730;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-resume-editor__versions ol {
@@ -10142,7 +10168,7 @@
   justify-content: space-between;
   gap: 7px;
   color: var(--co-text-muted);
-  font-size: 0.6rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-editor__versions time {
@@ -10162,9 +10188,7 @@
 .career-resume-editor__document {
   min-height: 720px;
   padding: 18px clamp(10px, 2vw, 28px) 36px;
-  background:
-    radial-gradient(circle at 50% 0, rgba(255, 255, 255, 0.72), transparent 36%),
-    #eef1f5;
+  background: radial-gradient(circle at 50% 0, rgba(255, 255, 255, 0.72), transparent 36%), #eef1f5;
 }
 
 .career-resume-editor__document > article {
@@ -10206,12 +10230,12 @@
 }
 
 .career-resume-review__composer strong {
-  font-size: 0.72rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-review__composer > div:first-child span {
   color: var(--co-text-muted);
-  font-size: 0.62rem;
+  font-size: var(--co-text-xs);
   line-height: 1.55;
 }
 
@@ -10243,12 +10267,12 @@
 }
 
 .career-resume-review__consent strong {
-  font-size: 0.64rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-review__consent small {
   color: var(--co-text-muted);
-  font-size: 0.58rem;
+  font-size: var(--co-text-xs);
   line-height: 1.5;
 }
 
@@ -10280,13 +10304,13 @@
 
 .career-resume-review__requirements > header p {
   color: var(--co-positive);
-  font-size: 0.57rem;
+  font-size: var(--co-text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
 }
 
 .career-resume-review__requirements > header strong {
-  font-size: 0.73rem;
+  font-size: var(--co-text-xs);
 }
 
 .career-resume-review__requirements > header > span {
@@ -10297,8 +10321,8 @@
   border-radius: 999px;
   background: #edf4ef;
   color: var(--co-positive);
-  font-size: 0.61rem;
-  font-weight: 760;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-resume-review__requirements ol {
@@ -10336,14 +10360,14 @@
 
 .career-resume-review__requirements li > button span {
   color: var(--co-text-muted);
-  font-size: 0.57rem;
-  font-weight: 720;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-resume-review__requirements li > button strong {
   overflow-wrap: anywhere;
-  font-size: 0.64rem;
-  font-weight: 660;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
   line-height: 1.55;
 }
 
@@ -10352,7 +10376,7 @@
   display: block;
   padding: 13px;
   color: var(--co-text-muted);
-  font-size: 0.63rem;
+  font-size: var(--co-text-xs);
   line-height: 1.6;
 }
 
@@ -10377,8 +10401,8 @@
 
 .career-resume-review__requirement-refs > span {
   color: var(--co-text-muted);
-  font-size: 0.57rem;
-  font-weight: 760;
+  font-size: var(--co-text-xs);
+  font-weight: 700;
 }
 
 .career-resume-review__requirement-refs > div {
@@ -10394,7 +10418,7 @@
   color: var(--co-accent-strong);
   cursor: pointer;
   font: inherit;
-  font-size: 0.59rem;
+  font-size: var(--co-text-xs);
   line-height: 1.5;
   overflow-wrap: anywhere;
   text-align: left;
@@ -10402,7 +10426,7 @@
 
 .career-resume-review__requirement-refs small {
   color: var(--co-text-muted);
-  font-size: 0.59rem;
+  font-size: var(--co-text-xs);
   line-height: 1.5;
 }
 
@@ -10435,7 +10459,7 @@
 
 .career-resume-draft-guard > p:first-child {
   color: var(--co-danger);
-  font-size: 0.65rem;
+  font-size: var(--co-text-xs);
   font-weight: 800;
   letter-spacing: 0.08em;
 }

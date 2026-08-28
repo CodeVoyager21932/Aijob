@@ -16,10 +16,13 @@ function assert(condition, message) {
   if (!condition) throw new Error(`M1_BROWSER_ASSERTION_FAILED: ${message}`);
 }
 
-async function seedCatalog(client) {
+async function seedCatalog(client, options = {}) {
+  const title = options.title || publicTitle;
+  const companyName = options.companyName || "M1 合成科技";
+  const sourceName = options.sourceName || "M1 合成企业招聘官网";
   const existing = await client.query(
     "SELECT published_job_id FROM catalog.published_job_versions WHERE title = $1 LIMIT 1",
-    [publicTitle],
+    [title],
   );
   if (existing.rows[0]) return existing.rows[0].published_job_id;
 
@@ -79,13 +82,13 @@ async function seedCatalog(client) {
   try {
     await client.query(
       "INSERT INTO source_control.organizations (id, slug, name, official_domain) VALUES ($1, $2, $3, $4)",
-      [organizationId, `m1-${organizationId}`, "M1 合成科技", "m1.example.test"],
+      [organizationId, `m1-${organizationId}`, companyName, "m1.example.test"],
     );
     await client.query(
       `INSERT INTO source_control.sources
         (id, organization_id, source_candidate_id, source_key, source_type, name, current_policy_version)
        VALUES ($1, $2, NULL, $3, 'organization_career_site', $4, 1)`,
-      [sourceId, organizationId, `m1-browser-${sourceId}`, "M1 合成企业招聘官网"],
+      [sourceId, organizationId, `m1-browser-${sourceId}`, sourceName],
     );
     await client.query(
       `INSERT INTO source_control.source_policy_versions
@@ -127,8 +130,8 @@ async function seedCatalog(client) {
         revisionId,
         recordId,
         "1".repeat(64),
-        "M1 合成科技",
-        publicTitle,
+        companyName,
+        title,
         JSON.stringify({
           state: "known",
           value: "product",
@@ -164,8 +167,8 @@ async function seedCatalog(client) {
         jobId,
         revisionId,
         "2".repeat(64),
-        "M1 合成科技",
-        publicTitle,
+        companyName,
+        title,
         JSON.stringify({
           state: "known",
           value: "product",
@@ -236,6 +239,16 @@ async function seedBaseResume(client, caseId) {
   const sectionId = randomUUID();
   const blockId = randomUUID();
   const evidenceId = "m1-evidence-product-research";
+  const contentRevisionResult = await client.query(
+    "SELECT COALESCE(MAX(revision), 0)::integer + 1 AS revision FROM profile.resume_document_revisions WHERE owner_id = $1",
+    [owner.id],
+  );
+  const evidenceRevisionResult = await client.query(
+    "SELECT COALESCE(MAX(revision), 0)::integer + 1 AS revision FROM profile.resume_evidence_revisions WHERE owner_id = $1",
+    [owner.id],
+  );
+  const contentRevision = contentRevisionResult.rows[0].revision;
+  const evidenceRevision = evidenceRevisionResult.rows[0].revision;
   const content = [
     {
       id: sectionId,
@@ -279,20 +292,35 @@ async function seedBaseResume(client, caseId) {
     );
     await client.query(
       `INSERT INTO profile.resume_document_revisions
-        (id, owner_id, owner_epoch, resume_analysis_id, revision, base_revision,
-         schema_version, sections, content_hash, confirmed_at, document_id,
-         document_revision, base_document_revision_id)
-       VALUES ($1, $2, $3, NULL, 1, NULL, 'resume-content-v1', $4::jsonb,
-         $5, now(), $6, 1, NULL)`,
-      [revisionId, owner.id, owner.epoch, JSON.stringify(content), "5".repeat(64), documentId],
+         (id, owner_id, owner_epoch, resume_analysis_id, revision, base_revision,
+          schema_version, sections, content_hash, confirmed_at, document_id,
+          document_revision, base_document_revision_id)
+        VALUES ($1, $2, $3, NULL, $4, NULL, 'resume-content-v1', $5::jsonb,
+          $6, now(), $7, 1, NULL)`,
+      [
+        revisionId,
+        owner.id,
+        owner.epoch,
+        contentRevision,
+        JSON.stringify(content),
+        "5".repeat(64),
+        documentId,
+      ],
     );
     await client.query(
       `INSERT INTO profile.resume_evidence_revisions
-        (id, owner_id, owner_epoch, resume_analysis_id, revision, base_revision,
-         evidence, content_hash, confirmed_at, schema_version, document_revision_id)
-       VALUES ($1, $2, $3, NULL, 1, NULL, $4::jsonb, $5, now(),
-         'resume-evidence-v1', NULL)`,
-      [evidenceRevisionId, owner.id, owner.epoch, JSON.stringify(evidence), "6".repeat(64)],
+         (id, owner_id, owner_epoch, resume_analysis_id, revision, base_revision,
+          evidence, content_hash, confirmed_at, schema_version, document_revision_id)
+        VALUES ($1, $2, $3, NULL, $4, NULL, $5::jsonb, $6, now(),
+          'resume-evidence-v1', NULL)`,
+      [
+        evidenceRevisionId,
+        owner.id,
+        owner.epoch,
+        evidenceRevision,
+        JSON.stringify(evidence),
+        "6".repeat(64),
+      ],
     );
     await client.query(
       "UPDATE profile.resume_documents SET current_content_revision_id = $2 WHERE id = $1",

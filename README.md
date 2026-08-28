@@ -1,6 +1,6 @@
 # Aijob：可信官方岗位驱动的求职 OS
 
-> 2026-08-28：M1–M4、PA-1、UX-0 与 OS-1–OS-6 已完成。当前执行[Career OS 前后端同步改进计划](docs/plans/career-os-current-delivery-plan.md)：OS-6 已同步关闭今日任务、显式投递、模板面试、复盘确认与回流、选择性/全部删除、兼容 URL、运行时响应校验和四视口 Gate。下一候选切片是 OS-7 系统总 Gate，尚未实施，等待 coco 指令；真实邮件、解析镜像、服务器、供给和参与者 Gate 仍未通过。
+> 2026-08-28：M1–M4、PA-1、UX-0 与 OS-1–OS-6 已完成。OS-7 系统总 Gate 已开始并按 coco 指令暂停：runtime schema、视觉 token、旧页面 scoped 融合和双库 runner 已形成，但修复后的完整浏览器 Gate、全仓工程 Gate 与 acceptance 尚未完成。当前以[OS-7 暂停检查点](docs/evidence/product/career-os-v2/os-7-system-gate-checkpoint-2026-08-28.md)和[current handoff](docs/handoffs/current.md)为准；真实邮件、解析镜像、服务器、供给和参与者 Gate 仍未通过。
 
 这是一个待验证的产品项目，面向**未来 30 天真实投递实习岗位、已有中文简历、近期使用过多个官方渠道的中国大陆在校生**。它只把企业官方招聘网站和经企业官网确认的官方 ATS 中当前存在的具体岗位整理为可追溯信息；高校就业网站、政府页面、公众号和其他二手页面只用于发现企业及其官网方向。系统依据用户确认过的约束与经历证据，帮助用户完成投递、暂缓或放弃的高质量决定，最终回到企业官网或官方 ATS 投递。
 
@@ -11,7 +11,7 @@
 | 项目 | 当前值 |
 |---|---|
 | 快照日期 | 2026-08-28 |
-| 当前阶段 | Career OS 前后端同步改进；UX-0 与 OS-1–OS-6 五项 Gate 已关闭，OS-7 系统总 Gate 是下一候选切片且尚未实施。M1–M4 与 PA-1 保留为工程基线，真实邮件、解析镜像与服务器 Gate 通过前，G0/G1 继续暂停 |
+| 当前阶段 | Career OS 前后端同步改进；UX-0 与 OS-1–OS-6 五项 Gate 已关闭，OS-7 系统总 Gate 进行中暂停，五项状态尚未全部通过。M1–M4 与 PA-1 保留为工程基线，真实邮件、解析镜像与服务器 Gate 通过前，G0/G1 继续暂停 |
 | 当前范围 | 干净验收库 `aijob_alpha` 为 22 条可信可见活动岗位、3 家企业、3 个官方 ATS 来源；距离硬门槛仍缺 978 岗、97 家。SME 为 2/3 家、14/22 岗，人工来源为 0；Alpha 与公共岗位均为 0。开发库 14/2 及纠偏前 231/149/29 只保留为历史运行事实 |
 | 协议校准 | 尚未开始；供给硬门槛和服务器就绪 Gate 通过后，只有 coco 明确启动才做 2 人校准；历史可核验记录仍为 0/2 |
 | 正式实验 | 暂停；供给硬门槛、服务器就绪 Gate 与 G0 通过后再做 6 人正式任务和 72 小时回访 |
@@ -19,7 +19,7 @@
 | 当前证据 | E0：尚无可复核目标用户行为证据，两个产品假设均未判定 |
 | 当前实现策略 | 不默认后端已匹配，也不无依据重做。UX-0 已把每个用户动作绑定到 Contracts、Platform 模块、PostgreSQL 事实、权限/并发/删除语义和真实测试；OS-1–OS-6 已按纵向切片同步修改 Platform 与 Web，并在触达边界补齐运行时契约。三张概念图作为布局、信息层级和交互关系的高保真目标；Recommendation、Insights、申请看板、Case 固定版本三轴核对、Resume Review、显式投递、模板面试、复盘和数据控制已从规范路径可用；不因此启动真实 Alpha |
 | 来源发现进度 | 已按 ADR-0019 完成 1000/1000 家企业/机构审查记录；34 个来源配置中 12 个为 canonical（7 个活动确定性、2 个浏览器提醒、3 个硬冲突暂停），22 个高校等来源均降级为 `discovery_only`。当前审计没有 `capacity` 就绪候选 |
-| 工程切片 | OS-6 最终回归 Config 20、Contracts 86、Database 54、Platform 466、Web 175，共 801/801；lint 483 files、typecheck、build、audit 与 diff check 通过。主包 401.31 kB（gzip 117.03 kB）；Resume Editor 38.32 kB、Interview 30.24 kB、数据设置 13.84 kB、删除回执 3.81 kB 保持 lazy load。显式投递、面试 revision 冲突、`debrief_confirmed` 事件、选择性/全部删除和删除后无 session bootstrap 已端到端关闭；OS-7 尚未实施。真实邮件/解析镜像/服务器、真实 AI 与真实来源同样未实施，公共版本仍为 0 |
+| 工程切片 | 可信完成基线仍为 OS-6：Config 20、Contracts 86、Database 54、Platform 466、Web 175，共 801/801；lint 483 files、typecheck、build、audit 与 diff check 通过。OS-7 当前局部 Web 180/180、视觉契约 4/4 和 typecheck 通过，但最终双库浏览器 Gate、全仓 Gate、构建包体和 acceptance 未完成；不能覆盖 OS-6 基线或冒充 OS-7 通过。真实邮件/解析镜像/服务器、真实 AI 与真实来源同样未实施，公共版本仍为 0 |
 | AI 状态 | Review、Interview、Feedback 与 Debrief 均必须与用户确认事实分离；公开环境继续关闭，M4 沿用确定性模板，不调用真实 AI |
 
 以上内容只用于帮助首次阅读者定位本次文档基线。后续动态阶段、样本进度、Gate 状态和下一决策日期只更新到 [MVP 路线与当前决策面板](docs/06-mvp-roadmap.md)；如有差异，以该面板为准。

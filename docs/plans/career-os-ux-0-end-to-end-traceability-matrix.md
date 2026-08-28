@@ -1,10 +1,12 @@
 # UX-0 页面—系统—证据追踪矩阵
 
-> 状态：Accepted baseline / UX-0 已完成代码反证、Review 兼容核验与四视口当前运行基线；OS-1–OS-6 触达行已关闭，后续只剩 OS-7 系统总 Gate
+> 状态：Accepted baseline / UX-0 已完成代码反证、Review 兼容核验与四视口当前运行基线；OS-1–OS-6 触达行已关闭，OS-7 系统总 Gate 进行中暂停
 >
 > 基线日期：2026-08-13；后续关闭更新：2026-08-28
 
 > 后续关闭记录：OS-1 已完成唯一 WorkspaceShell、访问/session、统一 overlay/focus 与运行时响应基础；OS-2 已完成规范岗位目录/详情、服务器派生推荐、市场洞察、简历导入/确认、Case 创建、URL 恢复及对应 owner/session/runtime schema Gate；OS-3 已完成 Case list/board 完整集合、Peek、显式阶段命令、owner/404/409/session 与四视口 Gate；OS-4 已完成固定版本 Case match state/create、`case_pinned` Worker、岗位版本 diff/显式升级、Requirements 深链与对应竞态/四视口 Gate；OS-5 已完成三栏 Resume Studio、Review v1/v2 expand、固定 requirement/evidence 引用、唯一新写入、草稿/409/session、DOCX/打印与四视口 Gate；OS-6 已完成今日单一 Board read model、显式投递、模板面试、复盘确认事件与回流、选择性/全部删除、删除回执/session 边界、旧 Tailoring 只读和四视口 Gate。见 [OS-1 验收证据](../evidence/product/career-os-v2/os-1-system-shell-and-runtime-contract-acceptance-2026-08-13.md)、[OS-2 验收证据](../evidence/product/career-os-v2/os-2-profile-and-trusted-job-entry-acceptance-2026-08-13.md)、[OS-3 验收证据](../evidence/product/career-os-v2/os-3-application-board-and-case-command-acceptance-2026-08-14.md)、[OS-4 验收证据](../evidence/product/career-os-v2/os-4-case-decision-and-pinned-match-acceptance-2026-08-14.md)、[OS-5 验收证据](../evidence/product/career-os-v2/os-5-resume-studio-and-review-v2-acceptance-2026-08-16.md)与 [OS-6 验收证据](../evidence/product/career-os-v2/os-6-application-interview-debrief-data-control-acceptance-2026-08-28.md)。下表的 UX-0 审计时点反证保留历史事实，不能据此把已关闭的 OS-1–OS-6 重新生成成任务。
+>
+> OS-7 已补齐剩余 Web runtime schema、视觉字号/字重守门和双库总 runner；修复后的完整 runner、全仓工程 Gate 与 acceptance 尚未运行。当前只记录[暂停检查点](../evidence/product/career-os-v2/os-7-system-gate-checkpoint-2026-08-28.md)，不得把矩阵状态提升为关闭。
 >
 > 本矩阵是[当前交付计划](career-os-current-delivery-plan.md)的 UX-0 工作产物，不生成新的任务顺序。稳定规则见[端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)。
 

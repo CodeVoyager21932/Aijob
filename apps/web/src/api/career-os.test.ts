@@ -11,6 +11,8 @@ import {
   createCaseMatchRun,
   getApplicationCaseRequirements,
   getCareerDataScope,
+  getCareerOsEvidence,
+  getCareerOsEvidenceRevision,
   getCurrentResumeReview,
   getInterviewSession,
   interviewSessionListPath,
@@ -198,6 +200,27 @@ describe("Career OS API paths", () => {
       })) as typeof fetch;
     try {
       await expect(getApplicationCaseRequirements(randomUUID())).rejects.toMatchObject({
+        status: 502,
+        code: "INVALID_API_RESPONSE",
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("rejects malformed current and pinned evidence responses at the OS-7 boundary", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ revision: 1, evidence: "not-an-array" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })) as typeof fetch;
+    try {
+      await expect(getCareerOsEvidence()).rejects.toMatchObject({
+        status: 502,
+        code: "INVALID_API_RESPONSE",
+      });
+      await expect(getCareerOsEvidenceRevision(randomUUID())).rejects.toMatchObject({
         status: 502,
         code: "INVALID_API_RESPONSE",
       });
