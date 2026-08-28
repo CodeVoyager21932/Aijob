@@ -1,4 +1,4 @@
-# 当前项目交接：OS-7 已完成，等待下一条轨道授权
+# 当前项目交接：供给准入扩容轨道（SA Track）阶段 0 进行中
 
 > 交接日期：2026-08-28
 >
@@ -8,7 +8,9 @@
 
 动态事实源：[MVP 路线图](../06-mvp-roadmap.md)
 
-当前执行计划：[Career OS 前后端同步改进计划](../plans/career-os-current-delivery-plan.md)（已收敛，无进行中切片）
+当前执行计划：[供给准入扩容轨道（SA Track）](../plans/supply-admission-scaleup-track.md)（进行中，阶段 0）
+
+上一轨道计划：[Career OS 前后端同步改进计划](../plans/career-os-current-delivery-plan.md)（已收敛，OS-1–OS-7 全部关闭）
 
 稳定实施契约：[Career OS 端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)
 
@@ -28,11 +30,13 @@
 
 ## 1. 当前决定
 
-**OS-7 已完成，UX-0 与 OS-1–OS-7 全部关闭，Career OS 前后端同步改进阶段收敛结束。**
+**OS-7 已完成（UX-0 与 OS-1–OS-7 全部关闭）。coco 于 2026-08-28 选择「供给准入扩容」为下一条轨道，SA Track 现为当前进行中切片，位于阶段 0（不触网）。**
 
-当前**没有进行中的工程切片**。下一步不由本文件或任何历史计划自动生成：需要 coco 在“供给准入扩容”与“服务器就绪”之间明确选择一条轨道。两者都是 G0/G1 的前置条件。
+当前唯一目标：按 [供给准入扩容轨道计划](../plans/supply-admission-scaleup-track.md) 执行阶段 0——产出首批待评估候选清单并跑离线 `source:assess`。
 
-不得自动进入 Private Alpha、不得自行启动供给扩容或服务器工作、不得从 [Private Alpha 就绪 Gate](../plans/private-alpha-readiness-gates.md) 生成任务。
+**进入阶段 1 的任何触网评估（`source:probe` / `source:refresh-now --confirm-live`）前，须 coco 逐批明确 live 授权。** 不得自动进入 Private Alpha、不得启动服务器就绪工作、不得从 [Private Alpha 就绪 Gate](../plans/private-alpha-readiness-gates.md) 生成任务。
+
+产品阶段未变：产品证据仍为 **E0**，可信供给仍为 **22 岗 / 3 家企业 / 3 官方 ATS**。飞书线索表与本轮提取的 389 域名清单只是发现线索，不构成供给证据。
 
 ## 2. 五项状态
 
@@ -59,13 +63,12 @@
 
 `apps/web/src/styles.css` **未修改**，因此 `VITE_CAREER_OS_V2=false` 回退外观完全不变。
 
-## 4. 下一任务接手要点
+## 4. 下一任务接手要点（SA Track）
 
-无论 coco 选择哪条轨道，先做这几件事：
-
-1. 依次读取 `AGENTS.md`、README、路线图、本交接、计划索引、稳定契约与 OS-7 验收证据。
-2. `git fetch` 核对分支/远端/工作树，核对 3000、3001、5173、5174、5175、5432 未监听、无 aijob 容器残留。
-3. 确认新轨道有独立计划与验收标准后再动手；不复用 OS-1–OS-7 的切片模板去做供给或服务器工作。
+1. 依次读取 `AGENTS.md`、README、路线图、本交接、[SA Track 计划](../plans/supply-admission-scaleup-track.md)、Private Alpha 就绪 Gate 与相关 ADR（0026/0027/0028）。
+2. `git fetch` 核对分支/远端/工作树；`codex/g2-1000-alpha-supply`（capacity 感知规划、可复用 ATS 来源族、Private Alpha 信任边界）已完整合入本分支（`merge-base` 即其 tip，left/right = 80/0），无撞车风险；其 worktree 的未提交改动属于 coco，不动。
+3. 执行 SA Track 阶段 0（不触网）：产出首批待评估候选清单 + 离线 `source:assess`。
+4. **任何触网评估须 coco 逐批 live 授权**；不复用 OS-1–OS-7 切片模板，不启动服务器就绪工作。
 
 ## 5. 复现浏览器 Gate 所需的环境事实
 

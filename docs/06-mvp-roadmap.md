@@ -26,7 +26,9 @@
 - OS-6 使用全新隔离 PostgreSQL、loopback Platform/Web、合成岗位/owner/简历/证据和确定性模板完成 1536/1280/768/320 Gate；没有访问真实招聘来源、真实 AI、邮件或服务器。精确测试库、临时运行内容和服务已清理，3000、5173、5174、5432 均未监听；Windows 执行策略拒绝删除 19 个已核验为空的临时目录壳，其中没有文件、数据或进程。
 - `OS-7 系统总 Gate` 已完成五项状态：满态库 + 真实空库的 `os7-browser-gate.cjs` 8 个 step 全过并输出 `passed: true`，其中 step 7（空库空态）与 step 8（flag-off 与 manifest 数据库断言）为历史首次执行到并通过。Gate 修复了 4 项真实 Web 缺陷，包括旧 hero 标题上限规则因特异性不足**一直未生效**（旧 `.product-app .product-hero:not(...) h1` 在 1280px 为 58.88px）。全仓 808/808、lint 485 files、typecheck、build（主包 401.33 kB，上限 411.31 kB）、audit 与 diff check 通过。见 [OS-7 验收证据](evidence/product/career-os-v2/os-7-system-gate-acceptance-2026-08-28.md)。
 - OS-7 过程中发现一处**预先存在**的 typecheck 缺陷（`apps/platform/src/resume-documents/routes.integration.test.ts`）。已用 `git diff e56ceae` 证明该文件与 `tsconfig.base.json` 与 OS-6 基线逐字节相同，因此 OS-6 记录的“typecheck 通过”对该文件并不成立；已修复并明确登记，不抹去该缺口。
-- 当前决定为**OS-7 已完成，Career OS 前后端同步改进阶段收敛结束**。不自动进入 Private Alpha 准备：供给、来源持续性、服务器与参与者条件全部未满足，下一条轨道由 coco 明确授权后才启动。
+- 当前决定为**OS-7 已完成，Career OS 前后端同步改进阶段收敛结束**；coco 于 2026-08-28 选择「供给准入扩容」为下一条轨道。执行按 [供给准入扩容轨道计划](plans/supply-admission-scaleup-track.md)，当前处于阶段 0（不触网）。
+- SA Track 阶段 0 之后的任何触网评估（`source:probe` / `source:refresh-now --confirm-live`）须 coco 逐批 live 授权；不自动进入 Private Alpha，不启动服务器就绪或参与者工作。
+- 本轮以本机只读审计确认真实瓶颈：34 个来源配置全部 `accessPolicyAccepted=fail`、0 个 `approved`、0 个 `publicationAllowed`；候选审计 capacity 就绪数为 0。瓶颈是准入证据补齐，不是缺候选企业。
 - 原 M0–M4/PA-1 当前交付计划和交接已移入归档。历史 Phase 2、M2/M3/M4 审计、R2 和 G2 计划均不得生成当前任务。
 
 ## 2. 当前快照
@@ -34,8 +36,8 @@
 | 项目 | 当前事实 |
 |---|---|
 | 更新日期 | 2026-08-28 |
-| 当前阶段 | Career OS 前后端同步改进已收敛：UX-0 与 OS-1–OS-7 全部关闭 |
-| 当前唯一目标 | 无进行中的工程切片。等待 coco 在“供给准入扩容”与“服务器就绪”之间明确选择下一条轨道；不从 Private Alpha Gate 或历史计划自动生成任务 |
+| 当前阶段 | 供给准入扩容轨道（SA Track）进行中，阶段 0（不触网）；上一轨道 UX-0 与 OS-1–OS-7 已关闭 |
+| 当前唯一目标 | SA Track 阶段 0：产出首批待评估候选清单并跑离线 `source:assess`。进入阶段 1 的触网评估须 coco 逐批 live 授权 |
 | 当前分支 | `codex/career-os-ux-convergence`；精确 HEAD 与工作树以 Git 为准 |
 | 工程基线 | 可信完成基线为 OS-7：Config 20、Contracts 86、Database 54、Platform 466、Web 182，共 **808/808**，一次跑通无 flake；lint 485 files、typecheck、build、audit 与 diff check 通过。上一绿色基线 OS-6 为 801/801（`e56ceae`） |
 | 前端基线 | OS-7 Web main **401.33 kB（gzip 117.04 kB）**，相对 OS-6 的 401.31 kB 增加 0.02 kB，低于 411.31 kB 上限；旧 PA-1 的 566.69 kB 只是历史时点，不再作为守门上限。重工作区继续独立 lazy load |
@@ -43,7 +45,7 @@
 | 可信供给 | 22 岗 / 3 家企业 / 3 个官方 ATS；公共与 Alpha 岗位均为 0 |
 | 当前 AI | 公开和远程环境关闭；本地 Review v2 只允许确定性模板或显式同意后的受控 provider，验收只用模拟 provider/`AI_DISABLED` 降级 |
 | 当前外部边界 | 不接真实招聘来源、真实 AI、邮件、服务器、解析镜像或参与者 |
-| 当前下一决定 | coco 选择下一条轨道：供给准入扩容或服务器就绪。两者都是 G0/G1 的前置，供给是最长的一根杆（缺 978 岗、97 家，且当前审计没有 `capacity` 就绪候选） |
+| 当前下一决定 | 已定：供给准入扩容。轨道内的下一决定是 coco 是否对 SA Track 阶段 1 首批候选授予 live 触网评估授权（缺 978 岗、97 家，当前审计 `capacity` 就绪候选为 0） |
 | 时间盒 | 原 9–12 日前端偏重总估算已撤回。OS-7 实际耗用 7 次双库 runner 运行，其中 6 次为失败反证；下一条轨道启动时单独估时 |
 
 岗位数量、合成数据、页面完成、工程测试或视觉验收都不能自动把产品证据从 E0 提升。
@@ -60,8 +62,11 @@ flowchart LR
     O4 --> O5["OS-5 Resume Studio 与唯一 Review 写入<br/>已完成"]
     O5 --> O6["OS-6 投递、面试、复盘与数据控制<br/>已完成"]
     O6 --> O7["OS-7 系统总 Gate<br/>已完成"]
-    O7 --> P["Private Alpha 准备<br/>仍需单独授权"]
+    O7 --> SA["SA Track 供给准入扩容<br/>进行中·阶段 0"]
+    SA --> P["Private Alpha 准备<br/>仍需单独授权"]
 ~~~
+
+SA Track 是 OS-7 之后的当前轨道，分阶段 40 → 70 → 100 家推进供给准入；详见 [供给准入扩容轨道计划](plans/supply-admission-scaleup-track.md)。下表 UX-0/OS-1–OS-7 为已关闭的上一轨道历史基线。
 
 | 切片 | 用户可见结果 | 状态 |
 |---|---|---|
@@ -74,7 +79,7 @@ flowchart LR
 | OS-6 | 今日、投递、面试、复盘、设置、访问、历史与兼容 URL 端到端统一 | **已完成五项 Gate；见独立证据** |
 | OS-7 | 整体视觉、Contracts、Platform、数据库语义、功能、可访问性、性能和离线总 Gate | **已完成五项 Gate；见独立证据** |
 
-详细范围、接口边界和验收标准只看[当前交付计划](plans/career-os-current-delivery-plan.md)。
+当前轨道的范围、里程碑与验收只看[供给准入扩容轨道计划](plans/supply-admission-scaleup-track.md)；上一轨道 OS-1–OS-7 的接口边界见[Career OS 当前交付计划](plans/career-os-current-delivery-plan.md)（已收敛）。
 
 ## 4. 同步交付固定边界
 
