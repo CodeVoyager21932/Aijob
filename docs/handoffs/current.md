@@ -1,110 +1,87 @@
-# 当前项目交接：OS-7 进行中暂停
+# 当前项目交接：OS-7 已完成，等待下一条轨道授权
 
 > 交接日期：2026-08-28
 >
 > 当前分支：`codex/career-os-ux-convergence`
 >
-> OS-7 起始 HEAD：`e56ceae feat(career-os): close os6 lifecycle and data control`
->
 > 精确 HEAD、远端跟踪与工作树以 `git log -1`、`git status` 为准。
 
 动态事实源：[MVP 路线图](../06-mvp-roadmap.md)
 
-当前执行计划：[Career OS 前后端同步改进计划](../plans/career-os-current-delivery-plan.md)
+当前执行计划：[Career OS 前后端同步改进计划](../plans/career-os-current-delivery-plan.md)（已收敛，无进行中切片）
 
 稳定实施契约：[Career OS 端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)
 
 当前追踪矩阵：[UX-0 页面—系统—证据追踪矩阵](../plans/career-os-ux-0-end-to-end-traceability-matrix.md)
 
-当前暂停检查点：[OS-7 系统总 Gate 暂停检查点](../evidence/product/career-os-v2/os-7-system-gate-checkpoint-2026-08-28.md)
+本轮关闭证据：[OS-7 系统总 Gate 验收](../evidence/product/career-os-v2/os-7-system-gate-acceptance-2026-08-28.md)
 
-上一切片关闭证据：[OS-6 投递、面试、复盘与数据控制验收](../evidence/product/career-os-v2/os-6-application-interview-debrief-data-control-acceptance-2026-08-28.md)
+过程检查点（已被取代）：[OS-7 暂停检查点](../evidence/product/career-os-v2/os-7-system-gate-checkpoint-2026-08-28.md)
 
-## 0. 绿色基线与当前检查点的区别
-
-这一节优先于本文其余描述，用于避免把暂停检查点误读成通过版本。
+## 0. 绿色基线
 
 | 提交 | 性质 |
 |---|---|
-| `e56ceae feat(career-os): close os6 lifecycle and data control` | **最后一个绿色完成基线。** OS-6 五项状态全部通过，801/801 全仓测试、lint、typecheck、build、audit、隔离 PostgreSQL、四视口浏览器 Gate 与 diff check 均在这一提交上通过 |
-| `10f7451 chore(career-os): checkpoint paused os7 gate` | **OS-7 进行中暂停检查点，不是绿色通过版本。** 它没有最终双库 runner `passed: true`、没有最终全仓工程 Gate、没有 acceptance |
-
-`main` 与 `codex/career-os-ux-convergence` 当前都指向 `10f7451`。这是有意保留的推送结果，不是错误；但由此得出的唯一正确结论是**主线当前停在一个未通过 Gate 的检查点上**。需要绿色基线时引用 `e56ceae`，不要引用 `main`。
+| OS-7 验收对应提交 | **当前绿色基线。** 五项状态全部通过；全仓 808/808、lint 485 files、typecheck、build（主包 401.33 kB）、audit、隔离 PostgreSQL、双库四视口浏览器 Gate 与 diff check 均通过 |
+| `e56ceae feat(career-os): close os6 lifecycle and data control` | 上一绿色基线（OS-6，801/801）。注意：其记录的 typecheck 通过对 `apps/platform/src/resume-documents/routes.integration.test.ts` 并不成立，该缺口已在 OS-7 修复并登记 |
+| `10f7451 chore(career-os): checkpoint paused os7 gate` | OS-7 中途暂停检查点，**不是**通过版本；已被 OS-7 验收取代 |
 
 ## 1. 当前决定
 
-coco 要求暂停当前 OS-7 执行、同步项目状态并完整推送检查点。**OS-7 已开始但尚未完成；当前状态为“进行中暂停”，不得写成已通过，也不得回退成尚未实施。**
+**OS-7 已完成，UX-0 与 OS-1–OS-7 全部关闭，Career OS 前后端同步改进阶段收敛结束。**
 
-OS-7 已形成 runtime schema 补齐、视觉 token 收敛、旧页面在 Career OS 内的字号/字重融合、双库总 runner 和可复用 fixture 修正。最后一次完整 runner 走到全路由视觉检查，发现 `/resumes/import` 继承旧 650/750 字重；该缺口已定点修复并通过局部探针，但修复后的完整 runner、全仓工程 Gate 和 acceptance 尚未运行。
+当前**没有进行中的工程切片**。下一步不由本文件或任何历史计划自动生成：需要 coco 在“供给准入扩容”与“服务器就绪”之间明确选择一条轨道。两者都是 G0/G1 的前置条件。
 
-等待 coco 明确继续后，从当前检查点恢复 OS-7；不得从 PA-1、旧 M4、历史 Phase 2、供给扩容或 Private Alpha Gate 自动选择任务。
+不得自动进入 Private Alpha、不得自行启动供给扩容或服务器工作、不得从 [Private Alpha 就绪 Gate](../plans/private-alpha-readiness-gates.md) 生成任务。
 
-## 2. 可信基线与五项状态
-
-- M1–M4、PA-1、UX-0 与 OS-1–OS-6 已完成；可信完成基线仍是 OS-6。
-- OS-6 最终 Config 20、Contracts 86、Database 54、Platform 466、Web 175，共 801/801；lint 483 files、typecheck、build、audit、隔离 PostgreSQL、四视口浏览器 Gate 和 diff check 通过。
-- OS-7 当前局部检查：视觉契约 4/4、Web typecheck、触达文件 Biome、脚本语法和 diff check 通过。
-- 关于曾出现的 Web `180/180`：**这是误触发的局部 Web 测试结果，不代表最终代码全包通过，也不代表 OS-7 接近完成。** 该次运行由命令参数写法意外触发，其后 `career-os.css` 才收到 `/resumes/import` 字重修复、测试正则也才调整，因此它不对应当前最终代码，不得作为 OS-7 的 Web 状态证据或进度依据引用。最终 Web 结果只能由恢复后的一次全仓测试产生。
-- OS-7 没有最终 `passed: true` 浏览器结果，没有最终全仓 tests/build/audit/包体结果，也没有 acceptance。
+## 2. 五项状态
 
 | 状态项 | 当前状态 |
 |---|---|
-| Contract | 进行中 |
-| Database/Platform | 进行中 |
-| Web | 进行中 |
-| Integrated Gate | 进行中，最终 runner 未通过 |
-| Evidence | 进行中，只有暂停检查点 |
+| Contract | 通过 |
+| Database/Platform | 通过 |
+| Web | 通过 |
+| Integrated Gate | 通过（`passed: true`） |
+| Evidence | 通过 |
 
-产品证据仍为 E0；可信供给仍为 22 岗 / 3 家企业 / 3 个官方 ATS，公共与 Alpha 岗位均为 0。工程检查点不得冒充用户价值、真实供给、Private Alpha 或生产就绪。
+工程基线：Config 20、Contracts 86、Database 54、Platform 466、Web 182，共 **808/808**，一次跑通无 flake。前端主包 **401.33 kB（gzip 117.04 kB）**，上限 411.31 kB。
 
-## 3. 当前代码状态
+产品证据仍为 **E0**；可信供给仍为 **22 岗 / 3 家企业 / 3 个官方 ATS**，公共与 Alpha 岗位均为 0。工程与视觉通过不得冒充用户价值、真实供给、Private Alpha 或生产就绪。
 
-### 已修改
+## 3. 本轮代码改动
 
-- `apps/web/src/api/career-os.ts`、`product.ts`：补齐当前/固定证据、旧岗位决定、旧 Tailoring 的运行时响应 schema。
-- `apps/web/src/api/career-os.test.ts`、`product.test.ts`：畸形成功 payload 的 502 反证。
-- `apps/web/src/career-os/career-os.css`：Career OS 最小 12px、标准数字字重、32px 主标题上限，以及旧 Import/Tailoring 的 scoped 融合。
-- `apps/web/scripts/m1-browser-gate.cjs`：多公共合成岗位参数和 owner revision 顺延 fixture。
+仅 4 个文件，无 migration、无依赖变更、无新服务，未移除 `VITE_CAREER_OS_V2`：
 
-### 新增
+- `apps/web/src/career-os/career-os.css`：`small/sub/sup` 12px 下限；旧 `styles.css` meta 标签抬到 12px；三处标题改回 `var(--co-title-lg)`；新增 `.product-app.career-os` 前缀块修正旧 hero 标题上限的特异性失效。
+- `apps/web/src/career-os/visual-contract.test.ts`：新增“不得超过 32px 上限”静态断言（5/5）。
+- `apps/web/scripts/os7-browser-gate.cjs`：Case overview 标题改非 exact 匹配；flag-off 资源断言收紧为只禁 Career OS 外壳/页面/组件/样式表。
+- `apps/platform/src/resume-documents/routes.integration.test.ts`：修复预先存在的 `noUncheckedIndexedAccess` 类型错误。
 
-- `apps/web/src/career-os/visual-contract.test.ts`：4 项静态视觉契约。
-- `apps/web/scripts/os7-browser-gate.cjs`：完整满态库 + 真实空库的 OS-7 总 runner。
-- `docs/evidence/product/career-os-v2/os-7-system-gate-checkpoint-2026-08-28.md`：本暂停检查点，不是 acceptance。
+`apps/web/src/styles.css` **未修改**，因此 `VITE_CAREER_OS_V2=false` 回退外观完全不变。
 
-没有生产 Platform、Contracts、Database migration 或依赖改动。
+## 4. 下一任务接手要点
 
-## 4. 浏览器反证与已修正夹具
+无论 coco 选择哪条轨道，先做这几件事：
 
-完整 runner 的失败点依次为：非 ASCII 幂等头、基础简历 owner revision 冲突、面试 Case 缺派生简历、StrictMode 下聚合 Board 两次读取、键盘遍历起点、旧 Import 非标准字重。前五项为 Gate/fixture 表达问题，第六项为真实 Web 融合缺口。
+1. 依次读取 `AGENTS.md`、README、路线图、本交接、计划索引、稳定契约与 OS-7 验收证据。
+2. `git fetch` 核对分支/远端/工作树，核对 3000、3001、5173、5174、5175、5432 未监听、无 aijob 容器残留。
+3. 确认新轨道有独立计划与验收标准后再动手；不复用 OS-1–OS-7 的切片模板去做供给或服务器工作。
 
-所有问题均已做最小修正或定点证明；没有放宽 owner、revision、面试前置、N+1、session 或删除语义。修复第六项后按 coco 指令暂停，所以没有再跑完整 runner。
+## 5. 复现浏览器 Gate 所需的环境事实
 
-详细命令结果、边界和恢复顺序只看 [OS-7 暂停检查点](../evidence/product/career-os-v2/os-7-system-gate-checkpoint-2026-08-28.md)。
+若需再次运行 `os7-browser-gate.cjs`，以下为本轮实测的可复现条件：
 
-## 5. 当前本机运行与数据状态
+- 本工作区是原 Codex worktree 的副本，`node_modules/.modules.yaml` 的 virtual store 指向旧路径，pnpm 会拒绝执行脚本。用 `pnpm install --frozen-lockfile` 修复（本地 store 命中，无网络下载，锁文件不变）。
+- 脚本需要 Playwright。仓库不声明该依赖，通过既有 `CODEX_NODE_MODULES` 环境变量从仓库外目录加载即可，不要把它加进 `package.json`。
+- Chromium 官方 CDN 在本机不可达（`ECONNRESET`）。用 `OS7_BROWSER_EXECUTABLE` 指向本机 Chrome 即可，无需下载浏览器。
+- `OS7_PNPM_EXECUTABLE` 必须给 `pnpm.cmd` 的完整路径，脚本的 Windows shell 分支依赖 `.cmd` 后缀。
+- **Web 必须用 `WEB_API_ORIGIN` 控制 Vite 的 `/v1` 代理，页面保持相对同源请求。设置 `VITE_API_BASE_URL` 会跨源直连 Platform 并破坏同源 CSRF，导致 `403 CSRF_REJECTED`。**
+- 5 个 loopback 进程：Platform 3000（满态库）、3001（空库）；Web 5173（V2 满态）、5174（V2=false 回退，连 3000）、5175（V2 空态，连 3001）。
+- Platform 需显式 `RESUME_ENCRYPTION_KEY`、`ENABLE_AI=false`、`ACCEPTED_ORIGINS` 含 5173/5174/5175，`SNAPSHOT_DIR` 指向临时目录，避免触碰 `.data/`。
+- 每次完整运行前必须新建一对空的 `aijob_ux_full_test_*` / `aijob_ux_empty_test_*` 库并迁移到 033；失败后重跑不能复用已被 seed 过的库。
+- 已知环境敏感项：PostgreSQL 容器时钟领先宿主机约 280ms，会让 `024_resume_document_v2_expand` 的 1 秒时间余量在慢负载下失效。未修改生产约束或该测试。
 
-- 3000、3001、5173、5174、5175、5432 均未监听。
-- Platform、V2 Web、flag-off Web、empty Web 和项目 PostgreSQL 容器/网络均已停止。
-- 本轮 8 个精确 `aijob_ux_*_test_*` 数据库已删除。
-- `C:\Users\72998\AppData\Local\Temp\aijob-os7-f057-final` 只剩 `full/`、`empty/` 两个空目录壳；本机策略拒绝递归删除，其中没有文件、数据或进程。
-- 未生成或保留截图、下载产物、真实简历或外部响应。
-
-## 6. 恢复 OS-7 的固定顺序
-
-恢复前的文档治理修正（包体基线、绿色基线标注、`180/180` 证据边界、本节策略表述）已完成，不需要重做。
-
-1. 依次读取 `AGENTS.md`、README、路线图、本交接、计划索引、当前计划、稳定契约和 OS-7 暂停检查点。
-2. 正常 `git fetch`，核对本分支 HEAD/远端、tracked 工作树、容器和 3000/3001/5173/5174/5175/5432；冲突先报告。
-3. 不重复 OS-1–OS-6 独立 Gate；不因暂停重新设计架构或回退已形成改动。
-4. 创建一组全新 `aijob_ux_full_test_*` / `aijob_ux_empty_test_*` 数据库，启动 loopback 服务，**先只运行一次**最终 OS-7 双库 runner。
-5. runner 失败时只处理该次实际失败点：定点复现、最小修正、定点验证；修正后再运行必要的下一轮完整 runner。不为了“多跑几遍求稳”主动重复。
-6. runner 产出 `passed: true` 后，才只运行一次全仓 lint、typecheck、串行全新库 tests、build、audit 和 diff check；build 按 411.31 kB 上限核对主包。
-7. 五项状态全部通过后才新增 OS-7 acceptance，并作“进入 Private Alpha 准备 / 修改 / 回退 / 停止”之一的决定。
-
-关于轮次的正确理解：**2–4 轮只是风险上限估计，不是要执行的测试任务。** 它的用途是让“再次失败”被视为正常而不是异常，从而不把定点修正误判成架构问题。实际轮数由真实失败驱动；一次通过就是一轮，不需要补跑。
-
-## 7. 固定排除与数据安全
+## 6. 固定排除与数据安全
 
 - 不访问真实招聘来源、真实 AI、真实邮件、服务器、参与者或真实简历，不获取外部解析镜像。
 - 不新增第二套数据库、BFF、Redis、向量库、消息总线、认证或 AI SDK，不移除 `VITE_CAREER_OS_V2`。

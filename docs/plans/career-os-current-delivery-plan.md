@@ -1,19 +1,22 @@
 # Aijob Career OS 前后端同步改进当前交付计划
 
-- 状态：**Active / UX-0 与 OS-1–OS-6 五项 Gate 已关闭；OS-7 系统总 Gate 进行中暂停**
+- 状态：**已收敛 / UX-0 与 OS-1–OS-7 五项 Gate 全部关闭**
 - 生效日期：2026-08-28
 - 当前分支：`codex/career-os-ux-convergence`
-- 当前切片：`OS-7 系统总 Gate（进行中暂停；等待 coco 指令恢复）`
+- 当前切片：无。本计划已完成，不再提供当前任务；下一条轨道由 coco 明确授权
 - 稳定契约：[Career OS 端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)
 - 追踪矩阵：[UX-0 页面—系统—证据追踪矩阵](career-os-ux-0-end-to-end-traceability-matrix.md)
+- 最终关闭证据：[OS-7 系统总 Gate 验收](../evidence/product/career-os-v2/os-7-system-gate-acceptance-2026-08-28.md)
 - 上一切片关闭证据：[OS-6 投递、面试、复盘与数据控制验收](../evidence/product/career-os-v2/os-6-application-interview-debrief-data-control-acceptance-2026-08-28.md)
-- 当前暂停检查点：[OS-7 系统总 Gate 暂停检查点](../evidence/product/career-os-v2/os-7-system-gate-checkpoint-2026-08-28.md)
+- 过程检查点（已被取代）：[OS-7 系统总 Gate 暂停检查点](../evidence/product/career-os-v2/os-7-system-gate-checkpoint-2026-08-28.md)
 - 上游关闭证据：[OS-5 Resume Studio 与唯一 Review 写入验收](../evidence/product/career-os-v2/os-5-resume-studio-and-review-v2-acceptance-2026-08-16.md)
 - 上游审计基线：[UX-0 端到端契约与基线审计](../evidence/product/career-os-v2/ux-0-end-to-end-contract-and-baseline-2026-08-13.md)
 - 动态进度：[MVP 路线与当前决策面板](../06-mvp-roadmap.md)
 - 工程入口：[当前项目交接](../handoffs/current.md)
 - 上一轮归档：[M0–M4 与 PA-1 交付计划](archive/career-os-m0-m4-pa1-delivery-plan-2026-08-12.md)
 - 后续守门：[Private Alpha 与上线就绪 Gate](private-alpha-readiness-gates.md)
+
+> **本计划已于 2026-08-28 收敛完成。** UX-0 与 OS-1–OS-7 全部关闭，下文保留为实施契约与历史依据，不再提供当前任务。新任务只能由 coco 明确授权的下一条轨道（供给准入扩容或服务器就绪）产生。
 
 ## 1. 当前目标
 
@@ -98,7 +101,7 @@ flowchart LR
 | OS-4 单 Case 决策与固定版本匹配 | Case Header、Requirements/Evidence、问题、岗位版本与三轴匹配 | 同一固定岗位版本与资料修订可追溯；无匹配总分；刷新后结果可恢复 | **已完成五项 Gate；见独立证据** |
 | OS-5 Resume Studio 与唯一 Review 写入 | 基础/岗位简历、修订、Review、DOCX；旧 Tailoring 历史承接 | 不存在两套可写简历流程；草稿/409/证据引用/删除/DOCX 真实通过 | **已完成五项 Gate；见独立证据** |
 | OS-6 投递、面试、复盘与数据控制 | 今日、显式投递、面试、复盘、设置、访问、历史只读和兼容 URL | 同一 Case 贯通投递到回流；删除和兼容行为端到端通过 | **已完成五项 Gate；见独立证据** |
-| OS-7 系统总 Gate | 全前台视觉、功能、Contracts、Platform、数据库语义、可访问性、性能、离线与回退 | 全新隔离库、全仓质量、四视口、网络/控制台、删除与 flag 回退全部通过 | **进行中暂停；runtime schema、视觉契约和双库 runner 已形成，最终 Integrated/工程/Evidence Gate 未通过** |
+| OS-7 系统总 Gate | 全前台视觉、功能、Contracts、Platform、数据库语义、可访问性、性能、离线与回退 | 全新隔离库、全仓质量、四视口、网络/控制台、删除与 flag 回退全部通过 | **已完成五项 Gate；双库 runner `passed: true`，全仓 808/808，见独立证据** |
 
 原“全部 UX 约 9–12 个有效开发日”估算建立在主要前端收敛假设上，现已撤回。UX-0 已暴露匹配固定版本、岗位定制 Review、列表投影和浏览器夹具的真实后端/运行成本；后续只在每个 OS 切片启动时按其五项状态单独估时，不恢复未经验证的全局总工期。
 

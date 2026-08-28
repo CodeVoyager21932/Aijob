@@ -6,9 +6,9 @@
 >
 > 上位事实源：[ADR-0030](../../../decisions/0030-adopt-job-centric-career-os-and-interaction-first-integration.md)、[当前交付计划](../../../plans/career-os-current-delivery-plan.md)
 
-> 当前状态：M1–M4 与 PA-1 已完成并归档；UX-0 与 OS-1–OS-6 五项 Gate 均已关闭。OS-7 已开始并按 coco 指令暂停：runtime schema、视觉契约、旧页面 scoped 融合和双库 runner 已形成，但最终浏览器 Gate、全仓工程 Gate 与 acceptance 尚未通过。当前只承认 [OS-7 暂停检查点](os-7-system-gate-checkpoint-2026-08-28.md)，不得写成 OS-7 验收完成。本目录各历史验收中的“继续”“下一唯一切片”和等待决定只记录当时时点，不得生成当前任务。
+> 当前状态：M1–M4 与 PA-1 已完成并归档；UX-0 与 OS-1–OS-7 五项 Gate **全部关闭**，Career OS 前后端同步改进阶段收敛结束。结论证据为 [OS-7 系统总 Gate 验收](os-7-system-gate-acceptance-2026-08-28.md)；[OS-7 暂停检查点](os-7-system-gate-checkpoint-2026-08-28.md)已被取代，只作过程事实。本目录各历史验收中的“继续”“下一唯一切片”和等待决定只记录当时时点，不得生成当前任务。
 
-最新过程记录见 [OS-7 系统总 Gate 暂停检查点](os-7-system-gate-checkpoint-2026-08-28.md)；最近已关闭体验证据仍是 [OS-6 投递、面试、复盘与数据控制验收](os-6-application-interview-debrief-data-control-acceptance-2026-08-28.md)。OS-7 检查点不等于 OS-7、真实供给、用户价值或 Private Alpha 已通过。
+最近已关闭体验证据是 [OS-7 系统总 Gate 验收](os-7-system-gate-acceptance-2026-08-28.md)，上一份是 [OS-6 投递、面试、复盘与数据控制验收](os-6-application-interview-debrief-data-control-acceptance-2026-08-28.md)。OS-7 通过不等于真实供给、用户价值或 Private Alpha 已通过：产品证据仍为 E0，可信供给仍为 22 岗 / 3 家企业。
 
 已完成工程路线的证据依次见 [M1 真实 Case 工作台](m1-real-case-workspace-acceptance-2026-08-09.md)、[M2 专业简历闭环](m2-professional-resume-acceptance-2026-08-11.md)、[M3 总验收](m3-workflow-acceptance-2026-08-12.md)、[M4 工程与浏览器总验收](m4-engineering-browser-gate-acceptance-2026-08-12.md)和 [PA-1 离线候选](pa-1-offline-identity-parser-candidate-acceptance-2026-08-12.md)。这些证据保留历史工程事实，但不覆盖[动态路线](../../../06-mvp-roadmap.md)、[当前交付计划](../../../plans/career-os-current-delivery-plan.md)或[当前交接](../../../handoffs/current.md)。
 

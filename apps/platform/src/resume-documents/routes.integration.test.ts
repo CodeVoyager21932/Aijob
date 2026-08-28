@@ -3097,7 +3097,9 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
     const deletionReceiptCookie = [ownerDeletionResponse.headers["set-cookie"]]
       .flat()
       .filter((value): value is string => typeof value === "string")
-      .map((value) => value.split(";", 1)[0])
+      // flatMap keeps this a string[]; indexing [0] tripped noUncheckedIndexedAccess
+      // even though split(";", 1) always yields exactly one element.
+      .flatMap((value) => value.split(";", 1))
       .find((value) => value.startsWith(`${DELETION_RECEIPT_COOKIE_NAME}=`));
     expect(deletionReceiptCookie).toBeDefined();
     expect(await findActiveSession({ db, sessionToken: mainSession.sessionToken })).toBeNull();

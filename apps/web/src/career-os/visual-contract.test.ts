@@ -15,6 +15,17 @@ describe("Career OS visual source contract", () => {
     expect({ rem: undersizedRem, pixels: undersizedPixels }).toEqual({ rem: [], pixels: [] });
   });
 
+  it("does not encode UI text above the thirty-two-pixel title cap", () => {
+    const oversizedRem = [...css.matchAll(/font-size:\s*(\d+(?:\.\d+)?)rem/g)]
+      .map((match) => Number(match[1]))
+      .filter((size) => size > 2);
+    const oversizedPixels = [...css.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)]
+      .map((match) => Number(match[1]))
+      .filter((size) => size > 32);
+
+    expect({ rem: oversizedRem, pixels: oversizedPixels }).toEqual({ rem: [], pixels: [] });
+  });
+
   it("uses standard numeric font weights", () => {
     const nonstandard = [...css.matchAll(/font-weight:\s*(\d+)/g)]
       .map((match) => Number(match[1]))

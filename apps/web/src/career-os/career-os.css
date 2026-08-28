@@ -98,6 +98,69 @@
   font: inherit;
 }
 
+/* The user-agent default for small/sub/sup is a relative `smaller`, which lands
+   below the 12px Career OS floor wherever a component has no explicit size.
+   Zero-specificity :where keeps every existing component rule authoritative. */
+.career-os :where(small, sub, sup) {
+  font-size: var(--co-text-xs);
+}
+
+/* Legacy `styles.css` encodes meta labels between 9.76px and 11.84px. Those pages
+   are reachable inside Career OS (resume import, read-only Tailoring), so they are
+   lifted to the 12px floor here rather than in `styles.css`, which keeps the
+   VITE_CAREER_OS_V2=false ProductShell visually unchanged. The doubled
+   `.product-app.career-os` prefix outranks the legacy `.product-app` rules. */
+.product-app.career-os .brand small,
+.product-app.career-os .environment-pill,
+.product-app.career-os .compact-facts dt,
+.product-app.career-os .fact dd span,
+.product-app.career-os .product-filter label small,
+.product-app.career-os .product-job-card__meta,
+.product-app.career-os .product-job-card__source,
+.product-app.career-os .product-job-card__source-label,
+.product-app.career-os .product-job-card__identity > p,
+.product-app.career-os .product-job-card__facts dt,
+.product-app.career-os .product-job-card dt,
+.product-app.career-os .product-chip,
+.product-app.career-os .insight-sample dt,
+.product-app.career-os .insight-personal-status,
+.product-app.career-os .condition dt,
+.product-app.career-os .condition small,
+.product-app.career-os .source-evidence dt,
+.product-app.career-os .axis-card > span,
+.product-app.career-os .recommendation-unknown,
+.product-app.career-os .data-summary span,
+.product-app.career-os .data-summary small,
+.product-app.career-os .local-notice,
+.product-app.career-os .product-brand__wordmark small,
+.product-app.career-os .journey-steps li > span,
+.product-app.career-os .jobs-hero__guide small,
+.product-app.career-os .filter-heading > span,
+.product-app.career-os .quota-gap-note > span,
+.product-app.career-os .result-group > header > strong {
+  font-size: var(--co-text-xs);
+}
+
+/* Legacy heroes size their h1 with vw-based clamps that reach 50-73px, and some of
+   those selectors (notably `.product-app .product-hero:not(.product-hero--jobs) h1`)
+   already carry three classes. The earlier
+   `.career-legacy-tailoring > .product-hero h1` cap was only (0,2,1) and therefore
+   lost to them, so legacy headings silently broke the 32px cap inside Career OS.
+   Prefixing with `.product-app.career-os` adds one class to every chain below, which
+   outranks each legacy counterpart without touching `styles.css`. */
+.product-app.career-os .page-heading h1,
+.product-app.career-os .detail-hero h1,
+.product-app.career-os .state-panel h1,
+.product-app.career-os .alpha-access__panel h1,
+.product-app.career-os .deletion-success h1,
+.product-app.career-os .insight-heading h1,
+.product-app.career-os .product-detail-hero h1,
+.product-app.career-os .product-hero--jobs h1,
+.product-app.career-os .product-hero h1,
+.product-app.career-os .product-hero:not(.product-hero--jobs) h1 {
+  font-size: var(--co-title-lg);
+}
+
 .career-os button:focus-visible,
 .career-os a:focus-visible,
 .career-os input:focus-visible,
@@ -1526,7 +1589,9 @@
 .career-not-found h1 {
   margin: 20px 0 0;
   font-family: "Songti SC", "Noto Serif CJK SC", STSong, serif;
-  font-size: 2.4rem;
+  /* Was 2.4rem (38.4px). The 404/placeholder headings are still page titles and
+     must honour the same 32px cap as every other main heading. */
+  font-size: var(--co-title-lg);
 }
 
 .career-placeholder-page > p {
@@ -5384,7 +5449,9 @@
   }
 
   .career-page-heading h1 {
-    font-size: 2.15rem;
+    /* Was 2.15rem (34.4px), which predated the 32px title cap and exceeded it
+       on every narrow viewport. Held at the token so mobile never outgrows desktop. */
+    font-size: var(--co-title-lg);
   }
 
   .career-view-toolbar {
@@ -5787,7 +5854,9 @@
   }
 
   .career-resume-assets__hero h1 {
-    font-size: 2.1rem;
+    /* Was 2.1rem (33.6px), which broke the 32px cap on narrow viewports even though
+       the desktop rule already used the token. */
+    font-size: var(--co-title-lg);
   }
 
   .career-resume-assets__hero > .career-button {

@@ -4,12 +4,13 @@
 
 ## 当前执行
 
-- [Career OS 前后端同步改进计划](career-os-current-delivery-plan.md)：当前唯一活动计划；UX-0 与 OS-1–OS-6 五项 Gate 均已关闭，OS-7 系统总 Gate 已开始并按 coco 指令暂停，五项状态仍为进行中。
+- [Career OS 前后端同步改进计划](career-os-current-delivery-plan.md)：**已收敛完成**；UX-0 与 OS-1–OS-7 五项 Gate 全部关闭。保留为实施契约与历史依据，不再提供当前任务。
 - [Career OS 端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)：OS-1–OS-7 必须遵守的系统归属、Contracts/Platform/DB/Web、路由、状态、视觉、响应式、焦点和夹具规则；不提供新的任务顺序。
 - [UX-0 页面—系统—证据追踪矩阵](career-os-ux-0-end-to-end-traceability-matrix.md)：逐用例记录规范路由、Contracts、Platform/DB、权限/并发/删除语义、Web 状态、真实测试和 `R / A / E / M / X` 处置；OS-1–OS-6 关闭注记不改写 UX-0 审计时点事实，未决行关闭前不得实现对应页面。
 - [MVP 路线与当前决策面板](../06-mvp-roadmap.md)：当前阶段、真实分母、Gate 和下一决定的最高动态事实源。
 - [当前项目交接](../handoffs/current.md)：当前分支、工程基线、当前切片、代码入口和安全边界。
-- [OS-7 系统总 Gate 暂停检查点](../evidence/product/career-os-v2/os-7-system-gate-checkpoint-2026-08-28.md)：记录已形成改动、局部检查、未通过的总 Gate、清理状态和固定恢复顺序；不是 acceptance。
+- [OS-7 系统总 Gate 验收](../evidence/product/career-os-v2/os-7-system-gate-acceptance-2026-08-28.md)：OS-7 的结论证据，五项状态全部通过；同时记录一处预先存在的 OS-6 typecheck 缺口和复现浏览器 Gate 的环境条件。
+- [OS-7 系统总 Gate 暂停检查点](../evidence/product/career-os-v2/os-7-system-gate-checkpoint-2026-08-28.md)：过程记录，已被上面的验收取代，不代表当前状态。
 
 ## 后续验收 Gate
 

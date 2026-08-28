@@ -1,10 +1,10 @@
 # Career OS 端到端体验与系统契约
 
-> 状态：Active / UX-0 基线已接受，OS-1–OS-6 触达范围已关闭，OS-7 进行中暂停
+> 状态：Active / UX-0 基线已接受，OS-1–OS-7 全部关闭；本文继续作为稳定实施契约
 >
 > 生效日期：2026-08-13
 >
-> 当前验收状态：UX-0 与 OS-1–OS-6 已通过各自 Gate；OS-7 已开始并形成 runtime schema、视觉契约和双库总 runner，但最终 Integrated Gate、全仓工程 Gate 与 acceptance 尚未完成，当前按 coco 指令暂停。见 [OS-7 暂停检查点](evidence/product/career-os-v2/os-7-system-gate-checkpoint-2026-08-28.md)与 [OS-6 证据](evidence/product/career-os-v2/os-6-application-interview-debrief-data-control-acceptance-2026-08-28.md)。
+> 当前验收状态：UX-0 与 OS-1–OS-7 已全部通过各自 Gate，Career OS 前后端同步改进阶段收敛结束。见 [OS-7 验收证据](evidence/product/career-os-v2/os-7-system-gate-acceptance-2026-08-28.md)与 [OS-6 证据](evidence/product/career-os-v2/os-6-application-interview-debrief-data-control-acceptance-2026-08-28.md)。
 >
 > 动态任务只看 [MVP 路线](06-mvp-roadmap.md)、[当前交接](handoffs/current.md)和[当前交付计划](plans/career-os-current-delivery-plan.md)。本文固定设计规则，不生成新的任务顺序。
 

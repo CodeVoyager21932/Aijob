@@ -1082,7 +1082,11 @@ async function main() {
       { path: "/today", heading: "今日" },
       { path: "/jobs", heading: "发现岗位" },
       { path: "/applications?view=board&stage=all&city=all&sort=updated", heading: "我的求职" },
-      { path: `/applications/${richCaseId}/overview`, heading: jobs[2].title },
+      // The Case header renders "<company> · <role>", so the bare job title is only a
+      // substring of the accessible name and can never match exactly. fullRoutes above
+      // already matches this heading non-exactly; mirror that instead of relaxing the
+      // exact match for every other heading in this loop.
+      { path: `/applications/${richCaseId}/overview`, heading: jobs[2].title, exact: false },
       { path: `/applications/${richCaseId}/resume`, selector: ".career-resume-editor" },
       { path: "/settings/data", heading: "由你决定保留什么" },
     ];
@@ -1096,7 +1100,10 @@ async function main() {
       for (const route of representativeRoutes) {
         await page.goto(`${fullBaseUrl}${route.path}`, { waitUntil: "networkidle" });
         if (route.heading) {
-          await page.getByRole("heading", { name: route.heading, exact: true }).first().waitFor();
+          await page
+            .getByRole("heading", { name: route.heading, exact: route.exact !== false })
+            .first()
+            .waitFor();
         } else {
           await page.locator(route.selector).waitFor();
         }
@@ -1141,9 +1148,16 @@ async function main() {
     await flagPage.goto(`${flagOffBaseUrl}/jobs/${jobs[0].jobId}`, { waitUntil: "networkidle" });
     await flagPage.locator("main.product-shell").waitFor();
     assert.equal(await flagPage.locator(".career-os").count(), 0);
-    assert.equal(
-      flagResources.some((value) => /career-os|WorkspaceShell/.test(value)),
-      false,
+    // The guarantee is that flag-off never loads the Career OS shell, its routed pages,
+    // its components or its stylesheet. Matching on the bare string "career-os" was
+    // broader than that intent: `career-os/legacy-compatibility.ts` is imported by the
+    // legacy ProductShell pages themselves (ResumePage, ResumeConfirmPage, JobDetailPage,
+    // DataControlPage) and `api/career-os.ts` backs the legacy job detail Case action.
+    // Both are shared non-UI modules, so they are expected here in dev module graphs.
+    const careerOsUiPattern = /(WorkspaceShell|career-os\/(pages|components)\/|career-os\.css)/;
+    assert.deepEqual(
+      [...new Set(flagResources.filter((value) => careerOsUiPattern.test(value)))],
+      [],
     );
     await flagContext.close();
 
