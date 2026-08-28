@@ -20,6 +20,17 @@
 
 上一切片关闭证据：[OS-6 投递、面试、复盘与数据控制验收](../evidence/product/career-os-v2/os-6-application-interview-debrief-data-control-acceptance-2026-08-28.md)
 
+## 0. 绿色基线与当前检查点的区别
+
+这一节优先于本文其余描述，用于避免把暂停检查点误读成通过版本。
+
+| 提交 | 性质 |
+|---|---|
+| `e56ceae feat(career-os): close os6 lifecycle and data control` | **最后一个绿色完成基线。** OS-6 五项状态全部通过，801/801 全仓测试、lint、typecheck、build、audit、隔离 PostgreSQL、四视口浏览器 Gate 与 diff check 均在这一提交上通过 |
+| `10f7451 chore(career-os): checkpoint paused os7 gate` | **OS-7 进行中暂停检查点，不是绿色通过版本。** 它没有最终双库 runner `passed: true`、没有最终全仓工程 Gate、没有 acceptance |
+
+`main` 与 `codex/career-os-ux-convergence` 当前都指向 `10f7451`。这是有意保留的推送结果，不是错误；但由此得出的唯一正确结论是**主线当前停在一个未通过 Gate 的检查点上**。需要绿色基线时引用 `e56ceae`，不要引用 `main`。
+
 ## 1. 当前决定
 
 coco 要求暂停当前 OS-7 执行、同步项目状态并完整推送检查点。**OS-7 已开始但尚未完成；当前状态为“进行中暂停”，不得写成已通过，也不得回退成尚未实施。**
@@ -32,7 +43,8 @@ OS-7 已形成 runtime schema 补齐、视觉 token 收敛、旧页面在 Career
 
 - M1–M4、PA-1、UX-0 与 OS-1–OS-6 已完成；可信完成基线仍是 OS-6。
 - OS-6 最终 Config 20、Contracts 86、Database 54、Platform 466、Web 175，共 801/801；lint 483 files、typecheck、build、audit、隔离 PostgreSQL、四视口浏览器 Gate 和 diff check 通过。
-- OS-7 当前局部检查：一次 Web 全包 180/180 通过（命令参数误触发，之后未重复）；视觉契约 4/4、Web typecheck、触达文件 Biome、脚本语法和 diff check 通过。
+- OS-7 当前局部检查：视觉契约 4/4、Web typecheck、触达文件 Biome、脚本语法和 diff check 通过。
+- 关于曾出现的 Web `180/180`：**这是误触发的局部 Web 测试结果，不代表最终代码全包通过，也不代表 OS-7 接近完成。** 该次运行由命令参数写法意外触发，其后 `career-os.css` 才收到 `/resumes/import` 字重修复、测试正则也才调整，因此它不对应当前最终代码，不得作为 OS-7 的 Web 状态证据或进度依据引用。最终 Web 结果只能由恢复后的一次全仓测试产生。
 - OS-7 没有最终 `passed: true` 浏览器结果，没有最终全仓 tests/build/audit/包体结果，也没有 acceptance。
 
 | 状态项 | 当前状态 |
@@ -80,12 +92,17 @@ OS-7 已形成 runtime schema 补齐、视觉 token 收敛、旧页面在 Career
 
 ## 6. 恢复 OS-7 的固定顺序
 
+恢复前的文档治理修正（包体基线、绿色基线标注、`180/180` 证据边界、本节策略表述）已完成，不需要重做。
+
 1. 依次读取 `AGENTS.md`、README、路线图、本交接、计划索引、当前计划、稳定契约和 OS-7 暂停检查点。
 2. 正常 `git fetch`，核对本分支 HEAD/远端、tracked 工作树、容器和 3000/3001/5173/5174/5175/5432；冲突先报告。
 3. 不重复 OS-1–OS-6 独立 Gate；不因暂停重新设计架构或回退已形成改动。
-4. 创建一组全新 `aijob_ux_full_test_*` / `aijob_ux_empty_test_*` 数据库，只运行一次最终 OS-7 双库 runner。
-5. 若 runner 通过，再只运行一次全仓 lint、typecheck、串行全新库 tests、build、audit 和 diff check。
-6. 五项状态全部通过后才新增 OS-7 acceptance，并作“进入 Private Alpha 准备 / 修改 / 回退 / 停止”之一的决定。
+4. 创建一组全新 `aijob_ux_full_test_*` / `aijob_ux_empty_test_*` 数据库，启动 loopback 服务，**先只运行一次**最终 OS-7 双库 runner。
+5. runner 失败时只处理该次实际失败点：定点复现、最小修正、定点验证；修正后再运行必要的下一轮完整 runner。不为了“多跑几遍求稳”主动重复。
+6. runner 产出 `passed: true` 后，才只运行一次全仓 lint、typecheck、串行全新库 tests、build、audit 和 diff check；build 按 411.31 kB 上限核对主包。
+7. 五项状态全部通过后才新增 OS-7 acceptance，并作“进入 Private Alpha 准备 / 修改 / 回退 / 停止”之一的决定。
+
+关于轮次的正确理解：**2–4 轮只是风险上限估计，不是要执行的测试任务。** 它的用途是让“再次失败”被视为正常而不是异常，从而不把定点修正误判成架构问题。实际轮数由真实失败驱动；一次通过就是一轮，不需要补跑。
 
 ## 7. 固定排除与数据安全
 

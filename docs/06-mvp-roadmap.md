@@ -36,8 +36,8 @@
 | 当前阶段 | Career OS 前后端同步改进；UX-0 与 OS-1–OS-6 已关闭，OS-7 系统总 Gate 进行中暂停 |
 | 当前唯一目标 | 保持 OS-7 暂停检查点；等待 coco 明确恢复后，从一组全新满态/空态隔离库继续最终浏览器 Gate，不从 Private Alpha Gate 或历史计划生成任务 |
 | 当前分支 | `codex/career-os-ux-convergence`；精确 HEAD 与工作树以 Git 为准 |
-| 工程基线 | 可信完成基线仍为 OS-6：Config 20、Contracts 86、Database 54、Platform 466、Web 175，共 801/801。OS-7 局部 Web 180/180、视觉契约 4/4 与 typecheck 通过，但最终全仓 Gate 未运行，不得替代 OS-6 基线 |
-| 前端基线 | 已关闭基线仍为 OS-6 Web main 401.31 kB（gzip 117.03 kB）；OS-7 已收敛字号/字重/标题并修复旧 Import scoped 融合，但最终 build/包体和四视口总验未完成 |
+| 工程基线 | 可信完成基线仍为 OS-6：Config 20、Contracts 86、Database 54、Platform 466、Web 175，共 801/801，对应绿色提交 `e56ceae`。OS-7 局部只有视觉契约 4/4 与 typecheck 通过；曾出现的 Web `180/180` 是误触发的局部结果，不代表最终代码全包通过，也不代表 OS-7 接近完成，不得替代 OS-6 基线 |
+| 前端基线 | 已关闭基线为 OS-6 Web main 401.31 kB（gzip 117.03 kB），OS-7 主包上限 411.31 kB；旧 PA-1 的 566.69 kB 只是历史时点，不再作为守门上限。OS-7 已收敛字号/字重/标题并修复旧 Import scoped 融合，但最终 build/包体和四视口总验未完成 |
 | 当前产品证据 | E0：没有可复核目标用户行为证据 |
 | 可信供给 | 22 岗 / 3 家企业 / 3 个官方 ATS；公共与 Alpha 岗位均为 0 |
 | 当前 AI | 公开和远程环境关闭；本地 Review v2 只允许确定性模板或显式同意后的受控 provider，验收只用模拟 provider/`AI_DISABLED` 降级 |

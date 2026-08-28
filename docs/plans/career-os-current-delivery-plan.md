@@ -158,7 +158,7 @@ flowchart LR
 - 键盘、可见焦点、抽屉/对话框焦点约束与关闭后焦点返回。
 - 控制台无新增 warning/error，网络只访问 loopback。
 - 看板和 Case 首屏不加载 Resume Editor/Interview，不发生卡片级 N+1。
-- Web 主包相对 PA-1 的 566.69 kB 基线增长不超过 10 kB；超出必须拆包或回退。
+- Web 主包基线为 OS-6 实测的 **401.31 kB（gzip 117.03 kB）**，OS-7 主包上限为 **411.31 kB**。旧 PA-1 的 566.69 kB 只是历史时点记录，不再是守门上限；不得以“仍低于 566.69 kB”为理由通过。超出上限必须拆包或回退。后续切片继续按“相对上一已关闭切片实测值 +10 kB”滚动收紧，不回退到更宽的历史数字。
 - DOCX、打印、删除、离线会话和 `VITE_CAREER_OS_V2=false` 回退不得退化。
 
 总 Gate 运行与改动相称的 focused tests，以及全仓 lint、typecheck、全新 `aijob_*_test_*` 隔离 PostgreSQL、全部测试、build、audit 和 diff check。

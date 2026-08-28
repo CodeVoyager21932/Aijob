@@ -39,7 +39,7 @@
 
 ## 3. 已完成的检查
 
-- 一次因命令参数写法意外触发的 Web 全包：42 files、180/180 tests 通过；之后没有因格式或脚本小改重复全包。
+- 曾出现一次因命令参数写法意外触发的 Web 全包（42 files、180/180 tests 通过）。**这是误触发的局部 Web 测试结果，不代表最终代码全包通过，也不代表 OS-7 接近完成。** 该次运行发生在 `career-os.css` 的 `/resumes/import` 字重修复和测试正则调整之前，因此不对应当前最终代码；本检查点不把它计为 Web 状态证据，恢复后必须由一次全仓测试重新产生最终结果。
 - 最终静态视觉契约：1 file、4/4 tests 通过。
 - Web typecheck 在 API/视觉主体改动后通过；后续测试正则调整已由对应 Vitest 编译执行。
 - 触达文件 Biome 检查、`node --check` 和 `git diff --check` 通过。
@@ -76,10 +76,15 @@ OS-7 总 runner 在全新隔离库上逐步暴露并修正了以下 Gate/fixture
 恢复时不得重跑 OS-1–OS-6 独立脚本。固定顺序为：
 
 1. 核对分支、远端和清洁运行态。
-2. 创建一组全新 `aijob_ux_full_test_*` / `aijob_ux_empty_test_*` 数据库。
-3. 只运行一次最终 `os7-browser-gate.cjs`；若失败，只处理真实阻塞并做定点验证。
-4. 浏览器 Gate 稳定后，只运行一次全仓 lint、typecheck、串行全新库 tests、build、audit 和 diff check。
-5. 全部通过后才更新 OS-7 acceptance、路线图、当前计划、追踪矩阵与交接，并作“进入 Private Alpha 准备 / 修改 / 回退 / 停止”之一的决定。
+2. 创建一组全新 `aijob_ux_full_test_*` / `aijob_ux_empty_test_*` 数据库，启动 loopback 服务。
+3. **先只运行一次**最终 `os7-browser-gate.cjs`。
+4. 失败时只处理该次实际失败点：定点复现、最小修正、定点验证；修正后再运行必要的下一轮完整 runner。不主动重复运行求稳，也不放宽 owner、revision、面试前置、N+1、session 或删除语义。
+5. runner 产出 `passed: true` 后，才只运行一次全仓 lint、typecheck、串行全新库 tests、build、audit 和 diff check；build 按 OS-6 实测 401.31 kB 基线和 411.31 kB 上限核对主包。
+6. 全部通过后才更新 OS-7 acceptance、路线图、当前计划、追踪矩阵与交接，并作“进入 Private Alpha 准备 / 修改 / 回退 / 停止”之一的决定。
+
+**2–4 轮只是风险上限估计，不是要执行的测试任务。** 本检查点已记录 6 次尝试暴露 6 个缺陷（5 个为 fixture 表达问题），因此再次失败属于正常范围，不应被误判成架构问题而触发重新设计。实际轮数由真实失败驱动。
+
+runner 的第 7 步 `empty-database-real-empty-states` 与第 8 步 `flag-off-and-manifest-database-assertions` 在任何一次运行中都尚未执行到，其中第 8 步包含本文件最严的精确计数与全局网络/控制台断言；恢复时应预期这两步首次暴露新的 fixture 缺口。
 
 ## 6. 暂停清理
 

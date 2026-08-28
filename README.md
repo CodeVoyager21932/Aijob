@@ -19,7 +19,7 @@
 | 当前证据 | E0：尚无可复核目标用户行为证据，两个产品假设均未判定 |
 | 当前实现策略 | 不默认后端已匹配，也不无依据重做。UX-0 已把每个用户动作绑定到 Contracts、Platform 模块、PostgreSQL 事实、权限/并发/删除语义和真实测试；OS-1–OS-6 已按纵向切片同步修改 Platform 与 Web，并在触达边界补齐运行时契约。三张概念图作为布局、信息层级和交互关系的高保真目标；Recommendation、Insights、申请看板、Case 固定版本三轴核对、Resume Review、显式投递、模板面试、复盘和数据控制已从规范路径可用；不因此启动真实 Alpha |
 | 来源发现进度 | 已按 ADR-0019 完成 1000/1000 家企业/机构审查记录；34 个来源配置中 12 个为 canonical（7 个活动确定性、2 个浏览器提醒、3 个硬冲突暂停），22 个高校等来源均降级为 `discovery_only`。当前审计没有 `capacity` 就绪候选 |
-| 工程切片 | 可信完成基线仍为 OS-6：Config 20、Contracts 86、Database 54、Platform 466、Web 175，共 801/801；lint 483 files、typecheck、build、audit 与 diff check 通过。OS-7 当前局部 Web 180/180、视觉契约 4/4 和 typecheck 通过，但最终双库浏览器 Gate、全仓 Gate、构建包体和 acceptance 未完成；不能覆盖 OS-6 基线或冒充 OS-7 通过。真实邮件/解析镜像/服务器、真实 AI 与真实来源同样未实施，公共版本仍为 0 |
+| 工程切片 | 可信完成基线仍为 OS-6，对应绿色提交 `e56ceae`：Config 20、Contracts 86、Database 54、Platform 466、Web 175，共 801/801；lint 483 files、typecheck、build、audit 与 diff check 通过。OS-7 当前局部只有视觉契约 4/4 和 typecheck 通过；曾出现的 Web `180/180` 是误触发的局部结果，不代表最终代码全包通过，也不代表 OS-7 接近完成。最终双库浏览器 Gate、全仓 Gate、构建包体和 acceptance 均未完成；不能覆盖 OS-6 基线或冒充 OS-7 通过。真实邮件/解析镜像/服务器、真实 AI 与真实来源同样未实施，公共版本仍为 0 |
 | AI 状态 | Review、Interview、Feedback 与 Debrief 均必须与用户确认事实分离；公开环境继续关闭，M4 沿用确定性模板，不调用真实 AI |
 
 以上内容只用于帮助首次阅读者定位本次文档基线。后续动态阶段、样本进度、Gate 状态和下一决策日期只更新到 [MVP 路线与当前决策面板](docs/06-mvp-roadmap.md)；如有差异，以该面板为准。
