@@ -79,6 +79,70 @@ function enforceOfficialAccountBoundary(
   }
 }
 
+/**
+ * ADR-0033：`accessPolicyAccepted` 记为 `pass` 必须有能支撑该结论的证据。
+ * 证据缺失、robots 取不到、robots 禁止任一已登记 target、或条款禁止聚合时，
+ * 该门都不得为 `pass`——判据与证据必须一致，不允许只写结论。
+ */
+function enforceAccessPolicyEvidence(value: unknown, context: z.RefinementCtx): void {
+  // 归一化配置的 hardGates 是布尔，原始配置是 `{status,note}`。
+  // 只有原始配置形态需要校验证据，因此在这里做运行时收窄而不是收紧入参类型。
+  const shape = z
+    .object({
+      candidate: z
+        .object({
+          hardGates: z
+            .object({ accessPolicyAccepted: z.object({ status: z.string() }).partial().optional() })
+            .partial()
+            .optional(),
+        })
+        .partial()
+        .optional(),
+      policy: z
+        .object({ accessPolicyEvidence: z.unknown().optional() })
+        .partial()
+        .optional(),
+    })
+    .safeParse(value);
+  if (!shape.success) return;
+
+  const gate = shape.data.candidate?.hardGates?.accessPolicyAccepted?.status;
+  if (gate !== "pass") return;
+
+  const evidence = shape.data.policy?.accessPolicyEvidence as AccessPolicyEvidence | null | undefined;
+  const gatePath = ["candidate", "hardGates", "accessPolicyAccepted", "status"];
+  if (!evidence) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: gatePath,
+      message: "accessPolicyAccepted=pass requires policy.accessPolicyEvidence (ADR-0033)",
+    });
+    return;
+  }
+  if (evidence.robots.status !== "fetched") {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: gatePath,
+      message: "accessPolicyAccepted=pass requires a retrieved robots.txt; unavailable fails closed",
+    });
+    return;
+  }
+  if (!evidence.robots.allowsAllFetchTargets) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: gatePath,
+      message: "accessPolicyAccepted=pass requires robots to allow every registered fetch target",
+    });
+  }
+  if (evidence.termsOfService.prohibitsAggregation) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: gatePath,
+      message: "accessPolicyAccepted=pass is impossible when the terms prohibit aggregation",
+    });
+  }
+}
+
 function enforceSourceBoundaries(
   value: Parameters<typeof enforceOfficialAccountBoundary>[0],
   context: z.RefinementCtx,
@@ -169,6 +233,7 @@ function enforceSourceBoundaries(
     });
   }
   enforceOfficialAccountBoundary(value, context);
+  enforceAccessPolicyEvidence(value, context);
 }
 
 const allowedQueryParameterSchema = z
@@ -217,6 +282,46 @@ const crawlIntervalSchema = z.object({
   enabled: z.boolean(),
   minimumHours: z.number().int().positive(),
 });
+
+/**
+ * ADR-0033 的访问政策证据。`accessPolicyAccepted` 记为 `pass` 必须有此证据，
+ * 且证据本身要能被复核：robots 快照哈希、ToS 条款摘录、判定结论与核验时间。
+ *
+ * 这些字段刻意都是**已取回结果的留证**，不含任何网络行为——抓取属触网步骤。
+ */
+const accessPolicyEvidenceSchema = z.object({
+  /** robots.txt 的取回结果。`unavailable` 按 fail-closed 视为禁止。 */
+  robots: z.discriminatedUnion("status", [
+    z.object({
+      status: z.literal("fetched"),
+      /** 快照正文的 sha256，用于检测 robots 是否变化。 */
+      bodySha256: z.string().regex(/^[0-9a-f]{64}$/),
+      /** 判定时点该 robots 是否允许全部已登记 fetchTargets。 */
+      allowsAllFetchTargets: z.boolean(),
+      /** robots 声明的 Crawl-delay 秒数；未声明为 null。 */
+      crawlDelaySeconds: z.number().nonnegative().nullable(),
+    }),
+    z.object({
+      status: z.literal("unavailable"),
+      reason: z.enum(["not_found", "timeout", "http_error", "network_error"]),
+    }),
+  ]),
+  /** 服务条款核验：摘录相关条款原文并给出是否存在禁止聚合条款的结论。 */
+  termsOfService: z.object({
+    /** 条款页面 URL；站点未提供条款时为 null。 */
+    documentUrl: z.string().url().nullable(),
+    /** 相关条款原文摘录。不得改写，只摘录。 */
+    excerpt: z.string().trim().min(1).max(5_000),
+    /** 是否存在禁止第三方抓取、复制、转载或聚合公开招聘信息的条款。 */
+    prohibitsAggregation: z.boolean(),
+  }),
+  /** 本次访问政策核验的日期（Asia/Shanghai）。 */
+  verifiedAt: z.string().date(),
+  /** 人工可复核的证据引用。 */
+  evidenceRef: z.string().trim().min(1),
+});
+
+export type AccessPolicyEvidence = z.infer<typeof accessPolicyEvidenceSchema>;
 
 const refreshCoverageSchema = z.enum(["full_scope", "tracked_records", "manual_snapshot"]);
 const absencePolicySchema = z.enum(["none", "close_after_two_complete_absences"]);
@@ -351,6 +456,7 @@ const rawSourceConfigSchema = z
       absencePolicy: absencePolicySchema,
       reviewedAt: z.string().date(),
       policyNotes: z.array(z.string().min(1)).min(1),
+      accessPolicyEvidence: accessPolicyEvidenceSchema.nullable().default(null),
       fetchTargets: z.array(targetSchema).min(1),
       applyTargets: z.array(targetSchema).min(1),
     }),

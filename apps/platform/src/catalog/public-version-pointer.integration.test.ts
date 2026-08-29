@@ -168,6 +168,10 @@ describeWithDatabase("catalog public version pointer", () => {
         adapter_version: "1",
         entrypoints: JSON.stringify(["https://public-pointer.example.test/jobs"]),
         crawl_interval: "24h",
+        // ADR-0032：获准进入 Alpha 的来源必须能探知岗位关闭，
+        // 否则「已截止但仍显示」没有上限。此处为列表型且消失即关闭。
+        refresh_coverage: "full_scope",
+        absence_policy: "close_after_two_complete_absences",
         policy_notes: "Offline public pointer fixture.",
         reviewed_at: null,
       })

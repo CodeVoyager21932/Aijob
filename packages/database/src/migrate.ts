@@ -34,6 +34,7 @@ import { resumeRevisionMutationReceiptsMigration } from "./migrations/030_resume
 import { resumeReviewTaskTypeMigration } from "./migrations/031_resume_review_task_type.js";
 import { debriefItemDecisionsMigration } from "./migrations/032_debrief_item_decisions.js";
 import { resumeReviewV2ExpandMigration } from "./migrations/033_resume_review_v2_expand.js";
+import { closureDetectableCanonicalJobsMigration } from "./migrations/034_closure_detectable_canonical_jobs.js";
 import type { Database } from "./types.js";
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -78,6 +79,7 @@ class StaticMigrationProvider implements MigrationProvider {
       "031_resume_review_task_type": resumeReviewTaskTypeMigration,
       "032_debrief_item_decisions": debriefItemDecisionsMigration,
       "033_resume_review_v2_expand": resumeReviewV2ExpandMigration,
+      "034_closure_detectable_canonical_jobs": closureDetectableCanonicalJobsMigration,
     };
   }
 }

@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { JobFamilySchema } from "@aijob/contracts";
+import { JobFamilySchema, MINIMUM_REACHABLE_VISIBLE_JOB_RATIO } from "@aijob/contracts";
 import { z } from "zod";
 import { getRepositoryRoot } from "./source-config.js";
 
@@ -48,6 +48,12 @@ const sourceCandidateSchema = z.object({
     .object({
       verifiedActiveInternships: z.number().int().nonnegative(),
       completeJdInternships: z.number().int().nonnegative(),
+      /**
+       * 其中按 ADR-0032 判定为 `reachable` 的实习岗位数。候选企业尚未入库，拿不到岗位
+       * 正文，因此可达性必须在容量探测时一并记录为证据。缺失即视为 0（未核验），
+       * 候选不享受可达配额——与「`unknown` 不计入配额」一致，fail-closed。
+       */
+      reachableInternships: z.number().int().nonnegative().nullable().default(null),
       verifiedAt: z.string().date(),
       evidenceRef: z.string().trim().min(1),
     })
@@ -78,7 +84,7 @@ const cityMinimumsSchema = z.object(
 
 const sourceCandidateRegistrySchema = z
   .object({
-    schemaVersion: z.literal("4.0.0"),
+    schemaVersion: z.literal("5.0.0"),
     scope: z.literal("private_alpha_all_function_internships"),
     evidenceLevel: z.literal("E0"),
     targets: z.object({
@@ -90,8 +96,11 @@ const sourceCandidateRegistrySchema = z
         visibleJobs: z.literal(1_100),
         companies: z.literal(110),
       }),
-      minimumSmeCompanyRatio: z.literal(0.5),
-      minimumSmeVisibleJobRatio: z.literal(0.4),
+      /**
+       * ADR-0032：结构门槛由 SME 比例改为可达岗位比例。SME 两项比例已撤回，
+       * `scaleBand` 保留为观察字段，不再参与门槛与排序。
+       */
+      minimumReachableVisibleJobRatio: z.literal(MINIMUM_REACHABLE_VISIBLE_JOB_RATIO),
       jobFamilyMinimums: jobFamilyMinimumsSchema,
       cityMinimums: cityMinimumsSchema,
       manualSourceMaximumCompanyRatio: z.literal(0.2),

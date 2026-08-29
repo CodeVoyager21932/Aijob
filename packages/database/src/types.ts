@@ -1114,8 +1114,13 @@ export interface CurrentJobEffectiveActivityView {
 export interface CurrentJobEligibilityView extends InternalJobPreviewView {
   catalog_role: string;
   runtime_scope: string;
+  absence_policy: string;
+  refresh_coverage: string;
+  deadline_at: JsonValue;
   freshness_state: string;
   effective_activity_state: string;
+  // ADR-0032：能否探知岗位关闭。Alpha 的必要条件，本机预览不受其约束。
+  closure_detectable: boolean;
   blocking_reasons: JsonValue;
   eligible_for_local_mvp: boolean;
   eligible_for_alpha: boolean;
@@ -1130,12 +1135,17 @@ export interface JobVersionEligibilityView {
   policy_status: string;
   catalog_role: string;
   runtime_scope: string;
+  absence_policy: string;
+  refresh_coverage: string;
+  deadline_at: JsonValue;
   freshness_state: string;
   effective_activity_state: string;
   responsibilities: string;
   requirements: string;
   apply_url: string | null;
   has_blocking_review: boolean;
+  // ADR-0032：能否探知岗位关闭。Alpha 的必要条件，本机预览不受其约束。
+  closure_detectable: boolean;
   blocking_reasons: JsonValue;
   eligible_for_local_mvp: boolean;
   eligible_for_alpha: boolean;

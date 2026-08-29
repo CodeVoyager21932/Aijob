@@ -19,6 +19,8 @@ function baseline(
     totalSupply: 0,
     visibleJobs: 0,
     companies: 0,
+    reachableVisibleJobs: 0,
+    reachableCompanies: 0,
     smeVisibleJobs: 0,
     smeCompanies: 0,
     manualVisibleJobs: 0,
@@ -78,6 +80,24 @@ function approvedOverride(index: number): SourceCandidateOverride {
     capacity: {
       verifiedActiveInternships: 10,
       completeJdInternships: 10,
+      // 容量证据显示全部可达 → 享受 ADR-0032 的可达配额（30）。
+      reachableInternships: 10,
+      verifiedAt: "2026-08-02",
+      evidenceRef: "docs/evidence/capacity.md",
+    },
+  };
+}
+
+/** 容量已核验但其中没有可达岗位 → 不享受可达配额，且受本批可达比例下限约束。 */
+function nonReachableOverride(index: number): SourceCandidateOverride {
+  return {
+    ...approvedOverride(index),
+    companyKey: `non-reachable-company-${index}`,
+    displayName: `Non Reachable Company ${index}`,
+    capacity: {
+      verifiedActiveInternships: 10,
+      completeJdInternships: 10,
+      reachableInternships: 0,
       verifiedAt: "2026-08-02",
       evidenceRef: "docs/evidence/capacity.md",
     },
@@ -221,14 +241,14 @@ describe("source batch planner", () => {
     });
   });
 
-  it("computes the first feasible SME checkpoint from the actual denominator", async () => {
+  it("computes the reachable job deficit from the actual denominator", async () => {
     const registry = await loadSourceCandidateRegistry();
     const plan = planSourceBatch({
       baseline: baseline({
         visibleJobs: 149,
         companies: 29,
-        smeVisibleJobs: 22,
-        smeCompanies: 7,
+        reachableVisibleJobs: 22,
+        reachableCompanies: 7,
         manualVisibleJobs: 19,
         manualCompanies: 2,
       }),
@@ -238,35 +258,32 @@ describe("source batch planner", () => {
       now: new Date("2026-08-03T08:00:00+08:00"),
     });
 
+    // 400 可见岗 × 50% = 200 可达；当前 22 → 还缺 178。
     expect(plan.dynamicRequirements).toMatchObject({
-      minimumAdditionalSmeCompaniesIfAllNewSme: 15,
-      firstFeasibleCompanyCount: 44,
-      minimumSmeCompaniesAtFirstFeasibleCount: 22,
-      minimumAdditionalSmeVisibleJobsAtMilestone: 138,
+      minimumReachableVisibleJobsAtMilestone: 200,
+      minimumAdditionalReachableVisibleJobsAtMilestone: 178,
       minimumDeterministicVisibleJobsBeforeManualExpansion: 190,
       deterministicVisibleJobs: 130,
       manualExpansionAllowed: false,
-      smeRecoveryRequired: true,
+      reachabilityRecoveryRequired: true,
     });
-    expect(plan.deficits.smeCompanies).toBe(15);
+    expect(plan.deficits.reachableVisibleJobs).toBe(178);
     expect(plan.deficits.manualVisibleJobsOverLimit).toBe(5);
   });
 
-  it("keeps at least seventy percent verified SME companies during recovery", async () => {
+  it("raises the batch reachable-job floor to seventy percent during recovery", async () => {
     const registry = await loadSourceCandidateRegistry();
-    const sme = Array.from({ length: 7 }, (_, index) => approvedOverride(index + 1));
-    const nonSme = Array.from({ length: 3 }, (_, index) => ({
-      ...approvedOverride(index + 8),
-      scaleBand: "unknown" as const,
-      scaleEvidenceRef: null,
-    }));
-    const candidates = [...sme, ...nonSme];
+    const reachable = Array.from({ length: 7 }, (_, index) => approvedOverride(index + 1));
+    const nonReachable = Array.from({ length: 3 }, (_, index) =>
+      nonReachableOverride(index + 8),
+    );
+    const candidates = [...reachable, ...nonReachable];
     const plan = planSourceBatch({
       baseline: baseline({
         visibleJobs: 149,
         companies: 29,
-        smeVisibleJobs: 22,
-        smeCompanies: 7,
+        reachableVisibleJobs: 22,
+        reachableCompanies: 7,
       }),
       milestone: 40,
       limit: 10,
@@ -278,12 +295,19 @@ describe("source batch planner", () => {
     });
 
     expect(plan.candidatePool.selected).toHaveLength(10);
+    // 可达候选排序优先，且非可达候选受本批 70% 可达岗位下限约束。
     expect(
-      plan.candidatePool.selected.filter((candidate) => candidate.scaleBand === "small"),
+      plan.candidatePool.selected.filter((candidate) => candidate.reachableCapacity),
     ).toHaveLength(7);
-    expect(plan.projected.ratios.smeCompanies).toBeGreaterThan(
-      plan.dynamicRequirements.currentRatios.smeCompanies,
+    expect(plan.candidatePool.selected[0]?.reachableCapacity).toBe(true);
+    expect(plan.projected.ratios.reachableVisibleJobs).toBeGreaterThan(
+      plan.dynamicRequirements.currentRatios.reachableVisibleJobs,
     );
+    expect(
+      plan.candidatePool.selected.every((candidate) =>
+        candidate.selectionReasons.includes("batch_reachable_job_floor:0.7"),
+      ),
+    ).toBe(true);
   });
 
   it("holds stale and low-yield capacity evidence out of a runnable batch", async () => {
@@ -293,6 +317,7 @@ describe("source batch planner", () => {
       capacity: {
         verifiedActiveInternships: 10,
         completeJdInternships: 10,
+        reachableInternships: 10,
         verifiedAt: "2026-07-20",
         evidenceRef: "docs/evidence/stale.md",
       },
@@ -327,7 +352,7 @@ describe("source batch planner", () => {
       adapterFamily: "beisen-zhiye-public-api",
       candidateCount: 2,
       capacityReadyCount: 2,
-      verifiedSmeCount: 2,
+      reachableReadyCount: 2,
       projectedVisibleJobs: 20,
     });
   });

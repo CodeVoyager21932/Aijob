@@ -94,7 +94,7 @@
     "version": "4",
     "status": "paused",
     "adapterKey": "beisen-zhiye-public-api",
-    "adapterVersion": "0.1.2",
+    "adapterVersion": "0.1.3",
     "entrypoints": ["https://huicecom.zhiye.com/Campus"],
     "crawlInterval": {
       "enabled": false,

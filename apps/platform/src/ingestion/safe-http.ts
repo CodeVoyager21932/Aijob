@@ -9,6 +9,15 @@ const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 const MAX_REDIRECTS = 2;
 const REQUEST_TIMEOUT_MS = 15_000;
 
+/**
+ * 采集器的可识别 User-Agent。ADR-0033 以站点公开访问政策为准入依据，
+ * 因此必须用固定且可识别的 UA，并按同一 UA 解析 robots.txt。
+ */
+export const COLLECTOR_USER_AGENT = "AijobLocalProbe/0.1 (+official-source-review)";
+
+/** robots.txt 中用于匹配本采集器的 product token（UA 首段，不含版本与注释）。 */
+export const COLLECTOR_ROBOTS_TOKEN = "aijoblocalprobe";
+
 export class NetworkPolicyError extends Error {
   constructor(
     public readonly code: string,
@@ -333,7 +342,7 @@ async function requestOnce(
             responseKind === "json" ? "application/json" : "text/html,application/xhtml+xml;q=0.9",
           "Accept-Encoding": "identity",
           Host: url.host,
-          "User-Agent": "AijobLocalProbe/0.1 (+official-source-review)",
+          "User-Agent": COLLECTOR_USER_AGENT,
           ...(requestBody
             ? {
                 "Content-Length": requestBody.byteLength,

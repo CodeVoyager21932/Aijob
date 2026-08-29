@@ -7,9 +7,10 @@ import {
   semanticRevisionValue,
   unknown,
 } from "./normalized-official-job.js";
+import { scopeOfficialDutyText } from "./official-job-body-scope.js";
 
-export const BYTEDANCE_MANUAL_BROWSER_ADAPTER_VERSION = "0.1.1";
-export const BYTEDANCE_MANUAL_BROWSER_NORMALIZER_VERSION = "0.1.1";
+export const BYTEDANCE_MANUAL_BROWSER_ADAPTER_VERSION = "0.1.2";
+export const BYTEDANCE_MANUAL_BROWSER_NORMALIZER_VERSION = "0.1.2";
 export const BYTEDANCE_CAMPUS_POSITION_URL = "https://jobs.bytedance.com/campus/position";
 
 const bytedanceDetailUrlSchema = z
@@ -165,7 +166,8 @@ export function normalizeBytedanceManualBrowserJob(input: {
     sourceProjectName: job.projectName,
     recruitLabelName: job.projectName,
     recruitmentType: known("实习", [snapshotEvidenceRef]),
-    responsibilities: job.responsibilities,
+    // 人工快照为粘贴文本，按 ADR-0033 的 D1 裁剪到职责范围，避免带入公司简介与福利文案。
+    responsibilities: scopeOfficialDutyText(job.responsibilities),
     requirements: job.requirements,
     structuredFields: {
       arrivalTime: unknown<string>(),

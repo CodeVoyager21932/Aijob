@@ -90,7 +90,7 @@
     "version": "2",
     "status": "pending_review",
     "adapterKey": "beisen-zhiye-public-api",
-    "adapterVersion": "0.1.2",
+    "adapterVersion": "0.1.3",
     "entrypoints": ["https://woanhome.zhiye.com/intern/jobs"],
     "crawlInterval": {
       "enabled": true,

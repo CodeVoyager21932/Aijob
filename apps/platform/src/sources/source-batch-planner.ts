@@ -1,4 +1,10 @@
-import { type JobFamily, JobFamilySchema } from "@aijob/contracts";
+import {
+  classifyJobReachability,
+  isReachableVerdict,
+  type JobFamily,
+  JobFamilySchema,
+  MINIMUM_REACHABLE_VISIBLE_JOB_RATIO,
+} from "@aijob/contracts";
 import type { Database, JsonValue } from "@aijob/database";
 import { type Kysely, sql } from "kysely";
 import { shanghaiDateKey } from "../catalog/effective-activity.js";
@@ -29,6 +35,10 @@ export interface CatalogSupplyMetrics {
   totalSupply: number;
   visibleJobs: number;
   companies: number;
+  /** ADR-0032 结构门槛轴。 */
+  reachableVisibleJobs: number;
+  reachableCompanies: number;
+  /** SME 两项保留为观察指标，不再参与门槛与排序（ADR-0032）。 */
   smeVisibleJobs: number;
   smeCompanies: number;
   manualVisibleJobs: number;
@@ -46,6 +56,8 @@ interface CatalogMetricRow {
   job_family: JsonValue;
   locations: JsonValue;
   acquisition_mode: string;
+  requirements: string;
+  responsibilities: string;
 }
 
 export interface PlannerCandidate {
@@ -69,6 +81,10 @@ export interface PlannerCandidate {
   capacity: SourceCandidateOverride["capacity"];
   quota: 10 | 30;
   projectedVisibleJobs: number;
+  /** 其中判定为可达的部分，来自容量证据；缺失即 0。 */
+  projectedReachableVisibleJobs: number;
+  /** 容量证据是否显示该候选存在可达岗位（ADR-0032 配额与排序轴）。 */
+  reachableCapacity: boolean;
   capacityFresh: boolean;
   readinessBlockers: string[];
   selectionReasons: string[];
@@ -77,11 +93,28 @@ export interface PlannerCandidate {
 const CAPACITY_EVIDENCE_MAX_AGE_DAYS = 7;
 const CAPACITY_MINIMUM_COMPLETE_JOBS = 10;
 const MAX_COVERAGE_COMPANIES_PER_BATCH = 2;
-const NON_SME_COMPANY_QUOTA = 10;
-const SME_COMPANY_QUOTA = 30;
 
-function isSmeScaleBand(value: SourceCandidateOverride["scaleBand"]): boolean {
-  return value === "small" || value === "medium";
+/**
+ * ADR-0032 反霸榜配额：可达企业单家最多贡献 30 条可见岗位，非可达企业最多 10 条。
+ * 语义与原 SME 配额一致，只是判定轴从企业规模换成岗位可达性。
+ */
+const NON_REACHABLE_COMPANY_QUOTA = 10;
+const REACHABLE_COMPANY_QUOTA = 30;
+
+/**
+ * 候选企业尚未入库，没有岗位正文，因此可达性只能来自容量探测记录的证据。
+ * 缺失或为 0 时一律视为不可达（fail-closed），不猜测。
+ */
+function candidateReachableInternships(
+  capacity: SourceCandidateOverride["capacity"],
+): number {
+  return capacity?.reachableInternships ?? 0;
+}
+
+function isReachableCandidateCapacity(
+  capacity: SourceCandidateOverride["capacity"],
+): boolean {
+  return candidateReachableInternships(capacity) > 0;
 }
 
 function ratio(numerator: number, denominator: number): number {
@@ -158,6 +191,8 @@ export async function loadLocalCatalogSupplyMetrics(
         quota.company_name,
         quota.scale_band,
         version.job_family,
+        version.requirements,
+        version.responsibilities,
         projection.locations,
         policy.acquisition_mode
       FROM catalog.company_quota_selections AS quota
@@ -235,13 +270,26 @@ export async function loadLocalCatalogSupplyMetrics(
   const jobFamilies = emptyJobFamilyCounts();
   const cities = emptyCityCounts();
   const companyNames = new Set<string>();
+  const reachableCompanyNames = new Set<string>();
   const smeCompanyNames = new Set<string>();
   const manualCompanyNames = new Set<string>();
+  let reachableVisibleJobs = 0;
   let smeVisibleJobs = 0;
   let manualVisibleJobs = 0;
 
   for (const row of catalogRows.rows) {
     companyNames.add(row.company_name);
+    if (
+      isReachableVerdict(
+        classifyJobReachability({
+          requirements: row.requirements,
+          responsibilities: row.responsibilities,
+        }),
+      )
+    ) {
+      reachableVisibleJobs += 1;
+      reachableCompanyNames.add(row.company_name);
+    }
     if (row.scale_band === "small" || row.scale_band === "medium") {
       smeVisibleJobs += 1;
       smeCompanyNames.add(row.company_name);
@@ -261,6 +309,8 @@ export async function loadLocalCatalogSupplyMetrics(
     totalSupply: Number(totalSupplyRow.count),
     visibleJobs: catalogRows.rows.length,
     companies: companyNames.size,
+    reachableVisibleJobs,
+    reachableCompanies: reachableCompanyNames.size,
     smeVisibleJobs,
     smeCompanies: smeCompanyNames.size,
     manualVisibleJobs,
@@ -281,8 +331,9 @@ function milestoneTargets(registry: SourceCandidateRegistry, milestone: SourceSc
   return {
     companies: milestone,
     visibleJobs,
-    smeCompanies: Math.ceil(milestone * registry.targets.minimumSmeCompanyRatio),
-    smeVisibleJobs: Math.ceil(visibleJobs * registry.targets.minimumSmeVisibleJobRatio),
+    reachableVisibleJobs: Math.ceil(
+      visibleJobs * registry.targets.minimumReachableVisibleJobRatio,
+    ),
     maximumManualCompanies: Math.floor(
       milestone * registry.targets.manualSourceMaximumCompanyRatio,
     ),
@@ -304,46 +355,14 @@ function milestoneTargets(registry: SourceCandidateRegistry, milestone: SourceSc
   };
 }
 
-function firstFeasibleSmeCompanyTarget(input: {
-  baseline: CatalogSupplyMetrics;
-  milestoneCompanies: number;
-  minimumRatio: number;
-}) {
-  let additionalSmeCompanies = Math.max(
-    0,
-    input.milestoneCompanies - input.baseline.companies,
-  );
-  while (
-    ratio(
-      input.baseline.smeCompanies + additionalSmeCompanies,
-      input.baseline.companies + additionalSmeCompanies,
-    ) < input.minimumRatio
-  ) {
-    additionalSmeCompanies += 1;
-  }
-  const firstFeasibleCompanyCount = input.baseline.companies + additionalSmeCompanies;
-  return {
-    minimumAdditionalSmeCompaniesIfAllNewSme: additionalSmeCompanies,
-    firstFeasibleCompanyCount,
-    minimumSmeCompaniesAtFirstFeasibleCount: Math.ceil(
-      firstFeasibleCompanyCount * input.minimumRatio,
-    ),
-  };
-}
-
 function dynamicRequirements(input: {
   baseline: CatalogSupplyMetrics;
   targets: ReturnType<typeof milestoneTargets>;
   registry: SourceCandidateRegistry;
 }) {
-  const companyFeasibility = firstFeasibleSmeCompanyTarget({
-    baseline: input.baseline,
-    milestoneCompanies: input.targets.companies,
-    minimumRatio: input.registry.targets.minimumSmeCompanyRatio,
-  });
   const visibleDenominator = Math.max(input.targets.visibleJobs, input.baseline.visibleJobs);
-  const minimumSmeVisibleJobs = Math.ceil(
-    visibleDenominator * input.registry.targets.minimumSmeVisibleJobRatio,
+  const minimumReachableVisibleJobs = Math.ceil(
+    visibleDenominator * input.registry.targets.minimumReachableVisibleJobRatio,
   );
   const deterministicVisibleJobs =
     input.baseline.visibleJobs - input.baseline.manualVisibleJobs;
@@ -351,18 +370,15 @@ function dynamicRequirements(input: {
     input.baseline.manualVisibleJobs /
       input.registry.targets.manualSourceMaximumVisibleJobRatio,
   );
-  const companyRatioRecovered =
-    ratio(input.baseline.smeCompanies, input.baseline.companies) >=
-    input.registry.targets.minimumSmeCompanyRatio;
-  const visibleJobRatioRecovered =
-    ratio(input.baseline.smeVisibleJobs, input.baseline.visibleJobs) >=
-    input.registry.targets.minimumSmeVisibleJobRatio;
+  const reachableRatioRecovered =
+    ratio(input.baseline.reachableVisibleJobs, input.baseline.visibleJobs) >=
+    input.registry.targets.minimumReachableVisibleJobRatio;
 
   return {
-    ...companyFeasibility,
-    minimumAdditionalSmeVisibleJobsAtMilestone: Math.max(
+    minimumReachableVisibleJobsAtMilestone: minimumReachableVisibleJobs,
+    minimumAdditionalReachableVisibleJobsAtMilestone: Math.max(
       0,
-      minimumSmeVisibleJobs - input.baseline.smeVisibleJobs,
+      minimumReachableVisibleJobs - input.baseline.reachableVisibleJobs,
     ),
     minimumDeterministicVisibleJobsBeforeManualExpansion,
     deterministicVisibleJobs,
@@ -370,8 +386,13 @@ function dynamicRequirements(input: {
       ratio(input.baseline.manualVisibleJobs, input.baseline.visibleJobs) <=
         input.registry.targets.manualSourceMaximumVisibleJobRatio &&
       deterministicVisibleJobs >= minimumDeterministicVisibleJobsBeforeManualExpansion,
-    smeRecoveryRequired: !companyRatioRecovered || !visibleJobRatioRecovered,
+    reachabilityRecoveryRequired: !reachableRatioRecovered,
     currentRatios: {
+      reachableVisibleJobs: ratio(
+        input.baseline.reachableVisibleJobs,
+        input.baseline.visibleJobs,
+      ),
+      // 以下两项仅为观察，不参与门槛（ADR-0032）。
       smeCompanies: ratio(input.baseline.smeCompanies, input.baseline.companies),
       smeVisibleJobs: ratio(input.baseline.smeVisibleJobs, input.baseline.visibleJobs),
       manualCompanies: ratio(input.baseline.manualCompanies, input.baseline.companies),
@@ -453,8 +474,13 @@ function plannerCandidate(
   const automationMode = override?.automationMode ?? "unknown";
   const capacity = override?.capacity ?? null;
   const scaleBand = override?.scaleBand ?? "unknown";
-  const quota = isSmeScaleBand(scaleBand) ? SME_COMPANY_QUOTA : NON_SME_COMPANY_QUOTA;
+  const reachableCapacity = isReachableCandidateCapacity(capacity);
+  const quota = reachableCapacity ? REACHABLE_COMPANY_QUOTA : NON_REACHABLE_COMPANY_QUOTA;
   const projectedVisibleJobs = Math.min(capacity?.completeJdInternships ?? 0, quota);
+  const projectedReachableVisibleJobs = Math.min(
+    candidateReachableInternships(capacity),
+    quota,
+  );
   const capacityAge = capacity ? dateAgeDays(currentShanghaiDate, capacity.verifiedAt) : null;
   const capacityFresh =
     capacityAge !== null &&
@@ -488,8 +514,11 @@ function plannerCandidate(
   const adapterFamily = override?.adapterFamily ?? inferAdapterFamily(evidence.evidenceUrl);
   const selectionReasons = [
     `lane:${lane}`,
-    `scale:${scaleBand}`,
+    `reachable:${reachableCapacity}`,
+    // scaleBand 仅为观察，不参与门槛与排序（ADR-0032）。
+    `scale_observed:${scaleBand}`,
     `projected_visible:${projectedVisibleJobs}`,
+    `projected_reachable:${projectedReachableVisibleJobs}`,
     `adapter:${adapterFamily}`,
   ];
   if ((override?.jobFamilyHints.length ?? 0) > 0) selectionReasons.push("job_family_gap_hint");
@@ -516,6 +545,8 @@ function plannerCandidate(
     capacity,
     quota,
     projectedVisibleJobs,
+    projectedReachableVisibleJobs,
+    reachableCapacity,
     capacityFresh,
     readinessBlockers,
     selectionReasons,
@@ -534,7 +565,7 @@ function candidatePriority(
   cityDeficits: Record<AlphaTargetCity, number>,
 ): [number, number, number, number, number, number, number, string] {
   const laneRank = candidate.lane === "capacity" ? 0 : candidate.lane === "coverage" ? 1 : 2;
-  const smeRank = candidate.scaleBand === "small" || candidate.scaleBand === "medium" ? 0 : 1;
+  const reachableRank = candidate.reachableCapacity ? 0 : 1;
   const adapterRank = isOfficialSourceAdapterKey(candidate.adapterFamily)
     ? 0
     : candidate.adapterFamily === "unclassified"
@@ -545,7 +576,7 @@ function candidatePriority(
     candidate.cityHints.filter((city) => cityDeficits[city] > 0).length;
   return [
     laneRank,
-    smeRank,
+    reachableRank,
     -candidate.projectedVisibleJobs,
     activityRank(candidate),
     adapterRank,
@@ -615,37 +646,37 @@ function coverageCandidateUseful(
   cityDeficits: Record<AlphaTargetCity, number>,
 ): boolean {
   return (
-    isSmeScaleBand(candidate.scaleBand) ||
+    candidate.reachableCapacity ||
     candidate.jobFamilyHints.some((family) => familyDeficits[family] > 0) ||
     candidate.cityHints.some((city) => cityDeficits[city] > 0)
   );
 }
 
 function projectedBatchRatios(candidates: readonly PlannerCandidate[]) {
-  const smeCandidates = candidates.filter((candidate) => isSmeScaleBand(candidate.scaleBand));
   const projectedVisibleJobs = candidates.reduce(
     (total, candidate) => total + candidate.projectedVisibleJobs,
     0,
   );
-  const projectedSmeVisibleJobs = smeCandidates.reduce(
-    (total, candidate) => total + candidate.projectedVisibleJobs,
+  const projectedReachableVisibleJobs = candidates.reduce(
+    (total, candidate) => total + candidate.projectedReachableVisibleJobs,
     0,
   );
   return {
-    smeCompanyRatio: ratio(smeCandidates.length, candidates.length),
-    smeVisibleJobRatio: ratio(projectedSmeVisibleJobs, projectedVisibleJobs),
+    reachableVisibleJobRatio: ratio(projectedReachableVisibleJobs, projectedVisibleJobs),
   };
 }
 
 function selectSourceBatch(input: {
   eligiblePool: PlannerCandidate[];
   limit: number;
-  smeRecoveryRequired: boolean;
+  reachabilityRecoveryRequired: boolean;
   familyDeficits: Record<JobFamily, number>;
   cityDeficits: Record<AlphaTargetCity, number>;
 }): PlannerCandidate[] {
-  const minimumSmeCompanyRatio = input.smeRecoveryRequired ? 0.7 : 0.5;
-  const minimumSmeVisibleJobRatio = input.smeRecoveryRequired ? 0.5 : 0.4;
+  // 落后于门槛时提高本批下限，把比例拉回来；否则维持 ADR-0032 的 50%。
+  const minimumReachableVisibleJobRatio = input.reachabilityRecoveryRequired
+    ? 0.7
+    : MINIMUM_REACHABLE_VISIBLE_JOB_RATIO;
   const selected: PlannerCandidate[] = [];
   let coverageCompanies = 0;
 
@@ -662,12 +693,9 @@ function selectSourceBatch(input: {
     }
 
     const proposed = [...selected, candidate];
-    if (!isSmeScaleBand(candidate.scaleBand)) {
+    if (!candidate.reachableCapacity) {
       const projectedRatios = projectedBatchRatios(proposed);
-      if (
-        projectedRatios.smeCompanyRatio < minimumSmeCompanyRatio ||
-        projectedRatios.smeVisibleJobRatio < minimumSmeVisibleJobRatio
-      ) {
+      if (projectedRatios.reachableVisibleJobRatio < minimumReachableVisibleJobRatio) {
         continue;
       }
     }
@@ -676,8 +704,7 @@ function selectSourceBatch(input: {
       ...candidate,
       selectionReasons: [
         ...candidate.selectionReasons,
-        `batch_sme_company_floor:${minimumSmeCompanyRatio}`,
-        `batch_sme_job_floor:${minimumSmeVisibleJobRatio}`,
+        `batch_reachable_job_floor:${minimumReachableVisibleJobRatio}`,
       ],
     });
     if (candidate.lane === "coverage") coverageCompanies += 1;
@@ -694,22 +721,23 @@ function projectedSupplyMetrics(
     (total, candidate) => total + candidate.projectedVisibleJobs,
     0,
   );
-  const projectedSmeVisibleJobs = selected
-    .filter((candidate) => isSmeScaleBand(candidate.scaleBand))
-    .reduce((total, candidate) => total + candidate.projectedVisibleJobs, 0);
+  const projectedReachableVisibleJobs = selected.reduce(
+    (total, candidate) => total + candidate.projectedReachableVisibleJobs,
+    0,
+  );
   const projectedManualVisibleJobs = selected
     .filter((candidate) => candidate.automationMode === "browser_required")
     .reduce((total, candidate) => total + candidate.projectedVisibleJobs, 0);
-  const projectedSmeCompanies = selected.filter((candidate) =>
-    isSmeScaleBand(candidate.scaleBand),
+  const projectedReachableCompanies = selected.filter(
+    (candidate) => candidate.reachableCapacity,
   ).length;
   const projectedManualCompanies = selected.filter(
     (candidate) => candidate.automationMode === "browser_required",
   ).length;
   const companies = baseline.companies + selected.length;
   const visibleJobs = baseline.visibleJobs + projectedVisibleJobs;
-  const smeCompanies = baseline.smeCompanies + projectedSmeCompanies;
-  const smeVisibleJobs = baseline.smeVisibleJobs + projectedSmeVisibleJobs;
+  const reachableCompanies = baseline.reachableCompanies + projectedReachableCompanies;
+  const reachableVisibleJobs = baseline.reachableVisibleJobs + projectedReachableVisibleJobs;
   const manualCompanies = baseline.manualCompanies + projectedManualCompanies;
   const manualVisibleJobs = baseline.manualVisibleJobs + projectedManualVisibleJobs;
   const jobFamilies = { ...baseline.jobFamilies };
@@ -735,13 +763,12 @@ function projectedSupplyMetrics(
   return {
     companies,
     visibleJobs,
-    smeCompanies,
-    smeVisibleJobs,
+    reachableCompanies,
+    reachableVisibleJobs,
     manualCompanies,
     manualVisibleJobs,
     ratios: {
-      smeCompanies: ratio(smeCompanies, companies),
-      smeVisibleJobs: ratio(smeVisibleJobs, visibleJobs),
+      reachableVisibleJobs: ratio(reachableVisibleJobs, visibleJobs),
       manualCompanies: ratio(manualCompanies, companies),
       manualVisibleJobs: ratio(manualVisibleJobs, visibleJobs),
     },
@@ -829,7 +856,7 @@ export function planSourceBatch(input: {
   const selected = selectSourceBatch({
     eligiblePool,
     limit,
-    smeRecoveryRequired: requirements.smeRecoveryRequired,
+    reachabilityRecoveryRequired: requirements.reachabilityRecoveryRequired,
     familyDeficits,
     cityDeficits,
   });
@@ -848,8 +875,7 @@ export function planSourceBatch(input: {
     deficits: {
       companies: deficit(targets.companies, baseline.companies),
       visibleJobs: deficit(targets.visibleJobs, baseline.visibleJobs),
-      smeCompanies: requirements.minimumAdditionalSmeCompaniesIfAllNewSme,
-      smeVisibleJobs: requirements.minimumAdditionalSmeVisibleJobsAtMilestone,
+      reachableVisibleJobs: requirements.minimumAdditionalReachableVisibleJobsAtMilestone,
       jobFamilies: familyDeficits,
       cities: cityDeficits,
       manualCompaniesOverLimit: Math.max(
@@ -953,7 +979,7 @@ export function auditSourceBatchPlan(
       candidateCount: values.length,
       capacityReadyCount: values.filter((candidate) => candidate.readinessBlockers.length === 0)
         .length,
-      verifiedSmeCount: values.filter((candidate) => isSmeScaleBand(candidate.scaleBand)).length,
+      reachableReadyCount: values.filter((candidate) => candidate.reachableCapacity).length,
       projectedVisibleJobs: values.reduce(
         (total, candidate) => total + candidate.projectedVisibleJobs,
         0,
@@ -962,7 +988,7 @@ export function auditSourceBatchPlan(
     }))
     .sort(
       (left, right) =>
-        right.verifiedSmeCount - left.verifiedSmeCount ||
+        right.reachableReadyCount - left.reachableReadyCount ||
         right.projectedVisibleJobs - left.projectedVisibleJobs ||
         right.candidateCount - left.candidateCount ||
         left.adapterFamily.localeCompare(right.adapterFamily),

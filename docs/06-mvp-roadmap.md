@@ -35,9 +35,9 @@
 
 | 项目 | 当前事实 |
 |---|---|
-| 更新日期 | 2026-08-28 |
-| 当前阶段 | 供给准入扩容轨道（SA Track）进行中，阶段 0（不触网）；上一轨道 UX-0 与 OS-1–OS-7 已关闭 |
-| 当前唯一目标 | SA Track 阶段 0：产出首批待评估候选清单并跑离线 `source:assess`。进入阶段 1 的触网评估须 coco 逐批 live 授权 |
+| 更新日期 | 2026-08-29 |
+| 当前阶段 | 供给准入扩容轨道（SA Track）**Phase A 已完成**（零触网标准与机制，A1–A10）；上一轨道 UX-0 与 OS-1–OS-7 已关闭 |
+| 当前唯一目标 | coco 审定 [ADR-0032](decisions/0032-reachability-first-supply-admission.md)、[ADR-0033](decisions/0033-access-policy-basis-and-minimal-body-scope.md) 与 [ADR-0034](decisions/0034-two-layer-source-admission-and-reconciled-publication.md)（均为 `proposed`；0033 建议先取法律意见）。通过后进入 Phase B。**ADR-0034 §一+§二 是 Phase B 第一步且零触网**；其余触网步骤须 coco 逐批 live 授权 |
 | 当前分支 | `codex/career-os-ux-convergence`；精确 HEAD 与工作树以 Git 为准 |
 | 工程基线 | 可信完成基线为 OS-7：Config 20、Contracts 86、Database 54、Platform 466、Web 182，共 **808/808**，一次跑通无 flake；lint 485 files、typecheck、build、audit 与 diff check 通过。上一绿色基线 OS-6 为 801/801（`e56ceae`） |
 | 前端基线 | OS-7 Web main **401.33 kB（gzip 117.04 kB）**，相对 OS-6 的 401.31 kB 增加 0.02 kB，低于 411.31 kB 上限；旧 PA-1 的 566.69 kB 只是历史时点，不再作为守门上限。重工作区继续独立 lazy load |
@@ -45,7 +45,7 @@
 | 可信供给 | 22 岗 / 3 家企业 / 3 个官方 ATS；公共与 Alpha 岗位均为 0 |
 | 当前 AI | 公开和远程环境关闭；本地 Review v2 只允许确定性模板或显式同意后的受控 provider，验收只用模拟 provider/`AI_DISABLED` 降级 |
 | 当前外部边界 | 不接真实招聘来源、真实 AI、邮件、服务器、解析镜像或参与者 |
-| 当前下一决定 | 已定：供给准入扩容。轨道内的下一决定是 coco 是否对 SA Track 阶段 1 首批候选授予 live 触网评估授权（缺 978 岗、97 家，当前审计 `capacity` 就绪候选为 0） |
+| 当前下一决定 | coco 审定 ADR-0032、ADR-0033 与 ADR-0034，然后决定是否对 Phase B 授予 live 触网授权。A10 实测：候选池 42（高校族 26 / Moka 族 15 / 未分类 1），`capacity` 与可达就绪均为 0。**已查明公开 `/v1/jobs` 恒为 0 的根因是 `eligible_for_alpha` 与 `publication_state` 的循环依赖，不是门槛太严**——不解除它，触网与准入全部做完仍为 0 |
 | 时间盒 | 原 9–12 日前端偏重总估算已撤回。OS-7 实际耗用 7 次双库 runner 运行，其中 6 次为失败反证；下一条轨道启动时单独估时 |
 
 岗位数量、合成数据、页面完成、工程测试或视觉验收都不能自动把产品证据从 E0 提升。
@@ -62,8 +62,9 @@ flowchart LR
     O4 --> O5["OS-5 Resume Studio 与唯一 Review 写入<br/>已完成"]
     O5 --> O6["OS-6 投递、面试、复盘与数据控制<br/>已完成"]
     O6 --> O7["OS-7 系统总 Gate<br/>已完成"]
-    O7 --> SA["SA Track 供给准入扩容<br/>进行中·阶段 0"]
-    SA --> P["Private Alpha 准备<br/>仍需单独授权"]
+    O7 --> SAA["SA Track Phase A<br/>标准与机制·已完成"]
+    SAA --> SAB["SA Track Phase B<br/>待 ADR 审定；首步零触网"]
+    SAB --> P["Private Alpha 准备<br/>仍需单独授权"]
 ~~~
 
 SA Track 是 OS-7 之后的当前轨道，分阶段 40 → 70 → 100 家推进供给准入；详见 [供给准入扩容轨道计划](plans/supply-admission-scaleup-track.md)。下表 UX-0/OS-1–OS-7 为已关闭的上一轨道历史基线。
@@ -96,7 +97,7 @@ SA Track 是 OS-7 之后的当前轨道，分阶段 40 → 70 → 100 家推进�
 |---|---|---|
 | Career OS 前后端同步交付 | UX-0 审计与 OS-1–OS-7 的 Contracts、Platform/DB、Web 与 coco 可见验收 | **已通过**：UX-0 与 OS-1–OS-7 全部关闭 |
 | Private Alpha 产品闭环 | M1–M4 一岗闭环 | 已通过本地合成工程 Gate；不等于体验、供给、服务器或用户 Gate 通过 |
-| 可信供给 | 100 家企业 / 1000 条活动可信实习岗位及既定分布 | 22 岗 / 3 家，未通过 |
+| 可信供给 | 100 家企业 / 1000 条活动可信实习岗位、**可达岗位 ≥50%**（ADR-0032）及既定分布 | 22 岗 / 3 家，未通过 |
 | 来源持续性 | 至少 3 个已准入确定性来源连续 7 天按 12 小时周期运行 | 0/3，未开始 |
 | 服务器就绪 | 真实邮件、解析镜像、HTTPS、备份恢复、监控和负载 | PA-1 仅离线候选，未通过 |
 | G0/G1 | 2 人协议校准和 6 人正式价值验证 | 未开始 |

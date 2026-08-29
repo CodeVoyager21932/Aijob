@@ -7,9 +7,10 @@ import {
   semanticRevisionValue,
   unknown,
 } from "./normalized-official-job.js";
+import { scopeOfficialDutyText } from "./official-job-body-scope.js";
 
-export const OFFICIAL_ACCOUNT_MANUAL_ADAPTER_VERSION = "0.1.1";
-export const OFFICIAL_ACCOUNT_MANUAL_NORMALIZER_VERSION = "0.1.1";
+export const OFFICIAL_ACCOUNT_MANUAL_ADAPTER_VERSION = "0.1.2";
+export const OFFICIAL_ACCOUNT_MANUAL_NORMALIZER_VERSION = "0.1.2";
 
 const applicationSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("official_url"), url: z.string().url() }).strict(),
@@ -144,7 +145,8 @@ export function normalizeOfficialAccountManualJob(input: {
     sourceProjectName: null,
     recruitLabelName: job.recruitmentChannel,
     recruitmentType: known(job.recruitmentChannel, [snapshotEvidenceRef]),
-    responsibilities: job.responsibilities,
+    // 人工快照为粘贴文本，按 ADR-0033 的 D1 裁剪到职责范围，避免带入公司简介与福利文案。
+    responsibilities: scopeOfficialDutyText(job.responsibilities),
     requirements: job.requirements,
     structuredFields: {
       arrivalTime: unknown<string>(),

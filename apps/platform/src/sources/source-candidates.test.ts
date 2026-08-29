@@ -12,12 +12,14 @@ describe("source candidate registry", () => {
   it("locks the 100-company Alpha gate, operating buffer and bounded batches", async () => {
     const registry = await loadSourceCandidateRegistry();
 
-    expect(registry.schemaVersion).toBe("4.0.0");
+    expect(registry.schemaVersion).toBe("5.0.0");
     expect(registry.scope).toBe("private_alpha_all_function_internships");
     expect(registry.targets.hardGate).toEqual({ visibleJobs: 1_000, companies: 100 });
     expect(registry.targets.operatingTarget).toEqual({ visibleJobs: 1_100, companies: 110 });
-    expect(registry.targets.minimumSmeCompanyRatio).toBe(0.5);
-    expect(registry.targets.minimumSmeVisibleJobRatio).toBe(0.4);
+    // ADR-0032：结构门槛轴为可达岗位比例，SME 两项比例已撤回。
+    expect(registry.targets.minimumReachableVisibleJobRatio).toBe(0.5);
+    expect(registry.targets).not.toHaveProperty("minimumSmeCompanyRatio");
+    expect(registry.targets).not.toHaveProperty("minimumSmeVisibleJobRatio");
     expect(registry.targets.manualSourceMaximumCompanyRatio).toBe(0.2);
     expect(registry.targets.manualSourceMaximumVisibleJobRatio).toBe(0.1);
     expect(registry.batchPolicy).toEqual({
@@ -168,6 +170,7 @@ describe("source candidate registry", () => {
       capacity: {
         verifiedActiveInternships: 9,
         completeJdInternships: 9,
+        reachableInternships: 9,
         verifiedAt: "2026-08-03",
         evidenceRef: "docs/evidence/invalid.md",
       },

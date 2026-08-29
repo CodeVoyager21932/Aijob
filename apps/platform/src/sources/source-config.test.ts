@@ -16,7 +16,11 @@ interface MutableSourceConfigFixture {
   sourceType: string;
   catalogRole?: string;
   runtimeScope?: string;
-  candidate: { provenanceLevel: string; acquisitionMode: string };
+  candidate: {
+    provenanceLevel: string;
+    acquisitionMode: string;
+    hardGates: Record<string, { status: string; note: string }>;
+  };
   policy: {
     status: string;
     adapterKey: string;
@@ -25,6 +29,7 @@ interface MutableSourceConfigFixture {
     crawlInterval: { enabled: boolean; minimumHours: number };
     refreshCoverage: string;
     absencePolicy: string;
+    accessPolicyEvidence?: unknown;
   };
   localProbe: { enabled: boolean; requestDefaults: Record<string, unknown> };
 }
@@ -805,5 +810,22 @@ describe("controlled local source configurations", () => {
     expect(() => parseSourceConfigValue(fixture)).toThrow(
       "canonical catalog sources require organization_owned or verified_ats_tenant provenance",
     );
+  });
+});
+
+describe("access policy evidence must justify the gate (ADR-0033)", () => {
+  // 只守这一条边界：结论不能没有证据。其余分支排列等真有来源到 `pass` 再补——
+  // 当前 34 个来源全部为 fail/pending，在 Phase B 拿到网络授权前不可能为 `pass`。
+  it("rejects accessPolicyAccepted=pass without recorded evidence", async () => {
+    const fixture = await sourceConfigFixture("bytedance-manual-test.json");
+    expect(fixture.candidate.hardGates.accessPolicyAccepted?.status).not.toBe("pass");
+    expect(() => parseSourceConfigValue(fixture)).not.toThrow();
+
+    fixture.candidate.hardGates.accessPolicyAccepted = {
+      status: "pass",
+      note: "robots 允许全部已登记目标，条款未禁止聚合。",
+    };
+    fixture.policy.accessPolicyEvidence = null;
+    expect(() => parseSourceConfigValue(fixture)).toThrow(/accessPolicyEvidence/);
   });
 });

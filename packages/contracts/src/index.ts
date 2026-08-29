@@ -7,6 +7,7 @@ export * from "./field-value.js";
 export * from "./identity.js";
 export * from "./insights.js";
 export * from "./interview-debrief-knowledge.js";
+export * from "./job-reachability.js";
 export * from "./jobs.js";
 export * from "./matching.js";
 export * from "./problem-details.js";

@@ -7,9 +7,10 @@ import {
   semanticRevisionValue,
   unknown,
 } from "./normalized-official-job.js";
+import { scopeOfficialDutyText } from "./official-job-body-scope.js";
 
-export const BEISEN_ZHIYE_ADAPTER_VERSION = "0.1.2";
-export const BEISEN_ZHIYE_NORMALIZER_VERSION = "0.1.2";
+export const BEISEN_ZHIYE_ADAPTER_VERSION = "0.1.3";
+export const BEISEN_ZHIYE_NORMALIZER_VERSION = "0.1.3";
 
 /**
  * 北森智业（zhiye.com）招聘门户共享适配器。
@@ -346,7 +347,8 @@ export function normalizeBeisenZhiyeJobAd(input: {
     sourceProjectName: null,
     recruitLabelName: tenant.categoryLabel,
     recruitmentType: known(tenant.categoryLabel, [pageEvidenceRef]),
-    responsibilities: job.Duty.trim(),
+    // 部分租户把公司简介与福利文案塞进 Duty 字段，按 ADR-0033 的 D1 裁剪到职责范围。
+    responsibilities: scopeOfficialDutyText(job.Duty),
     requirements: requirementText,
     structuredFields: {
       arrivalTime: unknown<string>(),

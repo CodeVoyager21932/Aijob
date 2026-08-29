@@ -38,5 +38,8 @@
 尚未接受的提案：
 
 - [ADR-0024：统一来源适配器描述符与运行模式](0024-unify-source-adapter-descriptors-and-run-modes.md)
+- [ADR-0032：以可达性取代 SME 作为供给结构门槛，并冻结五项收录属性](0032-reachability-first-supply-admission.md)
+- [ADR-0033：以站点公开访问政策为准入依据，并把岗位正文限定在决策必需范围](0033-access-policy-basis-and-minimal-body-scope.md)（转为 `accepted` 前建议取得法律意见）
+- [ADR-0034：两层来源准入（厂商／租户）与资格对账驱动的发布步骤](0034-two-layer-source-admission-and-reconciled-publication.md)
 
 新决定从 [ADR 模板](../templates/adr.md) 复制创建。已有决定变化时新增一条 ADR，并将旧记录标记为 `superseded`，不要静默改写历史理由。

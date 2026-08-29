@@ -40,7 +40,7 @@
     "version": "1",
     "status": "pending_review",
     "adapterKey": "bytedance-manual-browser-snapshot",
-    "adapterVersion": "0.1.1",
+    "adapterVersion": "0.1.2",
     "entrypoints": ["https://jobs.bytedance.com/campus/position"],
     "crawlInterval": { "enabled": false, "minimumHours": 168 },
     "refreshCoverage": "manual_snapshot",

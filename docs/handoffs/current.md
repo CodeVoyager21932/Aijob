@@ -30,11 +30,34 @@
 
 ## 1. 当前决定
 
-**OS-7 已完成（UX-0 与 OS-1–OS-7 全部关闭）。coco 于 2026-08-28 选择「供给准入扩容」为下一条轨道，SA Track 现为当前进行中切片，位于阶段 0（不触网）。**
+**OS-7 已完成（UX-0 与 OS-1–OS-7 全部关闭）。coco 于 2026-08-28 选择「供给准入扩容」为下一条轨道。SA Track 的 Phase A（零触网标准与机制）A1–A10 已全部完成。**
 
-当前唯一目标：按 [供给准入扩容轨道计划](../plans/supply-admission-scaleup-track.md) 执行阶段 0——产出首批待评估候选清单并跑离线 `source:assess`。
+Phase A 交付了三份待审 ADR 与配套实现：
 
-**进入阶段 1 的任何触网评估（`source:probe` / `source:refresh-now --confirm-live`）前，须 coco 逐批明确 live 授权。** 不得自动进入 Private Alpha、不得启动服务器就绪工作、不得从 [Private Alpha 就绪 Gate](../plans/private-alpha-readiness-gates.md) 生成任务。
+- [ADR-0032](../decisions/0032-reachability-first-supply-admission.md)（`proposed`）：以**可达岗位 ≥50% 可见岗位**取代 SME 比例作为结构门槛；冻结五项收录属性；用户可见岗位必须 `closure_detectable`。
+- [ADR-0033](../decisions/0033-access-policy-basis-and-minimal-body-scope.md)（`proposed`）：以站点 `robots.txt` + 服务条款为 `accessPolicyAccepted` 判据；岗位正文限定在职责与任职要求原句（D1）。**转为 `accepted` 前建议取得法律意见。**
+- [ADR-0034](../decisions/0034-two-layer-source-admission-and-reconciled-publication.md)（`proposed`）：来源准入拆为**厂商层／租户层**两层（单家成本 153 行 → 3–5 行）；**解除公开供给的结构性死锁**；发布由**双向资格对账**自动驱动。
+
+### ADR-0034 的核心发现：公开供给恒为 0 是循环依赖，不是门槛太严
+
+`eligible_for_alpha` 的条件里含 `AND publication_state = 'published'`，而 `NormalizedOfficialJob.publicationState` 是字面量类型 `"review"`，全仓无任何生产代码写过 `published`（只有测试夹具）。`materialize.ts` 又只在修订为 `published` 时设 `catalog.published_jobs.public_version_id`，而所有公开读取路径（`catalog/repository.ts`、`matching/service.ts`、`insights/service.ts`、`local-bootstrap.ts`）在非 local MVP 时都走该指针。
+
+**要「已发布」才算「够格发布」，而发布只在「已发布」时发生。** 因此松开 `accessPolicyAccepted` 或任何上游门都不会让公开供给变成正数。数据库无障碍：migration 001 允许 `published`，`public_version_id` 可为空。
+
+两条必须一起满足的实现约束：
+
+1. `revision_content_hash` 的输入包含 `publicationState`，因此**改写 `revision.publication_state` 会破坏不可变性与可复现性**（ADR-0029 §11）。发布只能表达在 `public_version_id`。
+2. **自动发布必须配自动撤回。** 指针是持久化的，来源被自动 `paused`、岗位过期、新鲜度过期、职责或要求被清空、复核项打开，都会使资格失效而指针滞留，产生对外可见漂移。只做单向发布比完全不发布更糟。
+
+保留的人工动作仅三项，且都是逐来源一次、不随岗位数量增长：来源准入（`policy.status → approved`）、运行范围提升（`runtime_scope → alpha`）、强制下架（履行「异议即停」）。
+
+**当前唯一目标：coco 审定 ADR-0032、ADR-0033 与 ADR-0034。** 三份通过后，Phase B 只剩执行——robots 判定、访问政策证据字段、周期复核与自动暂停均已建成并有夹具测试覆盖，尚未接线到 live fetch。
+
+ADR-0034 落地建议分两步，**第一步不需要任何触网授权**：先做 §一 + §二（去掉 `eligible_for_alpha` 的 `publication_state` 条件、`materialize.ts` 不再设指针、建双向对账与强制下架；需新迁移 035 重建 `job_version_eligibility`），再做 §三 两层 schema（改 `source-config.ts` 并迁移 34 份既有配置，改动较大）。
+
+**进入 Phase B 的任何触网步骤（`source:probe` / `source:refresh-now --confirm-live`，以及 robots 与 ToS 的实际抓取）前，须 coco 逐批明确 live 授权。** 不得自动进入 Private Alpha、不得启动服务器就绪工作、不得从 [Private Alpha 就绪 Gate](../plans/private-alpha-readiness-gates.md) 生成任务。
+
+产品阶段未变：产品证据仍为 **E0**，可信供给仍为 **22 岗 / 3 家企业 / 3 官方 ATS**，公开 `/v1/jobs` 仍为 0（正确行为）。Phase A 一条可见岗位都没有增加。
 
 产品阶段未变：产品证据仍为 **E0**，可信供给仍为 **22 岗 / 3 家企业 / 3 官方 ATS**。飞书线索表与本轮提取的 389 域名清单只是发现线索，不构成供给证据。
 
@@ -63,12 +86,20 @@
 
 `apps/web/src/styles.css` **未修改**，因此 `VITE_CAREER_OS_V2=false` 回退外观完全不变。
 
-## 4. 下一任务接手要点（SA Track）
+## 4. 下一任务接手要点（SA Track Phase B）
 
-1. 依次读取 `AGENTS.md`、README、路线图、本交接、[SA Track 计划](../plans/supply-admission-scaleup-track.md)、Private Alpha 就绪 Gate 与相关 ADR（0026/0027/0028）。
+1. 依次读取 `AGENTS.md`、README、路线图、本交接、[SA Track 计划](../plans/supply-admission-scaleup-track.md)、Private Alpha 就绪 Gate 与相关 ADR（0026/0027/0028/0029/0030/**0032**/**0033**/**0034**）。
 2. `git fetch` 核对分支/远端/工作树；`codex/g2-1000-alpha-supply`（capacity 感知规划、可复用 ATS 来源族、Private Alpha 信任边界）已完整合入本分支（`merge-base` 即其 tip，left/right = 80/0），无撞车风险；其 worktree 的未提交改动属于 coco，不动。
-3. 执行 SA Track 阶段 0（不触网）：产出首批待评估候选清单 + 离线 `source:assess`。
-4. **任何触网评估须 coco 逐批 live 授权**；不复用 OS-1–OS-7 切片模板，不启动服务器就绪工作。
+3. **先确认 ADR-0032、ADR-0033 与 ADR-0034 是否已被 coco 审定**。未审定前不得据其提升任何来源状态，也不得据 ADR-0034 改动资格视图或发布路径。
+4. Phase B 的五步顺序。**第 1 步不触网，且必须先做**——否则后四步全做完公开 `/v1/jobs` 仍是 0：
+   1. 落地 ADR-0034 §一 + §二：解除循环依赖、发布与物化解耦、建双向对账与强制下架（新迁移 035 重建 `job_version_eligibility`）。**零触网。**
+   2. 恢复 9 个 `crawlInterval.enabled` 来源按周期跑 7 天。
+   3. 逐来源抓 robots + 核 ToS 并重评 `accessPolicyAccepted`。
+   4. 凭运行证据翻转 `stableIdentityAndFields`。
+   5. 提 `policy.status → approved` + `runtime_scope → alpha`，由对账自动发布使公开 `/v1/jobs` 非 0。
+5. **任何触网步骤须 coco 逐批 live 授权**；不复用 OS-1–OS-7 切片模板，不启动服务器就绪工作。
+   上一版交接把第 5 步写成「提 `approved` + `alpha` scope 使公开 `/v1/jobs` 非 0」，那是错的：在循环依赖未解除前，该动作不会产生任何公开岗位。
+6. 已登记的残留缺口：`university-employment-adapter` 的 `splitRequirements` 无职责锚点（会把公司简介带入职责）。当前高校来源全为 `discovery_only` 不进目录，但高校线重启前必修。
 
 ## 5. 复现浏览器 Gate 所需的环境事实
 
