@@ -37,7 +37,7 @@
 |---|---|
 | 更新日期 | 2026-08-29 |
 | 当前阶段 | 供给准入扩容轨道（SA Track）**Phase A 已完成**（零触网标准与机制，A1–A10）；上一轨道 UX-0 与 OS-1–OS-7 已关闭 |
-| 当前唯一目标 | coco 审定 [ADR-0032](decisions/0032-reachability-first-supply-admission.md)、[ADR-0033](decisions/0033-access-policy-basis-and-minimal-body-scope.md) 与 [ADR-0034](decisions/0034-two-layer-source-admission-and-reconciled-publication.md)（均为 `proposed`；0033 建议先取法律意见）。通过后进入 Phase B。**ADR-0034 §一+§二 是 Phase B 第一步且零触网**；其余触网步骤须 coco 逐批 live 授权 |
+| 当前唯一目标 | [ADR-0032](decisions/0032-reachability-first-supply-admission.md)、[ADR-0033](decisions/0033-access-policy-basis-and-minimal-body-scope.md)、[ADR-0034](decisions/0034-two-layer-source-admission-and-reconciled-publication.md) 已 `accepted`，ADR-0034 §一+§二+§四 已落地（零触网，公开供给的结构性死锁已解除）。下一步是 Phase B 的触网部分：恢复周期刷新 7 天 → 抓 robots 与核 ToS → 翻转 `stableIdentityAndFields` → 提 `approved` + `alpha`。**须 coco 逐批 live 授权** |
 | 当前分支 | `codex/career-os-ux-convergence`；精确 HEAD 与工作树以 Git 为准 |
 | 工程基线 | 可信完成基线为 OS-7：Config 20、Contracts 86、Database 54、Platform 466、Web 182，共 **808/808**，一次跑通无 flake；lint 485 files、typecheck、build、audit 与 diff check 通过。上一绿色基线 OS-6 为 801/801（`e56ceae`） |
 | 前端基线 | OS-7 Web main **401.33 kB（gzip 117.04 kB）**，相对 OS-6 的 401.31 kB 增加 0.02 kB，低于 411.31 kB 上限；旧 PA-1 的 566.69 kB 只是历史时点，不再作为守门上限。重工作区继续独立 lazy load |
@@ -45,7 +45,7 @@
 | 可信供给 | 22 岗 / 3 家企业 / 3 个官方 ATS；公共与 Alpha 岗位均为 0 |
 | 当前 AI | 公开和远程环境关闭；本地 Review v2 只允许确定性模板或显式同意后的受控 provider，验收只用模拟 provider/`AI_DISABLED` 降级 |
 | 当前外部边界 | 不接真实招聘来源、真实 AI、邮件、服务器、解析镜像或参与者 |
-| 当前下一决定 | coco 审定 ADR-0032、ADR-0033 与 ADR-0034，然后决定是否对 Phase B 授予 live 触网授权。A10 实测：候选池 42（高校族 26 / Moka 族 15 / 未分类 1），`capacity` 与可达就绪均为 0。**已查明公开 `/v1/jobs` 恒为 0 的根因是 `eligible_for_alpha` 与 `publication_state` 的循环依赖，不是门槛太严**——不解除它，触网与准入全部做完仍为 0 |
+| 当前下一决定 | 是否对 Phase B 首批授予 live 触网授权。A10 实测：候选池 42（高校族 26 / Moka 族 15 / 未分类 1），`capacity` 与可达就绪均为 0。**公开 `/v1/jobs` 恒为 0 的根因已查明并修复**：`publication_state = 'published'` 既在资格视图里、也散布在 6 处生产读取路径，构成结构性死锁而非严格门槛；现已全部改由 `public_version_id` 表达并由双向对账驱动。公开供给现在只差「有来源被准入」这一件事 |
 | 时间盒 | 原 9–12 日前端偏重总估算已撤回。OS-7 实际耗用 7 次双库 runner 运行，其中 6 次为失败反证；下一条轨道启动时单独估时 |
 
 岗位数量、合成数据、页面完成、工程测试或视觉验收都不能自动把产品证据从 E0 提升。

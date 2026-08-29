@@ -888,14 +888,16 @@ export async function getMatchRun(
     .where("run.owner_id", "=", owner.ownerId)
     .where("run.owner_epoch", "=", owner.ownerEpoch);
   if (!options.enableLocalMvp) {
+    // ADR-0034：公开模式只返回已发布岗位。「已发布」由 `catalog.published_jobs.public_version_id`
+    // 表达，不再看 `revision.publication_state`——后者恒为 `review`，原条件使公开模式恒为空。
     query = query.where(sql<boolean>`EXISTS (
       SELECT 1
-      FROM catalog.published_job_version_revision_links AS link
+      FROM catalog.published_jobs AS job
       JOIN ingestion.source_job_revisions AS revision
-        ON revision.id = link.source_job_revision_id
-      WHERE link.published_job_version_id = version.id
+        ON revision.id = version.source_job_revision_id
+      WHERE job.id = version.published_job_id
+        AND job.public_version_id = version.id
         AND revision.ingestion_state = 'validated'
-        AND revision.publication_state = 'published'
     )`);
   }
   const row = await query.executeTakeFirst();
@@ -1222,9 +1224,11 @@ async function currentCatalogCandidateSnapshots(
         .where("policy.policy_status", "in", ["pending_review", "approved"])
     : query
         .where("versionEligibility.eligible_for_alpha", "=", true)
+        // ADR-0034：上一行的指针比对就是「已发布」判据。修订侧只要求可复核，
+        // 与 PUBLICATION_NOT_REVIEWABLE 同义；原先的 `= 'published'` 恒不成立。
         .whereRef("job.public_version_id", "=", "version.id")
         .where("revision.ingestion_state", "=", "validated")
-        .where("revision.publication_state", "=", "published")
+        .where("revision.publication_state", "in", ["review", "published"])
         .where("policy.policy_status", "=", "approved");
   const rows = await query.execute();
   const snapshots = new Map(
@@ -1313,8 +1317,10 @@ async function recommendationCatalogContext(
         .where("currentRevision.publication_state", "in", ["review", "published"])
         .where("currentPolicy.policy_status", "in", ["pending_review", "approved"])
     : query
+        // ADR-0034：公开模式下 `current` 已经 join 在 `job.public_version_id` 上，
+        // 指针即「已发布」。修订侧只要求可复核。
         .where("currentRevision.ingestion_state", "=", "validated")
-        .where("currentRevision.publication_state", "=", "published")
+        .where("currentRevision.publication_state", "in", ["review", "published"])
         .where("currentPolicy.policy_status", "=", "approved");
   const rows = await query.execute();
 
@@ -1330,9 +1336,9 @@ async function recommendationCatalogContext(
       (candidate.effectiveActivityState !== "active" &&
         candidate.effectiveActivityState !== "uncertain") ||
       candidate.ingestionState !== "validated" ||
-      (enableLocalMvp
-        ? candidate.publicationState !== "review" && candidate.publicationState !== "published"
-        : candidate.publicationState !== "published") ||
+      // ADR-0034：两种模式都只要求修订可复核。公开模式的「已发布」由上方 join 在
+      // `job.public_version_id` 上的 `current` 保证，不再靠修订状态区分。
+      (candidate.publicationState !== "review" && candidate.publicationState !== "published") ||
       (enableLocalMvp
         ? candidate.policyStatus !== "pending_review" && candidate.policyStatus !== "approved"
         : candidate.policyStatus !== "approved")

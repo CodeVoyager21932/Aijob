@@ -440,7 +440,12 @@ async function loadPublicRows(db: DbExecutor): Promise<CatalogDatabaseRow[]> {
       version.requirements,
       version.structured_fields,
       revision.ingestion_state,
-      revision.publication_state,
+      -- ADR-0034：目录层的「已发布」就是公开指针，而修订恒为 review。这里按指针派生，
+      -- 否则 displayStatus 会把每一个公开岗位都标成 pending_review、isInternal 恒为真。
+      CASE
+        WHEN version.id = job.public_version_id THEN 'published'
+        ELSE revision.publication_state
+      END AS publication_state,
       activity.effective_activity_state AS activity_state,
       version.source_url,
       version.apply_url,
@@ -474,7 +479,9 @@ async function loadPublicRows(db: DbExecutor): Promise<CatalogDatabaseRow[]> {
     WHERE eligibility.eligible_for_alpha
       AND policy.policy_status = 'approved'
       AND revision.ingestion_state = 'validated'
-      AND revision.publication_state = 'published'
+      -- ADR-0034：此处原有 revision.publication_state = 'published'，与 eligible_for_alpha
+      -- 里那份条件共同构成结构性死锁：适配器恒产出 review。「已发布」现由上方
+      -- version.id = job.public_version_id 这个 JOIN 表达，无需再看修订状态。
       AND activity.effective_activity_state = 'active'
   `.execute(db);
   return result.rows;

@@ -431,10 +431,12 @@ async function loadInsightRecords(
 
   return result.rows.flatMap((row) => {
     if (
-      enableLocalMvp
-        ? !["pending_review", "approved"].includes(row.policy_status) ||
-          !["review", "published"].includes(row.publication_state)
-        : row.policy_status !== "approved" || row.publication_state !== "published"
+      // ADR-0034：`versionPointer` 在公开模式下就是 `job.public_version_id`，指针即「已发布」。
+      // 两种模式都只要求修订可复核，与 PUBLICATION_NOT_REVIEWABLE 同义。
+      !["review", "published"].includes(row.publication_state) ||
+      (enableLocalMvp
+        ? !["pending_review", "approved"].includes(row.policy_status)
+        : row.policy_status !== "approved")
     ) {
       return [];
     }

@@ -1859,7 +1859,9 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       resumeDocumentId: publicCreated.resumeDocument.id,
       resumeDocumentRevision: editedPublic.documentRevision,
     };
-  });
+    // 这条用例约 4.4 秒，此前只是勉强压在 5 秒默认超时之下，任何邻近改动都会把它推翻。
+    // 与本文件末尾那条重用例一致地给出显式超时：5 秒从未表达任何性能约定。
+  }, 30_000);
 
   it("keeps Review v1 readable and processes controlled AI v2 only through offline providers", async () => {
     const candidate = m4Candidate;

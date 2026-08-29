@@ -238,19 +238,12 @@ async function materializeRevision(
       conflict.columns(["published_job_version_id", "source_job_revision_id"]).doNothing(),
     )
     .execute();
-  if (revision.publication_state === "published") {
-    await transaction
-      .updateTable("catalog.published_job_versions")
-      .set({ source_job_revision_id: revision.id })
-      .where("id", "=", version.id)
-      .execute();
-  }
+  // ADR-0034 第二条：物化只负责 `current_version_id`。「已发布」只由
+  // `catalog.published_jobs.public_version_id` 表达，且只由资格对账写入，因此这里不再读
+  // `revision.publication_state`——采集与物化都不得自我决定发布。见 publication-reconciliation.ts。
   await transaction
     .updateTable("catalog.published_jobs")
-    .set({
-      current_version_id: version.id,
-      ...(revision.publication_state === "published" ? { public_version_id: version.id } : {}),
-    })
+    .set({ current_version_id: version.id })
     .where("id", "=", publishedJobId)
     .execute();
 

@@ -77,7 +77,6 @@
     "environment": "local",
     "requestBudget": { "maxItems": 2, "maxPages": 1, "maxRequests": 10, "minimumIntervalMs": 2000 },
     "completion": "partial",
-    "publicationAllowed": false,
     "requestDefaults": {
       "pageFormat": "hust-jobinfo",
       "companyDisplayName": "武汉光谷创新投资",

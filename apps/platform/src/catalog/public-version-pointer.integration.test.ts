@@ -7,23 +7,35 @@ import { createAnonymousSession, type OwnerContext } from "../identity/session-r
 import { createJobInsightRun } from "../insights/service.js";
 import { readLocalBootstrapCatalogStats } from "../local-bootstrap.js";
 import { lockLocalCatalogMaterialization, materializeLocalCatalog } from "./materialize.js";
+import { reconcilePublication } from "./publication-reconciliation.js";
 import { createCatalogRepository } from "./repository.js";
 
 const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
 
+/**
+ * ADR-0034 第一、二条：物化不发布，发布由双向资格对账驱动，且指针前移到最新**合格**版本。
+ *
+ * 这里刻意不用 `publication_state` 制造公开与本机的分歧——适配器恒产出 `"review"`，
+ * 用它当开关是此前那个循环依赖的来源。分歧改由 ADR-0032 的 `closure_detectable` 制造：
+ * 来源 `absence_policy = 'none'`，于是「能否探知关闭」逐版本取决于是否有已知截止日期。
+ * 无截止日期的版本进不了 Alpha，但仍进本机预览——这正是 Alpha 比 local 多一层的语义。
+ */
 describeWithDatabase("catalog public version pointer", () => {
   const db = createDatabase(databaseUrl ?? "postgresql://unused");
   const ids = {
     organization: randomUUID(),
     source: randomUUID(),
     record: randomUUID(),
-    publishedRevision: randomUUID(),
-    reviewRevision: randomUUID(),
+    firstRevision: randomUUID(),
+    secondRevision: randomUUID(),
+    undetectableRevision: randomUUID(),
   };
+  const revisionIds = [ids.firstRevision, ids.secondRevision, ids.undetectableRevision];
   const marker = randomUUID().slice(0, 8);
-  const publishedTitle = `published-${marker}`;
-  const reviewTitle = `review-${marker}`;
+  const firstTitle = `first-${marker}`;
+  const secondTitle = `second-${marker}`;
+  const undetectableTitle = `undetectable-${marker}`;
   let insightOwner: OwnerContext | null = null;
 
   beforeAll(async () => {
@@ -71,11 +83,15 @@ describeWithDatabase("catalog public version pointer", () => {
           "version.id",
         )
         .select(["job.id as jobId", "version.id as versionId"])
-        .where("link.source_job_revision_id", "in", [ids.publishedRevision, ids.reviewRevision])
+        .where("link.source_job_revision_id", "in", revisionIds)
         .execute();
       const jobIds = [...new Set(jobs.map(({ jobId }) => jobId))];
       const versionIds = [...new Set(jobs.map(({ versionId }) => versionId))];
       if (jobIds.length > 0) {
+        await transaction
+          .deleteFrom("catalog.publication_events")
+          .where("published_job_id", "in", jobIds)
+          .execute();
         await transaction
           .deleteFrom("catalog.company_quota_selections")
           .where("published_job_id", "in", jobIds)
@@ -106,7 +122,7 @@ describeWithDatabase("catalog public version pointer", () => {
       }
       await transaction
         .deleteFrom("ingestion.source_job_revisions")
-        .where("id", "in", [ids.publishedRevision, ids.reviewRevision])
+        .where("id", "in", revisionIds)
         .execute();
       await transaction
         .deleteFrom("ingestion.source_job_records")
@@ -129,7 +145,7 @@ describeWithDatabase("catalog public version pointer", () => {
     await db.destroy();
   });
 
-  it("keeps the last published version public while local preview advances", async () => {
+  it("publishes, advances and holds the public pointer purely by eligibility", async () => {
     const publicJobsBefore = (await readLocalBootstrapCatalogStats(db)).publicJobs;
     const firstObservedAt = new Date(Date.now() - 60_000);
     await db
@@ -168,10 +184,10 @@ describeWithDatabase("catalog public version pointer", () => {
         adapter_version: "1",
         entrypoints: JSON.stringify(["https://public-pointer.example.test/jobs"]),
         crawl_interval: "24h",
-        // ADR-0032：获准进入 Alpha 的来源必须能探知岗位关闭，
-        // 否则「已截止但仍显示」没有上限。此处为列表型且消失即关闭。
-        refresh_coverage: "full_scope",
-        absence_policy: "close_after_two_complete_absences",
+        // ADR-0032/0034：`absence_policy = 'none'` 让「能否探知关闭」逐版本取决于截止日期，
+        // 从而用一个**只约束 Alpha** 的条件制造公开与本机预览的分歧。
+        refresh_coverage: "tracked_records",
+        absence_policy: "none",
         policy_notes: "Offline public pointer fixture.",
         reviewed_at: null,
       })
@@ -203,7 +219,7 @@ describeWithDatabase("catalog public version pointer", () => {
     const revision = (input: {
       id: string;
       title: string;
-      publicationState: "review" | "published";
+      deadline: string | null;
       hashCharacter: string;
       createdAt: Date;
     }) => ({
@@ -234,11 +250,17 @@ describeWithDatabase("catalog public version pointer", () => {
         value: "internship",
         evidenceRefs: [`${input.id}#type`],
       }),
+      deadline_at: JSON.stringify(
+        input.deadline === null
+          ? { state: "unknown", reason: "source_not_stated" }
+          : { state: "known", value: input.deadline, evidenceRefs: [`${input.id}#deadline`] },
+      ),
       responsibilities: `Responsibilities for ${input.title}.`,
       requirements: "Current student with product research experience.",
       structured_fields: JSON.stringify({}),
       ingestion_state: "validated",
-      publication_state: input.publicationState,
+      // ADR-0034：适配器恒产出 `review`，发布不再由该列表达。
+      publication_state: "review",
       activity_state: "active",
       source_url: `https://public-pointer.example.test/jobs/${ids.record}`,
       apply_url: `https://public-pointer.example.test/jobs/${ids.record}/apply`,
@@ -246,13 +268,20 @@ describeWithDatabase("catalog public version pointer", () => {
       created_at: input.createdAt,
     });
 
+    const readPointers = async (jobId: string) =>
+      db
+        .selectFrom("catalog.published_jobs")
+        .select(["current_version_id as currentVersionId", "public_version_id as publicVersionId"])
+        .where("id", "=", jobId)
+        .executeTakeFirstOrThrow();
+
     await db
       .insertInto("ingestion.source_job_revisions")
       .values(
         revision({
-          id: ids.publishedRevision,
-          title: publishedTitle,
-          publicationState: "published",
+          id: ids.firstRevision,
+          title: firstTitle,
+          deadline: "2027-06-30",
           hashCharacter: "1",
           createdAt: firstObservedAt,
         }),
@@ -260,7 +289,7 @@ describeWithDatabase("catalog public version pointer", () => {
       .execute();
     await materializeLocalCatalog(db);
 
-    const initial = await db
+    const materialized = await db
       .selectFrom("catalog.published_jobs as job")
       .innerJoin(
         "catalog.published_job_versions as version",
@@ -272,44 +301,86 @@ describeWithDatabase("catalog public version pointer", () => {
         "job.current_version_id as currentVersionId",
         "job.public_version_id as publicVersionId",
       ])
-      .where("version.source_job_revision_id", "=", ids.publishedRevision)
+      .where("version.source_job_revision_id", "=", ids.firstRevision)
       .executeTakeFirstOrThrow();
-    expect(initial.publicVersionId).toBe(initial.currentVersionId);
+    // 物化只负责 current_version_id：这一条就是此前那个循环依赖的解除点。
+    expect(materialized.publicVersionId).toBeNull();
+
+    expect(await reconcilePublication({ db, publishedJobIds: [materialized.jobId] })).toMatchObject({ published: 1, revoked: 0 });
+    const published = await readPointers(materialized.jobId);
+    expect(published.publicVersionId).toBe(materialized.currentVersionId);
+    expect(
+      await db
+        .selectFrom("catalog.publication_events")
+        .select(["action", "actor", "reason_code"])
+        .where("published_job_id", "=", materialized.jobId)
+        .orderBy("occurred_at", "desc")
+        .executeTakeFirstOrThrow(),
+    ).toMatchObject({
+      action: "published",
+      actor: "reconciliation",
+      reason_code: "ELIGIBLE_FOR_ALPHA",
+    });
 
     await db
       .insertInto("ingestion.source_job_revisions")
       .values(
         revision({
-          id: ids.reviewRevision,
-          title: reviewTitle,
-          publicationState: "review",
+          id: ids.secondRevision,
+          title: secondTitle,
+          deadline: "2027-07-31",
           hashCharacter: "2",
           createdAt: new Date(),
         }),
       )
       .execute();
     await materializeLocalCatalog(db);
+    const beforeAdvance = await readPointers(materialized.jobId);
+    expect(beforeAdvance.currentVersionId).not.toBe(materialized.currentVersionId);
+    // 物化推进了本机预览，但没有动公开指针。
+    expect(beforeAdvance.publicVersionId).toBe(published.publicVersionId);
 
-    const advanced = await db
-      .selectFrom("catalog.published_jobs")
-      .select(["current_version_id as currentVersionId", "public_version_id as publicVersionId"])
-      .where("id", "=", initial.jobId)
-      .executeTakeFirstOrThrow();
-    expect(advanced.currentVersionId).not.toBe(initial.currentVersionId);
-    expect(advanced.publicVersionId).toBe(initial.publicVersionId);
+    expect(await reconcilePublication({ db, publishedJobIds: [materialized.jobId] })).toMatchObject({ advanced: 1, revoked: 0 });
+    const advanced = await readPointers(materialized.jobId);
+    expect(advanced.publicVersionId).toBe(advanced.currentVersionId);
+
+    await db
+      .insertInto("ingestion.source_job_revisions")
+      .values(
+        revision({
+          id: ids.undetectableRevision,
+          title: undetectableTitle,
+          deadline: null,
+          hashCharacter: "3",
+          createdAt: new Date(Date.now() + 1_000),
+        }),
+      )
+      .execute();
+    await materializeLocalCatalog(db);
+    // 最新版本无已知截止日期且来源不按缺席关闭，因此不可探知关闭 → 不合格进入 Alpha。
+    expect(await reconcilePublication({ db, publishedJobIds: [materialized.jobId] })).toMatchObject({
+      published: 0,
+      advanced: 0,
+      revoked: 0,
+    });
+    const held = await readPointers(materialized.jobId);
+    expect(held.currentVersionId).not.toBe(advanced.currentVersionId);
+    expect(held.publicVersionId).toBe(advanced.publicVersionId);
 
     const localCatalog = createCatalogRepository({ db, enableLocalMvp: true });
     const publicCatalog = createCatalogRepository({ db, enableLocalMvp: false });
     expect(
-      await localCatalog.search(JobSearchQuerySchema.parse({ keyword: reviewTitle, limit: 10 })),
-    ).toMatchObject({ items: [{ title: reviewTitle }] });
+      await localCatalog.search(
+        JobSearchQuerySchema.parse({ keyword: undetectableTitle, limit: 10 }),
+      ),
+    ).toMatchObject({ items: [{ title: undetectableTitle }] });
+    expect(
+      await publicCatalog.search(JobSearchQuerySchema.parse({ keyword: secondTitle, limit: 10 })),
+    ).toMatchObject({ items: [{ title: secondTitle }] });
     expect(
       await publicCatalog.search(
-        JobSearchQuerySchema.parse({ keyword: publishedTitle, limit: 10 }),
+        JobSearchQuerySchema.parse({ keyword: undetectableTitle, limit: 10 }),
       ),
-    ).toMatchObject({ items: [{ title: publishedTitle }] });
-    expect(
-      await publicCatalog.search(JobSearchQuerySchema.parse({ keyword: reviewTitle, limit: 10 })),
     ).toMatchObject({ items: [] });
 
     const session = await createAnonymousSession({ db });
@@ -332,12 +403,13 @@ describeWithDatabase("catalog public version pointer", () => {
       idempotencyKey: `public-${marker}`,
       enableLocalMvp: false,
     });
-    expect(localInsight.candidateJobVersionIds).toContain(advanced.currentVersionId);
-    expect(localInsight.candidateJobVersionIds).not.toContain(advanced.publicVersionId);
-    expect(publicInsight.candidateJobVersionIds).toContain(advanced.publicVersionId);
-    expect(publicInsight.candidateJobVersionIds).not.toContain(advanced.currentVersionId);
+    expect(localInsight.candidateJobVersionIds).toContain(held.currentVersionId);
+    expect(localInsight.candidateJobVersionIds).not.toContain(held.publicVersionId);
+    expect(publicInsight.candidateJobVersionIds).toContain(held.publicVersionId);
+    expect(publicInsight.candidateJobVersionIds).not.toContain(held.currentVersionId);
     expect((await readLocalBootstrapCatalogStats(db)).publicJobs).toBe(publicJobsBefore + 1);
 
+    // 岗位关闭后公开侧立刻消失，且对账把滞留指针撤回。
     await db
       .insertInto("ingestion.source_job_activity_states")
       .values({
@@ -358,7 +430,9 @@ describeWithDatabase("catalog public version pointer", () => {
       idempotencyKey: `public-closed-${marker}`,
       enableLocalMvp: false,
     });
-    expect(closedPublicInsight.candidateJobVersionIds).not.toContain(advanced.publicVersionId);
+    expect(closedPublicInsight.candidateJobVersionIds).not.toContain(held.publicVersionId);
+    expect(await reconcilePublication({ db, publishedJobIds: [materialized.jobId] })).toMatchObject({ revoked: 1 });
+    expect((await readPointers(materialized.jobId)).publicVersionId).toBeNull();
     expect((await readLocalBootstrapCatalogStats(db)).publicJobs).toBe(publicJobsBefore);
-  }, 30_000);
+  }, 45_000);
 });

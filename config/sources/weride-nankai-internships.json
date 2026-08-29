@@ -166,7 +166,6 @@
       "minimumIntervalMs": 2000
     },
     "completion": "partial",
-    "publicationAllowed": false,
     "requestDefaults": {
       "pageFormat": "nankai-correcruit",
       "companyDisplayName": "文远知行",

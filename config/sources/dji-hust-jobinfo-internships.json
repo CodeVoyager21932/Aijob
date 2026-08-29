@@ -103,7 +103,6 @@
       "minimumIntervalMs": 2000
     },
     "completion": "partial",
-    "publicationAllowed": false,
     "requestDefaults": {
       "pageFormat": "hust-jobinfo",
       "companyDisplayName": "大疆",

@@ -141,7 +141,6 @@
       "minimumIntervalMs": 2000
     },
     "completion": "partial",
-    "publicationAllowed": false,
     "requestDefaults": {
       "pageFormat": "nankai-correcruit",
       "companyDisplayName": "宝盈基金",

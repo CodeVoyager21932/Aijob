@@ -137,7 +137,6 @@
       "minimumIntervalMs": 2000
     },
     "completion": "partial",
-    "publicationAllowed": false,
     "requestDefaults": {
       "category": "3",
       "pageIndex": 0,

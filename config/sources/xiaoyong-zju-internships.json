@@ -140,7 +140,6 @@
       "minimumIntervalMs": 2000
     },
     "completion": "partial",
-    "publicationAllowed": false,
     "requestDefaults": {
       "pageFormat": "zju-jyxt",
       "companyDisplayName": "上海孝庸",

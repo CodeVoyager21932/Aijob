@@ -1,7 +1,7 @@
 # ADR-0034：两层来源准入（厂商／租户）与资格对账驱动的发布步骤
 
-- 状态：proposed
-- 日期：2026-08-29
+- 状态：accepted
+- 日期：2026-08-29（同日由 coco 审定通过）
 - 决策者：coco
 - 关联：ADR-0002、ADR-0010、ADR-0026、ADR-0027、ADR-0028、ADR-0029、ADR-0032、ADR-0033
 - 替代：替代「每个企业一份独立来源政策文件」的组织方式；替代 `eligible_for_alpha` 以 `revision.publication_state = 'published'` 为条件的循环口径。不改写既有采集事实、岗位修订与历史证据
@@ -128,14 +128,14 @@
 - 风险：厂商级继承会放大单点错误——厂商层评估错误将同时影响其全部租户。缓解方式是厂商层结论必须留证据引用，且租户层保留独立的主体证明与供给核验。
 - 遗留：两层 schema 的落地与 34 份既有配置的迁移属于较大改动，与第一、二条解耦，可分阶段执行。
 
-### 落地时需同步的既有文档
+### 落地时同步的既有文档（已完成）
 
-本 ADR 转为 `accepted` 后，以下两处按旧「人工发布复核」口径书写的稳定规范需同步。**本 ADR 仍为 `proposed`，因此这两处暂不改写**，此处仅记录冲突以免静默丢失：
+两处按旧「人工发布复核」口径书写的稳定规范已随本 ADR 审定同步：
 
-| 位置 | 现有表述 | 落地后应表述为 |
+| 位置 | 原表述 | 现表述 |
 |---|---|---|
-| `docs/02-data-and-ingestion.md`（人工导入流程图） | `SourceJobRevision（import_mode=manual）` → `人工发布复核` → `PublishedJobVersion` | 人工动作是来源准入与导入本身；发布由资格对账驱动 |
-| `docs/05-system-architecture.md` 第 11 节（架构验证门） | CLI 人工导入「不能绕过人工发布复核」 | CLI 导入产出 `review` 修订、**不能设置 `public_version_id`**，因而不能绕过来源准入与资格投影 |
+| `docs/02-data-and-ingestion.md`（人工导入流程图） | `SourceJobRevision（import_mode=manual）` → `人工发布复核` → `PublishedJobVersion` | 人工动作是来源准入与导入本身；修订恒为 `review`，物化只设 `current_version_id`，发布由双向资格对账写 `public_version_id` |
+| `docs/05-system-architecture.md` 第 11 节（架构验证门） | CLI 人工导入「不能绕过人工发布复核」 | CLI 导入**不能设置 `public_version_id`**，因而绕不过来源准入与资格投影 |
 
 第二处所保护的安全属性在新模型下依然成立且依然必要：CLI 导入不得自我发布。只是该属性的正确表述从「绕不过人工复核」变为「绕不过准入与资格投影」。
 

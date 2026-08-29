@@ -185,7 +185,8 @@ export async function readLocalBootstrapCatalogStats(
     .where("eligibility.eligible_for_alpha", "=", true)
     .where("policy.policy_status", "=", "approved")
     .where("revision.ingestion_state", "=", "validated")
-    .where("revision.publication_state", "=", "published")
+    // ADR-0034：上方 join 在 `job.public_version_id` 上即「已发布」判据。修订侧只要求可复核。
+    .where("revision.publication_state", "in", ["review", "published"])
     .where("activity.effective_activity_state", "!=", "closed")
     .executeTakeFirstOrThrow();
   return {

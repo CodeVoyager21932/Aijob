@@ -51,9 +51,22 @@ Phase A 交付了三份待审 ADR 与配套实现：
 
 保留的人工动作仅三项，且都是逐来源一次、不随岗位数量增长：来源准入（`policy.status → approved`）、运行范围提升（`runtime_scope → alpha`）、强制下架（履行「异议即停」）。
 
-**当前唯一目标：coco 审定 ADR-0032、ADR-0033 与 ADR-0034。** 三份通过后，Phase B 只剩执行——robots 判定、访问政策证据字段、周期复核与自动暂停均已建成并有夹具测试覆盖，尚未接线到 live fetch。
+三份 ADR 已于 2026-08-29 由 coco **审定通过**（状态 `accepted`）。ADR-0033 未取得法律意见即被审定，这一点按原样记录在该 ADR 的前置条件里。
 
-ADR-0034 落地建议分两步，**第一步不需要任何触网授权**：先做 §一 + §二（去掉 `eligible_for_alpha` 的 `publication_state` 条件、`materialize.ts` 不再设指针、建双向对账与强制下架；需新迁移 035 重建 `job_version_eligibility`），再做 §三 两层 schema（改 `source-config.ts` 并迁移 34 份既有配置，改动较大）。
+### ADR-0034 §一+§二+§四 已落地（零触网）
+
+- 迁移 **035** 重建 `catalog.job_version_eligibility`：去掉 `publication_state = 'published'`，新增 `publication_suppressed` 条件；`catalog.published_jobs` 增加 `publication_suppressed_at` / `publication_suppressed_reason`（CHECK 要求成对）；新增 `catalog.publication_events` 并逐角色授权。
+- `materialize.ts` 不再设置 `public_version_id`，只负责 `current_version_id`。
+- 新增 `catalog/publication-reconciliation.ts`：`reconcilePublication` 做双向对账（合格即发布、失格即撤回、指针前移至最新合格版本），`suppressJobPublication` / `releaseJobPublicationSuppression` 提供人工强制下架与解除。CLI 加 `catalog-reconcile-publication`、`catalog-suppress-job`、`catalog-release-job-suppression`。
+- 删除 `publicationAllowed`（含 36 份配置各一行），`candidateStatus` 与 `completion` 放宽为枚举。
+
+**落地时发现的最重要事实：循环依赖不止一处。** `publication_state = 'published'` 除资格视图外，还散布在 **6 处生产读取路径**：`catalog/repository.ts` 公开查询、`matching/service.ts` 三处（`getMatchRun`、快照查询、推荐候选查询与其 TS 守卫）、`local-bootstrap.ts` 的 `publicJobs` 统计、`insights/service.ts` 的行过滤。这些位置的公开分支**本来就已带指针条件**，那句是冗余且致死的，已统一改为 `IN ('review','published')`（与 `PUBLICATION_NOT_REVIEWABLE` 同义，仍挡住 `draft`/`suppressed`/`archived`）。另外 `catalog/repository.ts` 的 `displayStatus` / `isInternal` 由 `publication_state` 推导，若不处理会把每个公开岗位标成 `pending_review`、`isInternal` 恒真，因此公开查询改为按指针派生该列。
+
+只改视图不足以解除死锁——这是本轮最容易漏掉的一点。
+
+### 待办：ADR-0034 §三 两层 schema
+
+改 `source-config.ts` 拆成厂商层与租户层，并迁移 34 份既有配置到新形状。改动较大，与已落地部分解耦。
 
 **进入 Phase B 的任何触网步骤（`source:probe` / `source:refresh-now --confirm-live`，以及 robots 与 ToS 的实际抓取）前，须 coco 逐批明确 live 授权。** 不得自动进入 Private Alpha、不得启动服务器就绪工作、不得从 [Private Alpha 就绪 Gate](../plans/private-alpha-readiness-gates.md) 生成任务。
 
@@ -91,14 +104,14 @@ ADR-0034 落地建议分两步，**第一步不需要任何触网授权**：先�
 1. 依次读取 `AGENTS.md`、README、路线图、本交接、[SA Track 计划](../plans/supply-admission-scaleup-track.md)、Private Alpha 就绪 Gate 与相关 ADR（0026/0027/0028/0029/0030/**0032**/**0033**/**0034**）。
 2. `git fetch` 核对分支/远端/工作树；`codex/g2-1000-alpha-supply`（capacity 感知规划、可复用 ATS 来源族、Private Alpha 信任边界）已完整合入本分支（`merge-base` 即其 tip，left/right = 80/0），无撞车风险；其 worktree 的未提交改动属于 coco，不动。
 3. **先确认 ADR-0032、ADR-0033 与 ADR-0034 是否已被 coco 审定**。未审定前不得据其提升任何来源状态，也不得据 ADR-0034 改动资格视图或发布路径。
-4. Phase B 的五步顺序。**第 1 步不触网，且必须先做**——否则后四步全做完公开 `/v1/jobs` 仍是 0：
-   1. 落地 ADR-0034 §一 + §二：解除循环依赖、发布与物化解耦、建双向对账与强制下架（新迁移 035 重建 `job_version_eligibility`）。**零触网。**
+4. Phase B 的剩余步骤（第 1 步「解除循环依赖」**已完成**，见上文）：
+   1. ~~落地 ADR-0034 §一 + §二~~ **已完成**，零触网。
    2. 恢复 9 个 `crawlInterval.enabled` 来源按周期跑 7 天。
    3. 逐来源抓 robots + 核 ToS 并重评 `accessPolicyAccepted`。
    4. 凭运行证据翻转 `stableIdentityAndFields`。
-   5. 提 `policy.status → approved` + `runtime_scope → alpha`，由对账自动发布使公开 `/v1/jobs` 非 0。
+   5. 提 `policy.status → approved` + `runtime_scope → alpha`，然后跑 `pnpm source:*` 之外的 `catalog-reconcile-publication`，由对账自动发布使公开 `/v1/jobs` 非 0。
 5. **任何触网步骤须 coco 逐批 live 授权**；不复用 OS-1–OS-7 切片模板，不启动服务器就绪工作。
-   上一版交接把第 5 步写成「提 `approved` + `alpha` scope 使公开 `/v1/jobs` 非 0」，那是错的：在循环依赖未解除前，该动作不会产生任何公开岗位。
+6. 对账必须**周期性运行**才能保证撤回及时。当前只有 CLI 入口，尚未接进 `collector-worker` 的刷新周期；接线前，来源被暂停到指针被撤回之间存在时间窗，需依赖 `catalog-suppress-job` 兜底。
 6. 已登记的残留缺口：`university-employment-adapter` 的 `splitRequirements` 无职责锚点（会把公司简介带入职责）。当前高校来源全为 `discovery_only` 不进目录，但高校线重启前必修。
 
 ## 5. 复现浏览器 Gate 所需的环境事实

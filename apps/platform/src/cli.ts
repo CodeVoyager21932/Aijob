@@ -15,6 +15,11 @@ import {
 } from "./ai/local-provider-config.js";
 import { runAiProviderSmoke } from "./ai/smoke.js";
 import { materializeLocalCatalog } from "./catalog/materialize.js";
+import {
+  reconcilePublication,
+  releaseJobPublicationSuppression,
+  suppressJobPublication,
+} from "./catalog/publication-reconciliation.js";
 import { databaseUrlForRuntime, loadPlatformConfig } from "./config/platform-config.js";
 import { runBatchImport } from "./ingestion/batch-import.js";
 import { importManualBrowserSnapshot } from "./ingestion/manual-browser-import.js";
@@ -175,6 +180,80 @@ program
     const db = await createOperationsDatabase(appConfig);
     try {
       console.info(JSON.stringify(await materializeLocalCatalog(db), null, 2));
+    } finally {
+      await db.destroy();
+    }
+  });
+
+// ADR-0034 第二条：发布由双向资格对账驱动。合格即发布、失格即撤回、出现更新的合格版本即前移。
+// 只写 public_version_id，不改写任何修订。不会批准来源，也不会提升 runtime_scope。
+program
+  .command("catalog-reconcile-publication")
+  .description("按资格对账公开指针：合格即发布、失格即撤回；不批准来源、不改写修订")
+  .option(
+    "--published-job-id <id...>",
+    "只对账这些岗位；省略即全量。周期运行应当全量，否则撤回不及时",
+  )
+  .action(async (options: { publishedJobId?: string[] }) => {
+    const appConfig = loadAppConfig();
+    const db = await createOperationsDatabase(appConfig);
+    try {
+      console.info(
+        JSON.stringify(
+          await reconcilePublication({
+            db,
+            ...(options.publishedJobId ? { publishedJobIds: options.publishedJobId } : {}),
+          }),
+          null,
+          2,
+        ),
+      );
+    } finally {
+      await db.destroy();
+    }
+  });
+
+// ADR-0033 的「异议即停」：立即压制某岗位而不等下一轮对账，且不会被对账自动恢复。
+program
+  .command("catalog-suppress-job")
+  .description("强制下架某岗位并立即清空公开指针；须显式解除，对账不会自动恢复")
+  .requiredOption("--published-job-id <id>", "catalog.published_jobs 的岗位 ID")
+  .requiredOption("--reason <reason>", "下架依据，会写入发布事件记录")
+  .action(async (options: { publishedJobId: string; reason: string }) => {
+    const appConfig = loadAppConfig();
+    const db = await createOperationsDatabase(appConfig);
+    try {
+      console.info(
+        JSON.stringify(
+          await suppressJobPublication({
+            db,
+            publishedJobId: options.publishedJobId,
+            reason: options.reason,
+          }),
+          null,
+          2,
+        ),
+      );
+    } finally {
+      await db.destroy();
+    }
+  });
+
+program
+  .command("catalog-release-job-suppression")
+  .description("解除强制下架；是否重新发布由下一轮对账按资格判定")
+  .requiredOption("--published-job-id <id>", "catalog.published_jobs 的岗位 ID")
+  .action(async (options: { publishedJobId: string }) => {
+    const appConfig = loadAppConfig();
+    const db = await createOperationsDatabase(appConfig);
+    try {
+      console.info(
+        JSON.stringify(
+          await releaseJobPublicationSuppression({ db, publishedJobId: options.publishedJobId }),
+          null,
+          2,
+        ),
+      );
     } finally {
       await db.destroy();
     }

@@ -285,8 +285,25 @@ export interface ReviewItemTable {
 export interface PublishedJobTable {
   id: string;
   current_version_id: string | null;
+  // ADR-0034：「已发布」只由该指针表达，且只由资格对账写入。修订不可改写。
   public_version_id: Generated<string | null>;
+  // ADR-0033 的「异议即停」：强制下架立即进入 eligible_for_alpha，且不被对账自动恢复。
+  publication_suppressed_at: Generated<Timestamp | null>;
+  publication_suppressed_reason: Generated<string | null>;
   created_at: Generated<Timestamp>;
+}
+
+/** ADR-0034：对账与人工操作引起的发布状态变化。不是个人数据，不随保留期清理。 */
+interface PublicationEventTable {
+  id: string;
+  published_job_id: string;
+  published_job_version_id: string | null;
+  previous_public_version_id: string | null;
+  action: "published" | "advanced" | "revoked" | "suppressed" | "unsuppressed";
+  actor: "reconciliation" | "operator";
+  reason_code: string;
+  blocking_reasons: Generated<JsonValue>;
+  occurred_at: Generated<Timestamp>;
 }
 
 export interface PublishedJobVersionTable {
@@ -1144,10 +1161,13 @@ export interface JobVersionEligibilityView {
   requirements: string;
   apply_url: string | null;
   has_blocking_review: boolean;
+  // ADR-0034：人工强制下架。与 closure_detectable 一样只约束 Alpha，不进 blocking_reasons。
+  publication_suppressed: boolean;
   // ADR-0032：能否探知岗位关闭。Alpha 的必要条件，本机预览不受其约束。
   closure_detectable: boolean;
   blocking_reasons: JsonValue;
   eligible_for_local_mvp: boolean;
+  // ADR-0034：发布的**前置条件**，不再要求修订已是 `published`。「已发布」见 public_version_id。
   eligible_for_alpha: boolean;
 }
 
@@ -1183,6 +1203,7 @@ export interface Database {
   "ingestion.source_job_revision_evidence": SourceJobRevisionEvidenceTable;
   "ingestion.review_items": ReviewItemTable;
   "catalog.published_jobs": PublishedJobTable;
+  "catalog.publication_events": PublicationEventTable;
   "catalog.published_job_versions": PublishedJobVersionTable;
   "catalog.published_job_version_revision_links": PublishedJobVersionRevisionLinkTable;
   "catalog.job_requirement_sets": JobRequirementSetTable;

@@ -134,7 +134,6 @@
       "minimumIntervalMs": 1500
     },
     "completion": "partial",
-    "publicationAllowed": false,
     "requestDefaults": {},
     "queryStreams": [
       {

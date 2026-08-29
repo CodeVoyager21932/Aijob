@@ -261,7 +261,7 @@ ADR-0015 阶段不购买服务器、数据库或域名，固定云成本为 0。
 
 ## 11. 工程 MVP 架构验证门
 
-- CLI 人工导入只能引用已批准来源和 `apply_targets`，相同输入哈希不会重复生成修订，且不能绕过人工发布复核；CLI 始终没有岗位快照 Bucket 凭据。
+- CLI 人工导入只能引用已批准来源和 `apply_targets`，相同输入哈希不会重复生成修订，且**不能设置 `catalog.published_jobs.public_version_id`**，因而绕不过来源准入与资格投影（ADR-0034）；CLI 始终没有岗位快照 Bucket 凭据。
 - 到期扫描只能选择 `owner_expires_at` 已到的 owner，重复扫描不生成竞争删除任务，旧任务不能在墓碑后重新写入数据。
 - 数据库角色与 Bucket 策略测试证明三个进程和 CLI 不能越权读取或写入其他边界；`web-api` 和 `match-worker` 无法读取快照正文。
 - 重复任务、Worker 中断、租约接管和过期 Worker 写入不会产生重复版本。

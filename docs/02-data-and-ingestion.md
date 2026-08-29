@@ -262,13 +262,16 @@ SourcePolicy
 已批准 SourcePolicy
   -> internal ops CLI 结构化字段、来源 URL 与字段级摘录
   -> Schema、apply_targets 与证据完整性校验
-  -> SourceJobRevision（import_mode=manual）
-  -> 人工发布复核
-  -> PublishedJobVersion
+  -> SourceJobRevision（import_mode=manual，publication_state=review）
+  -> PublishedJobVersion（物化，只设 current_version_id）
   -> JobRequirementSet
+  -> 资格投影 job_version_eligibility
+  -> 双向资格对账设 public_version_id（ADR-0034）
 ```
 
-CLI 不获得岗位快照 Bucket 凭据。缺少来源 URL、最后核验时间、复核人或关键字段证据的人工记录不得发布；来源未说明的字段必须显式为未知。
+人工动作是**来源准入与导入本身**，不是逐条发布复核。按 [ADR-0034](decisions/0034-two-layer-source-admission-and-reconciled-publication.md)，导入产出的修订恒为 `review`，物化只负责 `current_version_id`，「已发布」只由 `catalog.published_jobs.public_version_id` 表达，并由双向资格对账写入：合格即发布、失格即撤回、出现更新的合格版本即前移。因此 CLI 导入不可能自我发布。
+
+CLI 不获得岗位快照 Bucket 凭据。缺少来源 URL、最后核验时间、复核人或关键字段证据的人工记录无法通过资格投影，因而不会被对账发布；来源未说明的字段必须显式为未知。
 
 ## 9. 去重与合并
 

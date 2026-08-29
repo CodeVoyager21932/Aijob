@@ -111,7 +111,6 @@
     "environment": "local",
     "requestBudget": { "maxItems": 2, "maxPages": 1, "maxRequests": 2, "minimumIntervalMs": 2000 },
     "completion": "partial",
-    "publicationAllowed": false,
     "requestDefaults": {
       "pageFormat": "sustech-bysjy",
       "companyDisplayName": "安信基金",

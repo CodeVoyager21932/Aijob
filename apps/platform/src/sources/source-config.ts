@@ -328,6 +328,32 @@ const absencePolicySchema = z.enum(["none", "close_after_two_complete_absences"]
 const catalogRoleSchema = z.enum(["canonical", "discovery_only", "disabled"]);
 const runtimeScopeSchema = z.enum(["test", "local", "alpha", "production"]);
 
+/** 迁移 001 给 `source_candidates.candidate_status` 的 CHECK 约束，持久化只接受这五个取值。 */
+const persistedCandidateStatusSchema = z.enum([
+  "candidate",
+  "technical_probe",
+  "pilot",
+  "watch",
+  "rejected",
+]);
+
+/** 配置侧多一个 `local_probe_only`：本机探针阶段在准入词表里没有对应取值。 */
+const candidateStatusSchema = z.enum([
+  "local_probe_only",
+  ...persistedCandidateStatusSchema.options,
+]);
+
+/**
+ * `local_probe_only` 不在数据库 CHECK 约束内，持久化为 `technical_probe`；其余原样透传。
+ *
+ * 此前转换把结果硬编码为 `technical_probe` 并丢弃配置里的取值，因此配置无论写什么都无效。
+ */
+function persistedCandidateStatus(
+  status: z.infer<typeof candidateStatusSchema>,
+): z.infer<typeof persistedCandidateStatusSchema> {
+  return status === "local_probe_only" ? "technical_probe" : status;
+}
+
 function defaultCatalogRole(provenanceLevel: z.infer<typeof ProvenanceLevelSchema>) {
   if (provenanceLevel === "organization_owned" || provenanceLevel === "verified_ats_tenant") {
     return "canonical" as const;
@@ -357,7 +383,7 @@ const normalizedSourceConfigSchema = z
       entrypointUrl: z.string().url(),
       provenanceLevel: ProvenanceLevelSchema,
       acquisitionMode: AcquisitionModeSchema,
-      candidateStatus: z.enum(["candidate", "technical_probe", "pilot", "watch", "rejected"]),
+      candidateStatus: persistedCandidateStatusSchema,
       assessor: z.string().min(1),
       hardGates: z.object({
         officialIdentity: z.boolean(),
@@ -425,7 +451,9 @@ const rawSourceConfigSchema = z
       entrypointUrl: z.string().url(),
       provenanceLevel: ProvenanceLevelSchema,
       acquisitionMode: AcquisitionModeSchema,
-      candidateStatus: z.literal("local_probe_only"),
+      // ADR-0034 第四条：原为 `z.literal("local_probe_only")`，把过渡期状态写成类型常量，
+      // 配置无法表达任何其他阶段。放宽为枚举，且转换不再丢弃它。默认值不变。
+      candidateStatus: candidateStatusSchema.default("local_probe_only"),
       assessor: z.string().min(1),
       hardGates: z.object({
         officialIdentity: assessedValueSchema,
@@ -464,8 +492,11 @@ const rawSourceConfigSchema = z
       enabled: z.boolean(),
       environment: z.literal("local"),
       requestBudget: requestBudgetSchema,
-      completion: z.literal("partial"),
-      publicationAllowed: z.literal(false),
+      // ADR-0034 第四条：原为 `z.literal("partial")`。默认值不变。
+      completion: z.enum(["partial", "complete"]).default("partial"),
+      // ADR-0034 第四条：原有 `publicationAllowed: z.literal(false)` 已删除。它**全仓从未被任何
+      // 代码读取**，却看起来像在把守发布。发布现由 `catalog.published_jobs.public_version_id`
+      // 与资格对账表达，见 catalog/publication-reconciliation.ts。
       requestDefaults: z.record(z.unknown()).default({}),
       queryStreams: z
         .array(
@@ -538,7 +569,7 @@ export function parseSourceConfigValue(value: unknown, expectedSourceKey?: strin
       entrypointUrl: raw.candidate.entrypointUrl,
       provenanceLevel: raw.candidate.provenanceLevel,
       acquisitionMode: raw.candidate.acquisitionMode,
-      candidateStatus: "technical_probe",
+      candidateStatus: persistedCandidateStatus(raw.candidate.candidateStatus),
       assessor: raw.candidate.assessor,
       hardGates: Object.fromEntries(
         Object.entries(raw.candidate.hardGates).map(([key, result]) => [
