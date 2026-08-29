@@ -70,6 +70,10 @@ describeWithDatabase("local owner resume, revisions and deletion flow", () => {
       await db.deleteFrom("matching.recommendation_runs").where("owner_id", "=", ownerId).execute();
       await db.deleteFrom("matching.match_runs").where("owner_id", "=", ownerId).execute();
       await db.deleteFrom("decision.job_decisions").where("owner_id", "=", ownerId).execute();
+      // This suite creates job insight runs, and job_insight_runs holds a foreign key on
+      // (owner_id, evidence_revision_id). They must be removed before the evidence revisions
+      // they reference, otherwise teardown fails on the constraint instead of cleaning up.
+      await db.deleteFrom("matching.job_insight_runs").where("owner_id", "=", ownerId).execute();
       await db
         .deleteFrom("profile.resume_evidence_revisions")
         .where("owner_id", "=", ownerId)

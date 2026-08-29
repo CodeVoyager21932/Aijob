@@ -19,6 +19,11 @@ describeWithDatabase("owner task worker lease transitions", () => {
   let ownerId: string;
   let ownerEpoch: number;
   const taskIds: string[] = [];
+  // `runOneOwnerTask` claims across the whole queue by design, so assertions about "nothing was
+  // claimable" only hold when no other suite left a claimable task in the shared test database.
+  // Park foreign tasks for the duration of this suite and restore them afterwards.
+  const parkedTasks: { id: string; availableAt: Date; leaseUntil: Date | null }[] = [];
+  const parkedUntil = new Date("2999-01-01T00:00:00.000Z");
 
   beforeAll(async () => {
     db = createDatabase(databaseUrl as string);
@@ -26,9 +31,39 @@ describeWithDatabase("owner task worker lease transitions", () => {
     const session = await createAnonymousSession({ db });
     ownerId = session.context.ownerId;
     ownerEpoch = session.context.ownerEpoch;
+    const foreignTasks = await db
+      .selectFrom("task_queue.tasks")
+      .select(["id", "available_at", "lease_until"])
+      .where("owner_id", "<>", ownerId)
+      .execute();
+    for (const task of foreignTasks) {
+      parkedTasks.push({
+        id: task.id,
+        availableAt: task.available_at,
+        leaseUntil: task.lease_until,
+      });
+    }
+    if (parkedTasks.length > 0) {
+      await db
+        .updateTable("task_queue.tasks")
+        .set({ available_at: parkedUntil, lease_until: parkedUntil })
+        .where(
+          "id",
+          "in",
+          parkedTasks.map((task) => task.id),
+        )
+        .execute();
+    }
   });
 
   afterAll(async () => {
+    for (const task of parkedTasks) {
+      await db
+        .updateTable("task_queue.tasks")
+        .set({ available_at: task.availableAt, lease_until: task.leaseUntil })
+        .where("id", "=", task.id)
+        .execute();
+    }
     await db.deleteFrom("task_queue.tasks").where("id", "in", taskIds).execute();
     await db.deleteFrom("identity.owner_sessions").where("owner_id", "=", ownerId).execute();
     await db.deleteFrom("identity.owners").where("id", "=", ownerId).execute();
