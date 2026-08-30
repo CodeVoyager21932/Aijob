@@ -326,12 +326,13 @@ export function normalizeBeisenZhiyeJobAd(input: {
   }
   const kind = job.Kind?.normalize("NFKC").trim();
   if (kind && kind !== "实习") {
-    // 标题带实习标记但官方 Kind 字段矛盾：仍按标题与类目导入，留复核项。
-    qualityFlags.push({ code: "SOURCE_KIND_CONFLICT", detail: kind });
-    reviewReasons.push({
-      code: "SOURCE_KIND_CONFLICT",
-      details: { title: job.JobAdName, kind },
-    });
+    // 官方 `Kind` 不是「实习」仍然**记录**，但不再产出 `SOURCE_KIND_CONFLICT` 复核项。
+    //
+    // 该复核项属 `BLOCKING_REVIEW_OPEN`，连本机 `local_mvp` 都进不去。它原本表达「标题说实习、
+    // 官方字段说全职，需要人工确认这条是否在范围内」——在供给单位是「实习」时成立。ADR-0035
+    // 把单位改为「在校生可投岗位」后全职校招本身在范围内，`Kind` 不再决定准入。实测代价：
+    // 慧策租户请求 category="2"（校园招聘），30 条历史岗位 29 条命中该项，来源随之被暂停。
+    qualityFlags.push({ code: "OFFICIAL_EMPLOYMENT_TYPE_NOT_INTERNSHIP", detail: kind });
   }
   for (const [field, value] of [
     ["responsibilities", job.Duty],

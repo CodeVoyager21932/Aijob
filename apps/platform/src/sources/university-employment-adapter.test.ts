@@ -476,13 +476,16 @@ describe("nankai correcruit detail page (supvan-info)", () => {
     });
   });
 
-  it("fails closed when the internship section marker or frozen apply url changes", async () => {
+  // 栏目标记守卫保留，但按 ADR-0035 重新归类：它校验的是**页面身份**（本解析器写死了南开
+  // 「实习信息」栏目的字段布局），不是供给范围。原先的 `NOT_INTERNSHIP_SECTION` 属「软拒绝」，
+  // 也就是页面换了还照样自动接受；改为结构变更后它是硬冲突。
+  it("fails closed when the section identity marker or frozen apply url changes", async () => {
     const html = await htmlFixture("university-employment-nankai.synthetic.html");
     const source = resolveUniversityEmploymentSource("supvan-info-internships");
 
     expect(() =>
       parseNankaiCorrecruitPage(html.replace("实习信息,", "招聘信息,"), NANKAI_PAGE_URL),
-    ).toThrowError("UNIVERSITY_EMPLOYMENT_NOT_INTERNSHIP_SECTION");
+    ).toThrowError("UNIVERSITY_EMPLOYMENT_STRUCTURE_CHANGED");
 
     const tampered = parseNankaiCorrecruitPage(
       html.replace("https://www.supvan.com/joinUs", "https://evil.example.com/joinUs"),
@@ -628,13 +631,24 @@ describe("cuhk job view detail page (jcquant)", () => {
     );
   });
 
-  it("fails closed on non-internship type, foreign email domains and company mismatch", async () => {
+  // ADR-0035 第一条：工作性质取值不再决定去留，只要求该字段**存在**——缺失说明页面布局变了。
+  it("keeps a non-internship employment type but fails closed when the field disappears", async () => {
     const html = await htmlFixture("university-employment-cuhk.synthetic.html");
     const source = resolveUniversityEmploymentSource("jcquant-internships");
 
+    const fullTime = parseCuhkJobViewPage(
+      html.replace("工作性质：实习", "工作性质：全职"),
+      CUHK_PAGE_URL,
+    );
+    expect(fullTime.employmentTypeText).toBe("全职");
+    expect(
+      normalizeUniversityEmploymentJob({ source, job: fullTime, pageEvidenceRef: "fetch" })
+        .qualityFlags,
+    ).toContainEqual({ code: "OFFICIAL_EMPLOYMENT_TYPE_NOT_INTERNSHIP", detail: "全职" });
+
     expect(() =>
-      parseCuhkJobViewPage(html.replace("工作性质：实习", "工作性质：全职"), CUHK_PAGE_URL),
-    ).toThrowError("UNIVERSITY_EMPLOYMENT_NOT_EXPLICIT_INTERNSHIP");
+      parseCuhkJobViewPage(html.replace("工作性质：实习", "工作节奏：实习"), CUHK_PAGE_URL),
+    ).toThrowError("UNIVERSITY_EMPLOYMENT_STRUCTURE_CHANGED");
 
     const foreignEmail = parseCuhkJobViewPage(
       html.replaceAll("synthetic-hr@jcquant.vip", "synthetic-hr@qq.com"),
@@ -780,10 +794,14 @@ describe("zju jyxt detail page (hr-soft)", () => {
     expect(normalized.applyUrl).toBeNull();
     expect(normalized.locations).toMatchObject({ state: "known", value: ["杭州"] });
     expect(normalized.jobFamily).toMatchObject({ state: "known", value: "sales_business" });
+    // ADR-0035 第一条：「全职,实习」仍然记录为观察项，但不再产出阻塞复核的 `SOURCE_KIND_CONFLICT`。
     expect(normalized.qualityFlags).toContainEqual({
-      code: "SOURCE_KIND_CONFLICT",
+      code: "OFFICIAL_EMPLOYMENT_TYPE_NOT_INTERNSHIP",
       detail: "全职,实习",
     });
+    expect(normalized.reviewReasons.map((reason) => reason.code)).not.toContain(
+      "SOURCE_KIND_CONFLICT",
+    );
     expect(normalized.qualityFlags).toContainEqual(
       expect.objectContaining({ code: "MULTI_CITY_SUPPLEMENT" }),
     );
@@ -861,12 +879,14 @@ describe("zju jyxt detail page (hanxu tech)", () => {
     });
   });
 
-  it("rejects non-internship pages and missing parenthesized requirement sections", async () => {
+  it("keeps non-internship pages but still requires a parenthesized requirement section", async () => {
     const html = await htmlFixture("university-employment-zju-hanxu.synthetic.html");
 
-    expect(() =>
-      parseZjuJyxtPage(html.replace("<span>实习</span>", "<span>全职</span>"), HANXU_ZJU_PAGE_URL),
-    ).toThrowError("UNIVERSITY_EMPLOYMENT_NOT_EXPLICIT_INTERNSHIP");
+    // ADR-0035 第一条：六段结构里的工作性质原样带走，不再据此整条丢弃。
+    expect(
+      parseZjuJyxtPage(html.replace("<span>实习</span>", "<span>全职</span>"), HANXU_ZJU_PAGE_URL)
+        .employmentTypeText,
+    ).toBe("全职");
     expect(() =>
       parseZjuJyxtPage(
         html.replace("（二）任职要求", "（二）岗位条件"),

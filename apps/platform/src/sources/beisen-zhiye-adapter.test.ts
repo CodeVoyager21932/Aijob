@@ -169,7 +169,11 @@ describe("Beisen zhiye adapter", () => {
     expect(sentinelDeadline.structuredFields.deadline.state).toBe("unknown");
   });
 
-  it("keeps a title-marked internship with conflicting Kind but records a review reason", async () => {
+  // ADR-0035 第一条：官方 `Kind` 不是「实习」仍然记录，但**不再**产出 `SOURCE_KIND_CONFLICT`
+  // 复核项。该复核项属 `BLOCKING_REVIEW_OPEN`，连本机 `local_mvp` 都进不去；实测慧策 30 条
+  // 历史岗位有 29 条命中它，来源随之被暂停。全职校招在新供给轴下本身在范围内，不构成需要
+  // 人工放行的矛盾。
+  it("records a non-internship official Kind as an observation, not a blocking review item", async () => {
     const page = parseBeisenZhiyeListPage(await jsonFixture());
     const tenant = resolveBeisenZhiyeTenant("huice-campus-internships");
     const conflicted = page.jobs.find((job) => job.JobAdId === 900004);
@@ -183,10 +187,12 @@ describe("Beisen zhiye adapter", () => {
     });
     expect(normalized.locations).toMatchObject({ state: "known", value: ["深圳", "成都"] });
     expect(normalized.qualityFlags).toContainEqual({
-      code: "SOURCE_KIND_CONFLICT",
+      code: "OFFICIAL_EMPLOYMENT_TYPE_NOT_INTERNSHIP",
       detail: "全职",
     });
-    expect(normalized.reviewReasons.map((reason) => reason.code)).toContain("SOURCE_KIND_CONFLICT");
+    expect(normalized.reviewReasons.map((reason) => reason.code)).not.toContain(
+      "SOURCE_KIND_CONFLICT",
+    );
   });
 
   it("normalizes campus jobs without an internship marker instead of dropping them", async () => {

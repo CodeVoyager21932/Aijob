@@ -209,33 +209,22 @@ export function isRetryableProbeErrorCode(code: string): boolean {
   return retryableProbeErrorCodes.has(code) || /^UPSTREAM_HTTP_(408|429|5\d\d)$/.test(code);
 }
 
-const safeSoftRefreshRejectionCodes = new Set([
-  "BEISEN_NOT_EXPLICIT_INTERNSHIP",
-  "FANRUAN_NOT_EXPLICIT_INTERNSHIP",
-  "UNIVERSITY_EMPLOYMENT_NOT_EXPLICIT_INTERNSHIP",
-  "UNIVERSITY_EMPLOYMENT_NOT_INTERNSHIP_SECTION",
-]);
-
-export function isSafeSoftRefreshRejectionCode(code: string): boolean {
-  return safeSoftRefreshRejectionCodes.has(code);
-}
-
+/**
+ * ADR-0035 第一条：「软拒绝」这个分类整体撤销。
+ *
+ * 它原先只装四个码——`BEISEN_/FANRUAN_/UNIVERSITY_EMPLOYMENT_NOT_EXPLICIT_INTERNSHIP` 与
+ * `UNIVERSITY_EMPLOYMENT_NOT_INTERNSHIP_SECTION`——存在的唯一理由是「这条不是实习」不该算
+ * 采集冲突。供给单位改为「在校生可投岗位」后没有任何适配器再产出这类码，集合为空，随之
+ * `scheduledRefreshRejectionCode` 与 `TRACKED_RECORD_NOT_INTERNSHIP`（已跟踪岗位「不再是
+ * 实习」升格为硬冲突）也一并失去意义。
+ *
+ * 于是硬冲突判据回到本来的样子：**凡不可重试的错误都是硬冲突**。剩下那几个高校适配器守卫
+ * 保护的是冻结公告与标题锚点（见 `university-employment-adapter.ts`），已改用
+ * `UNIVERSITY_EMPLOYMENT_STRUCTURE_CHANGED`，本就应当是硬冲突：冻结结构变了还自动接受，
+ * 会把硬编码岗位表当成真实供给发出去。
+ */
 export function isHardRefreshConflictCode(code: string): boolean {
-  return !isRetryableProbeErrorCode(code) && !isSafeSoftRefreshRejectionCode(code);
-}
-
-export function scheduledRefreshRejectionCode(input: {
-  code: string;
-  runMode: "probe" | "scheduled";
-  refreshCoverage: SourceConfig["policy"]["refreshCoverage"];
-  recordAlreadyTracked: boolean;
-}): string {
-  return input.runMode === "scheduled" &&
-    input.refreshCoverage === "tracked_records" &&
-    input.recordAlreadyTracked &&
-    isSafeSoftRefreshRejectionCode(input.code)
-    ? "TRACKED_RECORD_NOT_INTERNSHIP"
-    : input.code;
+  return !isRetryableProbeErrorCode(code);
 }
 
 export function isRefreshCountAnomaly(previousCount: number, currentCount: number): boolean {
@@ -315,52 +304,6 @@ function errorCode(error: unknown): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-async function trackedRecordAwareRejectionCode(input: {
-  db: Kysely<Database>;
-  sourceId: string;
-  sourceConfig: SourceConfig;
-  runMode: "probe" | "scheduled";
-  code: string;
-  sourceJobId?: string;
-  canonicalSourceUrl?: string;
-}): Promise<string> {
-  if (
-    input.runMode !== "scheduled" ||
-    input.sourceConfig.policy.refreshCoverage !== "tracked_records" ||
-    !isSafeSoftRefreshRejectionCode(input.code)
-  ) {
-    return input.code;
-  }
-
-  let recordAlreadyTracked = false;
-  if (input.sourceJobId) {
-    recordAlreadyTracked = Boolean(
-      await input.db
-        .selectFrom("ingestion.source_job_records")
-        .select("id")
-        .where("source_id", "=", input.sourceId)
-        .where("source_job_id", "=", input.sourceJobId)
-        .executeTakeFirst(),
-    );
-  } else if (input.canonicalSourceUrl) {
-    recordAlreadyTracked = Boolean(
-      await input.db
-        .selectFrom("ingestion.source_job_records")
-        .select("id")
-        .where("source_id", "=", input.sourceId)
-        .where("canonical_source_url", "=", input.canonicalSourceUrl)
-        .executeTakeFirst(),
-    );
-  }
-
-  return scheduledRefreshRejectionCode({
-    code: input.code,
-    runMode: input.runMode,
-    refreshCoverage: input.sourceConfig.policy.refreshCoverage,
-    recordAlreadyTracked,
-  });
 }
 
 export async function lockScheduledPolicyForAcceptance(input: {
@@ -1311,8 +1254,7 @@ async function runFanruanTraineeAdapterProbe(
   const candidates: Array<{ job: FanruanTraineeJob; listItemIndex: number; fetchId: string }> = [];
   const failureErrorCodes: string[] = [];
   const reportedTotals: Record<string, number> = {};
-  let filteredNonInternship = 0;
-  let trackedInternshipConflicts = 0;
+  let nonInternshipKept = 0;
   let page = 1;
   let scopeExhausted = false;
 
@@ -1349,22 +1291,11 @@ async function runFanruanTraineeAdapterProbe(
     reportedTotals["trainee-jobads"] = parsed.dataTotal;
 
     for (const [listItemIndex, job] of parsed.jobs.entries()) {
+      // ADR-0035 第一条：与北森族同样处理，非实习岗位**不再跳过**。原先这里还会把「已跟踪
+      // 岗位不再是实习」升格为硬冲突（`TRACKED_RECORD_NOT_INTERNSHIP`），在新的供给轴下
+      // 那不是冲突，一并撤销。仍然计数，用于观察放开后多收了多少。
       if (!isFanruanInternship(job)) {
-        filteredNonInternship += 1;
-        const code = await trackedRecordAwareRejectionCode({
-          db: input.db,
-          sourceId: input.sourceId,
-          sourceConfig: input.sourceConfig,
-          runMode: input.runMode,
-          code: "FANRUAN_NOT_EXPLICIT_INTERNSHIP",
-          sourceJobId: job.id,
-        });
-        if (code === "TRACKED_RECORD_NOT_INTERNSHIP") {
-          trackedInternshipConflicts += 1;
-          failureErrorCodes.push(code);
-          input.errors.push({ code, message: `tracked job ${job.id} is no longer an internship` });
-        }
-        continue;
+        nonInternshipKept += 1;
       }
       if (candidates.length < input.limit) {
         candidates.push({ job, listItemIndex, fetchId });
@@ -1380,10 +1311,11 @@ async function runFanruanTraineeAdapterProbe(
     await updateHeartbeat(input.db, input.taskId, input.leaseOwner, input.fencingToken);
     await delay(requestInterval(input));
   }
-  reportedTotals["non-internship-filtered"] = filteredNonInternship;
+  // 观察量而非过滤量：这些岗位现在照常入库，键名记录「多收了多少」。
+  reportedTotals["non-internship-kept"] = nonInternshipKept;
 
   let normalizedCount = 0;
-  let rejectedCount = trackedInternshipConflicts;
+  let rejectedCount = 0;
   for (const candidate of candidates) {
     try {
       const normalized = normalizeFanruanTraineeJob({
@@ -1613,16 +1545,7 @@ async function runUniversityEmploymentAdapterProbe(
         pageUrl,
       }).slice(0, input.limit - discoveredCount);
     } catch (error) {
-      const code = await trackedRecordAwareRejectionCode({
-        db: input.db,
-        sourceId: input.sourceId,
-        sourceConfig: input.sourceConfig,
-        runMode: input.runMode,
-        code: errorCode(error),
-        canonicalSourceUrl: pageUrl,
-      });
-      await markFetchSchemaError(input.db, fetchId, code, probeLease(input));
-      if (code !== errorCode(error)) throw new Error(code);
+      await markFetchSchemaError(input.db, fetchId, errorCode(error), probeLease(input));
       throw error;
     }
     discoveredCount += jobs.length;
@@ -1656,14 +1579,7 @@ async function runUniversityEmploymentAdapterProbe(
         });
         normalizedCount += 1;
       } catch (error) {
-        const code = await trackedRecordAwareRejectionCode({
-          db: input.db,
-          sourceId: input.sourceId,
-          sourceConfig: input.sourceConfig,
-          runMode: input.runMode,
-          code: errorCode(error),
-          sourceJobId: job.sourceJobId,
-        });
+        const code = errorCode(error);
         if (code === "TASK_LEASE_LOST") throw error;
         rejectedCount += 1;
         failureErrorCodes.push(code);

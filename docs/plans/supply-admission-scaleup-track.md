@@ -41,7 +41,7 @@
 | `officialIdentity` / `noAuthBypass` / `officialApplyLink` | 34/34 | 已过 |
 | `targetSupply` | 31/34 | 个案补证 |
 | **`accessPolicyAccepted`** | **0/34** | 需政策判据（ADR-0033） |
-| **`stableIdentityAndFields`** | **0/34**（33 pending + 1 fail） | 需连续运行证据，仅靠时间与运行即可，**不需政策裁决** |
+| **`stableIdentityAndFields`** | **0/34**（33 pending + 1 fail） | 判据已实现（ADR-0035 §三：成功刷新 ≥3 次、相邻计数间隔 ≥20h、`automation_acceptance='accepted'` 即结构未变），只需累积运行次数，**不需政策裁决**；进度见 `pnpm source:refresh-status` 的 `contractStability` |
 
 即使硬门全过，仍需 `totalScore >= 75` 才是 `pilot`；`policyAccess` 占 25 分且当前全为 0。
 

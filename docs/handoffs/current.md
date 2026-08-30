@@ -78,6 +78,25 @@
 - 适配器侧撤销标题过滤：北森族不再因标题不含「实习」而丢弃岗位，筛选上移到资格层。`fanruan-trainee-adapter` 与 `university-employment-adapter` 的 `*_NOT_EXPLICIT_INTERNSHIP` 过滤**尚未**同样处理，见下文待办。
 - 顺带修掉一个预先存在的时序 flake：`024_resume_document_v2_expand.integration.test.ts` 用插入**之前**取的 JS 时间戳推进 `updated_at`，并行跑全量时插入常落在 1 秒之后，于是 `resume_documents_update_after_creation` 间歇性拒绝。改为从数据库读回 `created_at` 再推进，去掉对时钟与延迟的依赖。
 
+### ADR-0035 收口：过度限制的其余三处
+
+**实习字样过滤已全部清掉。** `probe.ts` 里整个「软拒绝」分类被删除——它只装四个 `*_NOT_EXPLICIT_INTERNSHIP` 码，存在的唯一理由是「这条不是实习」不该算采集冲突，供给单位改掉后集合为空，随之 `scheduledRefreshRejectionCode`、`trackedRecordAwareRejectionCode` 与 `TRACKED_RECORD_NOT_INTERNSHIP` 一并失效。`isHardRefreshConflictCode` 回到本来的样子：凡不可重试即硬冲突。
+
+高校适配器的六处 `实习` 检查**不是同一类东西**，分开处置：三处是字段取值过滤（CUHK 与 ZJU 的「工作性质」、以及 `normalizeUniversityEmploymentJob` 里那道**全部高校来源共用**的过滤——每个解析器最终都汇到 normalize，它一条就足以把校招、应届与管培生全部挡在库外），已撤销；另外三处保护的是**冻结公告与标题锚点**（华科公告以「实习生」为标题与小标题锚点，`allwinnerRoles` 与 `dtlRoles` 是只对某一份公告成立的硬编码岗位表，南开 meta keywords 校验的是栏目页身份），公告换了还按这些表产出岗位就是凭空编造，因此**保留**守卫但改用 `UNIVERSITY_EMPLOYMENT_STRUCTURE_CHANGED`——原先它们属「软拒绝」，也就是页面换了还照样自动接受，现在是硬冲突。
+
+**`SOURCE_KIND_CONFLICT` 不再进 `reviewReasons`。** 这是第二处「阻塞等于什么都没有」：该复核项是 `BLOCKING_REVIEW_OPEN` 的成员，连本机 `local_mvp` 都进不去，而慧策 30 条历史岗位有 29 条命中它、来源随之被暂停。它成立的前提是供给单位为「实习」——那时「官方 `Kind` 写全职」确实让人怀疑这条是否在范围内。单位改为「在校生可投岗位」后全职校招本身在范围内，工作性质不再决定准入，因此改为 `qualityFlags` 的 `OFFICIAL_EMPLOYMENT_TYPE_NOT_INTERNSHIP` 观察项，北森与高校两个适配器都改了。
+
+**D 组数值门槛已撤销**（`source-batch-planner.ts`）：`CAPACITY_MINIMUM_COMPLETE_JOBS` 10→3；`MAX_COVERAGE_COMPANIES_PER_BATCH` 删除；单家配额 30/10 分档合并为恒定 30（分档的判定轴是「该企业有没有可达岗位」，而可达性已下沉为逐岗位判据，「非可达企业」不再是有意义的分类）；`selectSourceBatch` 里的本批可达比例下限删除——它的实际效果是「容量证据没记 `reachableInternships` 的候选被当作 0，拉低本批比例后被跳过」，即用证据缺失做否定推断；`coverage_not_needed` 就绪项撤销。职能与城市缺口、`reachabilityRecoveryRequired` 全部保留为报告项与排序信号。
+
+**`stableIdentityAndFields` 判据已实现**：新模块 `apps/platform/src/sources/source-contract-stability.ts`，成功刷新 ≥3 次、相邻计数间隔 ≥20 小时、结构未变；来源持续性为 ≥3 个来源各 ≥3 次且跨度 ≥72 小时。三个设计点值得记住：
+
+- 「结构未变」直接用 `automation_acceptance = 'accepted'` 表达。该状态已要求 completion 不是 failed、无任何硬冲突码、无数量异常——它就是机器对「冻结契约仍解析得通」的判断，不需要另造一套结构比较。
+- 间隔取 **20** 小时而不是 24：`crawl_interval` 普遍是 `24h`，门槛若也写 24，调度抖动几分钟就不计数，永远攒不满。
+- 计数用**贪心取点**而不是「每一对相邻运行都必须 ≥20h」：同小时重放与补跑会产生密集运行，后者一次重放就能让整段证据作废。多跑不该受罚。
+- 只统计当前 `(policy_version, adapter_version)` 下的观察，适配器改动会清零（约两天可重新攒满），按 fail-closed 取这一侧。
+
+达标进度已接进 `pnpm source:refresh-status`（返回值新增 `contractStability`），可直接看每个来源还差几次。
+
 ### 触网边界按 `AGENTS.md` 原文，不额外加严
 
 先前交接把这里写成「任何触网步骤须 coco 逐批明确 live 授权」。**那比 `AGENTS.md` 严，是多加的约束，已撤回。** 规则原文只把四件事留给人工明确操作：首次启用、扩大请求范围、恢复暂停来源、浏览器快照；并明确「按 ADR-0026 在配置中显式启用的确定性来源可由本机 `collector-worker` 定时刷新」。
@@ -100,7 +119,7 @@
 | Integrated Gate | 通过（`passed: true`） |
 | Evidence | 通过 |
 
-工程基线（2026-08-29，隔离库 `aijob_v35_gate4_test`，37 个迁移预迁移后跑 `pnpm check` + `pnpm build`）：Config 20、Contracts 100、Database 69、Web 182、Platform 539，共 **910/910**（157 个测试文件），一次跑通无 flake；`biome lint` 513 文件 3 warning（均为既有 `noExplicitAny`，落在 `source-tenant-config.test.ts` 的 legacy 夹具读取处）、全仓 typecheck、生产构建均通过。上一基线为 808/808。
+工程基线（2026-08-29，隔离库 `aijob_v35_gate6_test`，37 个迁移预迁移后跑 `pnpm check` + `pnpm build`）：Config 20、Contracts 100、Database 69、Web 182、Platform 547，共 **918/918**（158 个测试文件），一次跑通无 flake；`biome lint` 515 文件 3 warning（均为既有 `noExplicitAny`，落在 `source-tenant-config.test.ts` 的 legacy 夹具读取处）、全仓 typecheck、生产构建均通过。上一基线为 808/808。
 
 前端主包 **401.33 kB（gzip 117.04 kB）**，上限 411.31 kB。
 
@@ -125,14 +144,19 @@
 2. `git fetch` 核对分支/远端/工作树；`codex/g2-1000-alpha-supply`（capacity 感知规划、可复用 ATS 来源族、Private Alpha 信任边界）已完整合入本分支（`merge-base` 即其 tip，left/right = 80/0），无撞车风险；其 worktree 的未提交改动属于 coco，不动。
 3. ADR-0032/0033/0034/0035 均已 `accepted`，可据其改动资格视图与发布路径。
 4. 剩余待办，按依赖顺序：
-   1. ~~落地 ADR-0034 §一 + §二 + §三~~、~~ADR-0035 迁移 037~~ **已完成**，零触网。
-   2. 撤销剩余 D 组数值门槛：单家配额分档、`CAPACITY_MINIMUM_COMPLETE_JOBS=10 → 3`、`MAX_COVERAGE_COMPANIES_PER_BATCH=2`、12 职能与八城最小值降为观察项。**文档已按 ADR-0035 改，代码尚未跟上。**
-   3. `stableIdentityAndFields` 改按**观察次数与跨度**（≥3 次成功刷新、间隔 ≥20h、结构一致）。同上：只改了文档，判据代码未实现。
-   4. 清掉剩余的实习字样过滤：`fanruan-trainee-adapter.ts`、`university-employment-adapter.ts` 的 `*_NOT_EXPLICIT_INTERNSHIP`，以及 `probe.ts` 的 `safeSoftRefreshRejectionCodes`。北森族已按新行为改完，可作参照。
-   5. 租户配置 `category` 从 `"3"` 放开到 `"2","3"`（校招 + 实习）——ADR-0035 §一 尚未做完的部分。
-   6. 重跑线索抽取，ATS 租户恢复为待评线索，产出**各厂商分布**。零触网，是把「100 家」从不可行变成算得出的一步。
-   7. 建首次取证通路（取 `/robots.txt` + 核 ToS 写入 `accessPolicyEvidence`），**之后**才接 ADR-0033 复核。顺序见下节。
-   8. 凭运行证据翻转 `stableIdentityAndFields`，提 `policy.status → approved` + `runtime_scope → alpha`，跑 `catalog-reconcile-publication`，由对账自动发布使公开 `/v1/jobs` 非 0。
+   1. ~~落地 ADR-0034 §一 + §二 + §三~~、~~ADR-0035 迁移 037~~、~~撤销 D 组数值门槛~~、~~`stableIdentityAndFields` 判据~~、~~清掉实习字样过滤~~ **已完成**，零触网。
+   2. **待 coco 决定**：租户配置 `category` 从 `"3"` 放开到校招并行。北森列表请求的 `Category` 是**单值**（`jobsPagePath` 与 `reportedTotalKey` 都与之耦合），因此「校招 + 实习并行」只能是**每个 category 发一次请求**，属 `AGENTS.md` 的「扩大请求范围」，必须人工明确操作。详见下节。
+   3. 重跑线索抽取，ATS 租户恢复为待评线索，产出**各厂商分布**。零触网，是把「100 家」从不可行变成算得出的一步。
+   4. 建首次取证通路（取 `/robots.txt` + 核 ToS 写入 `accessPolicyEvidence`），**之后**才接 ADR-0033 复核。顺序见下节。
+   5. 攒够运行证据让 `stableIdentityAndFields` 自然达标（判据已实现，跑 `pnpm source:refresh-status` 看 `contractStability.sources[].shortfalls` 还差几次），提 `policy.status → approved` + `runtime_scope → alpha`，跑 `catalog-reconcile-publication`，由对账自动发布使公开 `/v1/jobs` 非 0。
+
+### 待决定：北森租户 `category` 能否扩到校招
+
+ADR-0035 §一 写「租户配置的 `category` 从 `"3"` 放开到校招与实习并行」。实现上有一个约束需要 coco 先定：
+
+北森列表接口的请求体是 `Category: <单个字符串>`，不是数组；`jobsPagePath`（`/intern/jobs` 与 `/campus/jobs`）与 `reportedTotalKey` 都与它一对一耦合。**冻结契约里从未观察到数组形态**，按 ADR-0035「契约未被观察就不写适配器」不能凭空改成数组。因此「并行」只能实现为**每个 category 各发一次列表请求**，一个租户的每轮刷新请求数从 1 组翻成 2 组——这正是 `AGENTS.md` 列为必须人工明确操作的「扩大请求范围」。
+
+已落地的部分不受此影响：慧策租户请求的本来就是 `category="2"`（校园招聘），它的校招岗位此前被标题过滤丢弃、又被 `SOURCE_KIND_CONFLICT` 阻塞，这两处都已撤销。也就是说**最大的一处损失已经修好**，扩 category 是增量。当前 5 个北森租户：慧策 `"2"`，灵明光子／普渡／先临三维／卧安 `"3"`。
 5. 触网边界按 `AGENTS.md` 原文：配置中已显式启用的确定性来源可由本机 `collector-worker` 定时刷新；只有首次启用、扩大请求范围、恢复暂停来源和浏览器快照需人工明确操作。不复用 OS-1–OS-7 切片模板，不启动服务器就绪工作。
 6. 对账必须**周期性运行**才能保证撤回及时。当前只有 CLI 入口，尚未接进 `collector-worker` 的刷新周期；接线前，来源被暂停到指针被撤回之间存在时间窗，需依赖 `catalog-suppress-job` 兜底。
 

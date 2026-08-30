@@ -275,6 +275,26 @@ describe("local source refresh operations", () => {
             },
           ],
         }),
+        // ADR-0035 第三条：状态报告一并报出 `stableIdentityAndFields` 的达标进度，因此这里也要
+        // 打桩。判据本身在 `source-contract-stability.test.ts` 覆盖。
+        loadSourceContractStability: async (_db, _sourceKeys) => ({
+          sources: [
+            {
+              sourceKey: "manual-source",
+              status: "pending" as const,
+              acceptedRunCount: 1,
+              qualifyingRunCount: 1,
+              observationSpanHours: null,
+              shortfalls: ["needs_2_more_qualifying_refreshes"],
+            },
+          ],
+          persistence: {
+            status: "pending" as const,
+            persistentSourceCount: 0,
+            persistentSourceKeys: [],
+            shortfalls: ["needs_3_more_persistent_sources"],
+          },
+        }),
       },
     });
 
@@ -284,6 +304,12 @@ describe("local source refresh operations", () => {
       jobCount: 2,
       manualSnapshotRequired: true,
     });
+    expect(status.contractStability.sources[0]).toMatchObject({
+      sourceKey: "manual-source",
+      status: "pending",
+      shortfalls: ["needs_2_more_qualifying_refreshes"],
+    });
+    expect(status.contractStability.persistence.status).toBe("pending");
   });
 
   it("requires explicit live confirmation for a synchronous refresh", async () => {

@@ -473,9 +473,12 @@ export function normalizeUniversityLocation(value: string): string | undefined {
 }
 
 export function parseNankaiCorrecruitPage(html: string, pageUrl: string): UniversityEmploymentJob {
-  // 南开实习信息栏目页在 meta keywords 中携带栏目标记；缺失即视为脱离实习栏目。
+  // 这不是供给范围过滤，而是**页面身份**校验：本解析器写死了南开「实习信息」栏目的字段布局，
+  // 栏目标记缺失说明拿到的不是该栏目的页面，继续按这套布局解析只会得出错的字段。原先记的
+  // `UNIVERSITY_EMPLOYMENT_NOT_INTERNSHIP_SECTION` 属「软拒绝」，也就是页面换了还照样自动
+  // 接受；改为结构变更后它是硬冲突，需要人工看一眼。
   if (!/<meta\s+name="keywords"\s+content="[^"]*实习信息/.test(html)) {
-    throw new Error("UNIVERSITY_EMPLOYMENT_NOT_INTERNSHIP_SECTION");
+    throw new Error("UNIVERSITY_EMPLOYMENT_STRUCTURE_CHANGED");
   }
   const titleTag = html.match(/<title>([^<]+)<\/title>/)?.[1];
   const decodedTitle = titleTag ? decodeTitleEntities(titleTag) : "";
@@ -533,9 +536,11 @@ export function parseCuhkJobViewPage(html: string, pageUrl: string): UniversityE
   const lines = htmlToDeterministicLines(html);
   const companyName = labelValue(lines, "公司名称：");
   if (!companyName) throw new Error("UNIVERSITY_EMPLOYMENT_COMPANY_MISSING");
+  // ADR-0035 第一条：原先这里要求「工作性质」含「实习」，否则整条丢弃；校招岗位因此被取回
+  // 后扔掉。现在只要求该字段**存在**（缺失说明页面布局变了），取值原样带走交给资格层判定。
   const employmentTypeText = labelValue(lines, "工作性质：");
-  if (!employmentTypeText?.normalize("NFKC").includes("实习")) {
-    throw new Error("UNIVERSITY_EMPLOYMENT_NOT_EXPLICIT_INTERNSHIP");
+  if (employmentTypeText === undefined) {
+    throw new Error("UNIVERSITY_EMPLOYMENT_STRUCTURE_CHANGED");
   }
 
   // 发布/结束时间位于相邻 span，可能被源码换行拆开，直接对原始 HTML 提取。
@@ -589,10 +594,8 @@ export function parseZjuJyxtPage(html: string, pageUrl: string): UniversityEmplo
   if (tokens.length !== 6 || !datePattern.test(tokens[5] ?? "") || !/人$/.test(tokens[4] ?? "")) {
     throw new Error("UNIVERSITY_EMPLOYMENT_STRUCTURE_CHANGED");
   }
+  // ADR-0035 第一条：取值不再决定去留。六段结构已在上面校验过，`tokens[2]` 必然存在。
   const employmentTypeText = tokens[2] ?? "";
-  if (!employmentTypeText.normalize("NFKC").includes("实习")) {
-    throw new Error("UNIVERSITY_EMPLOYMENT_NOT_EXPLICIT_INTERNSHIP");
-  }
 
   const publishedLine = lines.find((line) => /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(line));
   const bodyStart = lines.findIndex((line) => line === "职位描述");
@@ -804,8 +807,13 @@ function parseHustAggregateJobInfoPage(
 
 export function parseHustJobInfoPage(html: string, pageUrl: string): UniversityEmploymentJob[] {
   const lines = hustCleanLines(htmlToDeterministicLines(html));
+  // 这是**解析能力**边界而不是供给范围过滤：下面的标题定位与岗位小标题识别都以「实习生」为
+  // 锚点（`/实习生.*(?:招聘|招募|计划|开启)/`、`hustRoleHeading`），没有这个锚点无法切分公告。
+  // 把华科公告线扩到校园招聘需要先观察到一份真实的校招公告页再改锚点语法——按 ADR-0035，
+  // 契约未被观察就不写适配器。因此这里保留守卫，但改为结构变更（硬冲突），让它显式暴露成
+  // 「需要人工扩适配器」，而不是像原先那样静默跳过。
   if (!lines.some((line) => line.includes("实习生"))) {
-    throw new Error("UNIVERSITY_EMPLOYMENT_NOT_EXPLICIT_INTERNSHIP");
+    throw new Error("UNIVERSITY_EMPLOYMENT_STRUCTURE_CHANGED");
   }
   const titleIndex = lines.findIndex(
     (line) => line !== "实习生信息" && /实习生.*(?:招聘|招募|计划|开启)/u.test(line),
@@ -1006,8 +1014,10 @@ export function parseGdutCampusPage(html: string, pageUrl: string): UniversityEm
   const publishedAt = html.match(/发布时间：\s*(\d{4}-\d{2}-\d{2})/)?.[1];
   const content = decodeGdutStaticContent(html);
   const compactContent = content.replace(/\s+/g, "");
+  // **冻结公告身份校验**，不是供给范围过滤：下面 `allwinnerRoles` 是写死的岗位表，只对这一份
+  // 公告成立。公告换了还按这张表产出岗位就是凭空编造，因此按结构变更硬失败。
   if (!compactContent.includes("2027届实习生招聘")) {
-    throw new Error("UNIVERSITY_EMPLOYMENT_NOT_EXPLICIT_INTERNSHIP");
+    throw new Error("UNIVERSITY_EMPLOYMENT_STRUCTURE_CHANGED");
   }
   const applicationUrlOnPage =
     content.match(/https:\/\/campus\.allwinnertech\.com(?:\/)?/)?.[0] ??
@@ -1063,8 +1073,9 @@ const dtlRoles = [
 export function parseDtlNankaiPage(html: string, pageUrl: string): UniversityEmploymentJob[] {
   const base = parseNankaiCorrecruitPage(html, pageUrl);
   const lines = htmlToDeterministicLines(html);
+  // 同上：`dtlRoles` 是写死的八岗表，只对这一份公告成立，因此这是公告身份校验而非供给过滤。
   if (!lines.some((line) => line.includes("Internship（纯实习）"))) {
-    throw new Error("UNIVERSITY_EMPLOYMENT_NOT_EXPLICIT_INTERNSHIP");
+    throw new Error("UNIVERSITY_EMPLOYMENT_STRUCTURE_CHANGED");
   }
 
   return dtlRoles.map((title, index) => {
@@ -1296,9 +1307,9 @@ export function normalizeUniversityEmploymentJob(input: {
   if (!acceptedCompanyNames.includes(pageCompanyName)) {
     throw new Error("UNIVERSITY_EMPLOYMENT_COMPANY_MISMATCH");
   }
-  if (!job.employmentTypeText.normalize("NFKC").includes("实习")) {
-    throw new Error("UNIVERSITY_EMPLOYMENT_NOT_EXPLICIT_INTERNSHIP");
-  }
+  // ADR-0035 第一条：这里原是**全部高校来源共用的**那道实习过滤——每个解析器最终都汇到
+  // normalize，因此它一条就足以把校招、应届与管培生全部挡在库外。已撤销；工作性质作为事实
+  // 原样记录，是否可投由资格层的 `catalog.job_reachability_verdict` 判定。
 
   const qualityFlags: NormalizedOfficialJob["qualityFlags"] = [];
   const reviewReasons: NormalizedOfficialJob["reviewReasons"] = [
@@ -1357,12 +1368,13 @@ export function normalizeUniversityEmploymentJob(input: {
 
   const employmentType = job.employmentTypeText.normalize("NFKC").trim();
   if (employmentType !== "实习") {
-    // 官方工作性质与纯实习标记矛盾（如“全职,实习”）：仍导入但留复核项。
-    qualityFlags.push({ code: "SOURCE_KIND_CONFLICT", detail: employmentType });
-    reviewReasons.push({
-      code: "SOURCE_KIND_CONFLICT",
-      details: { title: job.title, employmentType },
-    });
+    // 工作性质原文与「纯实习」不一致仍然**记录**，但不再产出 `SOURCE_KIND_CONFLICT` 复核项。
+    //
+    // 那个复核项是 `BLOCKING_REVIEW_OPEN` 的成员，连本机 `local_mvp` 都进不去。它成立的前提是
+    // 供给单位为「实习」——那时「官方写全职」确实让人怀疑这条是否在范围内。ADR-0035 把单位改为
+    // 「在校生可投岗位」后，全职校招本身就在范围内，工作性质不再决定准入，因此它不构成需要
+    // 人工放行的矛盾。实测代价很具体：慧策 30 条历史岗位有 29 条命中该项，来源随之被暂停。
+    qualityFlags.push({ code: "OFFICIAL_EMPLOYMENT_TYPE_NOT_INTERNSHIP", detail: employmentType });
   }
   if (job.hasMultiCitySupplement) {
     qualityFlags.push({ code: "MULTI_CITY_SUPPLEMENT", detail: job.title });

@@ -3,7 +3,6 @@ import {
   isReachableVerdict,
   type JobFamily,
   JobFamilySchema,
-  MINIMUM_REACHABLE_VISIBLE_JOB_RATIO,
 } from "@aijob/contracts";
 import type { Database, JsonValue } from "@aijob/database";
 import { type Kysely, sql } from "kysely";
@@ -80,7 +79,8 @@ export interface PlannerCandidate {
   lane: SourceCandidateOverride["lane"];
   automationMode: SourceCandidateOverride["automationMode"];
   capacity: SourceCandidateOverride["capacity"];
-  quota: 10 | 30;
+  /** ADR-0035：不再按可达性分档，恒为 30。 */
+  quota: 30;
   projectedVisibleJobs: number;
   /** 其中判定为可达的部分，来自容量证据；缺失即 0。 */
   projectedReachableVisibleJobs: number;
@@ -92,15 +92,24 @@ export interface PlannerCandidate {
 }
 
 const CAPACITY_EVIDENCE_MAX_AGE_DAYS = 7;
-const CAPACITY_MINIMUM_COMPLETE_JOBS = 10;
-const MAX_COVERAGE_COMPANIES_PER_BATCH = 2;
 
 /**
- * ADR-0032 反霸榜配额：可达企业单家最多贡献 30 条可见岗位，非可达企业最多 10 条。
- * 语义与原 SME 配额一致，只是判定轴从企业规模换成岗位可达性。
+ * ADR-0035：从 10 降到 3。
+ *
+ * 10 的作用是「只有 9 条完整 JD 的企业永不入选」——一个没有用户证据的数值，却把候选卡在入口，
+ * 而入口后面正是用来积累证据的过程。当前全部可信供给是 22 条岗位，按 10 计一家企业要独自贡献
+ * 接近半个基线才够格。3 保留「一家只有一条岗位不值得单独接一个适配器」这个真实约束。
  */
-const NON_REACHABLE_COMPANY_QUOTA = 10;
-const REACHABLE_COMPANY_QUOTA = 30;
+const CAPACITY_MINIMUM_COMPLETE_JOBS = 3;
+
+/**
+ * ADR-0032 反霸榜配额：单家企业最多贡献 30 条可见岗位。
+ *
+ * ADR-0035 取消了 30/10 分档。分档的判定轴是「该企业有没有可达岗位」，而可达性已经下沉为
+ * 逐岗位准入判据——被收录的岗位按构造全部可投，于是「非可达企业」不再是有意义的分类，按它
+ * 减半配额只是凭空砍掉三分之二的供给。
+ */
+const COMPANY_VISIBLE_JOB_QUOTA = 30;
 
 /**
  * 候选企业尚未入库，没有岗位正文，因此可达性只能来自容量探测记录的证据。
@@ -476,7 +485,7 @@ function plannerCandidate(
   const capacity = override?.capacity ?? null;
   const scaleBand = override?.scaleBand ?? "unknown";
   const reachableCapacity = isReachableCandidateCapacity(capacity);
-  const quota = reachableCapacity ? REACHABLE_COMPANY_QUOTA : NON_REACHABLE_COMPANY_QUOTA;
+  const quota = COMPANY_VISIBLE_JOB_QUOTA;
   const projectedVisibleJobs = Math.min(capacity?.completeJdInternships ?? 0, quota);
   const projectedReachableVisibleJobs = Math.min(
     candidateReachableInternships(capacity),
@@ -646,75 +655,32 @@ function holdReason(
   return null;
 }
 
-function coverageCandidateUseful(
-  candidate: PlannerCandidate,
-  familyDeficits: Record<JobFamily, number>,
-  cityDeficits: Record<AlphaTargetCity, number>,
-): boolean {
-  return (
-    candidate.reachableCapacity ||
-    candidate.jobFamilyHints.some((family) => familyDeficits[family] > 0) ||
-    candidate.cityHints.some((city) => cityDeficits[city] > 0)
-  );
-}
-
-function projectedBatchRatios(candidates: readonly PlannerCandidate[]) {
-  const projectedVisibleJobs = candidates.reduce(
-    (total, candidate) => total + candidate.projectedVisibleJobs,
-    0,
-  );
-  const projectedReachableVisibleJobs = candidates.reduce(
-    (total, candidate) => total + candidate.projectedReachableVisibleJobs,
-    0,
-  );
-  return {
-    reachableVisibleJobRatio: ratio(projectedReachableVisibleJobs, projectedVisibleJobs),
-  };
-}
-
+/**
+ * ADR-0035：批次选择只剩两类约束——候选自身的就绪项，以及每批家数上限。
+ *
+ * 撤销的两项都是「聚合分布愿望写成阻塞门槛」：
+ *
+ * 1. **本批可达岗位比例下限 50%**（ADR-0035 §二）。可达性已下沉为逐岗位准入判据，被收录的岗位
+ *    按构造全部可投，这个比例恒真、不再携带信息。留着它的实际效果是：一个候选的容量证据没记
+ *    `reachableInternships` 就被当作 0，进而拉低本批比例并被跳过——用证据缺失做否定推断。
+ *    可达性继续作为排序信号（见 `candidatePriority`）。
+ * 2. **每批 coverage 家数 ≤2**。它服务于 12 职能与八城最小值，而那两组最小值合计要求 ≥520 与
+ *    ≥320 条岗位，当前总量 22 条；在缺口远大于供给时限制补缺口的家数是反向的。职能与城市缺口
+ *    保留为报告项与排序信号。
+ *
+ * 每批 ≤10 家（`limit`）与来源族试点 ≤3 家保留：厂商级继承会放大错误，先试点是有依据的。
+ */
 function selectSourceBatch(input: {
   eligiblePool: PlannerCandidate[];
   limit: number;
-  reachabilityRecoveryRequired: boolean;
-  familyDeficits: Record<JobFamily, number>;
-  cityDeficits: Record<AlphaTargetCity, number>;
 }): PlannerCandidate[] {
-  // ADR-0032 §4 的实测结论是可达比例上限 58.8%、70% 不可达。此前这里在
-  // `reachabilityRecoveryRequired` 时把本批下限抬到 0.7，等于落后时把门槛提到语料供不出的水平，
-  // 于是永远选不出批次。抬高不可达的门槛不产生任何保护，因此统一用 50%。
-  // `reachabilityRecoveryRequired` 保留为**排序信号**（可达候选优先），不再改判定阈值。
-  const minimumReachableVisibleJobRatio = MINIMUM_REACHABLE_VISIBLE_JOB_RATIO;
   const selected: PlannerCandidate[] = [];
-  let coverageCompanies = 0;
 
   for (const candidate of input.eligiblePool) {
     if (selected.length >= input.limit) break;
     if (candidate.readinessBlockers.length > 0) continue;
     if (candidate.lane !== "capacity" && candidate.lane !== "coverage") continue;
-    if (
-      candidate.lane === "coverage" &&
-      (!coverageCandidateUseful(candidate, input.familyDeficits, input.cityDeficits) ||
-        coverageCompanies >= MAX_COVERAGE_COMPANIES_PER_BATCH)
-    ) {
-      continue;
-    }
-
-    const proposed = [...selected, candidate];
-    if (!candidate.reachableCapacity) {
-      const projectedRatios = projectedBatchRatios(proposed);
-      if (projectedRatios.reachableVisibleJobRatio < minimumReachableVisibleJobRatio) {
-        continue;
-      }
-    }
-
-    selected.push({
-      ...candidate,
-      selectionReasons: [
-        ...candidate.selectionReasons,
-        `batch_reachable_job_floor:${minimumReachableVisibleJobRatio}`,
-      ],
-    });
-    if (candidate.lane === "coverage") coverageCompanies += 1;
+    selected.push(candidate);
   }
 
   return selected;
@@ -837,12 +803,9 @@ export function planSourceBatch(input: {
     ) {
       readinessBlockers.push("manual_ratio_blocked");
     }
-    if (
-      planned.lane === "coverage" &&
-      !coverageCandidateUseful(planned, familyDeficits, cityDeficits)
-    ) {
-      readinessBlockers.push("coverage_not_needed");
-    }
+    // ADR-0035：`coverage_not_needed` 已撤销。它的判据是「该候选补不上任何职能或城市缺口」，
+    // 而职能与城市最小值已降为观察项；在缺口远大于供给时用「不补缺口」拒绝候选，等于以分布
+    // 愿望阻塞总量积累。缺口继续参与排序（`candidatePriority`）与缺口报告。
     return { ...planned, readinessBlockers };
   });
   const holds = new Map<string, PlannerCandidate[]>();
@@ -860,13 +823,7 @@ export function planSourceBatch(input: {
   }
 
   eligiblePool.sort((left, right) => comparePriority(left, right, familyDeficits, cityDeficits));
-  const selected = selectSourceBatch({
-    eligiblePool,
-    limit,
-    reachabilityRecoveryRequired: requirements.reachabilityRecoveryRequired,
-    familyDeficits,
-    cityDeficits,
-  });
+  const selected = selectSourceBatch({ eligiblePool, limit });
   const selectedIds = new Set(selected.map((candidate) => candidate.candidateId));
   const preflightQueue = eligiblePool
     .filter((candidate) => !selectedIds.has(candidate.candidateId))

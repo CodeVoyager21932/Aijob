@@ -49,18 +49,24 @@ describe("Fanruan trainee adapter", () => {
     );
   });
 
-  it("rejects non-internship modes during normalization", async () => {
+  // ADR-0035 第一条：此处原先断言抛 `FANRUAN_NOT_EXPLICIT_INTERNSHIP`。供给单位改为「在校生
+  // 可投岗位」后，适配器只忠实解析，是否可投由资格层的 `catalog.job_reachability_verdict`
+  // 判定——那里按正文里的明示学历与多年经验短语排除，而不是按 `mode` 字段。
+  it("normalizes non-internship modes instead of dropping them", async () => {
     const page = parseFanruanTraineePage(await jsonFixture());
     const socialJob = page.jobs.find((job) => job.mode === "社招");
     expect(socialJob).toBeDefined();
     if (!socialJob) throw new Error("FIXTURE_JOB_MISSING");
-    expect(() =>
-      normalizeFanruanTraineeJob({
-        job: socialJob,
-        listItemIndex: 2,
-        pageEvidenceRef: "fetch-fanruan-list",
-      }),
-    ).toThrow("FANRUAN_NOT_EXPLICIT_INTERNSHIP");
+    const normalized = normalizeFanruanTraineeJob({
+      job: socialJob,
+      listItemIndex: 2,
+      pageEvidenceRef: "fetch-fanruan-list",
+    });
+    expect(normalized.sourceJobId).toBe(socialJob.id);
+    expect(normalized.title).toBe(socialJob.job_name);
+
+    // 观察函数保留，但不再决定去留。
+    expect(isFanruanInternship(socialJob)).toBe(false);
   });
 
   it("builds only the official numeric detail route and page-1-based form body", () => {

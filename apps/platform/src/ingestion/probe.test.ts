@@ -4,9 +4,7 @@ import {
   directClosureReasonForErrorCode,
   isHardRefreshConflictCode,
   isRetryableProbeErrorCode,
-  isSafeSoftRefreshRejectionCode,
   isSourcePolicyStatusAuthorizedForRun,
-  scheduledRefreshRejectionCode,
 } from "./probe.js";
 
 const backoffPolicy = {
@@ -82,43 +80,23 @@ describe("probe task failure transitions", () => {
     ]) {
       expect(isHardRefreshConflictCode(code), code).toBe(true);
     }
-    expect(isHardRefreshConflictCode("UNIVERSITY_EMPLOYMENT_NOT_EXPLICIT_INTERNSHIP")).toBe(false);
     expect(isHardRefreshConflictCode("UPSTREAM_HTTP_429")).toBe(false);
     expect(isHardRefreshConflictCode("ECONNRESET")).toBe(false);
   });
 
-  it("only allows explicit non-internship filters to remain soft", () => {
+  // ADR-0035 第一条：「软拒绝」这一类整体撤销。它原先只装四个「这条不是实习」的码，供给单位
+  // 改为「在校生可投岗位」后没有适配器再产出它们；`TRACKED_RECORD_NOT_INTERNSHIP`（已跟踪
+  // 岗位不再是实习即升格为硬冲突）一并撤销。硬冲突判据回到「凡不可重试即硬冲突」。
+  it("treats every non-retryable code as a hard conflict, with no internship-shaped exemption", () => {
     for (const code of [
       "BEISEN_NOT_EXPLICIT_INTERNSHIP",
       "FANRUAN_NOT_EXPLICIT_INTERNSHIP",
       "UNIVERSITY_EMPLOYMENT_NOT_EXPLICIT_INTERNSHIP",
       "UNIVERSITY_EMPLOYMENT_NOT_INTERNSHIP_SECTION",
+      "TRACKED_RECORD_NOT_INTERNSHIP",
     ]) {
-      expect(isSafeSoftRefreshRejectionCode(code), code).toBe(true);
-      expect(isHardRefreshConflictCode(code), code).toBe(false);
+      expect(isHardRefreshConflictCode(code), code).toBe(true);
     }
-    expect(isSafeSoftRefreshRejectionCode("UNKNOWN_NOT_EXPLICIT_INTERNSHIP")).toBe(false);
-    expect(isHardRefreshConflictCode("UNKNOWN_NOT_EXPLICIT_INTERNSHIP")).toBe(true);
-  });
-
-  it("promotes an existing tracked job losing internship semantics to a hard conflict", () => {
-    expect(
-      scheduledRefreshRejectionCode({
-        code: "UNIVERSITY_EMPLOYMENT_NOT_EXPLICIT_INTERNSHIP",
-        runMode: "scheduled",
-        refreshCoverage: "tracked_records",
-        recordAlreadyTracked: true,
-      }),
-    ).toBe("TRACKED_RECORD_NOT_INTERNSHIP");
-    expect(
-      scheduledRefreshRejectionCode({
-        code: "UNIVERSITY_EMPLOYMENT_NOT_EXPLICIT_INTERNSHIP",
-        runMode: "scheduled",
-        refreshCoverage: "tracked_records",
-        recordAlreadyTracked: false,
-      }),
-    ).toBe("UNIVERSITY_EMPLOYMENT_NOT_EXPLICIT_INTERNSHIP");
-    expect(isHardRefreshConflictCode("TRACKED_RECORD_NOT_INTERNSHIP")).toBe(true);
   });
 
   it("lets local scheduled refreshes serve pending and approved policies without widening probes", () => {

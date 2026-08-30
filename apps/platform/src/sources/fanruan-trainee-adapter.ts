@@ -97,6 +97,11 @@ export function parseFanruanTraineePage(text: string): FanruanTraineePage {
   };
 }
 
+/**
+ * ADR-0035 第一条：这个判定**只用于观察**，不再决定去留。帆软的 `mode` 字段同时出现「实习」
+ * 与校招/应届口径，按旧规则后者会被整条丢弃，而在校生临近毕业时校招才是主场。筛选已上移到
+ * 资格层的 `catalog.job_reachability_verdict`。
+ */
 export function isFanruanInternship(job: FanruanTraineeJob): boolean {
   return job.mode.normalize("NFKC") === "实习";
 }
@@ -131,9 +136,8 @@ export function normalizeFanruanTraineeJob(input: {
   pageEvidenceRef: string;
 }): NormalizedOfficialJob {
   const { job, listItemIndex, pageEvidenceRef } = input;
-  if (!isFanruanInternship(job)) {
-    throw new Error("FANRUAN_NOT_EXPLICIT_INTERNSHIP");
-  }
+  // ADR-0035 第一条：此处原有 `FANRUAN_NOT_EXPLICIT_INTERNSHIP`，`mode` 不等于「实习」即整条
+  // 丢弃。适配器只负责忠实解析，不负责裁剪供给范围。
   const pointer = `/list/${listItemIndex}`;
   const family = classifyOfficialJobFamily({
     title: job.job_name,

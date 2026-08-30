@@ -10,7 +10,8 @@ import {
   waitForCollectorIdle,
 } from "../workers/collector-worker.js";
 import { readLocalRefreshControl, writeLocalRefreshControl } from "./local-refresh-control.js";
-import { listSourceKeys, loadSourceConfig } from "./source-config.js";
+import { loadSourceConfig, listSourceKeys } from "./source-config.js";
+import { loadSourceContractStability } from "./source-contract-stability.js";
 import {
   assertSourceRefreshStaggerHours,
   staggerDueSourceRefreshes,
@@ -26,6 +27,7 @@ interface SourceRefreshOperationDependencies {
   readLocalRefreshControl: typeof readLocalRefreshControl;
   writeLocalRefreshControl: typeof writeLocalRefreshControl;
   loadSourceRefreshStatus: typeof loadSourceRefreshStatus;
+  loadSourceContractStability: typeof loadSourceContractStability;
   requestImmediateSourceRefresh: typeof requestImmediateSourceRefresh;
   staggerDueSourceRefreshes: typeof staggerDueSourceRefreshes;
   waitForCollectorIdle: typeof waitForCollectorIdle;
@@ -39,6 +41,7 @@ const defaultDependencies: SourceRefreshOperationDependencies = {
   readLocalRefreshControl,
   writeLocalRefreshControl,
   loadSourceRefreshStatus,
+  loadSourceContractStability,
   requestImmediateSourceRefresh,
   staggerDueSourceRefreshes,
   waitForCollectorIdle,
@@ -146,11 +149,15 @@ export async function getLocalSourceRefreshStatus(input: {
   assertLocalEnvironment(input.appEnv);
   const deps = dependencies(input.dependencies);
   const sourceKeys = await deps.listSourceKeys();
-  const [control, database] = await Promise.all([
+  const [control, database, contractStability] = await Promise.all([
     Promise.resolve(deps.readLocalRefreshControl(input.workspaceRoot)),
     deps.loadSourceRefreshStatus(input.db, sourceKeys),
+    // ADR-0035 第三条：`stableIdentityAndFields` 的达标进度从运行证据算出来，而不是靠人手在配置里
+    // 断言。放在这里而不是新开一个命令，是为了让既有的 `pnpm source:refresh-status` 直接看得到
+    // 「还差几次」。
+    deps.loadSourceContractStability(input.db, sourceKeys),
   ]);
-  return { control, ...database };
+  return { control, ...database, contractStability };
 }
 
 export async function requestLocalSourceRefresh(input: {
