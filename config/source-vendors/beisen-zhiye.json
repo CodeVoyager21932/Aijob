@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "vendor-1.0.0",
+  "vendorKey": "beisen-zhiye",
+  "displayName": "北森 zhiye.com 企业招聘租户",
+  "adapterKey": "beisen-zhiye-public-api",
+  "adapterVersion": "0.1.3",
+  "robotsHostModel": "per_tenant_subdomain",
+  "defaults": {
+    "catalogRole": "canonical",
+    "runtimeScope": "local",
+    "acquisitionMode": "public_api",
+    "crawlIntervalMinimumHours": 24,
+    "requestBudget": {
+      "maxItems": 30,
+      "maxPages": 3,
+      "maxRequests": 40,
+      "minimumIntervalMs": 2000
+    }
+  },
+  "defaultProfile": "organization_owned",
+  "profiles": {
+    "organization_owned": {
+      "sourceType": "organization_career_site",
+      "provenanceLevel": "organization_owned",
+      "refreshCoverage": "full_scope",
+      "absencePolicy": "close_after_two_complete_absences",
+      "structureScore": {
+        "weight": 20,
+        "score": 18,
+        "status": "provisional",
+        "note": "公共 JSON 返回稳定 ID、完整职责要求、地区和时间字段。"
+      }
+    },
+    "verified_ats_tenant": {
+      "sourceType": "official_ats",
+      "provenanceLevel": "verified_ats_tenant",
+      "refreshCoverage": "tracked_records",
+      "absencePolicy": "none",
+      "structureScore": {
+        "weight": 20,
+        "score": 16,
+        "status": "provisional",
+        "note": "公共 JSON 返回稳定 ID 与完整职责要求；ATS 租户不提供全量列表，按跟踪记录刷新。"
+      }
+    }
+  },
+  "inheritedGates": {
+    "noAuthBypass": {
+      "status": "pass",
+      "note": "门户与列表接口无需登录、验证码、Cookie 或动态签名；只使用官方前端公开调用的 JSON 契约",
+      "evidenceRefs": [
+        "docs/evidence/ingestion/beisen-zhiye-vendor-assessment.md#no-auth-bypass"
+      ]
+    },
+    "officialApplyLink": {
+      "status": "pass",
+      "note": "申请链接固定到该企业官方北森职位列表页，页面内联展示详情并提供投递",
+      "evidenceRefs": [
+        "docs/evidence/ingestion/beisen-zhiye-vendor-assessment.md#official-apply-link"
+      ]
+    },
+    "accessPolicyAccepted": {
+      "status": "fail",
+      "note": "尚未按 ADR-0033 以 robots.txt 与服务条款重评；北森为逐租户子域，robots 判定必须逐主机核验，厂商层不能替代",
+      "evidenceRefs": [
+        "docs/evidence/ingestion/beisen-zhiye-vendor-assessment.md#access-policy"
+      ]
+    }
+  },
+  "inheritedScores": {
+    "policyAccess": {
+      "weight": 25,
+      "score": 0,
+      "status": "failed",
+      "note": "访问政策硬门槛未通过。"
+    }
+  },
+  "policyNotes": [
+    "ADR-0026 仅允许本机 collector-worker 按 24 小时间隔执行单来源低频刷新；不得用于 CI、公开或远程环境。",
+    "禁止登录、验证码绕过、Cookie、代理或浏览器自动化生产采集。",
+    "Category、PortalId、主体或字段结构变化时立即暂停。"
+  ],
+  "fetchTargets": [
+    {
+      "method": "POST",
+      "hostTemplate": "{tenant}.zhiye.com",
+      "pathTemplate": "/api/Jobad/GetJobAdPageList",
+      "allowedQueryParameters": []
+    }
+  ],
+  "applyTargets": [
+    {
+      "method": "GET",
+      "hostTemplate": "{tenant}.zhiye.com",
+      "pathTemplate": "{applyPath}",
+      "allowedQueryParameters": []
+    }
+  ],
+  "requestDefaults": {
+    "category": "{category}",
+    "pageIndex": 0,
+    "pageSize": 30
+  }
+}

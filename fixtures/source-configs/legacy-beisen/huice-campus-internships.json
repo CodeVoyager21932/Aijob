@@ -1,13 +1,9 @@
 {
-  "schemaVersion": "tenant-1.0.0",
-  "vendor": "beisen-zhiye",
+  "schemaVersion": "1.0.0",
   "sourceKey": "huice-campus-internships",
-  "profile": "verified_ats_tenant",
-  "tenantParameters": {
-    "tenant": "huicecom",
-    "category": "2",
-    "applyPath": "/campus/jobs"
-  },
+  "sourceType": "official_ats",
+  "catalogRole": "canonical",
+  "runtimeScope": "local",
   "organization": {
     "slug": "huice",
     "name": "北京掌上先机网络科技有限公司",
@@ -22,8 +18,11 @@
   "candidate": {
     "name": "慧策校园招聘·实习",
     "entrypointUrl": "https://huicecom.zhiye.com/Campus",
+    "provenanceLevel": "verified_ats_tenant",
+    "acquisitionMode": "public_api",
+    "candidateStatus": "local_probe_only",
     "assessor": "codex-assisted-browser-reassessment",
-    "gates": {
+    "hardGates": {
       "officialIdentity": {
         "status": "pass",
         "note": "南开就业网 2026-07-17 发布的慧策招聘简章明确给出 huicecom.zhiye.com/Campus 投递入口；北森租户站点展示公司全称、logo 与备案信息。"
@@ -31,6 +30,18 @@
       "targetSupply": {
         "status": "pass",
         "note": "2026-07-26 校园招聘类目报告 70 条岗位，其中约 20 条标题明确带实习标记，含产品经理、产品运营、数据分析、Java、前端、测试等优先方向。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "岗位列表为公开 JSON POST，服务端 curl 无 Cookie 验证通过；无登录、验证码或动态签名。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "官方逐岗深链因北森 GetJobAdInfo 接口返回参数错误而不可直接打开（2026-07-26 三租户实测一致）；官方交互为 huicecom.zhiye.com/campus/jobs 列表页内联详情与立即投递，申请链接指向该官方列表页。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "robots.txt 为 Allow: /，但 robots 不等于企业授权；未发现允许第三方长期复制和公开聚合岗位正文的明确授权，只能进入本机 local_mvp。"
       },
       "stableIdentityAndFields": {
         "status": "pending",
@@ -43,6 +54,18 @@
         "score": 24,
         "status": "provisional",
         "note": "校园类目 70 条中约 20 条明确实习，覆盖产品/运营与电子信息技术两条优先轨道。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过，技术可读性不能覆盖该失败。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 16,
+        "status": "provisional",
+        "note": "公开 JSON 含稳定 JobAdId、完整职责要求；城市与截止时间常未说明，保持 unknown。"
       },
       "freshnessMaintenance": {
         "weight": 15,
@@ -70,26 +93,70 @@
   "policy": {
     "version": "4",
     "status": "paused",
+    "adapterKey": "beisen-zhiye-public-api",
+    "adapterVersion": "0.1.3",
+    "entrypoints": ["https://huicecom.zhiye.com/Campus"],
+    "crawlInterval": {
+      "enabled": false,
+      "minimumHours": 24
+    },
+    "refreshCoverage": "tracked_records",
+    "absencePolicy": "none",
     "reviewedAt": "2026-08-03",
-    "crawlIntervalEnabled": false,
     "policyNotes": [
+      "ADR-0026 仅允许本机 collector-worker 按 24 小时间隔执行单来源低频刷新；不得用于 CI、公开或远程环境。",
       "pathPrefix 收敛到慧策租户子域名，不得泛化到 zhiye.com 其他租户。",
       "来源现为 paused；历史修订只保留证据，不进入当前目录，禁止自动发布和公开展示。",
       "禁止登录、验证码绕过、Cookie、代理和浏览器自动化生产采集。",
       "2026-08-03 可信目录审计发现当前 30 条历史岗位中 29 条仍有 SOURCE_KIND_CONFLICT；在官方实习范围契约重新核验前暂停来源。",
       "标题无实习标记的校园岗位一律拒绝；若接口失效、出现验证或重定向，立即暂停并复核。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "POST",
+        "scheme": "https",
+        "host": "huicecom.zhiye.com",
+        "port": 443,
+        "pathPrefix": "/api/Jobad/GetJobAdPageList",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "huicecom.zhiye.com",
+        "port": 443,
+        "pathPrefix": "/campus/jobs",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
     ]
   },
-  "overrides": {
-    "localProbeEnabled": false
-  },
-  "queryStreams": [
-    {
-      "key": "campus-internships",
-      "label": "慧策校园招聘实习",
-      "keyword": "",
-      "positionFamilyIds": [],
-      "targetItems": 30
-    }
-  ]
+  "localProbe": {
+    "enabled": false,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 30,
+      "maxPages": 3,
+      "maxRequests": 40,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "requestDefaults": {
+      "category": "2",
+      "pageIndex": 0,
+      "pageSize": 30
+    },
+    "queryStreams": [
+      {
+        "key": "campus-internships",
+        "label": "慧策校园招聘实习",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 30
+      }
+    ]
+  }
 }

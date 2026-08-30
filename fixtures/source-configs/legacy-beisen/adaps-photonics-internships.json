@@ -1,13 +1,9 @@
 {
-  "schemaVersion": "tenant-1.0.0",
-  "vendor": "beisen-zhiye",
+  "schemaVersion": "1.0.0",
   "sourceKey": "adaps-photonics-internships",
-  "profile": "verified_ats_tenant",
-  "tenantParameters": {
-    "tenant": "adaps-ph",
-    "category": "3",
-    "applyPath": "/intern/jobs"
-  },
+  "sourceType": "official_ats",
+  "catalogRole": "canonical",
+  "runtimeScope": "local",
   "organization": {
     "slug": "adaps-photonics",
     "name": "杭州灵明光子科技有限公司",
@@ -15,8 +11,12 @@
   },
   "candidate": {
     "name": "灵明光子实习招聘",
+    "entrypointUrl": "https://adaps-ph.zhiye.com/intern/jobs",
+    "provenanceLevel": "verified_ats_tenant",
+    "acquisitionMode": "public_api",
+    "candidateStatus": "local_probe_only",
     "assessor": "codex-assisted-browser-reassessment",
-    "gates": {
+    "hardGates": {
       "officialIdentity": {
         "status": "pass",
         "note": "浙江大学就业网灵明光子实习详情页给出 adaps-ph.zhiye.com/intern/jobs 投递入口与企业邮箱 hr@adaps-ph.com；北森租户站点展示公司名称与备案信息。"
@@ -24,6 +24,18 @@
       "targetSupply": {
         "status": "pass",
         "note": "2026-07-26 实习类目报告 7 条岗位，全部为明确实习生标题，含 SLAM 算法、芯片测试、系统测试、FAE 等电子信息技术方向。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "岗位列表为公开 JSON POST，服务端 curl 无 Cookie 验证通过；无登录、验证码或动态签名。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "官方逐岗深链因北森 GetJobAdInfo 接口返回参数错误而不可直接打开（2026-07-26 三租户实测一致）；官方交互为 adaps-ph.zhiye.com/intern/jobs 列表页内联详情与立即投递，申请链接指向该官方列表页。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "robots.txt 为 Allow: /，但 robots 不等于企业授权；未发现允许第三方长期复制和公开聚合岗位正文的明确授权，只能进入本机 local_mvp。"
       },
       "stableIdentityAndFields": {
         "status": "pending",
@@ -36,6 +48,18 @@
         "score": 14,
         "status": "provisional",
         "note": "实习类目 7 条全部为明确实习，规模小但方向集中在电子信息技术优先轨道。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "访问政策硬门槛未通过，技术可读性不能覆盖该失败。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 16,
+        "status": "provisional",
+        "note": "公开 JSON 含稳定 JobAdId、完整职责要求；城市与截止时间常未说明，保持 unknown。"
       },
       "freshnessMaintenance": {
         "weight": 15,
@@ -64,22 +88,69 @@
   "policy": {
     "version": "3",
     "status": "pending_review",
+    "adapterKey": "beisen-zhiye-public-api",
+    "adapterVersion": "0.1.3",
+    "entrypoints": ["https://adaps-ph.zhiye.com/intern/jobs"],
+    "crawlInterval": {
+      "enabled": true,
+      "minimumHours": 24
+    },
+    "refreshCoverage": "tracked_records",
+    "absencePolicy": "none",
     "reviewedAt": "2026-08-01",
-    "crawlIntervalEnabled": true,
     "policyNotes": [
+      "ADR-0026 仅允许本机 collector-worker 按 24 小时间隔执行单来源低频刷新；不得用于 CI、公开或远程环境。",
       "pathPrefix 收敛到灵明光子租户子域名，不得泛化到 zhiye.com 其他租户。",
       "来源继续为 pending_review，只能进入本机目录；禁止自动发布和公开展示。",
       "禁止登录、验证码绕过、Cookie、代理和浏览器自动化生产采集。",
       "标题无实习标记的岗位一律拒绝；若接口失效、出现验证或重定向，立即暂停并复核。"
+    ],
+    "fetchTargets": [
+      {
+        "method": "POST",
+        "scheme": "https",
+        "host": "adaps-ph.zhiye.com",
+        "port": 443,
+        "pathPrefix": "/api/Jobad/GetJobAdPageList",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "adaps-ph.zhiye.com",
+        "port": 443,
+        "pathPrefix": "/intern/jobs",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
     ]
   },
-  "queryStreams": [
-    {
-      "key": "intern-jobs",
-      "label": "灵明光子实习",
-      "keyword": "",
-      "positionFamilyIds": [],
-      "targetItems": 30
-    }
-  ]
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 30,
+      "maxPages": 3,
+      "maxRequests": 40,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "requestDefaults": {
+      "category": "3",
+      "pageIndex": 0,
+      "pageSize": 30
+    },
+    "queryStreams": [
+      {
+        "key": "intern-jobs",
+        "label": "灵明光子实习",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 30
+      }
+    ]
+  }
 }

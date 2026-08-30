@@ -9,6 +9,11 @@ import {
 } from "@aijob/contracts";
 import { z } from "zod";
 import { canonicalJson } from "../lib/canonical-json.js";
+// ADR-0034 第三条：两层形状的展开在独立模块，本文件只负责判别与接线。
+import {
+  expandTenantSourceConfig,
+  isTenantSourceConfigShape,
+} from "./source-tenant-config.js";
 import {
   assertConfiguredAdapterDescriptor,
   parseOfficialSourceAdapterOptions,
@@ -328,6 +333,7 @@ const absencePolicySchema = z.enum(["none", "close_after_two_complete_absences"]
 const catalogRoleSchema = z.enum(["canonical", "discovery_only", "disabled"]);
 const runtimeScopeSchema = z.enum(["test", "local", "alpha", "production"]);
 
+
 /** 硬门槛三态。`pending` 表示评估未完成，与 `fail`（评估过且不合格）是不同的事实。 */
 const hardGateStatusSchema = z.enum(["pass", "pending", "fail"]);
 
@@ -539,8 +545,29 @@ export async function listSourceKeys(): Promise<string[]> {
     .sort((left, right) => left.localeCompare(right));
 }
 
-export function parseSourceConfigValue(value: unknown, expectedSourceKey?: string): SourceConfig {
-  const raw = rawSourceConfigSchema.parse(value);
+/**
+ * ADR-0034 第三条：接受两种输入形状。
+ *
+ * - 既有完整形状（`schemaVersion: "1.0.0"`）：行为逐字节不变。
+ * - 两层形状（`schemaVersion: "tenant-1.0.0"`）：由 `vendorConfig` 展开后走**同一条**校验与
+ *   transform。展开产出 raw 形状而不是归一化形状，因此 `superRefine` 的全部边界校验对新格式
+ *   同样生效——不给新格式开后门。
+ */
+export function parseSourceConfigValue(
+  value: unknown,
+  expectedSourceKey?: string,
+  vendorConfig?: unknown,
+): SourceConfig {
+  const source = isTenantSourceConfigShape(value)
+    ? expandTenantSourceConfig({
+        tenant: value,
+        vendor: (() => {
+          if (vendorConfig === undefined) throw new Error("VENDOR_CONFIG_REQUIRED");
+          return vendorConfig;
+        })(),
+      })
+    : value;
+  const raw = rawSourceConfigSchema.parse(source);
   if (expectedSourceKey && raw.sourceKey !== expectedSourceKey) {
     throw new Error("SOURCE_KEY_FILENAME_MISMATCH");
   }
@@ -630,7 +657,19 @@ export async function loadSourceConfig(
 
   const configPath = path.join(configDirectory, `${sourceKey}.json`);
   const contents = await readFile(configPath, "utf8");
-  return parseSourceConfigValue(JSON.parse(contents), sourceKey);
+  const parsed: unknown = JSON.parse(contents);
+  if (!isTenantSourceConfigShape(parsed)) {
+    return parseSourceConfigValue(parsed, sourceKey);
+  }
+  const vendorKey = (parsed as { vendor?: unknown }).vendor;
+  if (typeof vendorKey !== "string" || !/^[a-z0-9-]+$/.test(vendorKey)) {
+    throw new Error("TENANT_CONFIG_VENDOR_REFERENCE_INVALID");
+  }
+  const vendorContents = await readFile(
+    path.join(repositoryRoot, "config", "source-vendors", `${vendorKey}.json`),
+    "utf8",
+  );
+  return parseSourceConfigValue(parsed, sourceKey, JSON.parse(vendorContents));
 }
 
 /**

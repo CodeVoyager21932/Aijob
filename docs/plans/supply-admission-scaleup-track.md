@@ -90,7 +90,25 @@
 **前置步骤（零触网，必须先做）**：落地 [ADR-0034](../decisions/0034-two-layer-source-admission-and-reconciled-publication.md) §一 + §二，解除 `eligible_for_alpha` 与 `publication_state` 的循环依赖，并建立双向资格对账。**在此之前，下列全部评估与准入做完，公开 `/v1/jobs` 依然是 0**——门与钥匙互为前提，与门槛严格程度无关。
 
 - 逐候选做四项评估：主体证明、访问政策（按 [ADR-0033](../decisions/0033-access-policy-basis-and-minimal-body-scope.md) 的 robots + ToS 判据）、新鲜度、采集方式。触网按 `AGENTS.md` 原文执行：配置中已显式启用的确定性来源可由本机 `collector-worker` 定时刷新；**首次启用新来源、扩大请求范围、恢复 `paused` 来源与浏览器快照仍需人工明确操作**。
-- 逐候选的评估成本按 ADR-0034 §三 从「每家 153 行政策 JSON」降为「厂商层评一次 + 租户层 3–5 字段」。厂商层结论全部租户继承，但 robots 对逐租户子域厂商（北森 `<企业>.zhiye.com`、飞书招聘 `<企业>.jobs.feishu.cn`）仍需逐主机核验；单主机厂商（Moka `app.mokahr.com`）由厂商层覆盖。
+- 逐候选的评估成本按 ADR-0034 §三 从「每家 153 行政策 JSON」降为「厂商层评一次 + 租户层若干字段」。厂商层结论全部租户继承，但 robots 对逐租户子域厂商（北森 `<企业>.zhiye.com`、飞书招聘 `<企业>.jobs.feishu.cn`）仍需逐主机核验；单主机厂商（Moka `app.mokahr.com`）由厂商层覆盖。
+
+#### 两层准入的落地状态
+
+已落地并验证：北森族（`beisen-zhiye`）。厂商文件在 `config/source-vendors/beisen-zhiye.json`，5 个租户已迁为 `schemaVersion: "tenant-1.0.0"` 形状。实测 **790 行 → 539 行（含厂商文件 105 行），每新增一个租户从约 158 行降到约 87 行**。等价性由 `fixtures/source-configs/legacy-beisen/` 冻结的迁移前原文锁住：归一化后的准入判定（门槛状态、评分、fetch/apply target、抓取参数、请求预算）逐字段相等，差异只在人读证据文本，因为厂商级门的措辞已由厂商层统一给出并附证据引用。
+
+厂商层实测出一个此前没看出的结构：`sourceType`、`provenanceLevel`、`refreshCoverage`、`absencePolicy` 与结构评分**共变**，并非各自独立。因此厂商层提供**具名准入画像**（`organization_owned` / `verified_ats_tenant`），租户选一个即可，一个字段替代五个，并从结构上排除不自洽的组合。
+
+**Moka 族（`app.mokahr.com`）暂不可写适配器，原因是实证性的**：
+
+- 仓库内没有任何 Moka 响应夹具或记录快照；唯一提到 `mokahr` 的两份夹具是高校页面的合成 HTML，Moka 只作为 apply URL 字符串出现。
+- `config/source-candidates.json` 中该族的 `pauseReasons` 明确为 `anonymous_job_contract_unverified`。
+- 现有全部配置只把 Moka 当 `applyTarget`，政策说明写明「Moka 链接只作为用户导航目标校验，不由采集进程请求」。
+
+也就是说 **Moka 是否对外暴露匿名岗位列表从未被观察过**。现在写解析器等于发明响应结构。已验证的只有申请页形状 `app.mokahr.com/campus-recruitment/<租户>/<数字板号>`（`tal/95443`、`hanxu/144645` 两个真实租户互证）。
+
+另需修正一处口径：A10 报告的「Moka 族 15 个」来自 `inferAdapterFamily(evidenceUrl)` 按主机名对**线索台账行**的分类，登记表里该族只有 1 条候选。因此「一个适配器覆盖 15 家」是**假设**，其成立前提正是上述未被观察的契约。
+
+解除条件：对任一 Moka 租户做**一次**匿名 `GET`，确认是否存在可确定性解析的公开岗位列表；若有，记录响应作为夹具，再据实写适配器与厂商文件。这是一次触网动作，属 `AGENTS.md` 的「首次启用」，需人工明确操作。
 - 只有 `accessPolicyAccepted` 与其余硬门槛全过、且显式批准（`policy.status→approved`、`alphaDisplayStatus→approved`）的来源才纳入。纳入后由对账自动发布其合格岗位，**不需要逐条人工发布**；资格失效时对账自动撤回。
 - 退出条件（A10 实测冻结）：40 家 / 400 可见岗 / **可达岗位 ≥200（≥50%，`unknown` 不计入）** / 每城 ≥16 岗 / 人工来源 ≤8 家 ≤40 岗；纳入来源全部 `policy.status = approved` 且六硬门全过、`totalScore ≥ 75`；用户可见岗位 `closure_detectable = true`；岗位正文符合 D1 范围；至少 3 个已准入确定性 canonical 来源开始按周期连续刷新。
 

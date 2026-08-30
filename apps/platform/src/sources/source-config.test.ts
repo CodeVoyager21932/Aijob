@@ -604,11 +604,29 @@ describe("controlled local source configurations", () => {
     );
 
     for (const sourceKey of await listSourceKeys()) {
+      // 保证不变：没有来源能靠静默继承默认值进入更宽的运行范围。ADR-0034 第三条之后，
+      // 两层形状把这个声明放在厂商文件里，因此断言要落到对应那一层，而不是放弃这条保证。
       const rawConfig = JSON.parse(
         await readFile(path.join(configDirectory, `${sourceKey}.json`), "utf8"),
-      ) as { catalogRole?: unknown; runtimeScope?: unknown };
-      expect(rawConfig.catalogRole).toBeDefined();
-      expect(rawConfig.runtimeScope).toBe("local");
+      ) as { schemaVersion?: unknown; vendor?: unknown; catalogRole?: unknown; runtimeScope?: unknown };
+      if (rawConfig.schemaVersion === "tenant-1.0.0") {
+        const vendor = JSON.parse(
+          await readFile(
+            fileURLToPath(
+              new URL(
+                `../../../../config/source-vendors/${String(rawConfig.vendor)}.json`,
+                import.meta.url,
+              ),
+            ),
+            "utf8",
+          ),
+        ) as { defaults?: { catalogRole?: unknown; runtimeScope?: unknown } };
+        expect(vendor.defaults?.catalogRole, sourceKey).toBeDefined();
+        expect(vendor.defaults?.runtimeScope, sourceKey).toBe("local");
+      } else {
+        expect(rawConfig.catalogRole, sourceKey).toBeDefined();
+        expect(rawConfig.runtimeScope, sourceKey).toBe("local");
+      }
 
       const config = await loadSourceConfig(sourceKey);
       if (config.catalogRole === "discovery_only") {
