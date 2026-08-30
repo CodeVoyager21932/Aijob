@@ -189,20 +189,27 @@ describe("Beisen zhiye adapter", () => {
     expect(normalized.reviewReasons.map((reason) => reason.code)).toContain("SOURCE_KIND_CONFLICT");
   });
 
-  it("rejects titles without an explicit internship marker", async () => {
+  it("normalizes campus jobs without an internship marker instead of dropping them", async () => {
     const page = parseBeisenZhiyeListPage(await jsonFixture());
     const tenant = resolveBeisenZhiyeTenant("huice-campus-internships");
     const campusOnly = page.jobs.find((job) => job.JobAdId === 900003);
     expect(campusOnly).toBeDefined();
     if (!campusOnly) throw new Error("FIXTURE_JOB_MISSING");
-    expect(() =>
-      normalizeBeisenZhiyeJobAd({
-        tenant,
-        job: campusOnly,
-        listItemIndex: 2,
-        pageEvidenceRef: "fetch-beisen-list",
-      }),
-    ).toThrow("BEISEN_NOT_EXPLICIT_INTERNSHIP");
+
+    // ADR-0035 第一条：此处原先抛 `BEISEN_NOT_EXPLICIT_INTERNSHIP`。慧策租户请求的是
+    // category="2"（校园招聘），抓回来后被那条过滤全部拒绝——校招岗位被取回后被扔掉。
+    // 供给单位已改为「在校生可投岗位」，筛选上移到资格层，适配器只忠实解析。
+    const normalized = normalizeBeisenZhiyeJobAd({
+      tenant,
+      job: campusOnly,
+      listItemIndex: 2,
+      pageEvidenceRef: "fetch-beisen-list",
+    });
+    expect(normalized.title).toBe(campusOnly.JobAdName);
+    expect(normalized.sourceJobId).toBe(String(campusOnly.JobAdId));
+
+    // 观察函数保留，但不再决定去留。
+    expect(isBeisenExplicitInternship(campusOnly)).toBe(false);
   });
 
   it("fails closed on non-200 codes, inconsistent counts, or duplicate ids", async () => {

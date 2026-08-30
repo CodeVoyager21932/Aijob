@@ -137,11 +137,21 @@ describeWithDatabase("resume document V2 expand migration", () => {
         base_document_revision_id: null,
       })
       .execute();
+    // `created_at` 由数据库的 CURRENT_TIMESTAMP 填。`updated_at` 必须相对**它**推进，不能
+    // 相对插入之前取的这个 JS 时间戳：并行跑全量时插入常常落在 1 秒之后，于是
+    // `resume_documents_update_after_creation`（updated_at >= created_at）间歇性拒绝，
+    // 表现为「单跑通过、全量偶发失败」。
+    const created = await db
+      .selectFrom("profile.resume_documents")
+      .select("created_at")
+      .where("id", "=", ids.baseDocument)
+      .executeTakeFirstOrThrow();
+    const createdAt = new Date(created.created_at).getTime();
     await db
       .updateTable("profile.resume_documents")
       .set({
         current_content_revision_id: ids.firstV2Revision,
-        updated_at: new Date(now.getTime() + 1_000),
+        updated_at: new Date(createdAt + 1_000),
       })
       .where("id", "=", ids.baseDocument)
       .execute();
@@ -164,7 +174,7 @@ describeWithDatabase("resume document V2 expand migration", () => {
       .updateTable("profile.resume_documents")
       .set({
         current_layout_revision_id: ids.layoutRevision,
-        updated_at: new Date(now.getTime() + 2_000),
+        updated_at: new Date(createdAt + 2_000),
       })
       .where("id", "=", ids.baseDocument)
       .execute();

@@ -1136,9 +1136,18 @@ export interface CurrentJobEligibilityView extends InternalJobPreviewView {
   deadline_at: JsonValue;
   freshness_state: string;
   effective_activity_state: string;
+  /** ADR-0035：可达性判定原值，供审计与「排除了多少」的测量使用。 */
+  reachability_verdict: string;
+  /** ADR-0035：在校生可投。`reachable` 与 `unknown` 均为真。只约束 Alpha。 */
+  student_applicable: boolean;
   // ADR-0032：能否探知岗位关闭。Alpha 的必要条件，本机预览不受其约束。
   closure_detectable: boolean;
   blocking_reasons: JsonValue;
+  /**
+   * ADR-0035：只约束对外可见的原因码（新鲜度、核验时效、投递入口、在校生可投）。
+   * 单列而非内联布尔，是为了让公开指针撤回能说出原因——见迁移 037 的说明。
+   */
+  alpha_blocking_reasons: JsonValue;
   eligible_for_local_mvp: boolean;
   eligible_for_alpha: boolean;
 }
@@ -1163,9 +1172,18 @@ export interface JobVersionEligibilityView {
   has_blocking_review: boolean;
   // ADR-0034：人工强制下架。与 closure_detectable 一样只约束 Alpha，不进 blocking_reasons。
   publication_suppressed: boolean;
+  /** ADR-0035：可达性判定原值，供审计与「排除了多少」的测量使用。 */
+  reachability_verdict: string;
+  /** ADR-0035：在校生可投。`reachable` 与 `unknown` 均为真。只约束 Alpha。 */
+  student_applicable: boolean;
   // ADR-0032：能否探知岗位关闭。Alpha 的必要条件，本机预览不受其约束。
   closure_detectable: boolean;
   blocking_reasons: JsonValue;
+  /**
+   * ADR-0035：只约束对外可见的原因码（新鲜度、核验时效、投递入口、在校生可投）。
+   * `publication-reconciliation` 撤回公开指针时把它与 `blocking_reasons` 一并记入事件。
+   */
+  alpha_blocking_reasons: JsonValue;
   eligible_for_local_mvp: boolean;
   // ADR-0034：发布的**前置条件**，不再要求修订已是 `published`。「已发布」见 public_version_id。
   eligible_for_alpha: boolean;

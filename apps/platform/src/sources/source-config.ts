@@ -689,7 +689,12 @@ export interface SourceAssessment {
   /** 评估未完成的门槛。不是否决。 */
   pendingGates: string[];
   totalScore: number;
-  decision: "pilot" | "watch" | "reject" | "ineligible" | "assessing";
+  /**
+   * ADR-0035 第五条撤销分数阈值后只剩三种结论：`ineligible`（有门确认不合格）、
+   * `assessing`（有门未评估完）、`pilot`（六门全过）。`watch` 与 `reject` 曾由
+   * `totalScore` 60/75 两档产生，现已无产生路径；数据库词表仍保留它们以容纳历史行。
+   */
+  decision: "pilot" | "ineligible" | "assessing";
 }
 
 export function assessSource(config: SourceConfig): SourceAssessment {
@@ -705,7 +710,9 @@ export function assessSource(config: SourceConfig): SourceAssessment {
 
   if (failedGates.length > 0) return { ...base, decision: "ineligible" };
   if (pendingGates.length > 0) return { ...base, decision: "assessing" };
-  if (totalScore >= 75) return { ...base, decision: "pilot" };
-  if (totalScore >= 60) return { ...base, decision: "watch" };
-  return { ...base, decision: "reject" };
+  // ADR-0035 第五条：撤销 `totalScore >= 75`。该阈值结构上不可达——五项权重合计 100，
+  // 其中 `policyAccess` 占 25 且 34/34 实测为 0，天花板即 75，等于要求其余四项全部满分
+  // （实测最高 65、中位 43、达标 0/34）。它既拦不住坏来源（六硬门在它之前），又让好来源
+  // 永远评不上 `pilot`。六硬门全过即 `pilot`，分数只作排序信号。
+  return { ...base, decision: "pilot" };
 }

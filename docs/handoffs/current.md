@@ -32,11 +32,12 @@
 
 **OS-7 已完成（UX-0 与 OS-1–OS-7 全部关闭）。coco 于 2026-08-28 选择「供给准入扩容」为下一条轨道。SA Track 的 Phase A（零触网标准与机制）A1–A10 已全部完成。**
 
-Phase A 交付了三份待审 ADR 与配套实现：
+四份 ADR 均已 `accepted`（2026-08-29）：
 
-- [ADR-0032](../decisions/0032-reachability-first-supply-admission.md)（`proposed`）：以**可达岗位 ≥50% 可见岗位**取代 SME 比例作为结构门槛；冻结五项收录属性；用户可见岗位必须 `closure_detectable`。
-- [ADR-0033](../decisions/0033-access-policy-basis-and-minimal-body-scope.md)（`proposed`）：以站点 `robots.txt` + 服务条款为 `accessPolicyAccepted` 判据；岗位正文限定在职责与任职要求原句（D1）。**转为 `accepted` 前建议取得法律意见。**
-- [ADR-0034](../decisions/0034-two-layer-source-admission-and-reconciled-publication.md)（`proposed`）：来源准入拆为**厂商层／租户层**两层（单家成本 153 行 → 3–5 行）；**解除公开供给的结构性死锁**；发布由**双向资格对账**自动驱动。
+- [ADR-0035](../decisions/0035-student-applicable-supply-admission.md)：供给单位从「实习岗位」改为「**在校生可投岗位**」；来源稳定性按**观察次数与跨度**计量而非在线时长；撤销一批任意数值与分布配额门槛；投递入口缺失改为待审核；ATS 租户恢复为线索。**这份是当前供给准入的主口径,与它冲突的旧表述以它为准。**
+- [ADR-0032](../decisions/0032-reachability-first-supply-admission.md)：以可达性取代 SME；冻结五项收录属性；用户可见岗位必须 `closure_detectable`。其「可达岗位 ≥50%」聚合门槛**已由 ADR-0035 撤销**，可达性判据本身保留并升格为逐岗位准入判据。
+- [ADR-0033](../decisions/0033-access-policy-basis-and-minimal-body-scope.md)：以站点 `robots.txt` + 服务条款为 `accessPolicyAccepted` 判据；岗位正文限定在职责与任职要求原句（D1）。审定时未取得法律意见，按原样记录在该 ADR 的前置条件里。
+- [ADR-0034](../decisions/0034-two-layer-source-admission-and-reconciled-publication.md)：来源准入拆为**厂商层／租户层**两层；**解除公开供给的结构性死锁**；发布由**双向资格对账**自动驱动。§一+§二+§四 已落地，§三 已完成北森族（每家约 158 行 → 约 87 行）。
 
 ### ADR-0034 的核心发现：公开供给恒为 0 是循环依赖，不是门槛太严
 
@@ -64,9 +65,18 @@ Phase A 交付了三份待审 ADR 与配套实现：
 
 只改视图不足以解除死锁——这是本轮最容易漏掉的一点。
 
-### 待办：ADR-0034 §三 两层 schema
+### ADR-0034 §三 两层 schema 已落地
 
-改 `source-config.ts` 拆成厂商层与租户层，并迁移 34 份既有配置到新形状。改动较大，与已落地部分解耦。
+`source-config.ts` 已拆为厂商层与租户层，北森族 5 份配置迁到租户形状（790 → 539 行，每租户约 158 → 约 87 行）。等价性由 `fixtures/source-configs/legacy-beisen/` 的冻结基线证明，而不是拿迁移后的配置自我比较。
+
+### ADR-0035 已落地：迁移 037 与「对外才筛」的具名化
+
+- 迁移 **037** 新增 `catalog.job_reachability_verdict(text, text)`，并**同时重建两个资格视图**（`current_job_eligibility` 与 `job_version_eligibility`）。判定做成数据库函数而非视图内联，因为同一套短语已存在于 `packages/contracts/src/job-reachability.ts`；两份实现的**逐分支对账**由 `apps/platform/src/sources/job-reachability-sql-parity.integration.test.ts` 覆盖（`@aijob/database` 刻意不依赖 `@aijob/contracts`，不为一个测试反转分层）。
+- 新增列 `reachability_verdict`、`student_applicable`、`alpha_blocking_reasons`。`RESPONSIBILITIES_MISSING` + `REQUIREMENTS_MISSING` 合并为 `JOB_BODY_MISSING`（至少存在其一）。
+- **只约束对外可见的四项必须具名，不能内联成布尔条件。** 第一版把新鲜度、核验时效、投递入口与可投性直接 AND 进 `eligible_for_alpha`，结果 `publication-reconciliation` 撤回公开指针时 `blocking_reasons` 为空、原因码退化为笼统的 `NOT_ELIGIBLE_FOR_ALPHA`——ADR-0034 明确要求逐项区分撤回原因。现在这四项产出 `SOURCE_NOT_FRESH`、`JOB_NOT_RECENTLY_VERIFIED`、`EXACT_APPLICATION_NOT_AVAILABLE`、`JOB_NOT_STUDENT_APPLICABLE`，汇成 `alpha_blocking_reasons`，撤回事件把它与 `blocking_reasons` 一并记入。
+- **两个视图必须同时改。** 第一版只改版本级视图，于是 ADR-0035 第九条（新鲜度只约束对外可见）在本机预览上根本没生效——本机预览读的正是 `current_job_eligibility`，而 `SOURCE_NOT_FRESH`（223 条）与 `JOB_NOT_RECENTLY_VERIFIED`（110 条）恰是实测阻塞量最大的两项。`019_official_source_catalog_eligibility.integration.test.ts` 现在对两个视图断言**同一份**期望，分叉复现即失败。
+- 适配器侧撤销标题过滤：北森族不再因标题不含「实习」而丢弃岗位，筛选上移到资格层。`fanruan-trainee-adapter` 与 `university-employment-adapter` 的 `*_NOT_EXPLICIT_INTERNSHIP` 过滤**尚未**同样处理，见下文待办。
+- 顺带修掉一个预先存在的时序 flake：`024_resume_document_v2_expand.integration.test.ts` 用插入**之前**取的 JS 时间戳推进 `updated_at`，并行跑全量时插入常落在 1 秒之后，于是 `resume_documents_update_after_creation` 间歇性拒绝。改为从数据库读回 `created_at` 再推进，去掉对时钟与延迟的依赖。
 
 ### 触网边界按 `AGENTS.md` 原文，不额外加严
 
@@ -90,13 +100,15 @@ Phase A 交付了三份待审 ADR 与配套实现：
 | Integrated Gate | 通过（`passed: true`） |
 | Evidence | 通过 |
 
-工程基线：Config 20、Contracts 86、Database 54、Platform 466、Web 182，共 **808/808**，一次跑通无 flake。前端主包 **401.33 kB（gzip 117.04 kB）**，上限 411.31 kB。
+工程基线（2026-08-29，隔离库 `aijob_v35_gate4_test`，37 个迁移预迁移后跑 `pnpm check` + `pnpm build`）：Config 20、Contracts 100、Database 69、Web 182、Platform 539，共 **910/910**（157 个测试文件），一次跑通无 flake；`biome lint` 513 文件 3 warning（均为既有 `noExplicitAny`，落在 `source-tenant-config.test.ts` 的 legacy 夹具读取处）、全仓 typecheck、生产构建均通过。上一基线为 808/808。
+
+前端主包 **401.33 kB（gzip 117.04 kB）**，上限 411.31 kB。
 
 产品证据仍为 **E0**；可信供给仍为 **22 岗 / 3 家企业 / 3 个官方 ATS**，公共与 Alpha 岗位均为 0。工程与视觉通过不得冒充用户价值、真实供给、Private Alpha 或生产就绪。
 
-## 3. 本轮代码改动
+## 3. OS-7 那一轮的代码改动（保留为历史记录）
 
-仅 4 个文件，无 migration、无依赖变更、无新服务，未移除 `VITE_CAREER_OS_V2`：
+当前供给准入轮次的改动见上文「ADR-0035 已落地」。以下是 OS-7 视觉收口那一轮，仅 4 个文件，无 migration、无依赖变更、无新服务，未移除 `VITE_CAREER_OS_V2`：
 
 - `apps/web/src/career-os/career-os.css`：`small/sub/sup` 12px 下限；旧 `styles.css` meta 标签抬到 12px；三处标题改回 `var(--co-title-lg)`；新增 `.product-app.career-os` 前缀块修正旧 hero 标题上限的特异性失效。
 - `apps/web/src/career-os/visual-contract.test.ts`：新增“不得超过 32px 上限”静态断言（5/5）。
@@ -107,15 +119,20 @@ Phase A 交付了三份待审 ADR 与配套实现：
 
 ## 4. 下一任务接手要点（SA Track Phase B）
 
-1. 依次读取 `AGENTS.md`、README、路线图、本交接、[SA Track 计划](../plans/supply-admission-scaleup-track.md)、Private Alpha 就绪 Gate 与相关 ADR（0026/0027/0028/0029/0030/**0032**/**0033**/**0034**）。
+**下一个里程碑是 1 条公开岗位，不是 100 家企业。** 100 家/1000 岗按 ADR-0035 保留为报告项，不作阻塞门槛，也不作下一步目标。
+
+1. 依次读取 `AGENTS.md`、README、路线图、本交接、[SA Track 计划](../plans/supply-admission-scaleup-track.md)、Private Alpha 就绪 Gate 与相关 ADR（0026/0027/0028/0029/0030/0032/0033/0034/**0035**）。ADR-0035 是当前供给准入主口径。
 2. `git fetch` 核对分支/远端/工作树；`codex/g2-1000-alpha-supply`（capacity 感知规划、可复用 ATS 来源族、Private Alpha 信任边界）已完整合入本分支（`merge-base` 即其 tip，left/right = 80/0），无撞车风险；其 worktree 的未提交改动属于 coco，不动。
-3. **先确认 ADR-0032、ADR-0033 与 ADR-0034 是否已被 coco 审定**。未审定前不得据其提升任何来源状态，也不得据 ADR-0034 改动资格视图或发布路径。
-4. Phase B 的剩余步骤（第 1 步「解除循环依赖」**已完成**，见上文）：
-   1. ~~落地 ADR-0034 §一 + §二~~ **已完成**，零触网。
-   2. 恢复 9 个 `crawlInterval.enabled` 来源按周期跑 7 天。
-   3. 逐来源抓 robots + 核 ToS 并重评 `accessPolicyAccepted`。
-   4. 凭运行证据翻转 `stableIdentityAndFields`。
-   5. 提 `policy.status → approved` + `runtime_scope → alpha`，然后跑 `pnpm source:*` 之外的 `catalog-reconcile-publication`，由对账自动发布使公开 `/v1/jobs` 非 0。
+3. ADR-0032/0033/0034/0035 均已 `accepted`，可据其改动资格视图与发布路径。
+4. 剩余待办，按依赖顺序：
+   1. ~~落地 ADR-0034 §一 + §二 + §三~~、~~ADR-0035 迁移 037~~ **已完成**，零触网。
+   2. 撤销剩余 D 组数值门槛：单家配额分档、`CAPACITY_MINIMUM_COMPLETE_JOBS=10 → 3`、`MAX_COVERAGE_COMPANIES_PER_BATCH=2`、12 职能与八城最小值降为观察项。**文档已按 ADR-0035 改，代码尚未跟上。**
+   3. `stableIdentityAndFields` 改按**观察次数与跨度**（≥3 次成功刷新、间隔 ≥20h、结构一致）。同上：只改了文档，判据代码未实现。
+   4. 清掉剩余的实习字样过滤：`fanruan-trainee-adapter.ts`、`university-employment-adapter.ts` 的 `*_NOT_EXPLICIT_INTERNSHIP`，以及 `probe.ts` 的 `safeSoftRefreshRejectionCodes`。北森族已按新行为改完，可作参照。
+   5. 租户配置 `category` 从 `"3"` 放开到 `"2","3"`（校招 + 实习）——ADR-0035 §一 尚未做完的部分。
+   6. 重跑线索抽取，ATS 租户恢复为待评线索，产出**各厂商分布**。零触网，是把「100 家」从不可行变成算得出的一步。
+   7. 建首次取证通路（取 `/robots.txt` + 核 ToS 写入 `accessPolicyEvidence`），**之后**才接 ADR-0033 复核。顺序见下节。
+   8. 凭运行证据翻转 `stableIdentityAndFields`，提 `policy.status → approved` + `runtime_scope → alpha`，跑 `catalog-reconcile-publication`，由对账自动发布使公开 `/v1/jobs` 非 0。
 5. 触网边界按 `AGENTS.md` 原文：配置中已显式启用的确定性来源可由本机 `collector-worker` 定时刷新；只有首次启用、扩大请求范围、恢复暂停来源和浏览器快照需人工明确操作。不复用 OS-1–OS-7 切片模板，不启动服务器就绪工作。
 6. 对账必须**周期性运行**才能保证撤回及时。当前只有 CLI 入口，尚未接进 `collector-worker` 的刷新周期；接线前，来源被暂停到指针被撤回之间存在时间窗，需依赖 `catalog-suppress-job` 兜底。
 

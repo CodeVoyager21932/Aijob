@@ -35,11 +35,15 @@
 - [ADR-0030：升级为岗位中心求职 OS 并先统一交互架构](0030-adopt-job-centric-career-os-and-interaction-first-integration.md)
 - [ADR-0031：将 Career OS 2.0 修正为长期职业资产架构](0031-long-lived-career-os-architecture-realignment-2026-08-06.md)
 
+已接受的供给准入决定（2026-08-29 审定）：
+
+- [ADR-0032：以可达性取代 SME 作为供给结构门槛，并冻结五项收录属性](0032-reachability-first-supply-admission.md)（其 50% 聚合门槛已由 ADR-0035 撤销，可达性判据本身保留并升格为逐岗位准入判据）
+- [ADR-0033：以站点公开访问政策为准入依据，并把岗位正文限定在决策必需范围](0033-access-policy-basis-and-minimal-body-scope.md)（审定时未取得法律意见，按原样记录在该 ADR 的前置条件里）
+- [ADR-0034：两层来源准入（厂商／租户）与资格对账驱动的发布步骤](0034-two-layer-source-admission-and-reconciled-publication.md)
+- [ADR-0035：以「在校生可投」取代「必须是实习」，并按观察次数而非在线时长计量来源稳定性](0035-student-applicable-supply-admission.md)
+
 尚未接受的提案：
 
 - [ADR-0024：统一来源适配器描述符与运行模式](0024-unify-source-adapter-descriptors-and-run-modes.md)
-- [ADR-0032：以可达性取代 SME 作为供给结构门槛，并冻结五项收录属性](0032-reachability-first-supply-admission.md)
-- [ADR-0033：以站点公开访问政策为准入依据，并把岗位正文限定在决策必需范围](0033-access-policy-basis-and-minimal-body-scope.md)（转为 `accepted` 前建议取得法律意见）
-- [ADR-0034：两层来源准入（厂商／租户）与资格对账驱动的发布步骤](0034-two-layer-source-admission-and-reconciled-publication.md)
 
 新决定从 [ADR 模板](../templates/adr.md) 复制创建。已有决定变化时新增一条 ADR，并将旧记录标记为 `superseded`，不要静默改写历史理由。

@@ -53,11 +53,18 @@ function revocationReason(row: {
   exists: boolean;
   suppressed: boolean;
   blockingReasons: JsonValue;
+  alphaBlockingReasons: JsonValue;
   closureDetectable: boolean | null;
   policyStatus: string | null;
   runtimeScope: string | null;
 }): { reasonCode: string; blockingReasons: JsonValue } {
-  const blockingReasons = Array.isArray(row.blockingReasons) ? row.blockingReasons : [];
+  // ADR-0035 把新鲜度、核验时效、投递入口与在校生可投移出 `blocking_reasons`，改为只约束对外
+  // 可见。撤回公开指针恰恰是「对外可见」的动作，因此这里取两者之和——只读本机那一份会让因
+  // 新鲜度过期而撤回的事件原因码退化为笼统的 `NOT_ELIGIBLE_FOR_ALPHA`。
+  const blockingReasons = [
+    ...(Array.isArray(row.blockingReasons) ? row.blockingReasons : []),
+    ...(Array.isArray(row.alphaBlockingReasons) ? row.alphaBlockingReasons : []),
+  ];
   if (!row.exists) return { reasonCode: "PUBLIC_VERSION_MISSING", blockingReasons: [] };
   if (row.suppressed) return { reasonCode: "PUBLICATION_SUPPRESSED", blockingReasons };
   if (blockingReasons.length > 0) return { reasonCode: "BLOCKED", blockingReasons };
@@ -153,19 +160,27 @@ async function readRevocationContext(
 ): Promise<{
   exists: boolean;
   blockingReasons: JsonValue;
+  alphaBlockingReasons: JsonValue;
   closureDetectable: boolean | null;
   policyStatus: string | null;
   runtimeScope: string | null;
 }> {
   const row = await transaction
     .selectFrom("catalog.job_version_eligibility")
-    .select(["blocking_reasons", "closure_detectable", "policy_status", "runtime_scope"])
+    .select([
+      "blocking_reasons",
+      "alpha_blocking_reasons",
+      "closure_detectable",
+      "policy_status",
+      "runtime_scope",
+    ])
     .where("published_job_version_id", "=", publishedJobVersionId)
     .executeTakeFirst();
   if (!row) {
     return {
       exists: false,
       blockingReasons: [],
+      alphaBlockingReasons: [],
       closureDetectable: null,
       policyStatus: null,
       runtimeScope: null,
@@ -174,6 +189,7 @@ async function readRevocationContext(
   return {
     exists: true,
     blockingReasons: row.blocking_reasons,
+    alphaBlockingReasons: row.alpha_blocking_reasons,
     closureDetectable: row.closure_detectable,
     policyStatus: row.policy_status,
     runtimeScope: row.runtime_scope,

@@ -1431,8 +1431,7 @@ async function runBeisenZhiyeAdapterProbe(input: AdapterProbeInput): Promise<Ada
   const candidates: Array<{ job: BeisenJobAd; listItemIndex: number; fetchId: string }> = [];
   const failureErrorCodes: string[] = [];
   const reportedTotals: Record<string, number> = {};
-  let filteredNonInternship = 0;
-  let trackedInternshipConflicts = 0;
+  let nonInternshipKept = 0;
   const pageSize = 30;
   let pageIndex = 0;
   let scopeExhausted = false;
@@ -1470,26 +1469,13 @@ async function runBeisenZhiyeAdapterProbe(input: AdapterProbeInput): Promise<Ada
     reportedTotals[tenant.reportedTotalKey] = parsed.total;
 
     for (const [listItemIndex, job] of parsed.jobs.entries()) {
+      // ADR-0035 第一条：非实习岗位**不再跳过**。校招、应届生与管培生同样是在校生可投供给，
+      // 此前这里把它们取回后丢弃。仍然计数，用于观察「放开后多收了多少」；筛选已上移到
+      // 资格层的 `catalog.job_reachability_verdict`。
+      // 一并撤销的还有 `TRACKED_RECORD_NOT_INTERNSHIP`：已跟踪岗位「不再是实习」在新轴下
+      // 不是冲突。
       if (!isBeisenExplicitInternship(job)) {
-        filteredNonInternship += 1;
-        const sourceJobId = String(job.JobAdId);
-        const code = await trackedRecordAwareRejectionCode({
-          db: input.db,
-          sourceId: input.sourceId,
-          sourceConfig: input.sourceConfig,
-          runMode: input.runMode,
-          code: "BEISEN_NOT_EXPLICIT_INTERNSHIP",
-          sourceJobId,
-        });
-        if (code === "TRACKED_RECORD_NOT_INTERNSHIP") {
-          trackedInternshipConflicts += 1;
-          failureErrorCodes.push(code);
-          input.errors.push({
-            code,
-            message: `tracked job ${sourceJobId} is no longer an internship`,
-          });
-        }
-        continue;
+        nonInternshipKept += 1;
       }
       if (candidates.length < input.limit) {
         candidates.push({ job, listItemIndex, fetchId });
@@ -1506,10 +1492,11 @@ async function runBeisenZhiyeAdapterProbe(input: AdapterProbeInput): Promise<Ada
     await updateHeartbeat(input.db, input.taskId, input.leaseOwner, input.fencingToken);
     await delay(requestInterval(input));
   }
-  reportedTotals["non-internship-filtered"] = filteredNonInternship;
+  // 观察量而非过滤量：这些岗位现在照常入库，键名记录「多收了多少」。
+  reportedTotals["non-internship-kept"] = nonInternshipKept;
 
   let normalizedCount = 0;
-  let rejectedCount = trackedInternshipConflicts;
+  let rejectedCount = 0;
   for (const candidate of candidates) {
     try {
       const normalized = normalizeBeisenZhiyeJobAd({

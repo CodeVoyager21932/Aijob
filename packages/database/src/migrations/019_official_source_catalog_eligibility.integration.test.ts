@@ -29,7 +29,8 @@ describeWithDatabase("official source catalog eligibility migration", () => {
         configRegistered: true,
         lastSeenAt: new Date(),
         reviewReason: null,
-        expectedBlockers: [],
+        expectedBlockers: [] as string[],
+        expectedAlphaBlockers: [] as string[],
       },
       {
         key: "discovery",
@@ -41,6 +42,7 @@ describeWithDatabase("official source catalog eligibility migration", () => {
         lastSeenAt: new Date(),
         reviewReason: null,
         expectedBlockers: ["NON_CANONICAL_SOURCE"],
+        expectedAlphaBlockers: [] as string[],
       },
       {
         key: "runtime-test",
@@ -52,6 +54,7 @@ describeWithDatabase("official source catalog eligibility migration", () => {
         lastSeenAt: new Date(),
         reviewReason: null,
         expectedBlockers: ["TEST_RUNTIME_SCOPE"],
+        expectedAlphaBlockers: [] as string[],
       },
       {
         key: "stale",
@@ -62,7 +65,9 @@ describeWithDatabase("official source catalog eligibility migration", () => {
         configRegistered: true,
         lastSeenAt: new Date(),
         reviewReason: null,
-        expectedBlockers: ["SOURCE_NOT_FRESH"],
+        // ADR-0035 第九条：来源新鲜度只约束对外可见，本机预览照常看得到。
+        expectedBlockers: [] as string[],
+        expectedAlphaBlockers: ["SOURCE_NOT_FRESH"],
       },
       {
         key: "blocking-review",
@@ -74,6 +79,7 @@ describeWithDatabase("official source catalog eligibility migration", () => {
         lastSeenAt: new Date(),
         reviewReason: "SOURCE_KIND_CONFLICT",
         expectedBlockers: ["BLOCKING_REVIEW_OPEN"],
+        expectedAlphaBlockers: [] as string[],
       },
       {
         key: "unregistered",
@@ -85,6 +91,7 @@ describeWithDatabase("official source catalog eligibility migration", () => {
         lastSeenAt: new Date(),
         reviewReason: null,
         expectedBlockers: ["SOURCE_CONFIG_NOT_REGISTERED"],
+        expectedAlphaBlockers: [] as string[],
       },
       {
         key: "job-stale",
@@ -95,7 +102,9 @@ describeWithDatabase("official source catalog eligibility migration", () => {
         configRegistered: true,
         lastSeenAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
         reviewReason: null,
-        expectedBlockers: ["JOB_NOT_RECENTLY_VERIFIED"],
+        // 同上：核验时效也只约束对外可见。
+        expectedBlockers: [] as string[],
+        expectedAlphaBlockers: ["JOB_NOT_RECENTLY_VERIFIED"],
       },
     ].map((fixtureCase) => ({
       ...fixtureCase,
@@ -261,36 +270,41 @@ describeWithDatabase("official source catalog eligibility migration", () => {
         }
       }
 
+      const projection = [
+        "source_id",
+        "eligible_for_local_mvp",
+        "blocking_reasons",
+        "alpha_blocking_reasons",
+      ] as const;
+      const sourceIdsUnderTest = cases.map((fixtureCase) => fixtureCase.sourceId);
       const currentRows = await db
         .selectFrom("catalog.current_job_eligibility")
-        .select(["source_id", "eligible_for_local_mvp", "blocking_reasons"])
-        .where(
-          "source_id",
-          "in",
-          cases.map((fixtureCase) => fixtureCase.sourceId),
-        )
+        .select(projection)
+        .where("source_id", "in", sourceIdsUnderTest)
         .execute();
       const versionRows = await db
         .selectFrom("catalog.job_version_eligibility")
-        .select(["source_id", "eligible_for_local_mvp", "blocking_reasons"])
-        .where(
-          "source_id",
-          "in",
-          cases.map((fixtureCase) => fixtureCase.sourceId),
-        )
+        .select(projection)
+        .where("source_id", "in", sourceIdsUnderTest)
         .execute();
 
+      // 两个视图对同一条政策必须给出**相同**的阻塞项。迁移 037 第一版只改了版本级视图，
+      // 于是本机预览（读 `current_job_eligibility`）仍被新鲜度阻塞、两视图分叉；037 现在
+      // 同时重建两者，因此这里恢复为单一期望，分叉复现即失败。
       for (const fixtureCase of cases) {
         const expected = {
           eligible_for_local_mvp: fixtureCase.expectedBlockers.length === 0,
           blocking_reasons: fixtureCase.expectedBlockers,
+          alpha_blocking_reasons: fixtureCase.expectedAlphaBlockers,
         };
-        expect(currentRows.find((row) => row.source_id === fixtureCase.sourceId)).toMatchObject(
-          expected,
-        );
-        expect(versionRows.find((row) => row.source_id === fixtureCase.sourceId)).toMatchObject(
-          expected,
-        );
+        expect(
+          currentRows.find((row) => row.source_id === fixtureCase.sourceId),
+          `current_job_eligibility / ${fixtureCase.key}`,
+        ).toMatchObject(expected);
+        expect(
+          versionRows.find((row) => row.source_id === fixtureCase.sourceId),
+          `job_version_eligibility / ${fixtureCase.key}`,
+        ).toMatchObject(expected);
       }
     } finally {
       const sourceIds = cases.map((fixtureCase) => fixtureCase.sourceId);

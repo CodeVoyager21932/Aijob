@@ -37,6 +37,7 @@ import { resumeReviewV2ExpandMigration } from "./migrations/033_resume_review_v2
 import { closureDetectableCanonicalJobsMigration } from "./migrations/034_closure_detectable_canonical_jobs.js";
 import { reconciledPublicationMigration } from "./migrations/035_reconciled_publication.js";
 import { sourceAssessmentInProgressMigration } from "./migrations/036_source_assessment_in_progress.js";
+import { studentApplicableSupplyMigration } from "./migrations/037_student_applicable_supply.js";
 import type { Database } from "./types.js";
 
 class StaticMigrationProvider implements MigrationProvider {
@@ -84,6 +85,7 @@ class StaticMigrationProvider implements MigrationProvider {
       "034_closure_detectable_canonical_jobs": closureDetectableCanonicalJobsMigration,
       "035_reconciled_publication": reconciledPublicationMigration,
       "036_source_assessment_in_progress": sourceAssessmentInProgressMigration,
+      "037_student_applicable_supply": studentApplicableSupplyMigration,
     };
   }
 }

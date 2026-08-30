@@ -324,19 +324,52 @@ describeWithDatabase("publication reconciliation", () => {
     );
   });
 
-  it("revokes the pointer when responsibilities become empty", async () => {
-    const fixture = await provisionPublishedJob("empty");
+  // ADR-0035 第八条：职责与任职要求放宽为「至少存在其一」。此前只清空职责即撤回，那条期望
+  // 已随判据一起改掉；保留本用例是为了钉住放宽后的边界——少一项不撤回，两项皆缺才撤回。
+  it("keeps the pointer when only responsibilities become empty", async () => {
+    const fixture = await provisionPublishedJob("one-side");
     await db
       .updateTable("catalog.published_job_versions")
       .set({ responsibilities: "" })
       .where("id", "=", fixture.publishedJobVersionId)
       .execute();
 
+    expect(
+      await reconcilePublication({ db, publishedJobIds: [fixture.publishedJobId] }),
+    ).toMatchObject({ published: 0, advanced: 0, revoked: 0 });
+    expect(await readPointer(fixture.publishedJobId)).toBe(fixture.publishedJobVersionId);
+  });
+
+  it("revokes the pointer when the whole job body becomes empty", async () => {
+    const fixture = await provisionPublishedJob("empty");
+    await db
+      .updateTable("catalog.published_job_versions")
+      .set({ responsibilities: "", requirements: "" })
+      .where("id", "=", fixture.publishedJobVersionId)
+      .execute();
+
     expect(await reconcilePublication({ db, publishedJobIds: [fixture.publishedJobId] })).toMatchObject({ revoked: 1 });
     expect(await readPointer(fixture.publishedJobId)).toBeNull();
     expect((await latestEvent(fixture.publishedJobId)).blocking_reasons).toContain(
-      "RESPONSIBILITIES_MISSING",
+      "JOB_BODY_MISSING",
     );
+  });
+
+  // ADR-0035 第一条：非在校生可投的岗位照常入库，只在对外可见处被筛掉。撤回事件必须说出
+  // 是这一条筛掉的，而不是笼统的「不合格」。
+  it("revokes the pointer with a named reason when the job stops being student-applicable", async () => {
+    const fixture = await provisionPublishedJob("postgrad");
+    await db
+      .updateTable("catalog.published_job_versions")
+      .set({ requirements: "硕士及以上学历，全日制研究生" })
+      .where("id", "=", fixture.publishedJobVersionId)
+      .execute();
+
+    expect(await reconcilePublication({ db, publishedJobIds: [fixture.publishedJobId] })).toMatchObject({ revoked: 1 });
+    expect(await readPointer(fixture.publishedJobId)).toBeNull();
+    const event = await latestEvent(fixture.publishedJobId);
+    expect(event.reason_code).toBe("BLOCKED");
+    expect(event.blocking_reasons).toContain("JOB_NOT_STUDENT_APPLICABLE");
   });
 
   it("revokes the pointer when a blocking review item is opened", async () => {

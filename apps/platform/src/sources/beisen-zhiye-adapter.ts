@@ -240,6 +240,13 @@ export function parseBeisenZhiyeListPage(value: unknown): BeisenZhiyeListPage {
   return { jobs: parsed.Data, total: parsed.Count };
 }
 
+/**
+ * ADR-0035 第一条：保留为**观察函数**，不再作为准入过滤器。
+ *
+ * 供给单位已从「实习岗位」改为「在校生可投岗位」，校招、应届生与管培生同样纳入。标题是否
+ * 含「实习」字样只是一个粗糙代理，判定改由资格层的 `catalog.job_reachability_verdict`
+ * 逐岗位完成——适配器只负责忠实解析，不负责裁剪供给范围。
+ */
 export function isBeisenExplicitInternship(job: BeisenJobAd): boolean {
   return job.JobAdName.normalize("NFKC").includes("实习");
 }
@@ -283,9 +290,9 @@ export function normalizeBeisenZhiyeJobAd(input: {
   pageEvidenceRef: string;
 }): NormalizedOfficialJob {
   const { tenant, job, listItemIndex, pageEvidenceRef } = input;
-  if (!isBeisenExplicitInternship(job)) {
-    throw new Error("BEISEN_NOT_EXPLICIT_INTERNSHIP");
-  }
+  // ADR-0035 第一条：此处原有 `BEISEN_NOT_EXPLICIT_INTERNSHIP`，标题不含「实习」即整条丢弃。
+  // 慧策租户请求的是 category="2"（校园招聘），抓回来后被这条过滤全部拒绝——校招岗位被
+  // 取回后被扔掉了，而目标用户临近毕业时校招才是主场。筛选已上移到资格层。
   const pointer = `/Data/${listItemIndex}`;
   const family = classifyOfficialJobFamily({
     title: job.JobAdName,

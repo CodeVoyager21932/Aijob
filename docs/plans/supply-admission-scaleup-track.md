@@ -72,7 +72,7 @@
 - `eligible_for_alpha` = 上者 **且** `policy_status='approved'` **且** `runtime_scope IN ('alpha','production')`。
 - 阻塞原因码：`SOURCE_POLICY_NOT_LOCAL_ALLOWED`、`INGESTION_NOT_VALIDATED`、`PUBLICATION_NOT_REVIEWABLE`、`JOB_NOT_ACTIVE`、`SOURCE_NOT_FRESH`、`JOB_NOT_RECENTLY_VERIFIED`（超 `crawl_interval` 未核验）、`RESPONSIBILITIES_MISSING`、`REQUIREMENTS_MISSING`、`EXACT_APPLICATION_NOT_AVAILABLE`、`BLOCKING_REVIEW_OPEN`、`NON_CANONICAL_SOURCE`、`TEST_RUNTIME_SCOPE`。
 
-里程碑目标由 `source-batch-planner` 动态计算，实测 @40 为：40 家 / 400 可见岗 / 每城 16 岗 / 人工来源上限 8 家、40 岗。结构门槛已按 ADR-0032 从 SME 改为**可达岗位 ≥50% 可见岗位**（原 planner 输出的 20 SME 家 / 160 SME 岗为旧轴，A4 切换后失效）。批次约束：每批 ≤10 家、来源族试点 ≤3 家、初始每家 5 岗、`requiresExplicitLiveProbeApproval=true`、`automaticFirst=true`、`browserFallbackOnly=true`。
+里程碑目标由 `source-batch-planner` 动态计算。按 ADR-0035，供给单位改为**在校生可投岗位**，判据下沉到单条岗位（排除 `postgrad_only`/`school_restricted`/明示多年经验，收入 `reachable` 与 `unknown`），**「可达岗位 ≥50%」聚合门槛已撤销**；职能与城市最小值、`totalScore ≥ 75`、单家配额分档、`CAPACITY_MINIMUM_COMPLETE_JOBS=10`、`MAX_COVERAGE_COMPANIES_PER_BATCH=2` 一并撤销为阻塞门槛。企业数/岗位数与人工来源占比保留为**报告项**，只如实报出、不阻塞。批次约束保留：每批 ≤10 家、来源族试点 ≤3 家（厂商级继承会放大错误，先试点）。
 
 ---
 
@@ -110,15 +110,15 @@
 
 解除条件：对任一 Moka 租户做**一次**匿名 `GET`，确认是否存在可确定性解析的公开岗位列表；若有，记录响应作为夹具，再据实写适配器与厂商文件。这是一次触网动作，属 `AGENTS.md` 的「首次启用」，需人工明确操作。
 - 只有 `accessPolicyAccepted` 与其余硬门槛全过、且显式批准（`policy.status→approved`、`alphaDisplayStatus→approved`）的来源才纳入。纳入后由对账自动发布其合格岗位，**不需要逐条人工发布**；资格失效时对账自动撤回。
-- 退出条件（A10 实测冻结）：40 家 / 400 可见岗 / **可达岗位 ≥200（≥50%，`unknown` 不计入）** / 每城 ≥16 岗 / 人工来源 ≤8 家 ≤40 岗；纳入来源全部 `policy.status = approved` 且六硬门全过、`totalScore ≥ 75`；用户可见岗位 `closure_detectable = true`；岗位正文符合 D1 范围；至少 3 个已准入确定性 canonical 来源开始按周期连续刷新。
+- 退出条件（按 ADR-0035 重述）：**公开 `/v1/jobs` 首次返回非 0**——这是本阶段真正的里程碑，把整条流水线从「理论通」变为「实测通」。纳入来源全部 `policy.status = approved` 且六硬门全过（不再要求 `totalScore ≥ 75`）；用户可见岗位 `closure_detectable = true` 且有投递入口；岗位正文符合 D1 范围；至少 3 个已准入确定性 canonical 来源各累计成功刷新 ≥3 次且跨度 ≥3 天。企业数与岗位数如实报出，不作为阻塞条件。
 
 ### 阶段 2 —— 70 家里程碑
 - 在 40 家基础上扩容，维持可达性比例、城市分布与人工来源占比不超标。
 - 退出条件：planner @70 缺口清零；来源持续性证据继续累积。
 
 ### 阶段 3 —— 100 家 Alpha 供给门槛
-- 达到 [Private Alpha 就绪 Gate §3](private-alpha-readiness-gates.md)：100 家 / 1000 可见活动可信实习岗（缓冲 110/1100）；**可达岗位 ≥500（≥50%）**；产品/运营/工程/数据与 AI 各 ≥100 岗，其余 8 职能各 ≥15 岗；八城各 ≥40 地点已知岗；人工/浏览器来源 ≤20% 家、≤10% 岗；追溯率与未知诚实率 100%。
-- 退出条件：≥3 个已准入确定性 canonical 来源连续 7 天按 12 小时周期运行，失败隔离、无静默空结果、无重复触网、无目录污染。
+- 达到 [Private Alpha 就绪 Gate §3](private-alpha-readiness-gates.md)：100 家 / 1000 可见活动可信**在校生可投**岗（缓冲 110/1100）；人工/浏览器来源 ≤20% 家、≤10% 岗；追溯率与未知诚实率 100%。按 ADR-0035，前两项是报告项——审计必须如实报出且不得省略，但不阻塞操作。职能与城市分布作为观察指标持续报出，接近 100 家时重新评估是否需要恢复为门槛。
+- 退出条件：≥3 个已准入确定性 canonical 来源各累计成功刷新 ≥3 次且跨度 ≥3 天，失败隔离、无静默空结果、无重复触网、无目录污染。
 
 ---
 
