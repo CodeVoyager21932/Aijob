@@ -89,7 +89,7 @@
 
 **前置步骤（零触网，必须先做）**：落地 [ADR-0034](../decisions/0034-two-layer-source-admission-and-reconciled-publication.md) §一 + §二，解除 `eligible_for_alpha` 与 `publication_state` 的循环依赖，并建立双向资格对账。**在此之前，下列全部评估与准入做完，公开 `/v1/jobs` 依然是 0**——门与钥匙互为前提，与门槛严格程度无关。
 
-- 逐候选做四项评估：主体证明、访问政策（按 [ADR-0033](../decisions/0033-access-policy-basis-and-minimal-body-scope.md) 的 robots + ToS 判据）、新鲜度、采集方式。**触网步骤需 coco 逐批 live 授权；robots 与 ToS 的实际抓取同属触网。**
+- 逐候选做四项评估：主体证明、访问政策（按 [ADR-0033](../decisions/0033-access-policy-basis-and-minimal-body-scope.md) 的 robots + ToS 判据）、新鲜度、采集方式。触网按 `AGENTS.md` 原文执行：配置中已显式启用的确定性来源可由本机 `collector-worker` 定时刷新；**首次启用新来源、扩大请求范围、恢复 `paused` 来源与浏览器快照仍需人工明确操作**。
 - 逐候选的评估成本按 ADR-0034 §三 从「每家 153 行政策 JSON」降为「厂商层评一次 + 租户层 3–5 字段」。厂商层结论全部租户继承，但 robots 对逐租户子域厂商（北森 `<企业>.zhiye.com`、飞书招聘 `<企业>.jobs.feishu.cn`）仍需逐主机核验；单主机厂商（Moka `app.mokahr.com`）由厂商层覆盖。
 - 只有 `accessPolicyAccepted` 与其余硬门槛全过、且显式批准（`policy.status→approved`、`alphaDisplayStatus→approved`）的来源才纳入。纳入后由对账自动发布其合格岗位，**不需要逐条人工发布**；资格失效时对账自动撤回。
 - 退出条件（A10 实测冻结）：40 家 / 400 可见岗 / **可达岗位 ≥200（≥50%，`unknown` 不计入）** / 每城 ≥16 岗 / 人工来源 ≤8 家 ≤40 岗；纳入来源全部 `policy.status = approved` 且六硬门全过、`totalScore ≥ 75`；用户可见岗位 `closure_detectable = true`；岗位正文符合 D1 范围；至少 3 个已准入确定性 canonical 来源开始按周期连续刷新。
@@ -150,7 +150,7 @@
 - 不抓 BOSS、实习僧、牛客等综合平台；不抓第三方聚合站；本轮线索清单已整行剔除命中禁止平台的记录。
 - 不绕过登录、验证码、访问控制、付费墙或明确禁止的访问政策。
 - 技术可访问 ≠ 获准聚合或公开；`pending_review` 只进本机 `local_mvp`。「获准」的判据由 ADR-0033 定义，且该 ADR 转为 `accepted` 前建议取得法律意见。
-- 触网仅限 `source:refresh-now --confirm-live` 等显式步骤，且需 coco 逐批授权；CI、构建、Alpha、Production 不访问真实招聘站。
+- 触网仅限 `source:refresh-now --confirm-live` 等显式步骤与 `collector-worker` 对配置中已启用确定性来源的定时刷新；首次启用、扩大范围、恢复暂停来源和浏览器快照需人工明确操作。CI、构建、Alpha、Production 不访问真实招聘站。
 - 未在官方页明确出现的字段保留 `unknown`，不由规则或模型补写。
 - 保持模块化单体 + 单一 PostgreSQL 事实源 + `web-api`/`collector-worker`/`match-worker` 三权限边界；本轨道不引入 Redis、搜索、向量库、消息总线、生产 Playwright 采集或公共管理后台。
 - 逐来源网络预算、安全边界、失败隔离不得放宽；ADR-0028 动态容量仅在检查点通过后受控启用。
@@ -160,4 +160,4 @@
 
 ## 6. 当前唯一下一步
 
-阶段 0：产出首批待评估候选清单并跑离线 `source:assess`。**进入阶段 1 的任何触网评估前，须 coco 逐批明确 live 授权。**
+阶段 1：让 7 个已在配置中启用的 `public_api` 确定性来源按周期连续刷新，并按 ADR-0033 重评 `accessPolicyAccepted`（现有 34/34 `fail` 是旧「须取得企业肯定性授权」判据的残留，不是现行结论）。这一步不需要逐批授权；恢复 `paused` 来源、首次启用新来源与浏览器快照仍需人工明确操作。

@@ -27,7 +27,7 @@
 - `OS-7 系统总 Gate` 已完成五项状态：满态库 + 真实空库的 `os7-browser-gate.cjs` 8 个 step 全过并输出 `passed: true`，其中 step 7（空库空态）与 step 8（flag-off 与 manifest 数据库断言）为历史首次执行到并通过。Gate 修复了 4 项真实 Web 缺陷，包括旧 hero 标题上限规则因特异性不足**一直未生效**（旧 `.product-app .product-hero:not(...) h1` 在 1280px 为 58.88px）。全仓 808/808、lint 485 files、typecheck、build（主包 401.33 kB，上限 411.31 kB）、audit 与 diff check 通过。见 [OS-7 验收证据](evidence/product/career-os-v2/os-7-system-gate-acceptance-2026-08-28.md)。
 - OS-7 过程中发现一处**预先存在**的 typecheck 缺陷（`apps/platform/src/resume-documents/routes.integration.test.ts`）。已用 `git diff e56ceae` 证明该文件与 `tsconfig.base.json` 与 OS-6 基线逐字节相同，因此 OS-6 记录的“typecheck 通过”对该文件并不成立；已修复并明确登记，不抹去该缺口。
 - 当前决定为**OS-7 已完成，Career OS 前后端同步改进阶段收敛结束**；coco 于 2026-08-28 选择「供给准入扩容」为下一条轨道。执行按 [供给准入扩容轨道计划](plans/supply-admission-scaleup-track.md)，当前处于阶段 0（不触网）。
-- SA Track 阶段 0 之后的任何触网评估（`source:probe` / `source:refresh-now --confirm-live`）须 coco 逐批 live 授权；不自动进入 Private Alpha，不启动服务器就绪或参与者工作。
+- 触网边界按 `AGENTS.md` 原文：配置中已显式启用的确定性来源可由本机 `collector-worker` 定时刷新；只有首次启用、扩大请求范围、恢复暂停来源和浏览器快照需人工明确操作。先前把它记成「任何触网须逐批授权」，那是多加的约束，已撤回。不自动进入 Private Alpha，不启动服务器就绪或参与者工作。
 - 本轮以本机只读审计确认真实瓶颈：34 个来源配置全部 `accessPolicyAccepted=fail`、0 个 `approved`、0 个 `publicationAllowed`；候选审计 capacity 就绪数为 0。瓶颈是准入证据补齐，不是缺候选企业。
 - 原 M0–M4/PA-1 当前交付计划和交接已移入归档。历史 Phase 2、M2/M3/M4 审计、R2 和 G2 计划均不得生成当前任务。
 
@@ -37,7 +37,7 @@
 |---|---|
 | 更新日期 | 2026-08-29 |
 | 当前阶段 | 供给准入扩容轨道（SA Track）**Phase A 已完成**（零触网标准与机制，A1–A10）；上一轨道 UX-0 与 OS-1–OS-7 已关闭 |
-| 当前唯一目标 | [ADR-0032](decisions/0032-reachability-first-supply-admission.md)、[ADR-0033](decisions/0033-access-policy-basis-and-minimal-body-scope.md)、[ADR-0034](decisions/0034-two-layer-source-admission-and-reconciled-publication.md) 已 `accepted`，ADR-0034 §一+§二+§四 已落地（零触网，公开供给的结构性死锁已解除）。下一步是 Phase B 的触网部分：恢复周期刷新 7 天 → 抓 robots 与核 ToS → 翻转 `stableIdentityAndFields` → 提 `approved` + `alpha`。**须 coco 逐批 live 授权** |
+| 当前唯一目标 | [ADR-0032](decisions/0032-reachability-first-supply-admission.md)、[ADR-0033](decisions/0033-access-policy-basis-and-minimal-body-scope.md)、[ADR-0034](decisions/0034-two-layer-source-admission-and-reconciled-publication.md) 已 `accepted`，ADR-0034 §一+§二+§四 已落地（公开供给的结构性死锁已解除）。下一步：**7 个已启用的 `public_api` 确定性来源按周期连续刷新**（`AGENTS.md` 允许，无需逐批点头）→ 按 ADR-0033 重评 `accessPolicyAccepted` → 凭运行证据翻转 `stableIdentityAndFields` → 提 `approved` + `alpha`，由对账自动发布 |
 | 当前分支 | `codex/career-os-ux-convergence`；精确 HEAD 与工作树以 Git 为准 |
 | 工程基线 | 可信完成基线为 OS-7：Config 20、Contracts 86、Database 54、Platform 466、Web 182，共 **808/808**，一次跑通无 flake；lint 485 files、typecheck、build、audit 与 diff check 通过。上一绿色基线 OS-6 为 801/801（`e56ceae`） |
 | 前端基线 | OS-7 Web main **401.33 kB（gzip 117.04 kB）**，相对 OS-6 的 401.31 kB 增加 0.02 kB，低于 411.31 kB 上限；旧 PA-1 的 566.69 kB 只是历史时点，不再作为守门上限。重工作区继续独立 lazy load |

@@ -55,7 +55,9 @@ describe("Tencent source configuration", () => {
     expect(config.policy.crawlInterval.enabled).toBe(false);
     expect(config.localProbe.enabled).toBe(false);
     expect(config.policy.adapterVersion).toBe(TENCENT_ADAPTER_VERSION);
-    expect(config.candidate.hardGates.accessPolicyAccepted).toBe(false);
+    // 归一化保留三态：`fail` 是「评估过且不合格」，与 `pending`（未评估完）不同。
+    expect(config.candidate.hardGates.accessPolicyAccepted).toBe("fail");
+    expect(config.candidate.hardGates.stableIdentityAndFields).toBe("pending");
     expect(config.localProbe.requestBudget).toEqual({
       maxItems: 20,
       maxPages: 4,
@@ -88,11 +90,28 @@ describe("Tencent source configuration", () => {
         }),
       ]),
     );
+    // 有 `fail` 就是 `ineligible`；`pendingGates` 单独列出，不与否决混同。
     expect(assessment).toEqual({
       hardGatesPassed: false,
+      failedGates: ["accessPolicyAccepted"],
+      pendingGates: ["targetSupply", "stableIdentityAndFields"],
       totalScore: 45,
       decision: "ineligible",
     });
+  });
+
+  it("reports assessing rather than ineligible when the only open gates are pending", async () => {
+    const fixture = await sourceConfigFixture("bytedance-manual-test.json");
+    for (const gate of Object.keys(fixture.candidate.hardGates)) {
+      fixture.candidate.hardGates[gate] = { status: "pending", note: "等待连续运行证据。" };
+    }
+    const assessment = assessSource(parseSourceConfigValue(fixture));
+
+    // 「还没评完」不是「评过不合格」。此前两者都得出 ineligible，让等证据的来源看起来像被否决。
+    expect(assessment.decision).toBe("assessing");
+    expect(assessment.failedGates).toEqual([]);
+    expect(assessment.pendingGates).toHaveLength(6);
+    expect(assessment.hardGatesPassed).toBe(false);
   });
 
   it("normalizes product family ids as numbers without changing the source file", async () => {

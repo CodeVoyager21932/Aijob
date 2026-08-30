@@ -328,6 +328,9 @@ const absencePolicySchema = z.enum(["none", "close_after_two_complete_absences"]
 const catalogRoleSchema = z.enum(["canonical", "discovery_only", "disabled"]);
 const runtimeScopeSchema = z.enum(["test", "local", "alpha", "production"]);
 
+/** 硬门槛三态。`pending` 表示评估未完成，与 `fail`（评估过且不合格）是不同的事实。 */
+const hardGateStatusSchema = z.enum(["pass", "pending", "fail"]);
+
 /** 迁移 001 给 `source_candidates.candidate_status` 的 CHECK 约束，持久化只接受这五个取值。 */
 const persistedCandidateStatusSchema = z.enum([
   "candidate",
@@ -385,13 +388,16 @@ const normalizedSourceConfigSchema = z
       acquisitionMode: AcquisitionModeSchema,
       candidateStatus: persistedCandidateStatusSchema,
       assessor: z.string().min(1),
+      // 原为 `z.boolean()`，归一化时把 `pending` 与 `fail` 压成同一个 `false`，于是
+      // 「还没评估」与「评估不合格」无法区分，33 个只是等运行证据的来源看起来像被否决。
+      // 保留三态。
       hardGates: z.object({
-        officialIdentity: z.boolean(),
-        targetSupply: z.boolean(),
-        noAuthBypass: z.boolean(),
-        officialApplyLink: z.boolean(),
-        accessPolicyAccepted: z.boolean(),
-        stableIdentityAndFields: z.boolean(),
+        officialIdentity: hardGateStatusSchema,
+        targetSupply: hardGateStatusSchema,
+        noAuthBypass: hardGateStatusSchema,
+        officialApplyLink: hardGateStatusSchema,
+        accessPolicyAccepted: hardGateStatusSchema,
+        stableIdentityAndFields: hardGateStatusSchema,
       }),
       scores: z.object({
         targetSupply: z.number().int().min(0).max(30),
@@ -427,7 +433,7 @@ const normalizedSourceConfigSchema = z
   .superRefine(enforceSourceBoundaries);
 
 const assessedValueSchema = z.object({
-  status: z.enum(["pass", "pending", "fail"]),
+  status: hardGateStatusSchema,
   note: z.string().min(1),
 });
 
@@ -572,10 +578,7 @@ export function parseSourceConfigValue(value: unknown, expectedSourceKey?: strin
       candidateStatus: persistedCandidateStatus(raw.candidate.candidateStatus),
       assessor: raw.candidate.assessor,
       hardGates: Object.fromEntries(
-        Object.entries(raw.candidate.hardGates).map(([key, result]) => [
-          key,
-          result.status === "pass",
-        ]),
+        Object.entries(raw.candidate.hardGates).map(([key, result]) => [key, result.status]),
       ),
       scores: Object.fromEntries(
         Object.entries(raw.candidate.scores).map(([key, result]) => [key, result.score]),
@@ -630,25 +633,40 @@ export async function loadSourceConfig(
   return parseSourceConfigValue(JSON.parse(contents), sourceKey);
 }
 
-export function assessSource(config: SourceConfig): {
+/**
+ * 评估结论。
+ *
+ * `assessing` 是本轮新增：此前 `pending` 与 `fail` 都被压成 `false`，两者都得出
+ * `ineligible`，于是「还在等连续运行证据」和「评过且不合格」在记录里无法区分——而前者
+ * 恰恰要靠先跑起来才能产出证据。未完成的流程不该被记成否决结论。
+ *
+ * `totalScore` 只在六硬门全过之后才参与判定，因此当 `accessPolicyAccepted` 尚未按
+ * ADR-0033 重评时，分数阈值实际不构成门槛。
+ */
+export interface SourceAssessment {
   hardGatesPassed: boolean;
+  /** 评估过且不合格的门槛。 */
+  failedGates: string[];
+  /** 评估未完成的门槛。不是否决。 */
+  pendingGates: string[];
   totalScore: number;
-  decision: "pilot" | "watch" | "reject" | "ineligible";
-} {
-  const hardGatesPassed = Object.values(config.candidate.hardGates).every(Boolean);
+  decision: "pilot" | "watch" | "reject" | "ineligible" | "assessing";
+}
+
+export function assessSource(config: SourceConfig): SourceAssessment {
+  const gates = Object.entries(config.candidate.hardGates);
+  const failedGates = gates.filter(([, status]) => status === "fail").map(([gate]) => gate);
+  const pendingGates = gates.filter(([, status]) => status === "pending").map(([gate]) => gate);
+  const hardGatesPassed = failedGates.length === 0 && pendingGates.length === 0;
   const totalScore = Object.values(config.candidate.scores).reduce(
     (total, score) => total + score,
     0,
   );
+  const base = { hardGatesPassed, failedGates, pendingGates, totalScore };
 
-  if (!hardGatesPassed) {
-    return { hardGatesPassed, totalScore, decision: "ineligible" };
-  }
-  if (totalScore >= 75) {
-    return { hardGatesPassed, totalScore, decision: "pilot" };
-  }
-  if (totalScore >= 60) {
-    return { hardGatesPassed, totalScore, decision: "watch" };
-  }
-  return { hardGatesPassed, totalScore, decision: "reject" };
+  if (failedGates.length > 0) return { ...base, decision: "ineligible" };
+  if (pendingGates.length > 0) return { ...base, decision: "assessing" };
+  if (totalScore >= 75) return { ...base, decision: "pilot" };
+  if (totalScore >= 60) return { ...base, decision: "watch" };
+  return { ...base, decision: "reject" };
 }

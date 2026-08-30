@@ -1795,9 +1795,14 @@ async function runSourceCrawl(input: {
     sourceConfig.policy.status,
     input.runMode,
   );
+  // 六硬门全过的来源应当走 `scheduled` 周期刷新，而不是一次性 `probe`；与
+  // `batch-import.ts` 的 `SOURCE_ALREADY_APPROVED_USE_SCHEDULED_REFRESH` 是同一条规则。
+  // 此前它和其余五个条件共用 `INVALID_LOCAL_PROBE_EXCEPTION`，读起来像「越合格越不许探测」。
+  if (input.runMode === "probe" && assessment.hardGatesPassed) {
+    throw new Error("SOURCE_ALREADY_APPROVED_USE_SCHEDULED_REFRESH");
+  }
   if (
     !policyStatusAllowed ||
-    (input.runMode === "probe" && assessment.hardGatesPassed) ||
     !sourceConfig.localProbe.enabled ||
     sourceConfig.candidate.acquisitionMode === "browser_required" ||
     descriptor.probeHandler === null

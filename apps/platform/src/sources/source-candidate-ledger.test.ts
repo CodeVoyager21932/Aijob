@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  hasOfficialApplicationSignal,
+  isUnobservedApplicationSignal,
   loadSourceCandidateLedgerRows,
   mergeSourceCandidateEvidence,
   normalizeCandidateCompanyName,
@@ -102,5 +104,34 @@ describe("source candidate evidence ledgers", () => {
     expect(withAlias).toHaveLength(1);
     expect(withAlias[0]?.canonicalCompanyName).toBe("千寻智能");
     expect(withAlias[0]?.evidence.map((row) => row.candidateId)).toEqual(["A", "B"]);
+  });
+});
+
+describe("unobserved versus confirmed application signals", () => {
+  // 入口阻塞等于零供给。「还没观察到」不能与「观察过且不合格」同等对待，否则候选连被
+  // 看一眼的机会都没有，而要脱离该状态恰恰只能靠去看。真正的把关在岗位层：
+  // job_version_eligibility 的 EXACT_APPLICATION_NOT_AVAILABLE 仍然硬拦。
+  it("treats only unknown as unobserved", () => {
+    expect(isUnobservedApplicationSignal("unknown")).toBe(true);
+    for (const signal of [
+      "official_url",
+      "company_email",
+      "official_url_and_email",
+      "university_only",
+      "personal_email_rejected",
+    ] as const) {
+      expect(isUnobservedApplicationSignal(signal), signal).toBe(false);
+    }
+  });
+
+  it("keeps confirmed rejections distinct from unobserved leads", () => {
+    // 这两个是看过之后的结论，应当继续被排除。
+    for (const signal of ["university_only", "personal_email_rejected"] as const) {
+      expect(hasOfficialApplicationSignal(signal), signal).toBe(false);
+      expect(isUnobservedApplicationSignal(signal), signal).toBe(false);
+    }
+    // unknown 既不算有官方投递，也不算确认否决——它要走取证通路。
+    expect(hasOfficialApplicationSignal("unknown")).toBe(false);
+    expect(isUnobservedApplicationSignal("unknown")).toBe(true);
   });
 });

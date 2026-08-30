@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { sql } from "kysely";
+import { type Kysely, sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabase } from "../index.js";
 import { migrateToForTesting, migrateToLatest } from "../migrate.js";
+import type { Database } from "../types.js";
 
 const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
@@ -334,10 +335,32 @@ describeWithDatabase("reconciled publication migration", () => {
   });
 
   it("restores the pre-035 publication condition when rolled back", async () => {
-    await migrateToForTesting(db, "034_closure_detectable_canonical_jobs");
+    // 在专属库上回滚：回滚会 DROP 掉 035 新增的列与视图，在共享测试库上做会让别的套件
+    // 看到缺列的 schema。`phase-2a-forward-contract` 已用一次性库解决同一问题。
+    const rollbackDatabaseName = `aijob_test_m035_rollback_${randomUUID().replaceAll("-", "")}`;
+    const adminDb = createDatabase(databaseUrl as string);
+    await sql.raw(`CREATE DATABASE "${rollbackDatabaseName}"`).execute(adminDb);
+    const rollbackUrl = new URL(databaseUrl as string);
+    rollbackUrl.pathname = `/${rollbackDatabaseName}`;
+    const rollbackDb = createDatabase(rollbackUrl.toString());
+    try {
+      await migrateToLatest(rollbackDb);
+      await migrateToForTesting(rollbackDb, "034_closure_detectable_canonical_jobs");
+      await assertPre035Shape(rollbackDb);
+    } finally {
+      await rollbackDb.destroy();
+      await sql
+        .raw(`DROP DATABASE IF EXISTS "${rollbackDatabaseName}" WITH (FORCE)`)
+        .execute(adminDb);
+      await adminDb.destroy();
+    }
+    // 建库 + 跑完 36 个迁移 + 回滚，5 秒默认超时不够，这里的耗时与正确性无关。
+  }, 60_000);
+
+  async function assertPre035Shape(connection: Kysely<Database>): Promise<void> {
     const { rows } = await sql<{ definition: string }>`
       SELECT pg_get_viewdef('catalog.job_version_eligibility'::regclass, true) AS definition
-    `.execute(db);
+    `.execute(connection);
     const definition = rows[0]?.definition ?? "";
     expect(definition).toContain("publication_state = 'published'");
     expect(definition).not.toContain("publication_suppressed");
@@ -348,7 +371,7 @@ describeWithDatabase("reconciled publication migration", () => {
       WHERE table_schema = 'catalog'
         AND table_name = 'published_jobs'
         AND column_name IN ('publication_suppressed_at', 'publication_suppressed_reason')
-    `.execute(db);
+    `.execute(connection);
     expect(columns[0]?.count).toBe("0");
-  });
+  }
 });

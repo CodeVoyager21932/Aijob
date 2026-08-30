@@ -75,7 +75,10 @@ export function parseNankaiTalPage(html: string): NankaiTalPage {
   const roles = section(lines, "运营类", "市场与公关类")
     .filter((line) => line.length <= 60)
     .filter((line, index, values) => values.indexOf(line) === index);
-  if (roles.length < 5) throw new Error("NANKAI_TAL_TARGET_SUPPLY_BELOW_FIVE");
+  // 此前这里要求至少 5 个岗位，否则整源抛错。「岗位少」是规模问题，不是数据错误：
+  // 页面真的只挂 4 个岗位时应当收 4 条，而不是一条都不收。只有**一条都没抽到**才说明
+  // 章节锚点失配、抽取确实坏了，那才是错误。
+  if (roles.length === 0) throw new Error("NANKAI_TAL_ROLE_EXTRACTION_EMPTY");
 
   const applyMatch = html.match(
     /https:\/\/app\.mokahr\.com\/campus-recruitment\/tal\/95443\?locale=zh-CN#\/jobs/i,

@@ -159,3 +159,19 @@ export function hasOfficialApplicationSignal(signal: CandidateApplicationSignal)
     signal === "official_url_and_email"
   );
 }
+
+/**
+ * 「还没观察到投递方式」与「确认过没有企业直达投递」是两件事。
+ *
+ * `unknown` 属于前者：线索来自第三方表格或高校页面，我们**还没看过**企业自己的招聘页。
+ * `university_only` 与 `personal_email_rejected` 属于后者：已经看过并确认不符合 ADR-0029
+ * 的投递直达要求。
+ *
+ * 此前两者都被 `holdReason` 排除出候选池，于是「没看过」等于「看过且不合格」——连去看一眼
+ * 的机会都没有。而真正的把关在岗位层：`job_version_eligibility` 的
+ * `EXACT_APPLICATION_NOT_AVAILABLE` 会拦住任何没有投递入口的岗位，候选层再拦一次
+ * 不增加保护，只是阻止发现。
+ */
+export function isUnobservedApplicationSignal(signal: CandidateApplicationSignal): boolean {
+  return signal === "unknown";
+}

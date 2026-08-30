@@ -12,6 +12,7 @@ import {
   type CandidateActivityState,
   type CandidateApplicationSignal,
   hasOfficialApplicationSignal,
+  isUnobservedApplicationSignal,
   loadSourceCandidateLedgerRows,
   type MergedSourceCandidateEvidence,
   mergeSourceCandidateEvidence,
@@ -498,6 +499,7 @@ function plannerCandidate(
   if (lane === "capacity" && projectedVisibleJobs < CAPACITY_MINIMUM_COMPLETE_JOBS) {
     readinessBlockers.push("below_capacity_threshold");
   }
+  // 未在企业自有页面确认活跃的候选可以进池取证，但不计入达标。
   if (evidence.activityState !== "active_explicit") {
     readinessBlockers.push("activity_recheck_required");
   }
@@ -628,13 +630,17 @@ function holdReason(
     return "deadline_expired";
   }
   if (candidate.activityState === "expired") return "activity_expired";
+  // `non_job_program` 是确认过的否决（不是岗位），继续排除。
+  // `discovery_only` 是「只在第三方或高校页面见过引用，还没到企业自己的页面确认」——
+  // 那恰恰是下一步要做的事，不是否决理由。保留在池里，由 `activity_recheck_required` 标注。
+  if (candidate.activityState === "non_job_program") return "activity_not_current";
+  // 只有**确认过**没有企业直达投递才排除出候选池。`unknown` 是「还没看过」，保留在池里并由
+  // `readinessBlockers` 的 `official_application_missing` 标注——可以去取证，但不计入达标。
+  // 岗位层的 `EXACT_APPLICATION_NOT_AVAILABLE` 仍然硬拦，把关没有放松。
   if (
-    candidate.activityState !== "active_explicit" &&
-    candidate.activityState !== "active_needs_recheck"
+    !hasOfficialApplicationSignal(candidate.applicationSignal) &&
+    !isUnobservedApplicationSignal(candidate.applicationSignal)
   ) {
-    return "activity_not_current";
-  }
-  if (!hasOfficialApplicationSignal(candidate.applicationSignal)) {
     return "official_application_missing";
   }
   return null;
@@ -673,10 +679,11 @@ function selectSourceBatch(input: {
   familyDeficits: Record<JobFamily, number>;
   cityDeficits: Record<AlphaTargetCity, number>;
 }): PlannerCandidate[] {
-  // 落后于门槛时提高本批下限，把比例拉回来；否则维持 ADR-0032 的 50%。
-  const minimumReachableVisibleJobRatio = input.reachabilityRecoveryRequired
-    ? 0.7
-    : MINIMUM_REACHABLE_VISIBLE_JOB_RATIO;
+  // ADR-0032 §4 的实测结论是可达比例上限 58.8%、70% 不可达。此前这里在
+  // `reachabilityRecoveryRequired` 时把本批下限抬到 0.7，等于落后时把门槛提到语料供不出的水平，
+  // 于是永远选不出批次。抬高不可达的门槛不产生任何保护，因此统一用 50%。
+  // `reachabilityRecoveryRequired` 保留为**排序信号**（可达候选优先），不再改判定阈值。
+  const minimumReachableVisibleJobRatio = MINIMUM_REACHABLE_VISIBLE_JOB_RATIO;
   const selected: PlannerCandidate[] = [];
   let coverageCompanies = 0;
 

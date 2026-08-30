@@ -4,7 +4,7 @@
 
 ## 当前执行
 
-- [供给准入扩容轨道（SA Track）](supply-admission-scaleup-track.md)：**当前进行中切片**，阶段 0（不触网）。分阶段 40 → 70 → 100 家推进供给准入，触网评估须 coco 逐批 live 授权。
+- [供给准入扩容轨道（SA Track）](supply-admission-scaleup-track.md)：**当前进行中切片**。分阶段 40 → 70 → 100 家推进供给准入。触网按 `AGENTS.md` 原文：已在配置中启用的确定性来源可定时刷新，首次启用、扩大范围、恢复暂停来源与浏览器快照需人工明确操作。
 - [Career OS 前后端同步改进计划](career-os-current-delivery-plan.md)：**已收敛完成**；UX-0 与 OS-1–OS-7 五项 Gate 全部关闭。保留为实施契约与历史依据，不再提供当前任务。
 - [Career OS 端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)：OS-1–OS-7 必须遵守的系统归属、Contracts/Platform/DB/Web、路由、状态、视觉、响应式、焦点和夹具规则；不提供新的任务顺序。
 - [UX-0 页面—系统—证据追踪矩阵](career-os-ux-0-end-to-end-traceability-matrix.md)：逐用例记录规范路由、Contracts、Platform/DB、权限/并发/删除语义、Web 状态、真实测试和 `R / A / E / M / X` 处置；OS-1–OS-6 关闭注记不改写 UX-0 审计时点事实，未决行关闭前不得实现对应页面。

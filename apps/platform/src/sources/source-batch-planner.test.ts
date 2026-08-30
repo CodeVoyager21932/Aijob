@@ -271,7 +271,7 @@ describe("source batch planner", () => {
     expect(plan.deficits.manualVisibleJobsOverLimit).toBe(5);
   });
 
-  it("raises the batch reachable-job floor to seventy percent during recovery", async () => {
+  it("keeps the batch reachable-job floor at the ADR-0032 ratio even during recovery", async () => {
     const registry = await loadSourceCandidateRegistry();
     const reachable = Array.from({ length: 7 }, (_, index) => approvedOverride(index + 1));
     const nonReachable = Array.from({ length: 3 }, (_, index) =>
@@ -295,7 +295,7 @@ describe("source batch planner", () => {
     });
 
     expect(plan.candidatePool.selected).toHaveLength(10);
-    // 可达候选排序优先，且非可达候选受本批 70% 可达岗位下限约束。
+    // 可达候选仍然排序优先——恢复信号保留为排序信号。
     expect(
       plan.candidatePool.selected.filter((candidate) => candidate.reachableCapacity),
     ).toHaveLength(7);
@@ -303,9 +303,11 @@ describe("source batch planner", () => {
     expect(plan.projected.ratios.reachableVisibleJobs).toBeGreaterThan(
       plan.dynamicRequirements.currentRatios.reachableVisibleJobs,
     );
+    // 此前落后时把本批下限抬到 0.7，而 ADR-0032 §4 自己写着 70% 在不改进抽取的前提下
+    // 不可达（实测上限 58.8%）。抬高不可达的门槛不产生保护，只让批次永远选不出来。
     expect(
       plan.candidatePool.selected.every((candidate) =>
-        candidate.selectionReasons.includes("batch_reachable_job_floor:0.7"),
+        candidate.selectionReasons.includes("batch_reachable_job_floor:0.5"),
       ),
     ).toBe(true);
   });

@@ -160,8 +160,13 @@ export async function importManualBrowserSnapshot(input: {
   const sourceConfig = await loadSourceConfig(input.sourceKey, input.sourceConfigDirectory);
   const materializeCatalog = input.materializeCatalog ?? materializeLocalCatalog;
   const descriptor = getOfficialSourceAdapterDescriptor(sourceConfig.policy.adapterKey);
+  // 人工快照是 `browser_required` 来源的**唯一**采集通道。此前这里只允许
+  // `pending_review`，于是来源一旦 `approved` 就再也无法导入——而进入 Alpha 恰恰要求
+  // `approved`，两个 `browser_required` 来源因此永远进不了公开供给。放宽到 `approved`。
+  // 仍然拒绝 `paused`/`blocked`/`retired`：那三种状态本就表示不应继续采集。
   if (
-    sourceConfig.policy.status !== "pending_review" ||
+    (sourceConfig.policy.status !== "pending_review" &&
+      sourceConfig.policy.status !== "approved") ||
     sourceConfig.candidate.acquisitionMode !== "browser_required" ||
     sourceConfig.localProbe.enabled ||
     descriptor.probeHandler !== null ||

@@ -68,7 +68,13 @@ Phase A 交付了三份待审 ADR 与配套实现：
 
 改 `source-config.ts` 拆成厂商层与租户层，并迁移 34 份既有配置到新形状。改动较大，与已落地部分解耦。
 
-**进入 Phase B 的任何触网步骤（`source:probe` / `source:refresh-now --confirm-live`，以及 robots 与 ToS 的实际抓取）前，须 coco 逐批明确 live 授权。** 不得自动进入 Private Alpha、不得启动服务器就绪工作、不得从 [Private Alpha 就绪 Gate](../plans/private-alpha-readiness-gates.md) 生成任务。
+### 触网边界按 `AGENTS.md` 原文，不额外加严
+
+先前交接把这里写成「任何触网步骤须 coco 逐批明确 live 授权」。**那比 `AGENTS.md` 严，是多加的约束，已撤回。** 规则原文只把四件事留给人工明确操作：首次启用、扩大请求范围、恢复暂停来源、浏览器快照；并明确「按 ADR-0026 在配置中显式启用的确定性来源可由本机 `collector-worker` 定时刷新」。
+
+因此当前 9 个 `crawlInterval.enabled` 来源里，**7 个 `public_api` 确定性来源可直接按周期刷新，无需逐批点头**；剩余 2 个是 `browser_required`，属浏览器快照，仍需人工操作。8 个 `paused` 来源的恢复、17 个未启用来源的首次启用，同样仍需人工操作。
+
+不变的硬边界：不抓 BOSS/实习僧/牛客等综合平台与第三方聚合站；不绕过登录、验证码、访问控制、付费墙或明确禁止的访问政策；逐来源网络预算与白名单不放宽；CI、构建、Alpha、Production 不访问真实招聘站。仍不得自动进入 Private Alpha、不得启动服务器就绪工作、不得从 [Private Alpha 就绪 Gate](../plans/private-alpha-readiness-gates.md) 生成任务。
 
 产品阶段未变：产品证据仍为 **E0**，可信供给仍为 **22 岗 / 3 家企业 / 3 官方 ATS**，公开 `/v1/jobs` 仍为 0（正确行为）。Phase A 一条可见岗位都没有增加。
 
@@ -110,8 +116,19 @@ Phase A 交付了三份待审 ADR 与配套实现：
    3. 逐来源抓 robots + 核 ToS 并重评 `accessPolicyAccepted`。
    4. 凭运行证据翻转 `stableIdentityAndFields`。
    5. 提 `policy.status → approved` + `runtime_scope → alpha`，然后跑 `pnpm source:*` 之外的 `catalog-reconcile-publication`，由对账自动发布使公开 `/v1/jobs` 非 0。
-5. **任何触网步骤须 coco 逐批 live 授权**；不复用 OS-1–OS-7 切片模板，不启动服务器就绪工作。
+5. 触网边界按 `AGENTS.md` 原文：配置中已显式启用的确定性来源可由本机 `collector-worker` 定时刷新；只有首次启用、扩大请求范围、恢复暂停来源和浏览器快照需人工明确操作。不复用 OS-1–OS-7 切片模板，不启动服务器就绪工作。
 6. 对账必须**周期性运行**才能保证撤回及时。当前只有 CLI 入口，尚未接进 `collector-worker` 的刷新周期；接线前，来源被暂停到指针被撤回之间存在时间窗，需依赖 `catalog-suppress-job` 兜底。
+
+### 接 ADR-0033 访问政策复核的顺序陷阱（务必先读）
+
+`decideAccessPolicyRecheck` 目前**零生产调用**，看起来只差一步接线。但它在 `recordedEvidence === null` 时返回 `pause`，而**34 份配置的 `policy.accessPolicyEvidence` 全部为 `null`**。因此直接把它接进 `collector-worker` 的刷新前置，会让每个来源一到刷新就被 `ACCESS_POLICY_EVIDENCE_MISSING` 暂停——**目前 7 个能自动跑的确定性来源会全部熄火**，比不接更糟。
+
+正确顺序是两步，不可颠倒：
+
+1. 先建**首次取证**通路：按已登记 fetch target 的每个不同主机取 `https://<host>/robots.txt`，连同服务条款结论写入 `policy.accessPolicyEvidence`。注意 `/robots.txt` 不在任何来源的路径白名单内，需要先决定它的处理方式（在已白名单主机上视为隐含允许，或逐来源把该路径加进 fetch target）——按 `AGENTS.md` 的白名单要求，这一点必须显式决定，不能默认放行。
+2. 再把复核接进刷新前置，判定转禁止时自动暂停。
+
+第 1 步是触网动作，但只读 `/robots.txt`，是行为最保守的一次请求；拒绝读 robots 却继续抓其他路径反而更差。
 6. 已登记的残留缺口：`university-employment-adapter` 的 `splitRequirements` 无职责锚点（会把公司简介带入职责）。当前高校来源全为 `discovery_only` 不进目录，但高校线重启前必修。
 
 ## 5. 复现浏览器 Gate 所需的环境事实
