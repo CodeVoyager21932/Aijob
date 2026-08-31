@@ -48,6 +48,10 @@ export interface SafeHtmlHttpResult extends SafeHttpResult {
   text: string;
 }
 
+export interface SafePlainTextHttpResult extends SafeHttpResult {
+  text: string;
+}
+
 export interface SafeRequestOptions {
   beforeRequest?: () => Promise<void> | void;
 }
@@ -237,11 +241,13 @@ export function validateNavigationUrl(
   return validateRequestTarget(rawUrl, method, targets, true).url;
 }
 
-export function assertRedirectAllowed(target: SourceTarget): void {
+export function assertRedirectAllowed(target: SourceTarget, location?: string): void {
   if (target.allowRedirects !== true) {
     throw new NetworkPolicyError(
       "REDIRECT_NOT_ALLOWED",
-      "Upstream redirect is forbidden by the source target policy",
+      `Upstream redirect is forbidden by the source target policy${
+        location ? ` (Location: ${location})` : ""
+      }`,
     );
   }
 }
@@ -291,7 +297,7 @@ function safeHeaders(headers: IncomingHttpHeaders): Record<string, string> {
 async function requestOnce(
   spec: RequestSpec,
   targets: SourceTarget[],
-  responseKind: "json" | "html",
+  responseKind: "json" | "html" | "text",
   options: SafeRequestOptions,
   redirectCount = 0,
 ): Promise<SafeHttpResult> {
@@ -339,7 +345,14 @@ async function requestOnce(
         method: spec.method,
         headers: {
           Accept:
-            responseKind === "json" ? "application/json" : "text/html,application/xhtml+xml;q=0.9",
+            responseKind === "json"
+              ? "application/json"
+              : // robots.txt 必须带上 `*/*` 兜底：实测 `talent.baidu.com` 对
+                // `Accept: text/plain` 直接回 406，于是取证被记成「站点禁止」，而那其实是我们
+                // 自己的请求头造成的假否决。
+                responseKind === "text"
+                ? "text/plain, */*;q=0.8"
+                : "text/html,application/xhtml+xml;q=0.9",
           "Accept-Encoding": "identity",
           Host: url.host,
           "User-Agent": COLLECTOR_USER_AGENT,
@@ -387,11 +400,13 @@ async function requestOnce(
   });
 
   if ([301, 302, 303, 307, 308].includes(response.status)) {
-    assertRedirectAllowed(target);
+    const location = response.headers.location;
+    // 先取 Location 再断言，好让拒绝跳转的报错说出「跳去哪」。取证时这一句直接决定人能不能
+    // 判断该主机是改了站点结构还是在做软 404 跳转。
+    assertRedirectAllowed(target, location);
     if (redirectCount >= MAX_REDIRECTS) {
       throw new NetworkPolicyError("TOO_MANY_REDIRECTS", "Too many upstream redirects");
     }
-    const location = response.headers.location;
     if (!location) {
       throw new NetworkPolicyError("REDIRECT_WITHOUT_LOCATION", "Redirect has no Location header");
     }
@@ -414,11 +429,17 @@ async function requestOnce(
 
   const contentType = response.headers["content-type"] ?? "";
   const normalizedContentType = contentType.toLowerCase();
+  // `text` 刻意**不**按 content-type 判定。RFC 9309 §2.3 要求 robots.txt 为 text/plain，但实测
+  // 18 个已登记主机里有 8 个（多为高校就业网）用别的 MIME 提供 robots.txt。按 MIME 从严会把
+  // 它们记成「站点禁止」——那是 MIME 不规范，不是访问政策。是否真的拿到 robots.txt 改由内容
+  // 判定，见 `robots-fetch.ts`。
   const expectedContentType =
-    responseKind === "json"
-      ? normalizedContentType.includes("application/json")
-      : normalizedContentType.includes("text/html") ||
-        normalizedContentType.includes("application/xhtml+xml");
+    responseKind === "text"
+      ? true
+      : responseKind === "json"
+        ? normalizedContentType.includes("application/json")
+        : normalizedContentType.includes("text/html") ||
+          normalizedContentType.includes("application/xhtml+xml");
   if (!expectedContentType) {
     throw new NetworkPolicyError(
       "UNEXPECTED_CONTENT_TYPE",
@@ -566,4 +587,32 @@ export async function safeRequestHtml(
     );
   }
   throw lastError;
+}
+
+/**
+ * 取回 `text/plain` 资源。目前只用于 ADR-0033 的 `robots.txt` 取证。
+ *
+ * 刻意**不重试**：robots.txt 取不到就是取不到，按 fail-closed 记为禁止即可，重试只会在同一
+ * 主机上多打几次请求而不改变结论。这与 JSON/HTML 抓取不同——那两者失败会丢岗位数据。
+ */
+export async function safeRequestText(
+  spec: RequestSpec,
+  targets: SourceTarget[],
+  options: SafeRequestOptions = {},
+): Promise<SafePlainTextHttpResult> {
+  const result = await requestOnce(spec, targets, "text", options);
+  if (result.status < 200 || result.status >= 300) {
+    throw new NetworkPolicyError(
+      `UPSTREAM_HTTP_${result.status}`,
+      `Upstream returned HTTP ${result.status}`,
+      result,
+    );
+  }
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(result.body);
+  } catch {
+    throw new NetworkPolicyError("INVALID_TEXT", "Upstream response is not valid UTF-8 text");
+  }
+  return { ...result, text };
 }

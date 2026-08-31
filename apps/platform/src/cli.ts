@@ -21,6 +21,7 @@ import {
   suppressJobPublication,
 } from "./catalog/publication-reconciliation.js";
 import { databaseUrlForRuntime, loadPlatformConfig } from "./config/platform-config.js";
+import { runAccessPolicyProbe } from "./ingestion/access-policy-probe.js";
 import { runBatchImport } from "./ingestion/batch-import.js";
 import { importManualBrowserSnapshot } from "./ingestion/manual-browser-import.js";
 import { runSourceProbe } from "./ingestion/probe.js";
@@ -564,6 +565,33 @@ program
     } finally {
       await db.destroy();
     }
+  });
+
+program
+  .command("source-access-policy-probe")
+  .description(
+    "ADR-0033 首次取证：逐主机取回 robots.txt 并按已登记 fetchTargets 判定；只产出证据草稿，不写配置",
+  )
+  .argument("[source-key]", "来源配置键；省略时处理 config/sources 中的全部来源")
+  .option("--confirm-live", "确认本次会对已登记主机各发起一次 GET /robots.txt")
+  .action(async (sourceKey: string | undefined, options: { confirmLive?: boolean }) => {
+    const appConfig = loadAppConfig();
+    console.info(
+      JSON.stringify(
+        await runAccessPolicyProbe({
+          runtime: {
+            appEnv: appConfig.appEnv,
+            enableSourceProbe: appConfig.enableSourceProbe,
+            workspaceRoot: appConfig.workspaceRoot,
+            requestIntervalMs: appConfig.probeRequestIntervalMs,
+          },
+          ...(sourceKey ? { sourceKeys: [sourceKey] } : {}),
+          liveProbeApproved: options.confirmLive === true,
+        }),
+        null,
+        2,
+      ),
+    );
   });
 
 program

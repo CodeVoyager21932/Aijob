@@ -26,6 +26,7 @@
     "source:candidate-audit": "pnpm --filter @aijob/platform cli source-candidate-audit",
     "source:candidates": "pnpm --filter @aijob/platform cli source-candidates",
     "source:import-browser-snapshot": "pnpm --filter @aijob/platform cli source-import-browser-snapshot",
+    "source:access-policy-probe": "pnpm --filter @aijob/platform cli source-access-policy-probe",
     "source:probe": "pnpm --filter @aijob/platform cli source-probe",
     "source:refresh-disable": "pnpm --filter @aijob/platform cli source-refresh-disable",
     "source:refresh-enable": "pnpm --filter @aijob/platform cli source-refresh-enable",

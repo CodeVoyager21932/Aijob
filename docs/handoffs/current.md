@@ -160,6 +160,26 @@ ADR-0035 §一 写「租户配置的 `category` 从 `"3"` 放开到校招与实�
 5. 触网边界按 `AGENTS.md` 原文：配置中已显式启用的确定性来源可由本机 `collector-worker` 定时刷新；只有首次启用、扩大请求范围、恢复暂停来源和浏览器快照需人工明确操作。不复用 OS-1–OS-7 切片模板，不启动服务器就绪工作。
 6. 对账必须**周期性运行**才能保证撤回及时。当前只有 CLI 入口，尚未接进 `collector-worker` 的刷新周期；接线前，来源被暂停到指针被撤回之间存在时间窗，需依赖 `catalog-suppress-job` 兜底。
 
+### ADR-0033 首次取证通路已建成并跑完一轮
+
+`pnpm source:access-policy-probe [source-key] -- --confirm-live`：按已登记 fetchTargets 去重出主机，
+逐主机取 `GET /robots.txt`，原文落 `.data/access-policy/`，输出可直接粘贴的 `accessPolicyEvidence.robots`
+草稿与逐来源判定。**刻意不写配置**——`termsOfService` 半边要人读条款、摘录原句、判断有无禁止聚合条款，
+不能由机器生成；`enforceAccessPolicyEvidence` 会保证证据不全时 `accessPolicyAccepted` 根本设不上 `pass`。
+
+`/robots.txt` 与白名单的关系在 `robots-fetch.ts` 里定下来：**为每个主机现造一条只含该路径的目标**
+（精确路径、GET、https、443、零查询参数、拒绝跳转），主机必须已出现在该来源已登记的 fetchTargets 中。
+不把该路径加进任何来源的配置——那会顺带放宽那个来源的获准访问范围。
+
+2026-08-31 实测（18 主机 / 18 次请求）详见[取证记录](../evidence/ingestion/access-policy-first-evidence-2026-08-31.md)。
+结论：**7 通过 / 27 不通过**，而 27 个里有 **26 个的根因是「站点没有 robots.txt」而不是「站点禁止」**
+（7 个主机 404、1 个软 404 回 HTML、2 个跳转到 404 页；只有 1 个是 403）。
+
+**因此有一条待 coco 决定：404 是否等于禁止。** ADR-0033 写「取不到即视为禁止」，该理由对超时、DNS
+失败、403 成立，但 404 是明确的 HTTP 答复而非取回失败，RFC 9309 §2.3.1.3 的指引正好相反。按现规则
+19/34 来源（含全部高校线与百度、京东、飞书）永久不通过。这与 ADR-0035 撤销「`unknown` 学历不计入」
+用的是同一条理由：不能用缺席做否定推断。规则若要改需更新 ADR-0033。
+
 ### 接 ADR-0033 访问政策复核的顺序陷阱（务必先读）
 
 `decideAccessPolicyRecheck` 目前**零生产调用**，看起来只差一步接线。但它在 `recordedEvidence === null` 时返回 `pause`，而**34 份配置的 `policy.accessPolicyEvidence` 全部为 `null`**。因此直接把它接进 `collector-worker` 的刷新前置，会让每个来源一到刷新就被 `ACCESS_POLICY_EVIDENCE_MISSING` 暂停——**目前 7 个能自动跑的确定性来源会全部熄火**，比不接更糟。
