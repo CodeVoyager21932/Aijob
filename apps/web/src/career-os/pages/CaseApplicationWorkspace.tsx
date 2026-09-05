@@ -13,6 +13,7 @@ import {
   manualApplicationStatusCopy,
   toApplicationCaseEventView,
 } from "../application-event-view";
+import { ApplicationHandoffLink } from "../components/ApplicationHandoffLink";
 import { Icon } from "../components/Icon";
 
 function eventTime(value: string): string {
@@ -131,14 +132,16 @@ export function CaseApplicationWorkspace({
           <h2 id="application-handoff-title">由你完成最后提交</h2>
           <p>Aijob 不会替你填写、登录或提交。打开岗位页面只是交接动作，不会自动改成“已投递”。</p>
         </div>
-        {link ? (
+        {applicationCase.jobContext.kind === "public" ? (
+          <ApplicationHandoffLink handoff={applicationCase.jobContext.applicationHandoff} />
+        ) : link ? (
           <a
             className="career-button career-button--quiet"
             href={link}
             target="_blank"
             rel="noopener noreferrer"
           >
-            {applicationCase.jobContext.kind === "public" ? "打开官方投递页面" : "打开用户提供链接"}
+            打开用户提供链接
             <Icon name="external" size={16} />
           </a>
         ) : (

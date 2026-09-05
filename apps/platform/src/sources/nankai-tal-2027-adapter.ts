@@ -143,6 +143,7 @@ export function normalizeNankaiTalRole(input: {
     activityState: "active" as const,
     sourceUrl: NANKAI_TAL_SOURCE_URL,
     applyUrl: input.page.applyUrl,
+    applicationLinkKind: "official_list_fallback" as const,
     qualityFlags: [
       { code: "ROLE_LEVEL_DUTIES_NOT_STATED", detail: input.role },
       { code: "SHARED_APPLY_LANDING_PAGE", detail: input.page.applyUrl },

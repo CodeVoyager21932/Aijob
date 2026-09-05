@@ -207,6 +207,7 @@ export async function persistNormalizedOfficialJob(
         activity_state: normalized.activityState,
         source_url: normalized.sourceUrl,
         apply_url: normalized.applyUrl,
+        application_link_kind: normalized.applicationLinkKind,
         quality_flags: canonicalJson(normalized.qualityFlags),
       })
       .onConflict((conflict) =>

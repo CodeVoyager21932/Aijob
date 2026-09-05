@@ -175,6 +175,8 @@ export function normalizeOfficialAccountManualJob(input: {
     activityState: "active" as const,
     sourceUrl: sourcePageUrl,
     applyUrl: job.application.type === "official_url" ? job.application.url : null,
+    applicationLinkKind:
+      job.application.type === "official_url" ? ("exact" as const) : ("missing" as const),
     qualityFlags: [
       { code: "MANUAL_OFFICIAL_ACCOUNT_CAPTURE", detail: job.recruitmentChannel },
       ...(family.requiresManualReview

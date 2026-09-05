@@ -42,6 +42,7 @@ describe("M1 requirement view", () => {
     const caseId = randomUUID();
     const context = { kind: "private" as const, requirementSetRevision: 1 };
     const data: ApplicationCaseRequirements = {
+      sourceUnits: [],
       caseId,
       requirementContext: context,
       revision: 4,

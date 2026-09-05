@@ -13,16 +13,16 @@ import {
   CreateResumeReviewResponseSchema,
   CurrentResumeDocumentSchema,
   CurrentResumeReviewResponseSchema,
-  DeleteApplicationCaseResponseSchema,
   DecideResumeReviewSuggestionResponseSchema,
+  DeleteApplicationCaseResponseSchema,
   DeleteResumeDocumentResponseSchema,
   GetCaseDebriefResponseSchema,
-  PrepareCaseDebriefResponseSchema,
-  ProfileDeletionSchema,
   LegacyResumeContentConversionSchema,
   ListResumeDocumentContentRevisionsResponseSchema,
   ListResumeDocumentLayoutRevisionsResponseSchema,
   ListResumeDocumentsResponseSchema,
+  PrepareCaseDebriefResponseSchema,
+  ProfileDeletionSchema,
   PutResumeDocumentContentRevisionResponseSchema,
   PutResumeDocumentLayoutRevisionResponseSchema,
   ResumeDocumentSchema,
@@ -40,6 +40,7 @@ import {
   findActiveSession,
   type OwnerContext,
 } from "../identity/session-repository.js";
+import { deleteRequirementFixtures } from "../lib/immutable-fixture-cleanup.js";
 import { DELETION_RECEIPT_COOKIE_NAME } from "../profile/routes.js";
 import { runOneOwnerTask } from "../workers/owner-task-worker.js";
 
@@ -325,6 +326,21 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
           crawl_interval: "24h",
           policy_notes: "Offline Resume Document API fixture.",
           reviewed_at: new Date(),
+        })
+        .execute();
+      await transaction
+        .insertInto("source_control.source_apply_targets")
+        .values({
+          id: randomUUID(),
+          source_id: sourceId,
+          policy_version: 1,
+          method: "GET",
+          scheme: "https",
+          host: new URL(sourceUrl).hostname,
+          port: 443,
+          path_prefix: "/jobs/",
+          allow_redirects: false,
+          allowed_query_parameters: [],
         })
         .execute();
       await transaction
@@ -705,10 +721,7 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       .set({ active_requirement_set_id: null })
       .where("id", "in", [publicVersionV1Id, publicVersionV2Id])
       .execute();
-    await db
-      .deleteFrom("catalog.job_requirement_sets")
-      .where("id", "in", [publicRequirementV1Id, publicRequirementV2Id])
-      .execute();
+    await deleteRequirementFixtures(db, [publicVersionV1Id, publicVersionV2Id]);
     await db
       .deleteFrom("catalog.published_job_versions")
       .where("id", "in", [publicVersionV1Id, publicVersionV2Id])
@@ -721,6 +734,10 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
     await db.deleteFrom("ingestion.source_job_records").where("id", "=", sourceRecordId).execute();
     await db
       .deleteFrom("source_control.source_runtime_states")
+      .where("source_id", "=", sourceId)
+      .execute();
+    await db
+      .deleteFrom("source_control.source_apply_targets")
       .where("source_id", "=", sourceId)
       .execute();
     await db
@@ -1606,6 +1623,9 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
     expect(privateReviewCompleted.requirements.map(({ id }) => id)).toEqual([
       privateRequirementItemId,
     ]);
+    expect(privateReviewCompleted.sourceUnits).toEqual(privateReviewCreated.sourceUnits);
+    // This fixture predates v5: reading history must not invent source units.
+    expect(privateReviewCompleted.sourceUnits).toEqual([]);
     const privateSuggestion = privateReviewCompleted.review?.suggestions[0];
     if (!privateSuggestion) throw new Error("PRIVATE_REVIEW_SUGGESTION_MISSING");
     if (privateSuggestion.schemaVersion !== "resume-review-suggestion-v2") {
@@ -1894,9 +1914,9 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       expect(legacyResponse.statusCode, JSON.stringify(legacyResponse.json())).toBe(202);
       const legacy = CreateResumeReviewResponseSchema.parse(legacyResponse.json());
       expect(legacy.review.reviewRun.schemaVersion).toBe("resume-review-run-v1");
-      expect(await runOneOwnerTask({ db, config: legacyConfig, workerId: "review-v1-worker" })).toBe(
-        true,
-      );
+      expect(
+        await runOneOwnerTask({ db, config: legacyConfig, workerId: "review-v1-worker" }),
+      ).toBe(true);
       const legacyStored = await db
         .selectFrom("profile.resume_review_runs")
         .select([
@@ -2090,9 +2110,9 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
     ).rejects.toThrow("RESUME_REVIEW_REQUIREMENT_REFERENCE_INVALID");
 
     const disabledFallbackRun = await createControlledAiReview("controlled-ai-disabled-fallback");
-    expect(
-      await runOneOwnerTask({ db, config: config(), workerId: "review-v2-ai-disabled" }),
-    ).toBe(true);
+    expect(await runOneOwnerTask({ db, config: config(), workerId: "review-v2-ai-disabled" })).toBe(
+      true,
+    );
     expect((await currentReview()).review?.reviewRun).toMatchObject({
       id: disabledFallbackRun.review.reviewRun.id,
       status: "completed",
@@ -2124,6 +2144,9 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
     });
 
     const referenceFallbackRun = await createControlledAiReview("controlled-ai-reference-fallback");
+    expect((await currentReview()).review?.reviewRun.id).toBe(
+      referenceFallbackRun.review.reviewRun.id,
+    );
     const invalidReferenceFetch: typeof fetch = async () =>
       new Response(
         JSON.stringify({
@@ -2159,6 +2182,31 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       status: "completed",
       usedTemplateFallback: true,
       fallbackReasonCode: "AI_REQUIREMENT_REFERENCE_INVALID",
+    });
+
+    // Completing an older queued run after a newer one was created must not make it current.
+    const olderQueued = await createControlledAiReview("older-queued-review");
+    const newerQueued = await createControlledAiReview("newer-queued-review");
+    expect(await runOneOwnerTask({ db, config: config(), workerId: "complete-older-review" })).toBe(
+      true,
+    );
+    expect(
+      await db
+        .selectFrom("profile.resume_review_runs")
+        .select("status")
+        .where("id", "=", olderQueued.review.reviewRun.id)
+        .executeTakeFirst(),
+    ).toMatchObject({ status: "completed" });
+    expect((await currentReview()).review?.reviewRun).toMatchObject({
+      id: newerQueued.review.reviewRun.id,
+      status: "pending",
+    });
+    expect(await runOneOwnerTask({ db, config: config(), workerId: "complete-newer-review" })).toBe(
+      true,
+    );
+    expect((await currentReview()).review?.reviewRun).toMatchObject({
+      id: newerQueued.review.reviewRun.id,
+      status: "completed",
     });
   });
 

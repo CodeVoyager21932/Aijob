@@ -11,6 +11,7 @@ export type ResumeAnalysisStorageMetadata = {
 // `Generated<Date>` rather than nesting one ColumnType inside another.
 export type Timestamp = Date;
 export type BinaryValue = ColumnType<Uint8Array, Uint8Array, Uint8Array>;
+export type ApplicationLinkKind = "exact" | "official_list_fallback" | "missing";
 
 export interface OrganizationTable {
   id: string;
@@ -257,6 +258,7 @@ export interface SourceJobRevisionTable {
   activity_state: string;
   source_url: string;
   apply_url: string | null;
+  application_link_kind: Generated<ApplicationLinkKind>;
   quality_flags: JsonValue;
   created_at: Generated<Timestamp>;
 }
@@ -337,6 +339,7 @@ export interface PublishedJobVersionTable {
   activity_state: string;
   source_url: string;
   apply_url: string | null;
+  application_link_kind: Generated<ApplicationLinkKind>;
   effective_at: Timestamp;
   created_at: Generated<Timestamp>;
   active_requirement_set_id: Generated<string | null>;
@@ -352,6 +355,7 @@ export interface JobRequirementSetTable {
   id: string;
   published_job_version_id: string;
   schema_version: string;
+  source_units: Generated<JsonValue>;
   requirements: JsonValue;
   content_hash: string;
   created_at: Generated<Timestamp>;
@@ -747,6 +751,7 @@ export interface PrivateJobSnapshotTable {
 }
 
 export interface PrivateJobSnapshotRevisionTable {
+  source_units: Generated<JsonValue>;
   id: Generated<string>;
   owner_id: string;
   owner_epoch: number;
@@ -1136,6 +1141,7 @@ export interface CurrentJobEligibilityView extends InternalJobPreviewView {
   deadline_at: JsonValue;
   freshness_state: string;
   effective_activity_state: string;
+  application_link_kind: ApplicationLinkKind;
   /** ADR-0035：可达性判定原值，供审计与「排除了多少」的测量使用。 */
   reachability_verdict: string;
   /** ADR-0035：在校生可投。`reachable` 与 `unknown` 均为真。只约束 Alpha。 */
@@ -1169,6 +1175,7 @@ export interface JobVersionEligibilityView {
   responsibilities: string;
   requirements: string;
   apply_url: string | null;
+  application_link_kind: ApplicationLinkKind;
   has_blocking_review: boolean;
   // ADR-0034：人工强制下架。与 closure_detectable 一样只约束 Alpha，不进 blocking_reasons。
   publication_suppressed: boolean;

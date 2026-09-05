@@ -5,8 +5,9 @@ import { createDatabase, type Database, type JsonValue, migrateToLatest } from "
 import { type Kysely, sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createAnonymousSession } from "../identity/session-repository.js";
-import { enqueueRecommendationRun } from "../matching/service.js";
+import { deleteRequirementFixtures } from "../lib/immutable-fixture-cleanup.js";
 import { compareRecommendations } from "../matching/ranking.js";
+import { enqueueRecommendationRun } from "../matching/service.js";
 import {
   putJobPreferences,
   putProfileFacts,
@@ -655,10 +656,7 @@ describeWithDatabase("single-PostgreSQL 1000-job capacity regression", () => {
         .deleteFrom("catalog.job_condition_projections")
         .where("published_job_version_id", "in", versionIds)
         .execute();
-      await db
-        .deleteFrom("catalog.job_requirement_sets")
-        .where("published_job_version_id", "in", versionIds)
-        .execute();
+      await deleteRequirementFixtures(db, versionIds);
       await db
         .updateTable("catalog.published_jobs")
         .set({ current_version_id: null, public_version_id: null })

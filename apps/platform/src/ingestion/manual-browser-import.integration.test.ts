@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { createDatabase, type Database } from "@aijob/database";
 import type { Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { deleteRequirementFixtures } from "../lib/immutable-fixture-cleanup.js";
 import { loadSourceConfig } from "../sources/source-config.js";
 import { registerSourceConfig } from "../sources/source-registry.js";
 import { importManualBrowserSnapshot } from "./manual-browser-import.js";
@@ -58,10 +59,7 @@ describeWithDatabase("manual browser snapshot import", () => {
             .set({ active_requirement_set_id: null })
             .where("id", "in", versionIds)
             .execute();
-          await db
-            .deleteFrom("catalog.job_requirement_sets")
-            .where("published_job_version_id", "in", versionIds)
-            .execute();
+          await deleteRequirementFixtures(db, versionIds);
         }
         if (jobIds.length > 0) {
           await db
@@ -294,13 +292,7 @@ describeWithDatabase("manual browser snapshot import", () => {
 
     const run = await db
       .selectFrom("ingestion.crawl_runs")
-      .select([
-        "run_mode",
-        "request_count",
-        "discovered_count",
-        "normalized_count",
-        "completion",
-      ])
+      .select(["run_mode", "request_count", "discovered_count", "normalized_count", "completion"])
       .where("id", "=", first.runId)
       .executeTakeFirstOrThrow();
     expect(run).toEqual({

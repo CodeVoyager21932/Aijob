@@ -277,6 +277,7 @@ export function normalizeTencentJob(input: {
     activityState: "active" as const,
     sourceUrl,
     applyUrl: sourceUrl,
+    applicationLinkKind: "exact" as const,
     qualityFlags,
     reviewReasons,
   };

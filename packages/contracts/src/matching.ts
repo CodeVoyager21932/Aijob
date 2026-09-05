@@ -43,6 +43,76 @@ export const RequirementSourceSpanSchema = z.object({
 });
 export type RequirementSourceSpan = z.infer<typeof RequirementSourceSpanSchema>;
 
+export const StructuredRequirementFieldSchema = z.enum([
+  "locations",
+  "earliest_start_date",
+  "weekly_attendance_days",
+  "duration_months",
+  "graduation_years",
+  "education_levels",
+  "majors",
+  "languages",
+]);
+export type StructuredRequirementField = z.infer<typeof StructuredRequirementFieldSchema>;
+
+export const RequirementSourceOriginSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("jd_clause") }).strict(),
+  z
+    .object({
+      kind: z.literal("structured_field"),
+      field: StructuredRequirementFieldSchema,
+    })
+    .strict(),
+  z.object({ kind: z.literal("private_jd_clause") }).strict(),
+]);
+export type RequirementSourceOrigin = z.infer<typeof RequirementSourceOriginSchema>;
+
+const RequirementSourceUnitCommonFields = {
+  id: IdentifierSchema,
+  text: z.string().trim().min(1),
+  evidenceRefs: z.array(IdentifierSchema).min(1),
+};
+
+export const JdClauseRequirementSourceUnitSchema = z
+  .object({
+    ...RequirementSourceUnitCommonFields,
+    origin: RequirementSourceOriginSchema.options[0],
+    section: z.literal("requirements"),
+    sourceSpan: RequirementSourceSpanSchema,
+  })
+  .strict();
+export type JdClauseRequirementSourceUnit = z.infer<typeof JdClauseRequirementSourceUnitSchema>;
+
+export const StructuredFieldRequirementSourceUnitSchema = z
+  .object({
+    ...RequirementSourceUnitCommonFields,
+    origin: RequirementSourceOriginSchema.options[1],
+    sourceSpan: z.null(),
+  })
+  .strict();
+export type StructuredFieldRequirementSourceUnit = z.infer<
+  typeof StructuredFieldRequirementSourceUnitSchema
+>;
+
+export const PrivateJdClauseRequirementSourceUnitSchema = z
+  .object({
+    ...RequirementSourceUnitCommonFields,
+    origin: RequirementSourceOriginSchema.options[2],
+    section: z.literal("requirements"),
+    sourceSpan: RequirementSourceSpanSchema.nullable(),
+  })
+  .strict();
+export type PrivateJdClauseRequirementSourceUnit = z.infer<
+  typeof PrivateJdClauseRequirementSourceUnitSchema
+>;
+
+export const RequirementSourceUnitSchema = z.union([
+  JdClauseRequirementSourceUnitSchema,
+  StructuredFieldRequirementSourceUnitSchema,
+  PrivateJdClauseRequirementSourceUnitSchema,
+]);
+export type RequirementSourceUnit = z.infer<typeof RequirementSourceUnitSchema>;
+
 const JobRequirementInputSchema = z.object({
   id: IdentifierSchema,
   kind: RequirementKindSchema,
@@ -60,11 +130,18 @@ const JobRequirementInputSchema = z.object({
   sourceText: z.string().trim().min(1),
   evidenceRefs: z.array(IdentifierSchema).min(1),
   sourceSpan: RequirementSourceSpanSchema.nullable().optional(),
+  sourceUnitId: IdentifierSchema.optional(),
   necessity: RequirementNecessitySchema.optional(),
   required: z.boolean().optional(),
 });
 
-export const JobRequirementSchema = JobRequirementInputSchema.superRefine((value, context) => {
+function requireRequirementNecessity(
+  value: {
+    necessity?: RequirementNecessity | undefined;
+    required?: boolean | undefined;
+  },
+  context: z.RefinementCtx,
+): void {
   if (value.necessity === undefined && value.required === undefined) {
     context.addIssue({
       code: "custom",
@@ -72,22 +149,84 @@ export const JobRequirementSchema = JobRequirementInputSchema.superRefine((value
       path: ["necessity"],
     });
   }
-}).transform(({ required, necessity, sourceSpan, ...value }) => ({
+}
+
+const normalizeJobRequirement = <T extends z.infer<typeof JobRequirementInputSchema>>({
+  required,
+  necessity,
+  sourceSpan,
+  ...value
+}: T) => ({
   ...value,
   necessity: necessity ?? (required ? "required" : "preferred"),
   sourceSpan: sourceSpan ?? null,
-}));
+});
+
+export const JobRequirementSchema = JobRequirementInputSchema.superRefine(
+  requireRequirementNecessity,
+).transform(normalizeJobRequirement);
 export type JobRequirement = z.infer<typeof JobRequirementSchema>;
 
-export const JobRequirementSetSchema = z.object({
+export const JobRequirementV5Schema = JobRequirementInputSchema.extend({
+  sourceUnitId: IdentifierSchema,
+})
+  .superRefine(requireRequirementNecessity)
+  .transform(normalizeJobRequirement);
+export type JobRequirementV5 = z.infer<typeof JobRequirementV5Schema>;
+
+const JobRequirementSetFields = {
   id: IdentifierSchema,
   publishedJobVersionId: IdentifierSchema,
   schemaVersion: z.string().trim().min(1),
-  requirements: z.array(JobRequirementSchema),
+  sourceUnits: z.array(RequirementSourceUnitSchema).default([]),
   contentHash: Sha256Schema,
   createdAt: TimestampSchema,
+};
+
+export const JobRequirementSetSchema = z.object({
+  ...JobRequirementSetFields,
+  requirements: z.array(JobRequirementSchema),
 });
 export type JobRequirementSet = z.infer<typeof JobRequirementSetSchema>;
+
+export const JobRequirementSetV5Schema = z
+  .object({
+    ...JobRequirementSetFields,
+    requirements: z.array(JobRequirementV5Schema),
+  })
+  .superRefine((value, context) => {
+    const sourceUnitIds = new Set<string>();
+    for (const [index, sourceUnit] of value.sourceUnits.entries()) {
+      if (sourceUnitIds.has(sourceUnit.id)) {
+        context.addIssue({
+          code: "custom",
+          message: "source unit IDs must be unique",
+          path: ["sourceUnits", index, "id"],
+        });
+      }
+      sourceUnitIds.add(sourceUnit.id);
+    }
+
+    const assertionIds = new Set<string>();
+    for (const [index, requirement] of value.requirements.entries()) {
+      if (assertionIds.has(requirement.id)) {
+        context.addIssue({
+          code: "custom",
+          message: "requirement assertion IDs must be unique",
+          path: ["requirements", index, "id"],
+        });
+      }
+      assertionIds.add(requirement.id);
+      if (!sourceUnitIds.has(requirement.sourceUnitId)) {
+        context.addIssue({
+          code: "custom",
+          message: "requirement sourceUnitId must reference an existing source unit",
+          path: ["requirements", index, "sourceUnitId"],
+        });
+      }
+    }
+  });
+export type JobRequirementSetV5 = z.infer<typeof JobRequirementSetV5Schema>;
 
 const MatchAxisReasonSchema = z.object({
   code: z.string().trim().min(1),

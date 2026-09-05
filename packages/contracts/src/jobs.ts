@@ -88,6 +88,42 @@ export const ApplicationMethodSchema = z.discriminatedUnion("type", [
 ]);
 export type ApplicationMethod = z.infer<typeof ApplicationMethodSchema>;
 
+export const ApplicationLinkKindSchema = z.enum(["exact", "official_list_fallback", "missing"]);
+export type ApplicationLinkKind = z.infer<typeof ApplicationLinkKindSchema>;
+
+export const ApplicationHandoffSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("exact"),
+      url: HttpsUrlSchema,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("official_list_fallback"),
+      url: HttpsUrlSchema,
+      locator: z
+        .object({
+          title: z.string().trim().min(1),
+          sourceJobId: IdentifierSchema,
+        })
+        .strict(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("missing"),
+      reasonCode: z
+        .string()
+        .trim()
+        .min(1)
+        .max(100)
+        .regex(/^[A-Z0-9_]+$/),
+    })
+    .strict(),
+]);
+export type ApplicationHandoff = z.infer<typeof ApplicationHandoffSchema>;
+
 export const JobSummarySchema = z.object({
   id: IdentifierSchema,
   publishedJobVersionId: IdentifierSchema.nullable(),
@@ -136,6 +172,7 @@ export const JobDetailSchema = JobSummarySchema.omit({ source: true }).extend({
   deadlineAt: fieldValueSchema(TimestampSchema),
   responsibilitiesText: fieldValueSchema(z.string().trim().min(1)),
   requirementsText: fieldValueSchema(z.string().trim().min(1)),
+  applicationHandoff: ApplicationHandoffSchema,
   officialLink: HttpsUrlSchema.nullable(),
   applicationMethods: z.array(ApplicationMethodSchema).max(5).optional(),
 });

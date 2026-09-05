@@ -192,6 +192,24 @@ describe("ApplicationCase contracts", () => {
         publishedJobVersionId: ids.version,
         requirementSetId: ids.requirementSet,
         officialUrl: "https://careers.example.com/jobs/1",
+        applicationHandoff: {
+          kind: "exact",
+          url: "https://careers.example.com/jobs/1",
+        },
+      }).success,
+    ).toBe(true);
+    expect(
+      PublicJobReferenceSchema.safeParse({
+        kind: "public",
+        publishedJobId: ids.job,
+        publishedJobVersionId: ids.version,
+        requirementSetId: ids.requirementSet,
+        officialUrl: null,
+        applicationHandoff: {
+          kind: "official_list_fallback",
+          url: "https://careers.example.com/campus/jobs",
+          locator: { title: "产品实习生", sourceJobId: "source-job-1" },
+        },
       }).success,
     ).toBe(true);
     expect(
@@ -375,6 +393,10 @@ describe("ApplicationCase contracts", () => {
         publishedJobVersionId: ids.version,
         requirementSetId: ids.requirementSet,
         officialUrl: "https://careers.example.com/jobs/1/apply",
+        applicationHandoff: {
+          kind: "exact",
+          url: "https://careers.example.com/jobs/1/apply",
+        },
       },
       jobDisplay: publicJobDisplay,
       stage: "interested" as const,
@@ -624,7 +646,7 @@ describe("ApplicationCase contracts", () => {
     };
 
     expect(CaseRequirementStateReadModelSchema.safeParse(virtualState).success).toBe(true);
-    expect(ApplicationCaseRequirementsSchema.safeParse(requirements).success).toBe(true);
+    expect(ApplicationCaseRequirementsSchema.parse(requirements).sourceUnits).toEqual([]);
     expect(
       ApplicationCaseRequirementsSchema.safeParse({
         ...requirements,

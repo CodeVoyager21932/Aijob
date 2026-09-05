@@ -3,9 +3,9 @@ import { JobSearchQuerySchema } from "@aijob/contracts";
 import { describe, expect, it } from "vitest";
 import {
   buildCatalogFacets,
-  collectCatalogSearchItems,
   type CatalogSearchRecord,
   classifyCatalogRecord,
+  collectCatalogSearchItems,
   InvalidCatalogCursorError,
   searchCatalogRecords,
 } from "./filtering.js";
@@ -56,6 +56,7 @@ function job(id: string, overrides: Partial<JobDetail> = {}): CatalogSearchRecor
     languages: unknown(),
     responsibilitiesText: known("负责产品需求分析", "responsibilities"),
     requirementsText: known("每周至少到岗四天", "requirements"),
+    applicationHandoff: { kind: "missing", reasonCode: "APPLICATION_LINK_MISSING" },
     officialLink: `https://example.com/jobs/${id}/apply`,
     ...overrides,
   };

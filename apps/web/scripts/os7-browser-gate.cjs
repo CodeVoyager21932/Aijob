@@ -1290,5 +1290,7 @@ async function main() {
 
 main().catch((error) => {
   console.error(error);
-  process.exitCode = 1;
+  // Fixture setup can fail before main's browser/database finally block.
+  // Terminate the subprocess so the isolated orchestrator can clean its databases and services.
+  process.exit(1);
 });

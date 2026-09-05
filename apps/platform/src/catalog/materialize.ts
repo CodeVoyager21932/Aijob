@@ -22,7 +22,7 @@ import {
 type RevisionRow = Selectable<Database["ingestion.source_job_revisions"]>;
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
-const REQUIREMENT_SCHEMA_VERSION = "deterministic-requirements-v4";
+const REQUIREMENT_SCHEMA_VERSION = "job-requirements-v5";
 const LOCAL_CATALOG_MATERIALIZATION_LOCK_KEY = "aijob:local-catalog-materialization:v1";
 
 const NumberFieldSchema = fieldValueSchema(z.number());
@@ -63,12 +63,14 @@ function requirementField<T>(
 const unknownProjection = { state: "unknown", reason: "source_not_stated" } as const;
 
 function projectedField(requirements: JobRequirement[], kind: RequirementKind): JsonValue {
-  const candidates = requirements.filter(
+  const allCandidates = requirements.filter(
     (requirement) =>
       requirement.kind === kind &&
       requirement.operator !== "unknown" &&
       requirement.necessity !== "optional",
   );
+  const required = allCandidates.filter((requirement) => requirement.necessity === "required");
+  const candidates = required.length > 0 ? required : allCandidates;
   if (candidates.length === 0) return unknownProjection;
 
   const values = candidates.map(({ expectedValue }) => expectedValue);
@@ -139,6 +141,7 @@ function versionContent(revision: RevisionRow) {
     activityState: revision.activity_state,
     sourceUrl: revision.source_url,
     applyUrl: revision.apply_url,
+    applicationLinkKind: revision.application_link_kind,
   };
 }
 
@@ -177,13 +180,17 @@ async function materializeRevision(
   revision: RevisionRow,
 ): Promise<{ createdVersion: boolean; createdRequirementSet: boolean }> {
   const publishedJobId = await findOrCreatePublishedJob(transaction, revision.source_job_record_id);
-  const contentHash = hashCanonicalJson(versionContent(revision));
+  const content = versionContent(revision);
+  const contentHash = hashCanonicalJson(content);
+  const { applicationLinkKind: _kind, ...legacyContent } = content;
+  const legacyContentHash = hashCanonicalJson(legacyContent);
   const structured = asObject(revision.structured_fields);
   let version = await transaction
     .selectFrom("catalog.published_job_versions")
     .selectAll()
     .where("published_job_id", "=", publishedJobId)
-    .where("content_hash", "=", contentHash)
+    .where("content_hash", "in", [contentHash, legacyContentHash])
+    .where("application_link_kind", "=", revision.application_link_kind)
     .executeTakeFirst();
   const createdVersion = !version;
   if (!version) {
@@ -223,6 +230,7 @@ async function materializeRevision(
         activity_state: revision.activity_state,
         source_url: revision.source_url,
         apply_url: revision.apply_url,
+        application_link_kind: revision.application_link_kind,
         effective_at: new Date(),
       })
       .returningAll()
@@ -247,42 +255,39 @@ async function materializeRevision(
     .where("id", "=", publishedJobId)
     .execute();
 
-  const sourceText = revision.requirements;
-  const structuredRequirements = decomposeKnownJobRequirements({
+  const requirementStructured = asObject(version.structured_fields);
+  const sourceText = version.requirements;
+  const structuredDecomposition = decomposeKnownJobRequirements({
     publishedJobVersionId: version.id,
     locations: requirementField(
-      parseField(revision.locations, StringListFieldSchema),
-      parseField(revision.locations, StringListFieldSchema).state === "known"
-        ? (parseField(revision.locations, StringListFieldSchema) as { value: string[] }).value.join(
-            "、",
-          )
-        : "",
+      parseField(version.locations, StringListFieldSchema),
+      "",
       "preferred",
     ),
     earliestStartDate: requirementField(
       parseField(
-        chooseField(revision.earliest_start_date, structured.arrivalTime),
+        chooseField(version.earliest_start_date, requirementStructured.arrivalTime),
         DateFieldSchema,
       ),
       exactRequirementExcerpt(sourceText, /(?:到岗|入职|开始实习)/),
     ),
     weeklyAttendanceDays: requirementField(
       parseField(
-        chooseField(revision.weekly_attendance_days, structured.weeklyAttendanceDays),
+        chooseField(version.weekly_attendance_days, requirementStructured.weeklyAttendanceDays),
         NumberFieldSchema,
       ),
       exactRequirementExcerpt(sourceText, /(?:每周|一周).*(?:天|工作日)/),
     ),
     durationMonths: requirementField(
       parseField(
-        chooseField(revision.duration_months, structured.durationMonths),
+        chooseField(version.duration_months, requirementStructured.durationMonths),
         NumberFieldSchema,
       ),
       exactRequirementExcerpt(sourceText, /(?:实习|连续).*(?:个)?月/),
     ),
     graduationYears: requirementField(
       parseField(
-        chooseField(revision.graduation_years, structured.graduationYears),
+        chooseField(version.graduation_years, requirementStructured.graduationYears),
         NumberListFieldSchema,
       ),
       exactRequirementExcerpt(
@@ -291,41 +296,45 @@ async function materializeRevision(
       ),
     ),
     educationLevels: requirementField(
-      parseField(revision.education_levels, StringListFieldSchema),
+      parseField(version.education_levels, StringListFieldSchema),
       exactRequirementExcerpt(sourceText, /(?:学历|大专|专科|本科|硕士|博士)/),
     ),
     majors: requirementField(
-      parseField(revision.majors, StringListFieldSchema),
+      parseField(version.majors, StringListFieldSchema),
       exactRequirementExcerpt(sourceText, /专业/),
     ),
     languages: requirementField(
-      parseField(revision.languages, StringListFieldSchema),
-      exactRequirementExcerpt(sourceText, /(?:英语|语言|CET[- ]?[46]|雅思|托福|TOEFL|IELTS)/i),
+      parseField(version.languages, StringListFieldSchema),
+      exactRequirementExcerpt(
+        sourceText,
+        /(?:英语|外语|语言能力|CET[- ]?[46]|雅思|托福|TOEFL|IELTS)/i,
+      ),
     ),
   });
-  const textualRequirements = decomposeTextualJobRequirements({
+  const textualDecomposition = decomposeTextualJobRequirements({
     publishedJobVersionId: version.id,
     sourceText,
-    evidenceRefPrefix: `source-job-revision:${revision.id}:requirements`,
+    evidenceRefPrefix: `source-job-revision:${version.source_job_revision_id}:requirements`,
   });
-  const requirementsBySource = new Map(
-    structuredRequirements.map((requirement) => [
-      `${requirement.kind}:${requirement.sourceText}`,
-      requirement,
-    ]),
+  const textualRequirements = textualDecomposition.requirements;
+  const structuredRequirements = structuredDecomposition.requirements.filter(
+    (structured) =>
+      !textualRequirements.some(
+        (textual) =>
+          textual.kind === structured.kind && textual.sourceText === structured.sourceText,
+      ),
   );
-  for (const requirement of textualRequirements) {
-    const key = `${requirement.kind}:${requirement.sourceText}`;
-    const existing = requirementsBySource.get(key);
-    if (!existing) {
-      requirementsBySource.set(key, requirement);
-    } else if (requirement.necessity === "preferred" && existing.necessity === "required") {
-      requirementsBySource.set(key, { ...existing, necessity: "preferred" });
-    }
-  }
-  const requirements = [...requirementsBySource.values()];
+  const requirements = [...structuredRequirements, ...textualRequirements];
+  const retainedStructuredUnits = new Set(
+    structuredRequirements.map((requirement) => requirement.sourceUnitId),
+  );
+  const sourceUnits = [
+    ...structuredDecomposition.sourceUnits.filter((unit) => retainedStructuredUnits.has(unit.id)),
+    ...textualDecomposition.sourceUnits,
+  ];
   const requirementHash = hashCanonicalJson({
     schemaVersion: REQUIREMENT_SCHEMA_VERSION,
+    sourceUnits,
     requirements,
   });
   const insertedRequirementSet = await transaction
@@ -334,6 +343,7 @@ async function materializeRevision(
       id: randomUUID(),
       published_job_version_id: version.id,
       schema_version: REQUIREMENT_SCHEMA_VERSION,
+      source_units: JSON.stringify(sourceUnits),
       requirements: JSON.stringify(requirements),
       content_hash: requirementHash,
     })
@@ -371,11 +381,7 @@ async function materializeRevision(
       ...projection,
     })
     .onConflict((conflict) =>
-      conflict.column("published_job_version_id").doUpdateSet({
-        requirement_set_id: requirementSetId,
-        ...projection,
-        updated_at: new Date(),
-      }),
+      conflict.columns(["published_job_version_id", "requirement_set_id"]).doNothing(),
     )
     .execute();
   await transaction

@@ -22,9 +22,11 @@ import { EvidenceState } from "../components/EvidenceState";
 import { Icon } from "../components/Icon";
 import { ModalSurface } from "../components/ModalSurface";
 import { RequirementInspector } from "../components/RequirementInspector";
+import { RequirementSourceUnits } from "../components/RequirementSourceUnits";
 import {
   getRequirementEvidenceIds,
   getRequirementState,
+  requirementAssertionLabel,
   requirementGroup,
   requirementGroups,
   requirementKindLabel,
@@ -263,7 +265,11 @@ export function CaseRequirementsWorkspace({
   if (!selectedRequirement || !data) {
     return (
       <div className="career-empty-state">
-        <strong>这个固定岗位版本没有可核对的要求</strong>
+        {data && data.sourceUnits.length > 0 ? (
+          <RequirementSourceUnits data={data} />
+        ) : (
+          <strong>这个固定岗位版本没有可核对的要求</strong>
+        )}
         <p>系统不会用推断内容填充空白。</p>
       </div>
     );
@@ -408,67 +414,91 @@ export function CaseRequirementsWorkspace({
           </div>
         ) : null}
 
-        <div className="career-requirement-groups">
-          {groupedRequirements.map((group) => (
-            <section
-              className={`career-requirement-group career-requirement-group--${group.value}`}
-              key={group.value}
-              aria-labelledby={`requirement-group-${group.value}`}
-            >
-              <header>
-                <div>
-                  <h3 id={`requirement-group-${group.value}`}>{group.label}</h3>
-                  <p>{group.description}</p>
-                </div>
-                <span>{group.requirements.length}</span>
-              </header>
-              {group.requirements.length > 0 ? (
-                <ul>
-                  {group.requirements.map((requirement) => {
-                    const state =
-                      drafts[requirement.id]?.state ??
-                      getRequirementState(data, requirement.id).state;
-                    return (
-                      <li key={requirement.id}>
-                        <button
-                          type="button"
-                          className={
-                            selectedRequirement.id === requirement.id ? "is-selected" : undefined
-                          }
-                          aria-pressed={selectedRequirement.id === requirement.id}
-                          data-requirement-trigger={requirement.id}
-                          disabled={commandMutation.isPending}
-                          onClick={() => selectRequirement(requirement.id)}
-                        >
-                          <span className="career-requirement-row__grip" aria-hidden="true">
-                            ···
-                          </span>
-                          <span className="career-requirement-row__content">
-                            <strong>{requirement.sourceText}</strong>
-                            <small>
-                              {requirementKindLabel(requirement.kind)} ·{" "}
-                              {requirementSourceLabel(data)}
-                            </small>
-                          </span>
-                          <EvidenceState state={state} />
-                          <Icon name="chevron" size={17} />
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <p className="career-requirement-group__empty">当前没有这一类要求。</p>
-              )}
-            </section>
-          ))}
-        </div>
+        {data.sourceUnits.length > 0 ? (
+          <RequirementSourceUnits
+            data={data}
+            renderAssertion={(requirement) => (
+              <button
+                type="button"
+                className={selectedRequirement.id === requirement.id ? "is-selected" : undefined}
+                aria-pressed={selectedRequirement.id === requirement.id}
+                data-requirement-trigger={requirement.id}
+                disabled={commandMutation.isPending}
+                onClick={() => selectRequirement(requirement.id)}
+              >
+                <span className="career-requirement-row__content">
+                  <strong>{requirementAssertionLabel(requirement)}</strong>
+                </span>
+                <EvidenceState
+                  state={
+                    drafts[requirement.id]?.state ?? getRequirementState(data, requirement.id).state
+                  }
+                />
+                <Icon name="chevron" size={17} />
+              </button>
+            )}
+          />
+        ) : (
+          <div className="career-requirement-groups">
+            {groupedRequirements.map((group) => (
+              <section
+                className={`career-requirement-group career-requirement-group--${group.value}`}
+                key={group.value}
+                aria-labelledby={`requirement-group-${group.value}`}
+              >
+                <header>
+                  <div>
+                    <h3 id={`requirement-group-${group.value}`}>{group.label}</h3>
+                    <p>{group.description}</p>
+                  </div>
+                  <span>{group.requirements.length}</span>
+                </header>
+                {group.requirements.length > 0 ? (
+                  <ul>
+                    {group.requirements.map((requirement) => {
+                      const state =
+                        drafts[requirement.id]?.state ??
+                        getRequirementState(data, requirement.id).state;
+                      return (
+                        <li key={requirement.id}>
+                          <button
+                            type="button"
+                            className={
+                              selectedRequirement.id === requirement.id ? "is-selected" : undefined
+                            }
+                            aria-pressed={selectedRequirement.id === requirement.id}
+                            data-requirement-trigger={requirement.id}
+                            disabled={commandMutation.isPending}
+                            onClick={() => selectRequirement(requirement.id)}
+                          >
+                            <span className="career-requirement-row__grip" aria-hidden="true">
+                              ···
+                            </span>
+                            <span className="career-requirement-row__content">
+                              <strong>{requirement.sourceText}</strong>
+                              <small>
+                                {requirementKindLabel(requirement.kind)} ·{" "}
+                                {requirementSourceLabel(data)}
+                              </small>
+                            </span>
+                            <EvidenceState state={state} />
+                            <Icon name="chevron" size={17} />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="career-requirement-group__empty">当前没有这一类要求。</p>
+                )}
+              </section>
+            ))}
+          </div>
+        )}
       </div>
 
       {!inspectorIsOverlay && isInspectorOpen ? (
-        <div className="career-context-panel is-open">
-          {requirementInspector}
-        </div>
+        <div className="career-context-panel is-open">{requirementInspector}</div>
       ) : null}
       {inspectorIsOverlay && isInspectorOpen ? (
         <ModalSurface

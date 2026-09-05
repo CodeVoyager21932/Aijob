@@ -19,6 +19,11 @@ import {
 import type { Database, JsonValue } from "@aijob/database";
 import { type Kysely, sql, type Transaction } from "kysely";
 import { z } from "zod";
+import {
+  loadPublicJobHandoffs,
+  missingPublicJobHandoff,
+  type PublicJobHandoff,
+} from "../catalog/public-job-handoff.js";
 import { assertActiveOwnerEpoch, type OwnerScope } from "../identity/session-repository.js";
 import { hashCanonicalJson } from "../lib/canonical-json.js";
 import { lockOwnerIdempotencyKey } from "../lib/idempotency.js";
@@ -50,7 +55,6 @@ interface ResumeDocumentReadRow {
   deleted_at: Date | null;
   created_at: Date;
   updated_at: Date;
-  public_official_url: string | null;
   private_title: string | null;
   private_company_name: string | null;
   private_source_label: string | null;
@@ -138,9 +142,6 @@ function documentReadQuery(db: DbExecutor) {
       "document.deleted_at",
       "document.created_at",
       "document.updated_at",
-      sql<string | null>`COALESCE(public_version.apply_url, public_version.source_url)`.as(
-        "public_official_url",
-      ),
       "private_revision.title as private_title",
       "private_revision.company_name as private_company_name",
       "private_revision.source_label as private_source_label",
@@ -150,7 +151,16 @@ function documentReadQuery(db: DbExecutor) {
     ]);
 }
 
-function mapResumeDocument(row: ResumeDocumentReadRow): ResumeDocument {
+async function mapResumeDocument(
+  db: DbExecutor,
+  row: ResumeDocumentReadRow,
+  handoffs?: Map<string, PublicJobHandoff>,
+): Promise<ResumeDocument> {
+  const publicHandoff = row.published_job_version_id
+    ? ((handoffs ?? (await loadPublicJobHandoffs(db, [row.published_job_version_id]))).get(
+        row.published_job_version_id,
+      ) ?? missingPublicJobHandoff)
+    : missingPublicJobHandoff;
   const common = {
     id: row.id,
     ownerId: row.owner_id,
@@ -188,7 +198,7 @@ function mapResumeDocument(row: ResumeDocumentReadRow): ResumeDocument {
               publishedJobId: row.published_job_id,
               publishedJobVersionId: row.published_job_version_id,
               requirementSetId: row.requirement_set_id,
-              officialUrl: row.public_official_url,
+              ...publicHandoff,
             },
             baseDocumentId: row.base_document_id,
             baseDocumentRevisionId: row.base_document_revision_id,
@@ -231,7 +241,7 @@ async function loadResumeDocument(
     .where("document.owner_epoch", "=", owner.ownerEpoch)
     .where("document.deleted_at", "is", null)
     .executeTakeFirst();
-  return row ? mapResumeDocument(row as ResumeDocumentReadRow) : null;
+  return row ? mapResumeDocument(db, row as ResumeDocumentReadRow) : null;
 }
 
 async function loadLegacySource(
@@ -339,9 +349,14 @@ export async function listResumeDocuments(input: {
       : loadLegacySource(input.db, input.owner),
   ]);
   const hasMore = rows.length > input.query.limit;
-  const items = rows
-    .slice(0, input.query.limit)
-    .map((row) => mapResumeDocument(row as ResumeDocumentReadRow));
+  const pageRows = rows.slice(0, input.query.limit);
+  const handoffs = await loadPublicJobHandoffs(
+    input.db,
+    pageRows.flatMap((row) => (row.published_job_version_id ? [row.published_job_version_id] : [])),
+  );
+  const items = await Promise.all(
+    pageRows.map((row) => mapResumeDocument(input.db, row as ResumeDocumentReadRow, handoffs)),
+  );
   const lastItem = items.at(-1);
   return ListResumeDocumentsResponseSchema.parse({
     items,

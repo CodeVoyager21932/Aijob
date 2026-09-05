@@ -190,6 +190,7 @@ export function normalizeBytedanceManualBrowserJob(input: {
     activityState: "active" as const,
     sourceUrl: job.detailUrl,
     applyUrl: job.detailUrl,
+    applicationLinkKind: "exact" as const,
     qualityFlags,
     reviewReasons,
   };

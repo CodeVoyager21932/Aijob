@@ -22,6 +22,7 @@ import {
   type OwnerContext,
   revokeOwnerSessions,
 } from "../identity/session-repository.js";
+import { deleteRequirementFixtures } from "../lib/immutable-fixture-cleanup.js";
 
 const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
@@ -147,6 +148,21 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
         })
         .execute();
       await transaction
+        .insertInto("source_control.source_apply_targets")
+        .values({
+          id: randomUUID(),
+          source_id: sourceId,
+          policy_version: 1,
+          method: "GET",
+          scheme: "https",
+          host: "application-case.example.test",
+          port: 443,
+          path_prefix: "/jobs/",
+          allow_redirects: false,
+          allowed_query_parameters: [],
+        })
+        .execute();
+      await transaction
         .insertInto("source_control.source_runtime_states")
         .values({
           source_id: sourceId,
@@ -244,9 +260,7 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
                 ? JSON.stringify({
                     state: "known",
                     value:
-                      fixture.index === 0
-                        ? "2026-09-20T00:00:00.000Z"
-                        : "2026-09-10T00:00:00.000Z",
+                      fixture.index === 0 ? "2026-09-20T00:00:00.000Z" : "2026-09-10T00:00:00.000Z",
                     evidenceRefs: [`${fixture.revisionId}#deadline`],
                   })
                 : unknown,
@@ -629,10 +643,7 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
         .set({ active_requirement_set_id: null })
         .where("id", "in", versionIds)
         .execute();
-      await transaction
-        .deleteFrom("catalog.job_requirement_sets")
-        .where("published_job_version_id", "in", versionIds)
-        .execute();
+      await deleteRequirementFixtures(transaction, versionIds);
       await transaction
         .deleteFrom("catalog.published_job_versions")
         .where("id", "in", versionIds)
@@ -655,6 +666,10 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
         .execute();
       await transaction
         .deleteFrom("source_control.source_runtime_states")
+        .where("source_id", "=", sourceId)
+        .execute();
+      await transaction
+        .deleteFrom("source_control.source_apply_targets")
         .where("source_id", "=", sourceId)
         .execute();
       await transaction
@@ -720,6 +735,10 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       publishedJobVersionId: firstPublic.versionId,
       requirementSetId: firstPublic.requirementSetId,
       officialUrl: `https://application-case.example.test/jobs/${firstPublic.recordId}/apply`,
+      applicationHandoff: {
+        kind: "exact",
+        url: `https://application-case.example.test/jobs/${firstPublic.recordId}/apply`,
+      },
     });
     expect(createdBody.applicationCase.jobDisplay).toMatchObject({
       title: "Synthetic product internship 1",
@@ -1054,15 +1073,12 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
     expect(board.columns[0]).toMatchObject({
       stage: "interested",
       total: 4,
-      items: [
-        { id: secondPublicBody.applicationCase.id },
-        { id: createdBody.applicationCase.id },
-      ],
+      items: [{ id: secondPublicBody.applicationCase.id }, { id: createdBody.applicationCase.id }],
     });
     expect(board.columns[0]?.nextCursor).toBeTruthy();
-    expect(board.columns.slice(1).every(({ total, items }) => total === 0 && items.length === 0)).toBe(
-      true,
-    );
+    expect(
+      board.columns.slice(1).every(({ total, items }) => total === 0 && items.length === 0),
+    ).toBe(true);
 
     const interestedContinuation = await app.inject({
       method: "GET",
@@ -1208,6 +1224,7 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       payload: {
         expectedRevision: 1,
         targetPublishedJobVersionId: upgradeFixture.versionId,
+        targetRequirementSetId: upgradeFixture.requirementSetId,
       },
     });
     expect(upgraded.statusCode).toBe(200);
@@ -1230,6 +1247,7 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       payload: {
         expectedRevision: 1,
         targetPublishedJobVersionId: upgradeFixture.versionId,
+        targetRequirementSetId: upgradeFixture.requirementSetId,
       },
     });
     expect(upgradeReplay.statusCode).toBe(200);
@@ -1241,6 +1259,7 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       payload: {
         expectedRevision: 2,
         targetPublishedJobVersionId: firstPublic.versionId,
+        targetRequirementSetId: firstPublic.requirementSetId,
       },
     });
     expect(upgradeKeyConflict.statusCode).toBe(409);
@@ -1252,6 +1271,7 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       payload: {
         expectedRevision: 1,
         targetPublishedJobVersionId: upgradeFixture.versionId,
+        targetRequirementSetId: upgradeFixture.requirementSetId,
       },
     });
     expect(staleUpgrade.statusCode).toBe(409);
@@ -1263,6 +1283,7 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       payload: {
         expectedRevision: 2,
         targetPublishedJobVersionId: secondPublic.versionId,
+        targetRequirementSetId: secondPublic.requirementSetId,
       },
     });
     expect(crossJobUpgrade.statusCode).toBe(422);
@@ -1916,12 +1937,8 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
     );
     expect(requirements.requirements.map(({ sourceText }) => sourceText)).not.toContain("职责");
     expect(requirements.requirements.map(({ sourceText }) => sourceText)).not.toContain("要求");
-    expect(requirements.requirements).toContainEqual(
-      expect.objectContaining({
-        kind: "other",
-        operator: "unknown",
-        sourceText: "具备良好的自驱力",
-      }),
+    expect(requirements.sourceUnits).toContainEqual(
+      expect.objectContaining({ text: "具备良好的自驱力" }),
     );
     for (const requirement of requirements.requirements) {
       expect(requirement.sourceSpan).not.toBeNull();
@@ -2517,11 +2534,13 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       ],
     });
     expect(
-      privateAfterLinks.evidenceLinks.map(({ evidenceId, revision, removedAt }) => ({
-        evidenceId,
-        revision,
-        removed: removedAt !== null,
-      })),
+      [...privateAfterLinks.evidenceLinks]
+        .sort((a, b) => a.evidenceId.localeCompare(b.evidenceId))
+        .map(({ evidenceId, revision, removedAt }) => ({
+          evidenceId,
+          revision,
+          removed: removedAt !== null,
+        })),
     ).toEqual([
       { evidenceId: evidenceIds[0], revision: 5, removed: false },
       { evidenceId: evidenceIds[1], revision: 4, removed: true },
@@ -2719,6 +2738,164 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
       { sequence: 5, schema_version: "case-event-v2" },
     ]);
   }, 40_000);
+
+  it("upgrades a confirmed requirement set on the same version while preserving history", async () => {
+    const fixture = publicFixtures[1];
+    if (!fixture) throw new Error("FIXTURE_MISSING");
+    const headers = sessionHeaders(firstSession);
+    const created = await app.inject({
+      method: "POST",
+      url: "/v1/application-cases",
+      headers: { ...headers, "idempotency-key": randomUUID() },
+      payload: {
+        jobContext: {
+          kind: "public",
+          publishedJobId: fixture.jobId,
+          publishedJobVersionId: fixture.versionId,
+        },
+      },
+    });
+    expect([200, 201]).toContain(created.statusCode);
+    const applicationCase = CreateApplicationCaseResponseSchema.parse(
+      created.json(),
+    ).applicationCase;
+    const oldSet = await db
+      .selectFrom("catalog.job_requirement_sets")
+      .selectAll()
+      .where("id", "=", fixture.requirementSetId)
+      .executeTakeFirstOrThrow();
+    const nextSetId = randomUUID();
+    await db
+      .insertInto("catalog.job_requirement_sets")
+      .values({
+        ...oldSet,
+        requirements: JSON.stringify(oldSet.requirements),
+        source_units: JSON.stringify(oldSet.source_units),
+        id: nextSetId,
+        content_hash: "f".repeat(64),
+      })
+      .execute();
+    await db
+      .updateTable("catalog.published_job_versions")
+      .set({ active_requirement_set_id: nextSetId })
+      .where("id", "=", fixture.versionId)
+      .execute();
+    try {
+      const diff = await app.inject({
+        method: "GET",
+        url: `/v1/application-cases/${applicationCase.id}/job-version-diff`,
+        headers,
+      });
+      expect(diff.statusCode).toBe(200);
+      expect(diff.json()).toMatchObject({
+        status: "update_available",
+        pinnedPublishedJobVersionId: fixture.versionId,
+        targetPublishedJobVersionId: fixture.versionId,
+        targetRequirementSetId: nextSetId,
+      });
+      const pinned = await app.inject({
+        method: "GET",
+        url: `/v1/application-cases/${applicationCase.id}/requirements`,
+        headers,
+      });
+      expect(pinned.json().requirementContext.requirementSetId).toBe(fixture.requirementSetId);
+      const command = {
+        method: "POST" as const,
+        url: `/v1/application-cases/${applicationCase.id}/job-version-upgrades`,
+        headers: { ...headers, "idempotency-key": randomUUID() },
+        payload: {
+          expectedRevision: applicationCase.revision,
+          targetPublishedJobVersionId: fixture.versionId,
+          targetRequirementSetId: nextSetId,
+        },
+      };
+      const upgraded = await app.inject(command);
+      expect(upgraded.statusCode).toBe(200);
+      expect(upgraded.json()).toMatchObject({
+        event: { eventType: "job_version_upgraded", sequence: applicationCase.revision + 1 },
+      });
+      const afterUpgrade = await app.inject({
+        method: "GET",
+        url: `/v1/application-cases/${applicationCase.id}/requirements`,
+        headers,
+      });
+      expect(afterUpgrade.statusCode).toBe(200);
+      expect(afterUpgrade.json().requirementContext.requirementSetId).toBe(nextSetId);
+      expect((await app.inject(command)).json()).toEqual(upgraded.json());
+      expect(
+        await db
+          .selectFrom("catalog.job_requirement_sets")
+          .selectAll()
+          .where("id", "=", oldSet.id)
+          .executeTakeFirst(),
+      ).toEqual(oldSet);
+    } finally {
+      await db
+        .updateTable("catalog.published_job_versions")
+        .set({ active_requirement_set_id: fixture.requirementSetId })
+        .where("id", "=", fixture.versionId)
+        .execute();
+    }
+  });
+
+  it("labels shared lists and rechecks navigation permission", async () => {
+    const fixture = publicFixtures[2];
+    if (!fixture) throw new Error("FIXTURE_MISSING");
+    const headers = sessionHeaders(firstSession);
+    await db
+      .updateTable("catalog.published_job_versions")
+      .set({ application_link_kind: "official_list_fallback" })
+      .where("id", "=", fixture.versionId)
+      .execute();
+    try {
+      const created = await app.inject({
+        method: "POST",
+        url: "/v1/application-cases",
+        headers: { ...headers, "idempotency-key": randomUUID() },
+        payload: {
+          jobContext: {
+            kind: "public",
+            publishedJobId: fixture.jobId,
+            publishedJobVersionId: fixture.versionId,
+          },
+        },
+      });
+      expect([200, 201]).toContain(created.statusCode);
+      const item = created.json().applicationCase;
+      expect(item.jobContext).toMatchObject({
+        officialUrl: null,
+        applicationHandoff: {
+          kind: "official_list_fallback",
+          locator: { sourceJobId: `application-case-${fixture.recordId}` },
+        },
+      });
+      await db
+        .updateTable("source_control.source_apply_targets")
+        .set({ path_prefix: "/not-allowed/" })
+        .where("source_id", "=", sourceId)
+        .execute();
+      const blocked = await app.inject({
+        method: "GET",
+        url: `/v1/application-cases/${item.id}`,
+        headers,
+      });
+      expect(blocked.json().jobContext).toMatchObject({
+        officialUrl: null,
+        applicationHandoff: { kind: "missing", reasonCode: "APPLICATION_LINK_NOT_ALLOWED" },
+      });
+    } finally {
+      await db
+        .updateTable("source_control.source_apply_targets")
+        .set({ path_prefix: "/jobs/" })
+        .where("source_id", "=", sourceId)
+        .execute();
+      await db
+        .updateTable("catalog.published_job_versions")
+        .set({ application_link_kind: "exact" })
+        .where("id", "=", fixture.versionId)
+        .execute();
+    }
+  });
 
   it("rejects an expired owner session without enumerating Case data", async () => {
     const alphaApp = buildApp({

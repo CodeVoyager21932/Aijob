@@ -215,6 +215,7 @@ export function normalizeBaiduInternship(input: {
     activityState: "active" as const,
     sourceUrl: applyUrl,
     applyUrl,
+    applicationLinkKind: "exact" as const,
     qualityFlags,
     reviewReasons,
   };

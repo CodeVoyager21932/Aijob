@@ -78,9 +78,11 @@ export function CaseVersionControl({
   const upgradeMutation = useMutation({
     mutationFn: ({
       targetVersionId,
+      targetRequirementSetId,
       idempotencyKey,
     }: {
       targetVersionId: string;
+      targetRequirementSetId: string;
       idempotencyKey: string;
     }) =>
       upgradeApplicationCaseJobVersion(
@@ -88,6 +90,7 @@ export function CaseVersionControl({
         {
           expectedRevision: applicationCase.revision,
           targetPublishedJobVersionId: targetVersionId,
+          targetRequirementSetId,
         },
         idempotencyKey,
       ),
@@ -176,15 +179,17 @@ export function CaseVersionControl({
 
   const diff = diffQuery.data;
   const targetVersionId = diff.targetPublishedJobVersionId;
+  const targetRequirementSetId = diff.targetRequirementSetId;
   const changeCount = countVersionChanges(diff);
   const submitUpgrade = () => {
-    if (!targetVersionId) return;
-    const signature = `${applicationCase.id}:${applicationCase.revision}:${targetVersionId}`;
+    if (!targetVersionId || !targetRequirementSetId) return;
+    const signature = `${applicationCase.id}:${applicationCase.revision}:${targetVersionId}:${targetRequirementSetId}`;
     if (!commandRef.current || commandRef.current.signature !== signature) {
       commandRef.current = { signature, key: createIdempotencyKey("case-version-upgrade") };
     }
     upgradeMutation.mutate({
       targetVersionId,
+      targetRequirementSetId,
       idempotencyKey: commandRef.current.key,
     });
   };

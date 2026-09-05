@@ -9,7 +9,7 @@ import {
   UuidSchema,
 } from "./common.js";
 import { ResumeSuggestionDecisionSchema } from "./enums.js";
-import { JobRequirementSchema } from "./matching.js";
+import { JobRequirementSchema, RequirementSourceUnitSchema } from "./matching.js";
 
 export const ResumeDocumentKindSchema = z.enum(["base", "case_derived"]);
 export type ResumeDocumentKind = z.infer<typeof ResumeDocumentKindSchema>;
@@ -788,6 +788,7 @@ export const CurrentResumeReviewResponseSchema = z
   .object({
     review: ResumeReviewBundleSchema.nullable(),
     requirements: z.array(JobRequirementSchema).max(500).default([]),
+    sourceUnits: z.array(RequirementSourceUnitSchema).max(500).default([]),
   })
   .strict();
 export type CurrentResumeReviewResponse = z.infer<typeof CurrentResumeReviewResponseSchema>;
@@ -796,6 +797,7 @@ export const CreateResumeReviewResponseSchema = z
   .object({
     review: ResumeReviewBundleSchema,
     requirements: z.array(JobRequirementSchema).max(500).default([]),
+    sourceUnits: z.array(RequirementSourceUnitSchema).max(500).default([]),
     created: z.boolean(),
   })
   .strict();

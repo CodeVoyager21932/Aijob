@@ -5,6 +5,7 @@ import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createAnonymousSession, type OwnerContext } from "../identity/session-repository.js";
 import { createJobInsightRun } from "../insights/service.js";
+import { deleteRequirementFixtures } from "../lib/immutable-fixture-cleanup.js";
 import { readLocalBootstrapCatalogStats } from "../local-bootstrap.js";
 import { lockLocalCatalogMaterialization, materializeLocalCatalog } from "./materialize.js";
 import { reconcilePublication } from "./publication-reconciliation.js";
@@ -108,10 +109,7 @@ describeWithDatabase("catalog public version pointer", () => {
           .set({ active_requirement_set_id: null })
           .where("id", "in", versionIds)
           .execute();
-        await transaction
-          .deleteFrom("catalog.job_requirement_sets")
-          .where("published_job_version_id", "in", versionIds)
-          .execute();
+        await deleteRequirementFixtures(transaction, versionIds);
         await transaction
           .deleteFrom("catalog.published_job_versions")
           .where("id", "in", versionIds)
@@ -306,7 +304,9 @@ describeWithDatabase("catalog public version pointer", () => {
     // 物化只负责 current_version_id：这一条就是此前那个循环依赖的解除点。
     expect(materialized.publicVersionId).toBeNull();
 
-    expect(await reconcilePublication({ db, publishedJobIds: [materialized.jobId] })).toMatchObject({ published: 1, revoked: 0 });
+    expect(await reconcilePublication({ db, publishedJobIds: [materialized.jobId] })).toMatchObject(
+      { published: 1, revoked: 0 },
+    );
     const published = await readPointers(materialized.jobId);
     expect(published.publicVersionId).toBe(materialized.currentVersionId);
     expect(
@@ -340,7 +340,9 @@ describeWithDatabase("catalog public version pointer", () => {
     // 物化推进了本机预览，但没有动公开指针。
     expect(beforeAdvance.publicVersionId).toBe(published.publicVersionId);
 
-    expect(await reconcilePublication({ db, publishedJobIds: [materialized.jobId] })).toMatchObject({ advanced: 1, revoked: 0 });
+    expect(await reconcilePublication({ db, publishedJobIds: [materialized.jobId] })).toMatchObject(
+      { advanced: 1, revoked: 0 },
+    );
     const advanced = await readPointers(materialized.jobId);
     expect(advanced.publicVersionId).toBe(advanced.currentVersionId);
 
@@ -358,11 +360,13 @@ describeWithDatabase("catalog public version pointer", () => {
       .execute();
     await materializeLocalCatalog(db);
     // 最新版本无已知截止日期且来源不按缺席关闭，因此不可探知关闭 → 不合格进入 Alpha。
-    expect(await reconcilePublication({ db, publishedJobIds: [materialized.jobId] })).toMatchObject({
-      published: 0,
-      advanced: 0,
-      revoked: 0,
-    });
+    expect(await reconcilePublication({ db, publishedJobIds: [materialized.jobId] })).toMatchObject(
+      {
+        published: 0,
+        advanced: 0,
+        revoked: 0,
+      },
+    );
     const held = await readPointers(materialized.jobId);
     expect(held.currentVersionId).not.toBe(advanced.currentVersionId);
     expect(held.publicVersionId).toBe(advanced.publicVersionId);
@@ -431,7 +435,9 @@ describeWithDatabase("catalog public version pointer", () => {
       enableLocalMvp: false,
     });
     expect(closedPublicInsight.candidateJobVersionIds).not.toContain(held.publicVersionId);
-    expect(await reconcilePublication({ db, publishedJobIds: [materialized.jobId] })).toMatchObject({ revoked: 1 });
+    expect(await reconcilePublication({ db, publishedJobIds: [materialized.jobId] })).toMatchObject(
+      { revoked: 1 },
+    );
     expect((await readPointers(materialized.jobId)).publicVersionId).toBeNull();
     expect((await readLocalBootstrapCatalogStats(db)).publicJobs).toBe(publicJobsBefore);
   }, 45_000);

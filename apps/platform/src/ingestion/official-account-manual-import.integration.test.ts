@@ -6,6 +6,7 @@ import { createDatabase, type Database, migrateToLatest } from "@aijob/database"
 import type { Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { approvedCompanyEmail } from "../catalog/application-methods.js";
+import { deleteRequirementFixtures } from "../lib/immutable-fixture-cleanup.js";
 import { importManualBrowserSnapshot } from "./manual-browser-import.js";
 
 const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
@@ -57,10 +58,7 @@ describeWithDatabase("official account zero-network manual import", () => {
             .set({ active_requirement_set_id: null })
             .where("id", "in", versionIds)
             .execute();
-          await db
-            .deleteFrom("catalog.job_requirement_sets")
-            .where("published_job_version_id", "in", versionIds)
-            .execute();
+          await deleteRequirementFixtures(db, versionIds);
         }
         if (jobIds.length > 0) {
           await db

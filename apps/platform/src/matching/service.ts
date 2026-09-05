@@ -16,7 +16,6 @@ import {
   JobPreferenceSchema,
   type JobRecommendationRunView,
   JobRecommendationRunViewSchema,
-  JobRequirementSchema,
   MAX_RECOMMENDATION_CANDIDATES,
   type MatchRun,
   type MatchRunResult,
@@ -35,6 +34,7 @@ import {
   createCatalogRepository,
   getImmutableRecommendationJobProjections,
 } from "../catalog/repository.js";
+import { parseStoredRequirementSet } from "../catalog/requirement-set.js";
 import { assertActiveOwnerEpoch, type OwnerScope } from "../identity/session-repository.js";
 import { hashCanonicalJson } from "../lib/canonical-json.js";
 import { lockOwnerIdempotencyKey } from "../lib/idempotency.js";
@@ -1041,8 +1041,9 @@ async function loadMatchInputs(db: DbExecutor, run: MatchRunRow, options: MatchP
       "旧版整段证据只保留历史读取，不能用于新的匹配运行。",
     );
   }
+  const parsedRequirementSet = parseStoredRequirementSet(requirementSet);
   return {
-    requirements: JobRequirementSchema.array().parse(requirementSet.requirements),
+    requirements: parsedRequirementSet.requirements,
     confirmedFacts: ProfileFactSchema.array().parse(factRevision.facts),
     preferences: JobPreferenceSchema.parse(preferenceRevision.preferences),
     confirmedEvidence: ResumeEvidenceSchema.array().parse(evidenceRevision.evidence),

@@ -7,6 +7,7 @@ import { createDatabase, migrateToLatest } from "@aijob/database";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createCatalogRepository } from "../catalog/repository.js";
+import { deleteRequirementFixtures } from "../lib/immutable-fixture-cleanup.js";
 import { writeLocalRefreshControl } from "../sources/local-refresh-control.js";
 import { listSourceKeys, loadSourceConfig } from "../sources/source-config.js";
 import {
@@ -285,10 +286,7 @@ describeWithDatabase("source refresh automation PostgreSQL integration", () => {
           .set({ active_requirement_set_id: null })
           .where("id", "in", versionIds)
           .execute();
-        await db
-          .deleteFrom("catalog.job_requirement_sets")
-          .where("published_job_version_id", "in", versionIds)
-          .execute();
+        await deleteRequirementFixtures(db, versionIds);
         await db
           .deleteFrom("catalog.published_job_version_revision_links")
           .where("published_job_version_id", "in", versionIds)

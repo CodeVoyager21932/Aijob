@@ -11,6 +11,8 @@ import {
   DecideResumeReviewSuggestionResponseSchema,
   type JobRequirement,
   JobRequirementSchema,
+  type RequirementSourceUnit,
+  RequirementSourceUnitSchema,
   type ResumeEvidenceRevision,
   ResumeEvidenceRevisionSchema,
   type ResumeReviewBundle,
@@ -29,15 +31,18 @@ import type { Database, JsonValue } from "@aijob/database";
 import { type Kysely, sql, type Transaction } from "kysely";
 import { z } from "zod";
 import { AiProviderError, OpenAiCompatibleProvider } from "../ai/provider.js";
+import {
+  loadPublicJobHandoffs,
+  missingPublicJobHandoff,
+  type PublicJobHandoff,
+} from "../catalog/public-job-handoff.js";
+import { parseStoredRequirementSet } from "../catalog/requirement-set.js";
 import { assertActiveOwnerEpoch, type OwnerScope } from "../identity/session-repository.js";
 import { hashCanonicalJson } from "../lib/canonical-json.js";
 import { lockOwnerIdempotencyKey } from "../lib/idempotency.js";
 import { ServiceError } from "../lib/service-error.js";
 import { redactPersonalInformation } from "../resume/security.js";
-import {
-  type ProviderTailoringSegment,
-  validateTailoringSegments,
-} from "../tailoring/service.js";
+import { type ProviderTailoringSegment, validateTailoringSegments } from "../tailoring/service.js";
 import type { OwnerTaskLease } from "../workers/owner-task-lease.js";
 import { withOwnerTaskLease } from "../workers/owner-task-lease.js";
 import { appendResumeDocumentContentRevisionInTransaction } from "./revision-service.js";
@@ -113,7 +118,6 @@ interface ReviewRunReadRow {
   deleted_at: Date | null;
   created_at: Date;
   updated_at: Date;
-  public_official_url: string | null;
   private_title: string | null;
   private_company_name: string | null;
   private_source_label: string | null;
@@ -200,23 +204,40 @@ async function loadFixedRequirements(
   owner: OwnerScope,
   context: FixedRequirementContext,
 ): Promise<JobRequirement[]> {
-  if (context.job_context_kind === null) return [];
-  const row =
-    context.job_context_kind === "public"
-      ? await db
-          .selectFrom("catalog.job_requirement_sets")
-          .select("requirements")
-          .where("id", "=", context.requirement_set_id)
-          .where("published_job_version_id", "=", context.published_job_version_id)
-          .executeTakeFirst()
-      : await db
-          .selectFrom("application.private_job_snapshot_revisions")
-          .select("requirements")
-          .where("owner_id", "=", owner.ownerId)
-          .where("owner_epoch", "=", owner.ownerEpoch)
-          .where("snapshot_id", "=", context.private_job_snapshot_id)
-          .where("content_revision", "=", context.job_context_revision)
-          .executeTakeFirst();
+  return (await loadFixedRequirementData(db, owner, context)).requirements;
+}
+
+async function loadFixedRequirementData(
+  db: DbExecutor,
+  owner: OwnerScope,
+  context: FixedRequirementContext,
+): Promise<{ requirements: JobRequirement[]; sourceUnits: RequirementSourceUnit[] }> {
+  if (context.job_context_kind === null) return { requirements: [], sourceUnits: [] };
+  if (context.job_context_kind === "public") {
+    const row = await db
+      .selectFrom("catalog.job_requirement_sets")
+      .selectAll()
+      .where("id", "=", context.requirement_set_id)
+      .where("published_job_version_id", "=", context.published_job_version_id)
+      .executeTakeFirst();
+    if (!row) {
+      throw new ServiceError(
+        409,
+        "RESUME_REVIEW_REQUIREMENTS_UNAVAILABLE",
+        "岗位简历固定的岗位要求已经不可用，不能生成或解释审阅结果。",
+      );
+    }
+    const { requirements, sourceUnits } = parseStoredRequirementSet(row);
+    return { requirements, sourceUnits };
+  }
+  const row = await db
+    .selectFrom("application.private_job_snapshot_revisions")
+    .select(["requirements", "source_units"])
+    .where("owner_id", "=", owner.ownerId)
+    .where("owner_epoch", "=", owner.ownerEpoch)
+    .where("snapshot_id", "=", context.private_job_snapshot_id)
+    .where("content_revision", "=", context.job_context_revision)
+    .executeTakeFirst();
   if (!row) {
     throw new ServiceError(
       409,
@@ -224,7 +245,10 @@ async function loadFixedRequirements(
       "岗位简历固定的岗位要求已经不可用，不能生成或解释审阅结果。",
     );
   }
-  return FixedRequirementsSchema.parse(parseJson(row.requirements));
+  return {
+    requirements: FixedRequirementsSchema.parse(parseJson(row.requirements)),
+    sourceUnits: z.array(RequirementSourceUnitSchema).parse(parseJson(row.source_units)),
+  };
 }
 
 function normalizedText(value: string): string {
@@ -448,9 +472,6 @@ function reviewRunReadQuery(db: DbExecutor) {
       "review.deleted_at",
       "review.created_at",
       "review.updated_at",
-      sql<string | null>`COALESCE(public_version.apply_url, public_version.source_url)`.as(
-        "public_official_url",
-      ),
       "private_revision.title as private_title",
       "private_revision.company_name as private_company_name",
       "private_revision.source_label as private_source_label",
@@ -460,7 +481,16 @@ function reviewRunReadQuery(db: DbExecutor) {
     ]);
 }
 
-function mapReviewRun(row: ReviewRunReadRow): ResumeReviewRun {
+async function mapReviewRun(
+  db: DbExecutor,
+  row: ReviewRunReadRow,
+  handoffs?: Map<string, PublicJobHandoff>,
+): Promise<ResumeReviewRun> {
+  const publicHandoff = row.published_job_version_id
+    ? ((handoffs ?? (await loadPublicJobHandoffs(db, [row.published_job_version_id]))).get(
+        row.published_job_version_id,
+      ) ?? missingPublicJobHandoff)
+    : missingPublicJobHandoff;
   const jobContext =
     row.job_context_kind === "public"
       ? {
@@ -468,7 +498,7 @@ function mapReviewRun(row: ReviewRunReadRow): ResumeReviewRun {
           publishedJobId: row.published_job_id,
           publishedJobVersionId: row.published_job_version_id,
           requirementSetId: row.requirement_set_id,
-          officialUrl: row.public_official_url,
+          ...publicHandoff,
         }
       : {
           kind: "private" as const,
@@ -666,7 +696,7 @@ async function loadReviewBundleByRow(
       .execute(),
   ]);
   return {
-    reviewRun: mapReviewRun(row),
+    reviewRun: await mapReviewRun(db, row),
     findings: findingRows.map((item) => mapFinding(item)),
     suggestions: suggestionRows.map((item) => mapSuggestion(item)),
     decisions: decisionRows.map((item) => mapDecision(item)),
@@ -708,21 +738,22 @@ export async function getCurrentResumeReview(input: {
     .where("deleted_at", "is", null)
     .executeTakeFirst();
   if (!document) throw reviewDocumentNotFound();
-  const requirements = await loadFixedRequirements(input.db, input.owner, document);
+  const requirementData = await loadFixedRequirementData(input.db, input.owner, document);
   const row = await reviewRunReadQuery(input.db)
     .where("review.document_id", "=", input.documentId)
     .where("review.owner_id", "=", input.owner.ownerId)
     .where("review.owner_epoch", "=", input.owner.ownerEpoch)
     .where("review.deleted_at", "is", null)
-    .orderBy("review.updated_at", "desc")
+    // Current means the most recently created review, not an older run touched by a worker.
     .orderBy("review.created_at", "desc")
+    .orderBy("review.updated_at", "desc")
     .orderBy("review.id", "desc")
     .executeTakeFirst();
   return CurrentResumeReviewResponseSchema.parse({
     review: row
       ? await loadReviewBundleByRow(input.db, input.owner, row as unknown as ReviewRunReadRow)
       : null,
-    requirements,
+    ...requirementData,
   });
 }
 
@@ -921,7 +952,7 @@ export async function createResumeReview(input: {
         .where("review.deleted_at", "is", null)
         .executeTakeFirst();
       if (!replayRow) throw reviewDocumentNotFound();
-      const requirements = await loadFixedRequirements(
+      const requirementData = await loadFixedRequirementData(
         transaction,
         input.owner,
         replayRow as unknown as ReviewRunReadRow,
@@ -931,7 +962,7 @@ export async function createResumeReview(input: {
         input.owner,
         replayRow as unknown as ReviewRunReadRow,
       );
-      return CreateResumeReviewResponseSchema.parse({ review, requirements, created: false });
+      return CreateResumeReviewResponseSchema.parse({ review, ...requirementData, created: false });
     }
 
     const document = await loadReviewDocumentForUpdate(transaction, input.owner, input.documentId);
@@ -960,7 +991,7 @@ export async function createResumeReview(input: {
       owner: input.owner,
       evidenceRevisionId: document.evidence_revision_id,
     });
-    const requirements = await loadFixedRequirements(transaction, input.owner, document);
+    const requirementData = await loadFixedRequirementData(transaction, input.owner, document);
 
     const reviewRunId = randomUUID();
     await transaction
@@ -989,9 +1020,7 @@ export async function createResumeReview(input: {
         generation_provenance_version: writeV2 ? REVIEW_GENERATION_PROVENANCE_VERSION : null,
         template_version: writeV2 ? REVIEW_TEMPLATE_VERSION : null,
         privacy_consent_at:
-          writeV2 && input.request.mode === "controlled_ai"
-            ? sql<Date>`clock_timestamp()`
-            : null,
+          writeV2 && input.request.mode === "controlled_ai" ? sql<Date>`clock_timestamp()` : null,
         provider_adapter: null,
         model: null,
         prompt_version:
@@ -1033,7 +1062,7 @@ export async function createResumeReview(input: {
       .execute();
     const review = await loadReviewBundle(transaction, input.owner, reviewRunId);
     if (!review) throw new Error("RESUME_REVIEW_CREATE_READBACK_FAILED");
-    return CreateResumeReviewResponseSchema.parse({ review, requirements, created: true });
+    return CreateResumeReviewResponseSchema.parse({ review, ...requirementData, created: true });
   });
 }
 
@@ -1157,7 +1186,7 @@ async function generateResumeReviewV2(input: {
       systemInstruction:
         "你是岗位简历逐区块审阅器。只返回需要修改的区块；每项必须引用给定的岗位要求 ID 和已确认证据 ID。" +
         "只能重组被引用证据中的事实，不得新增数字、技能、主体、项目或结果，不得修改资格结论。" +
-        "返回严格 JSON：{\"rewrites\":[{\"sourceBlockId\":\"uuid\",\"suggestedText\":\"...\",\"requirementIds\":[\"...\"],\"evidenceIds\":[\"...\"]}]}",
+        '返回严格 JSON：{"rewrites":[{"sourceBlockId":"uuid","suggestedText":"...","requirementIds":["..."],"evidenceIds":["..."]}]}',
       untrustedPayload: {
         requirements: input.requirements.map((requirement) => ({
           id: requirement.id,
@@ -1188,10 +1217,10 @@ async function generateResumeReviewV2(input: {
 
     const blocks = new Map(
       input.content.sections.flatMap((section) =>
-        section.blocks.map((block) => [
-          block.id,
-          { ...block, sectionId: section.id, sectionTitle: section.title },
-        ] as const),
+        section.blocks.map(
+          (block) =>
+            [block.id, { ...block, sectionId: section.id, sectionTitle: section.title }] as const,
+        ),
       ),
     );
     const seenBlocks = new Set<string>();
@@ -1251,7 +1280,10 @@ async function generateResumeReviewV2(input: {
       fallbackReasonCode: null,
     };
   } catch (error) {
-    if (input.signal?.aborted || (error instanceof Error && error.message === "OWNER_TASK_ABORTED")) {
+    if (
+      input.signal?.aborted ||
+      (error instanceof Error && error.message === "OWNER_TASK_ABORTED")
+    ) {
       throw new Error("OWNER_TASK_ABORTED");
     }
     return {

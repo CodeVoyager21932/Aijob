@@ -23,19 +23,62 @@
     "candidateStatus": "local_probe_only",
     "assessor": "codex-assisted-live-preflight",
     "hardGates": {
-      "officialIdentity": { "status": "pass", "note": "华中科技大学就业信息网正文明确写出深圳市大疆创新科技有限公司，投递域名为 we.dji.com。" },
-      "targetSupply": { "status": "pass", "note": "页面明确标记实习生，需求岗位为 AI 实习生，需求人数 100，职责与任职要求完整。" },
-      "noAuthBypass": { "status": "pass", "note": "冻结详情页可匿名 GET 读取，不依赖登录、验证码、Cookie、CSRF 或动态签名。" },
-      "officialApplyLink": { "status": "pass", "note": "页面原文明确写出登录 we.dji.com 进入校园招聘实习生招聘版块投递。" },
-      "accessPolicyAccepted": { "status": "fail", "note": "尚未取得第三方长期复制和聚合授权，只进入本机 local_mvp。" },
-      "stableIdentityAndFields": { "status": "pending", "note": "页面结构与字段已冻结，需完成首批运行、同小时重放和逐条自审后确认持续稳定性。" }
+      "officialIdentity": {
+        "status": "pass",
+        "note": "华中科技大学就业信息网正文明确写出深圳市大疆创新科技有限公司，投递域名为 we.dji.com。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "页面明确标记实习生，需求岗位为 AI 实习生，需求人数 100，职责与任职要求完整。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "冻结详情页可匿名 GET 读取，不依赖登录、验证码、Cookie、CSRF 或动态签名。"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "页面原文明确写出登录 we.dji.com 进入校园招聘实习生招聘版块投递。"
+      },
+      "accessPolicyAccepted": {
+        "status": "fail",
+        "note": "尚未取得第三方长期复制和聚合授权，只进入本机 local_mvp。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "页面结构与字段已冻结，需完成首批运行、同小时重放和逐条自审后确认持续稳定性。"
+      }
     },
     "scores": {
-      "targetSupply": { "weight": 30, "score": 20, "status": "provisional", "note": "页面需求岗位表显示 AI 实习生 100 人，并覆盖算法与 AI 软件工程方向。" },
-      "policyAccess": { "weight": 25, "score": 0, "status": "failed", "note": "当前仅满足本机低频读取边界。" },
-      "structure": { "weight": 20, "score": 17, "status": "provisional", "note": "正文、需求岗位表、发布时间、地点和官方投递域名可确定性读取。" },
-      "freshnessMaintenance": { "weight": 15, "score": 10, "status": "provisional", "note": "页面提供发布时间，未提供明确截止日期，按 unknown 保留。" },
-      "diversity": { "weight": 10, "score": 7, "status": "provisional", "note": "补充深圳、上海、北京的 AI 算法与软件工程实习供给。" }
+      "targetSupply": {
+        "weight": 30,
+        "score": 20,
+        "status": "provisional",
+        "note": "页面需求岗位表显示 AI 实习生 100 人，并覆盖算法与 AI 软件工程方向。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 0,
+        "status": "failed",
+        "note": "当前仅满足本机低频读取边界。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 17,
+        "status": "provisional",
+        "note": "正文、需求岗位表、发布时间、地点和官方投递域名可确定性读取。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 10,
+        "status": "provisional",
+        "note": "页面提供发布时间，未提供明确截止日期，按 unknown 保留。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 7,
+        "status": "provisional",
+        "note": "补充深圳、上海、北京的 AI 算法与软件工程实习供给。"
+      }
     },
     "evidenceNotes": [
       "2026-08-02 通过无 Cookie 的单次 GET 读取 https://job.hust.edu.cn/zpinfo1/2400683.htm；页面 HTTP 200。",
@@ -56,6 +99,7 @@
       "application": {
         "type": "official_url",
         "url": "https://we.dji.com",
+        "linkKind": "official_list_fallback",
         "verification": "page_exact"
       }
     },
@@ -110,6 +154,7 @@
       "application": {
         "type": "official_url",
         "url": "https://we.dji.com",
+        "linkKind": "official_list_fallback",
         "verification": "page_exact"
       }
     },

@@ -147,11 +147,7 @@ export function resolveBeisenZhiyeTenant(
         category: options.category,
         categoryLabel:
           options.categoryLabel ??
-          (options.category === "3"
-            ? "实习"
-            : options.category === "2"
-              ? "校园招聘"
-              : "社会招聘"),
+          (options.category === "3" ? "实习" : options.category === "2" ? "校园招聘" : "社会招聘"),
         jobsPagePath: options.jobsPagePath,
         reportedTotalKey:
           options.jobsPagePath === "/intern/jobs" ? "intern-jobads" : "campus-jobads",
@@ -377,6 +373,7 @@ export function normalizeBeisenZhiyeJobAd(input: {
     activityState: "active" as const,
     sourceUrl: applyUrl,
     applyUrl,
+    applicationLinkKind: "official_list_fallback" as const,
     qualityFlags,
     reviewReasons,
   };

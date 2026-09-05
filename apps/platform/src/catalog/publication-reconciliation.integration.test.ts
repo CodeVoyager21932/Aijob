@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { createDatabase, type Database, migrateToLatest } from "@aijob/database";
 import type { Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { deleteRequirementFixtures } from "../lib/immutable-fixture-cleanup.js";
 import { lockLocalCatalogMaterialization, materializeLocalCatalog } from "./materialize.js";
 import {
   reconcilePublication,
@@ -67,17 +68,16 @@ describeWithDatabase("publication reconciliation", () => {
               .where("published_job_id", "=", fixture.publishedJobId),
           )
           .execute();
-        await transaction
-          .deleteFrom("catalog.job_requirement_sets")
-          .where(
-            "published_job_version_id",
-            "in",
-            transaction
+        await deleteRequirementFixtures(
+          transaction,
+          (
+            await transaction
               .selectFrom("catalog.published_job_versions")
               .select("id")
-              .where("published_job_id", "=", fixture.publishedJobId),
-          )
-          .execute();
+              .where("published_job_id", "=", fixture.publishedJobId)
+              .execute()
+          ).map((row) => row.id),
+        );
         await transaction
           .deleteFrom("catalog.published_job_version_revision_links")
           .where("source_job_revision_id", "=", fixture.revisionId)
@@ -302,7 +302,9 @@ describeWithDatabase("publication reconciliation", () => {
       .where("source_id", "=", fixture.sourceId)
       .execute();
 
-    expect(await reconcilePublication({ db, publishedJobIds: [fixture.publishedJobId] })).toMatchObject({ revoked: 1 });
+    expect(
+      await reconcilePublication({ db, publishedJobIds: [fixture.publishedJobId] }),
+    ).toMatchObject({ revoked: 1 });
     expect(await readPointer(fixture.publishedJobId)).toBeNull();
     const event = await latestEvent(fixture.publishedJobId);
     expect(event).toMatchObject({ action: "revoked", actor: "reconciliation" });
@@ -317,7 +319,9 @@ describeWithDatabase("publication reconciliation", () => {
       .where("source_id", "=", fixture.sourceId)
       .execute();
 
-    expect(await reconcilePublication({ db, publishedJobIds: [fixture.publishedJobId] })).toMatchObject({ revoked: 1 });
+    expect(
+      await reconcilePublication({ db, publishedJobIds: [fixture.publishedJobId] }),
+    ).toMatchObject({ revoked: 1 });
     expect(await readPointer(fixture.publishedJobId)).toBeNull();
     expect((await latestEvent(fixture.publishedJobId)).blocking_reasons).toContain(
       "SOURCE_NOT_FRESH",
@@ -348,7 +352,9 @@ describeWithDatabase("publication reconciliation", () => {
       .where("id", "=", fixture.publishedJobVersionId)
       .execute();
 
-    expect(await reconcilePublication({ db, publishedJobIds: [fixture.publishedJobId] })).toMatchObject({ revoked: 1 });
+    expect(
+      await reconcilePublication({ db, publishedJobIds: [fixture.publishedJobId] }),
+    ).toMatchObject({ revoked: 1 });
     expect(await readPointer(fixture.publishedJobId)).toBeNull();
     expect((await latestEvent(fixture.publishedJobId)).blocking_reasons).toContain(
       "JOB_BODY_MISSING",
@@ -365,7 +371,9 @@ describeWithDatabase("publication reconciliation", () => {
       .where("id", "=", fixture.publishedJobVersionId)
       .execute();
 
-    expect(await reconcilePublication({ db, publishedJobIds: [fixture.publishedJobId] })).toMatchObject({ revoked: 1 });
+    expect(
+      await reconcilePublication({ db, publishedJobIds: [fixture.publishedJobId] }),
+    ).toMatchObject({ revoked: 1 });
     expect(await readPointer(fixture.publishedJobId)).toBeNull();
     const event = await latestEvent(fixture.publishedJobId);
     expect(event.reason_code).toBe("BLOCKED");
@@ -386,7 +394,9 @@ describeWithDatabase("publication reconciliation", () => {
       })
       .execute();
 
-    expect(await reconcilePublication({ db, publishedJobIds: [fixture.publishedJobId] })).toMatchObject({ revoked: 1 });
+    expect(
+      await reconcilePublication({ db, publishedJobIds: [fixture.publishedJobId] }),
+    ).toMatchObject({ revoked: 1 });
     expect(await readPointer(fixture.publishedJobId)).toBeNull();
     expect((await latestEvent(fixture.publishedJobId)).blocking_reasons).toContain(
       "BLOCKING_REVIEW_OPEN",
@@ -412,7 +422,9 @@ describeWithDatabase("publication reconciliation", () => {
     });
 
     // 对账不得把被强制下架的岗位恢复。
-    expect(await reconcilePublication({ db, publishedJobIds: [fixture.publishedJobId] })).toMatchObject({ published: 0, advanced: 0 });
+    expect(
+      await reconcilePublication({ db, publishedJobIds: [fixture.publishedJobId] }),
+    ).toMatchObject({ published: 0, advanced: 0 });
     expect(await readPointer(fixture.publishedJobId)).toBeNull();
 
     expect(
@@ -420,7 +432,9 @@ describeWithDatabase("publication reconciliation", () => {
     ).toEqual({ released: true });
     // 解除本身不发布，重新发布仍由对账按资格判定。
     expect(await readPointer(fixture.publishedJobId)).toBeNull();
-    expect(await reconcilePublication({ db, publishedJobIds: [fixture.publishedJobId] })).toMatchObject({ published: 1 });
+    expect(
+      await reconcilePublication({ db, publishedJobIds: [fixture.publishedJobId] }),
+    ).toMatchObject({ published: 1 });
     expect(await readPointer(fixture.publishedJobId)).toBe(fixture.publishedJobVersionId);
   });
 

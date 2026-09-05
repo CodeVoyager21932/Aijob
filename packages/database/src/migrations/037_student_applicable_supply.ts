@@ -141,14 +141,21 @@ const noAlphaBlockers = sql`NULL`;
  *    `alpha_blocking_reasons`（ADR-0035 第七、九条）；
  * 4. 新增的可投性判据 `JOB_NOT_STUDENT_APPLICABLE` 同样只进 `alpha_blocking_reasons`。
  */
-async function createJobVersionEligibilityView(
+export async function createJobVersionEligibilityView(
   db: Kysely<Database>,
-  options: { studentApplicableRequired: boolean },
+  options: {
+    studentApplicableRequired: boolean;
+    exactApplicationKindRequired?: boolean;
+  },
 ): Promise<void> {
   // 回滚形态**不得**引用该函数：回滚会把函数删掉，视图若仍 SELECT 它就建不起来。
   const reachabilityVerdictExpression = options.studentApplicableRequired
     ? sql`catalog.job_reachability_verdict(version.requirements, version.responsibilities)`
     : sql`'unknown'::text`;
+  // 037 自身运行时列尚不存在，必须继续能只按 apply_url 建视图；038 才切到忠实分类列。
+  const applicationLinkKindExpression = options.exactApplicationKindRequired
+    ? sql`version.application_link_kind`
+    : sql`CASE WHEN version.apply_url IS NULL THEN 'missing'::text ELSE 'exact'::text END`;
   const bodyBlockers = options.studentApplicableRequired
     ? sql`CASE WHEN btrim(responsibilities) = '' AND btrim(requirements) = '' THEN 'JOB_BODY_MISSING' END`
     : sql`
@@ -164,7 +171,7 @@ async function createJobVersionEligibilityView(
     ? sql`
         CASE WHEN freshness_state <> 'fresh' THEN 'SOURCE_NOT_FRESH' END,
         ${versionRecentlyVerifiedBlocker},
-        CASE WHEN apply_url IS NULL THEN 'EXACT_APPLICATION_NOT_AVAILABLE' END,
+        CASE WHEN application_link_kind <> 'exact' THEN 'EXACT_APPLICATION_NOT_AVAILABLE' END,
         CASE
           WHEN reachability_verdict NOT IN ('reachable', 'unknown')
             THEN 'JOB_NOT_STUDENT_APPLICABLE'
@@ -191,6 +198,7 @@ async function createJobVersionEligibilityView(
         version.responsibilities,
         version.requirements,
         version.apply_url,
+        ${applicationLinkKindExpression} AS application_link_kind,
         EXISTS (
           SELECT 1
           FROM ingestion.review_items AS review
@@ -292,13 +300,19 @@ async function createJobVersionEligibilityView(
  * 因此两个视图在此对齐：同样的 `JOB_BODY_MISSING` 合并、同样的 `alpha_blocking_reasons`、
  * 同样的可投性判据。
  */
-async function createCurrentJobEligibilityView(
+export async function createCurrentJobEligibilityView(
   db: Kysely<Database>,
-  options: { studentApplicableRequired: boolean },
+  options: {
+    studentApplicableRequired: boolean;
+    exactApplicationKindRequired?: boolean;
+  },
 ): Promise<void> {
   const reachabilityVerdictExpression = options.studentApplicableRequired
     ? sql`catalog.job_reachability_verdict(preview.requirements, preview.responsibilities)`
     : sql`'unknown'::text`;
+  const applicationLinkKindExpression = options.exactApplicationKindRequired
+    ? sql`revision.application_link_kind`
+    : sql`CASE WHEN preview.apply_url IS NULL THEN 'missing'::text ELSE 'exact'::text END`;
   const bodyBlockers = options.studentApplicableRequired
     ? sql`CASE WHEN btrim(responsibilities) = '' AND btrim(requirements) = '' THEN 'JOB_BODY_MISSING' END`
     : sql`
@@ -314,7 +328,7 @@ async function createCurrentJobEligibilityView(
     ? sql`
         CASE WHEN freshness_state <> 'fresh' THEN 'SOURCE_NOT_FRESH' END,
         ${currentRecentlyVerifiedBlocker},
-        CASE WHEN apply_url IS NULL THEN 'EXACT_APPLICATION_NOT_AVAILABLE' END,
+        CASE WHEN application_link_kind <> 'exact' THEN 'EXACT_APPLICATION_NOT_AVAILABLE' END,
         CASE
           WHEN reachability_verdict NOT IN ('reachable', 'unknown')
             THEN 'JOB_NOT_STUDENT_APPLICABLE'
@@ -332,6 +346,7 @@ async function createCurrentJobEligibilityView(
         policy.refresh_coverage,
         revision.deadline_at,
         COALESCE(runtime.freshness_state, 'unknown') AS freshness_state,
+        ${applicationLinkKindExpression} AS application_link_kind,
         ${reachabilityVerdictExpression} AS reachability_verdict,
         CASE
           WHEN

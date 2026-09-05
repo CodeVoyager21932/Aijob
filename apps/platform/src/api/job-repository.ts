@@ -5,9 +5,14 @@ import type {
   JobSummary,
   SourceType,
 } from "@aijob/contracts";
-import { JobDetailSchema, JobListResponseSchema } from "@aijob/contracts";
+import {
+  ApplicationLinkKindSchema,
+  JobDetailSchema,
+  JobListResponseSchema,
+} from "@aijob/contracts";
 import type { CurrentJobEligibilityView, Database, JsonValue } from "@aijob/database";
 import type { Kysely, Selectable } from "kysely";
+import { buildApplicationHandoff, exactOfficialLink } from "../catalog/application-handoff.js";
 import { validateNavigationUrl } from "../ingestion/safe-http.js";
 
 type PreviewRow = Selectable<CurrentJobEligibilityView>;
@@ -157,6 +162,12 @@ function normalizedGraduationYears(value: JsonValue | undefined): FieldValue<num
 
 function detailFromPreview(row: PreviewRow, officialLink: string | null): JobDetail {
   const summary = summaryFromPreview(row);
+  const applicationHandoff = buildApplicationHandoff({
+    applicationLinkKind: ApplicationLinkKindSchema.parse(row.application_link_kind),
+    approvedApplyUrl: officialLink,
+    title: row.title,
+    sourceJobId: row.source_job_id,
+  });
   const structured = asObject(row.structured_fields);
   return {
     ...summary,
@@ -175,7 +186,8 @@ function detailFromPreview(row: PreviewRow, officialLink: string | null): JobDet
     deadlineAt: asFieldValue(structured.deadline),
     responsibilitiesText: safeText(row.responsibilities, row.revision_id, "responsibilities"),
     requirementsText: safeText(row.requirements, row.revision_id, "requirements"),
-    officialLink,
+    officialLink: exactOfficialLink(applicationHandoff),
+    applicationHandoff,
   };
 }
 

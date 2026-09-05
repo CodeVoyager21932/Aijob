@@ -20,6 +20,7 @@ import {
   ApplicationCaseRequirementsSchema,
   type ApplicationCaseWithJobContext,
   ApplicationCaseWithJobContextSchema,
+  ApplicationLinkKindSchema,
   type CaseEventType,
   type CaseOutcome,
   type CaseQuestion,
@@ -48,6 +49,8 @@ import {
   type PutCaseRequirementStateRequest,
   type RecordManualApplicationRequest,
   type RequirementContext,
+  type RequirementSourceUnit,
+  RequirementSourceUnitSchema,
   ResumeEvidenceRevisionSchema,
   type TransitionApplicationCaseRequest,
   type UpdateCaseQuestionRequest,
@@ -56,6 +59,13 @@ import {
 import type { Database, JsonValue } from "@aijob/database";
 import { type Kysely, type Selectable, sql, type Transaction } from "kysely";
 import { z } from "zod";
+import { buildApplicationHandoff, exactOfficialLink } from "../catalog/application-handoff.js";
+import {
+  loadPublicJobHandoffs,
+  type PublicJobHandoff,
+  resolvePublicJobHandoff,
+} from "../catalog/public-job-handoff.js";
+import { parseStoredRequirementSet } from "../catalog/requirement-set.js";
 import { decomposeTextualJobRequirements } from "../catalog/requirements.js";
 import { assertActiveOwnerEpoch, type OwnerScope } from "../identity/session-repository.js";
 import { canonicalJson, hashCanonicalJson } from "../lib/canonical-json.js";
@@ -106,6 +116,7 @@ type CaseQuestionRow = Selectable<Database["application.case_questions"]>;
 
 interface FixedRequirementContext {
   requirementContext: RequirementContext;
+  sourceUnits: RequirementSourceUnit[];
   requirements: JobRequirement[];
 }
 
@@ -140,7 +151,10 @@ interface ApplicationCaseReadRow {
   deleted_at: Date | null;
   created_at: Date;
   updated_at: Date;
-  public_official_url: string | null;
+  public_source_id: string | null;
+  public_apply_url: string | null;
+  public_application_link_kind: string | null;
+  public_source_job_id: string | null;
   public_title: string | null;
   public_company_name: string | null;
   public_locations: JsonValue | null;
@@ -423,9 +437,10 @@ function caseReadQuery(db: DbExecutor) {
       "application_case.deleted_at",
       "application_case.created_at",
       "application_case.updated_at",
-      sql<string | null>`COALESCE(public_version.apply_url, public_version.source_url)`.as(
-        "public_official_url",
-      ),
+      "public_source.id as public_source_id",
+      "public_version.apply_url as public_apply_url",
+      "public_version.application_link_kind as public_application_link_kind",
+      "public_source_record.source_job_id as public_source_job_id",
       "public_version.title as public_title",
       "public_version.company_name as public_company_name",
       "public_version.locations as public_locations",
@@ -446,7 +461,11 @@ function caseReadQuery(db: DbExecutor) {
     ]);
 }
 
-function mapCaseRow(row: ApplicationCaseReadRow): ApplicationCaseWithJobContext {
+async function mapCaseRow(
+  db: DbExecutor,
+  row: ApplicationCaseReadRow,
+  handoffs?: Map<string, PublicJobHandoff>,
+): Promise<ApplicationCaseWithJobContext> {
   const common = {
     id: row.id,
     ownerId: row.owner_id,
@@ -476,6 +495,17 @@ function mapCaseRow(row: ApplicationCaseReadRow): ApplicationCaseWithJobContext 
         lastVerifiedAt: row.public_last_verified_at ? toIso(row.public_last_verified_at) : null,
       },
     });
+    const { applicationHandoff, officialUrl } =
+      handoffs?.get(row.published_job_version_id ?? "") ??
+      (await resolvePublicJobHandoff(db, {
+        sourceId: row.public_source_id ?? "",
+        applyUrl: row.public_apply_url,
+        applicationLinkKind: ApplicationLinkKindSchema.catch("missing").parse(
+          row.public_application_link_kind,
+        ),
+        title: row.public_title ?? "",
+        sourceJobId: row.public_source_job_id ?? "",
+      }));
     return ApplicationCaseWithJobContextSchema.parse({
       ...common,
       jobContext: {
@@ -483,7 +513,8 @@ function mapCaseRow(row: ApplicationCaseReadRow): ApplicationCaseWithJobContext 
         publishedJobId: row.published_job_id,
         publishedJobVersionId: row.published_job_version_id,
         requirementSetId: row.requirement_set_id,
-        officialUrl: row.public_official_url,
+        officialUrl,
+        applicationHandoff,
       },
       jobDisplay,
     });
@@ -531,7 +562,7 @@ async function loadCaseById(
     .where("application_case.owner_epoch", "=", owner.ownerEpoch)
     .where("application_case.deleted_at", "is", null)
     .executeTakeFirst();
-  return row ? mapCaseRow(row as ApplicationCaseReadRow) : null;
+  return row ? await mapCaseRow(db, row as ApplicationCaseReadRow) : null;
 }
 
 async function loadCaseForUpdate(
@@ -742,24 +773,26 @@ async function loadFixedRequirementContext(
   ) {
     const row = await db
       .selectFrom("catalog.job_requirement_sets")
-      .select("requirements")
+      .selectAll()
       .where("id", "=", applicationCase.requirement_set_id)
       .where("published_job_version_id", "=", applicationCase.published_job_version_id)
       .executeTakeFirst();
     if (!row) throw new Error("APPLICATION_CASE_PUBLIC_REQUIREMENT_CONTEXT_MISSING");
+    const parsed = parseStoredRequirementSet(row);
     return {
       requirementContext: {
         kind: "public",
         requirementSetId: applicationCase.requirement_set_id,
       },
-      requirements: parseFixedRequirements(row.requirements),
+      sourceUnits: parsed.sourceUnits,
+      requirements: parsed.requirements,
     };
   }
 
   if (applicationCase.job_context_kind === "private" && applicationCase.private_job_snapshot_id) {
     const row = await db
       .selectFrom("application.private_job_snapshot_revisions")
-      .select(["requirement_set_revision", "requirements"])
+      .select(["requirement_set_revision", "requirements", "source_units"])
       .where("owner_id", "=", owner.ownerId)
       .where("owner_epoch", "=", owner.ownerEpoch)
       .where("snapshot_id", "=", applicationCase.private_job_snapshot_id)
@@ -771,6 +804,7 @@ async function loadFixedRequirementContext(
         kind: "private",
         requirementSetRevision: Number(row.requirement_set_revision),
       },
+      sourceUnits: z.array(RequirementSourceUnitSchema).parse(parseJsonValue(row.source_units)),
       requirements: parseFixedRequirements(row.requirements),
     };
   }
@@ -892,6 +926,7 @@ async function loadRequirementsReadModel(
     caseId: applicationCase.id,
     requirementContext: fixed.requirementContext,
     revision: Number(applicationCase.revision),
+    sourceUnits: fixed.sourceUnits,
     requirements: fixed.requirements,
     states: fixed.requirements.map((requirement) =>
       mapRequirementState(
@@ -1296,13 +1331,19 @@ async function readApplicationCaseCollection(input: {
       : pageQuery
           .orderBy("application_case.updated_at", "desc")
           .orderBy("application_case.id", "desc");
-  const rows = await pageQuery
-    .limit(input.query.limit + 1)
-    .execute();
+  const rows = await pageQuery.limit(input.query.limit + 1).execute();
   const hasMore = rows.length > input.query.limit;
-  const items = rows
-    .slice(0, input.query.limit)
-    .map((row) => mapCaseRow(row as ApplicationCaseReadRow));
+  const handoffs = await loadPublicJobHandoffs(
+    input.db,
+    rows
+      .slice(0, input.query.limit)
+      .flatMap((row) => (row.published_job_version_id ? [row.published_job_version_id] : [])),
+  );
+  const items = await Promise.all(
+    rows
+      .slice(0, input.query.limit)
+      .map((row) => mapCaseRow(input.db, row as ApplicationCaseReadRow, handoffs)),
+  );
   const lastItem = items.at(-1);
   return ListApplicationCasesResponseSchema.parse({
     items,
@@ -1362,8 +1403,7 @@ export async function getApplicationBoard(input: {
           });
         });
     } catch (error) {
-      const code =
-        error && typeof error === "object" && "code" in error ? error.code : undefined;
+      const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
       if (code !== "40001") throw error;
       if (attempt === 3) {
         throw new ServiceError(
@@ -1474,8 +1514,7 @@ export async function getApplicationCaseRequirements(input: {
           return loadRequirementsReadModel(transaction, input.owner, applicationCase);
         });
     } catch (error) {
-      const code =
-        error && typeof error === "object" && "code" in error ? error.code : undefined;
+      const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
       if (code !== "40001") throw error;
       if (attempt === 3) {
         throw new ServiceError(
@@ -1990,6 +2029,8 @@ async function resolvePublicJobContext(
       "version.id as publishedJobVersionId",
       "requirement_set.id as requirementSetId",
       "version.apply_url as officialUrl",
+      "version.application_link_kind as applicationLinkKind",
+      "version.title as versionTitle",
     ])
     .where("job.id", "=", request.publishedJobId)
     .where("version.id", "=", request.publishedJobVersionId)
@@ -2008,15 +2049,29 @@ async function resolvePublicJobContext(
     query = query.where(sql<boolean>`COALESCE(quota.selected, TRUE)`);
   }
   const row = await query.executeTakeFirst();
-  const parsed = row
-    ? PublicJobReferenceSchema.safeParse({
-        kind: "public",
-        publishedJobId: row.publishedJobId,
-        publishedJobVersionId: row.publishedJobVersionId,
-        requirementSetId: row.requirementSetId,
-        officialUrl: row.officialUrl,
+  const applicationHandoff = row
+    ? buildApplicationHandoff({
+        applicationLinkKind: ApplicationLinkKindSchema.catch("missing").parse(
+          row.applicationLinkKind,
+        ),
+        // Creation-time context validation only checks the reference shape; the read model
+        // recomputes the allowlist-validated handoff. Pass the stored apply URL as-is here.
+        approvedApplyUrl: row.officialUrl,
+        title: row.versionTitle,
+        sourceJobId: row.publishedJobVersionId,
       })
     : null;
+  const parsed =
+    row && applicationHandoff
+      ? PublicJobReferenceSchema.safeParse({
+          kind: "public",
+          publishedJobId: row.publishedJobId,
+          publishedJobVersionId: row.publishedJobVersionId,
+          requirementSetId: row.requirementSetId,
+          officialUrl: exactOfficialLink(applicationHandoff),
+          applicationHandoff,
+        })
+      : null;
   if (!parsed?.success) {
     throw new ServiceError(
       422,
@@ -2160,11 +2215,19 @@ async function resolvePrivateInputJobContext(
 
   const snapshotId = randomUUID();
   const source = privateJobSourceMetadata(request.source);
-  const requirements = decomposeTextualJobRequirements({
+  const decomposition = decomposeTextualJobRequirements({
     publishedJobVersionId: snapshotId,
     sourceText: contentText,
     evidenceRefPrefix: `private-job-snapshot:${snapshotId}:revision:1`,
-  }).filter((requirement) => !isPrivateJobMetadataLine(requirement.sourceText, request.title));
+    origin: "private_jd_clause",
+  });
+  const sourceUnits = decomposition.sourceUnits.filter(
+    (unit) => !isPrivateJobMetadataLine(unit.text, request.title),
+  );
+  const keptUnits = new Set(sourceUnits.map((unit) => unit.id));
+  const requirements = decomposition.requirements.filter((requirement) =>
+    keptUnits.has(requirement.sourceUnitId),
+  );
 
   await db
     .insertInto("application.private_job_snapshots")
@@ -2194,6 +2257,7 @@ async function resolvePrivateInputJobContext(
       official_url: source.officialUrl,
       source_provided: source.sourceProvided,
       content_text: contentText,
+      source_units: JSON.stringify(sourceUnits),
       requirements: JSON.stringify(requirements) as unknown as JsonValue,
       content_hash: contentHash,
     })
@@ -2656,7 +2720,10 @@ export async function getApplicationCaseJobVersionDiff(input: {
       requirementChanges: emptyRequirementChanges(),
     });
   }
-  if (target.id === pinned.id) {
+  if (
+    target.id === pinned.id &&
+    target.diff_requirement_set_id === pinned.diff_requirement_set_id
+  ) {
     return ApplicationCaseJobVersionDiffResponseSchema.parse({
       ...common,
       status: "up_to_date",
@@ -2717,11 +2784,14 @@ export async function upgradeApplicationCaseJobVersion(input: {
         "私有岗位使用用户固定的 JD 修订，不适用公共岗位版本升级。",
       );
     }
-    if (applicationCase.published_job_version_id === input.request.targetPublishedJobVersionId) {
+    if (
+      applicationCase.published_job_version_id === input.request.targetPublishedJobVersionId &&
+      applicationCase.requirement_set_id === input.request.targetRequirementSetId
+    ) {
       throw new ServiceError(
         409,
         "JOB_VERSION_ALREADY_CURRENT",
-        "求职项目已经固定到该岗位版本，无需重复升级。",
+        "求职项目已经固定到该岗位版本与要求集，无需重复升级。",
       );
     }
     const target = await loadEligibleCurrentPublicVersion(transaction, {
@@ -2737,9 +2807,16 @@ export async function upgradeApplicationCaseJobVersion(input: {
         "目标岗位版本不是同一岗位当前可用的准入版本，请刷新差异后重试。",
       );
     }
+    if (target.diff_requirement_set_id !== input.request.targetRequirementSetId) {
+      throw new ServiceError(
+        422,
+        "PUBLIC_JOB_CONTEXT_UNAVAILABLE",
+        "目标要求集不是目标岗位版本当前生效的要求集，请刷新差异后重试。",
+      );
+    }
 
     const nextRevision = Number(applicationCase.revision) + 1;
-    await transaction
+    const updateResult = await transaction
       .updateTable("application.application_cases")
       .set({
         published_job_version_id: target.id,
@@ -2751,7 +2828,8 @@ export async function upgradeApplicationCaseJobVersion(input: {
       .where("owner_id", "=", input.owner.ownerId)
       .where("owner_epoch", "=", input.owner.ownerEpoch)
       .where("revision", "=", input.request.expectedRevision)
-      .executeTakeFirstOrThrow();
+      .executeTakeFirst();
+    if (Number(updateResult.numUpdatedRows) !== 1) throw revisionConflict();
     return appendCaseEvent(transaction, {
       owner: input.owner,
       caseId: applicationCase.id,

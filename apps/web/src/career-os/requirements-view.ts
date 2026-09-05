@@ -122,3 +122,21 @@ export function requirementSourceLabel(data: ApplicationCaseRequirements): strin
     ? "固定岗位版本 · JD 原文"
     : "用户私有 JD · 原文";
 }
+
+export function requirementAssertionLabel(requirement: JobRequirement): string {
+  const necessity = { required: "必须", preferred: "优先", optional: "可选", unknown: "待确认" }[
+    requirement.necessity
+  ];
+  const value =
+    requirement.operator === "unknown"
+      ? "待核对"
+      : Array.isArray(requirement.expectedValue)
+        ? requirement.expectedValue.join("、")
+        : String(requirement.expectedValue);
+  const operator: Partial<Record<JobRequirement["operator"], string>> = {
+    at_least: "至少",
+    at_most: "至多",
+    before_or_on: "不晚于",
+  };
+  return `${requirementKindLabel(requirement.kind)} · ${necessity} · ${operator[requirement.operator] ?? ""}${value}`;
+}

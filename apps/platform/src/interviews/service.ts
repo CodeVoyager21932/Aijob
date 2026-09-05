@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
 import {
+  ApplicationLinkKindSchema,
   type CreateInterviewSessionRequest,
   type CreateInterviewSessionResponse,
   CreateInterviewSessionResponseSchema,
   type InterviewSession,
+  InterviewSessionCursorSchema,
   type InterviewSessionDetail,
   InterviewSessionDetailSchema,
+  InterviewSessionSchema,
   type InterviewTurn,
   InterviewTurnSchema,
   type JobContext,
@@ -17,12 +20,15 @@ import {
   type SubmitInterviewAnswerRequest,
   type SubmitInterviewAnswerResponse,
   SubmitInterviewAnswerResponseSchema,
-  InterviewSessionCursorSchema,
-  InterviewSessionSchema,
 } from "@aijob/contracts";
 import type { Database, JsonValue } from "@aijob/database";
 import { type Kysely, type Selectable, sql, type Transaction } from "kysely";
 import { z } from "zod";
+import {
+  loadPublicJobHandoffs,
+  type PublicJobHandoff,
+  resolvePublicJobHandoff,
+} from "../catalog/public-job-handoff.js";
 import { assertActiveOwnerEpoch, type OwnerScope } from "../identity/session-repository.js";
 import { hashCanonicalJson } from "../lib/canonical-json.js";
 import { lockOwnerIdempotencyKey } from "../lib/idempotency.js";
@@ -33,7 +39,11 @@ type InterviewSessionRow = Selectable<Database["application.interview_sessions"]
 type InterviewTurnRow = Selectable<Database["application.interview_turns"]>;
 
 interface SessionReadRow extends InterviewSessionRow {
-  public_official_url: string | null;
+  public_source_id: string | null;
+  public_apply_url: string | null;
+  public_application_link_kind: string | null;
+  public_source_job_id: string | null;
+  public_title: string | null;
   private_title: string | null;
   private_company_name: string | null;
   private_source_label: string | null;
@@ -145,6 +155,16 @@ function sessionReadQuery(db: DbExecutor) {
       "public_version.id",
       "session.published_job_version_id",
     )
+    .leftJoin(
+      "ingestion.source_job_revisions as public_source_revision",
+      "public_source_revision.id",
+      "public_version.source_job_revision_id",
+    )
+    .leftJoin(
+      "ingestion.source_job_records as public_source_record",
+      "public_source_record.id",
+      "public_source_revision.source_job_record_id",
+    )
     .leftJoin("application.private_job_snapshot_revisions as private_revision", (join) =>
       join
         .onRef("private_revision.owner_id", "=", "session.owner_id")
@@ -153,9 +173,11 @@ function sessionReadQuery(db: DbExecutor) {
     )
     .selectAll("session")
     .select([
-      sql<string | null>`COALESCE(public_version.apply_url, public_version.source_url)`.as(
-        "public_official_url",
-      ),
+      "public_source_record.source_id as public_source_id",
+      "public_version.apply_url as public_apply_url",
+      "public_version.application_link_kind as public_application_link_kind",
+      "public_source_record.source_job_id as public_source_job_id",
+      "public_version.title as public_title",
       "private_revision.title as private_title",
       "private_revision.company_name as private_company_name",
       "private_revision.source_label as private_source_label",
@@ -165,14 +187,30 @@ function sessionReadQuery(db: DbExecutor) {
     ]);
 }
 
-function mapJobContext(row: SessionReadRow): JobContext {
+async function mapJobContext(
+  db: DbExecutor,
+  row: SessionReadRow,
+  handoffs?: Map<string, PublicJobHandoff>,
+): Promise<JobContext> {
   if (row.job_context_kind === "public") {
+    const { applicationHandoff, officialUrl } =
+      handoffs?.get(row.published_job_version_id ?? "") ??
+      (await resolvePublicJobHandoff(db, {
+        sourceId: row.public_source_id ?? "",
+        applyUrl: row.public_apply_url,
+        applicationLinkKind: ApplicationLinkKindSchema.catch("missing").parse(
+          row.public_application_link_kind,
+        ),
+        title: row.public_title ?? "",
+        sourceJobId: row.public_source_job_id ?? "",
+      }));
     return {
       kind: "public",
       publishedJobId: row.published_job_id ?? "",
       publishedJobVersionId: row.published_job_version_id ?? "",
       requirementSetId: row.requirement_set_id ?? "",
-      officialUrl: row.public_official_url ?? "",
+      officialUrl,
+      applicationHandoff,
     };
   }
   return {
@@ -189,7 +227,11 @@ function mapJobContext(row: SessionReadRow): JobContext {
   };
 }
 
-function mapSession(row: SessionReadRow): InterviewSession {
+async function mapSession(
+  db: DbExecutor,
+  row: SessionReadRow,
+  handoffs?: Map<string, PublicJobHandoff>,
+): Promise<InterviewSession> {
   return InterviewSessionSchema.parse({
     schemaVersion: "interview-session-v1",
     id: row.id,
@@ -197,7 +239,7 @@ function mapSession(row: SessionReadRow): InterviewSession {
     ownerEpoch: Number(row.owner_epoch),
     caseId: row.case_id,
     detachedFromCaseId: row.detached_from_case_id,
-    jobContext: mapJobContext(row),
+    jobContext: await mapJobContext(db, row, handoffs),
     evidenceRevisionId: row.evidence_revision_id,
     resumeDocumentId: row.resume_document_id,
     resumeContentRevisionId: row.resume_content_revision_id,
@@ -513,7 +555,17 @@ export async function listInterviewSessions(input: {
     .limit(input.query.limit + 1)
     .execute();
   const hasMore = rows.length > input.query.limit;
-  const items = (rows.slice(0, input.query.limit) as SessionReadRow[]).map(mapSession);
+  const handoffs = await loadPublicJobHandoffs(
+    input.db,
+    rows
+      .slice(0, input.query.limit)
+      .flatMap((row) => (row.published_job_version_id ? [row.published_job_version_id] : [])),
+  );
+  const items = await Promise.all(
+    (rows.slice(0, input.query.limit) as SessionReadRow[]).map((row) =>
+      mapSession(input.db, row, handoffs),
+    ),
+  );
   const lastItem = items.at(-1);
   return ListInterviewSessionsResponseSchema.parse({
     items,
@@ -531,7 +583,7 @@ export async function getInterviewSession(input: {
   const row = await loadSessionRow(input.db, input.owner, input.caseId, input.sessionId);
   if (!row) return null;
   return InterviewSessionDetailSchema.parse({
-    session: mapSession(row),
+    session: await mapSession(input.db, row),
     turns: await loadTurns(input.db, input.owner, input.sessionId),
   });
 }

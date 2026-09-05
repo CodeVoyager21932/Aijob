@@ -981,6 +981,7 @@ describeWithDatabase("Interview Session/Turn owner-protected API", () => {
       .insertInto("application.private_job_snapshot_revisions")
       .values({
         ...pinnedSnapshotRevision,
+        source_units: JSON.stringify(pinnedSnapshotRevision.source_units),
         id: randomUUID(),
         content_revision: 2,
         requirement_set_revision: 2,

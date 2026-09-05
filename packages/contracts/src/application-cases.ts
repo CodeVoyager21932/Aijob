@@ -16,10 +16,12 @@ import {
   RequirementEvidenceStateSchema,
 } from "./enums.js";
 import { fieldValueSchema } from "./field-value.js";
+import { ApplicationHandoffSchema } from "./jobs.js";
 import {
   JobRequirementSchema,
   RequirementKindSchema,
   RequirementNecessitySchema,
+  RequirementSourceUnitSchema,
 } from "./matching.js";
 
 export const CaseEventTypeSchema = z.enum([
@@ -72,7 +74,8 @@ export const PublicJobReferenceSchema = z
     publishedJobId: UuidSchema,
     publishedJobVersionId: UuidSchema,
     requirementSetId: UuidSchema,
-    officialUrl: HttpsUrlSchema,
+    officialUrl: HttpsUrlSchema.nullable(),
+    applicationHandoff: ApplicationHandoffSchema,
   })
   .strict();
 export type PublicJobReference = z.infer<typeof PublicJobReferenceSchema>;
@@ -349,6 +352,7 @@ export const UpgradeApplicationCaseJobVersionRequestSchema = z
   .object({
     expectedRevision: RevisionSchema,
     targetPublishedJobVersionId: UuidSchema,
+    targetRequirementSetId: UuidSchema,
   })
   .strict();
 export type UpgradeApplicationCaseJobVersionRequest = z.infer<
@@ -514,10 +518,15 @@ const JobVersionUpgradedEventDataSchema = z
     reasonCode: ReasonCodeSchema.nullable(),
   })
   .strict()
-  .refine((value) => value.fromPublishedJobVersionId !== value.toPublishedJobVersionId, {
-    path: ["toPublishedJobVersionId"],
-    message: "A job version upgrade must change the pinned version",
-  });
+  .refine(
+    (value) =>
+      value.fromPublishedJobVersionId !== value.toPublishedJobVersionId ||
+      value.fromRequirementSetId !== value.toRequirementSetId,
+    {
+      path: ["toRequirementSetId"],
+      message: "A job context upgrade must change the pinned version or requirement set",
+    },
+  );
 
 const PublicRequirementStateChangedEventDataSchema = z
   .object({
@@ -972,22 +981,24 @@ export const ApplicationCaseJobVersionDiffResponseSchema = z
     }
     if (
       value.status === "up_to_date" &&
-      value.targetPublishedJobVersionId !== value.pinnedPublishedJobVersionId
+      (value.targetPublishedJobVersionId !== value.pinnedPublishedJobVersionId ||
+        value.targetRequirementSetId !== value.pinnedRequirementSetId)
     ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ["targetPublishedJobVersionId"],
-        message: "An up-to-date target must equal the pinned version",
+        path: ["targetRequirementSetId"],
+        message: "An up-to-date target must equal the complete pinned version/set pair",
       });
     }
     if (
       value.status === "update_available" &&
-      value.targetPublishedJobVersionId === value.pinnedPublishedJobVersionId
+      value.targetPublishedJobVersionId === value.pinnedPublishedJobVersionId &&
+      value.targetRequirementSetId === value.pinnedRequirementSetId
     ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ["targetPublishedJobVersionId"],
-        message: "An available update must change the pinned version",
+        path: ["targetRequirementSetId"],
+        message: "An available update must change the pinned version or requirement set",
       });
     }
   });
@@ -1169,6 +1180,7 @@ export const ApplicationCaseRequirementsSchema = z
     caseId: UuidSchema,
     requirementContext: RequirementContextSchema,
     revision: RevisionSchema,
+    sourceUnits: z.array(RequirementSourceUnitSchema).default([]),
     requirements: z.array(JobRequirementSchema),
     states: z.array(CaseRequirementStateReadModelSchema),
     evidenceLinks: z.array(CaseRequirementEvidenceLinkSchema),

@@ -15,6 +15,7 @@ import { putJobDecision } from "./decisions/service.js";
 import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME, SESSION_COOKIE_NAME } from "./identity/fastify.js";
 import { createAnonymousSession } from "./identity/session-repository.js";
 import { createJobInsightRun } from "./insights/service.js";
+import { deleteRequirementFixtures } from "./lib/immutable-fixture-cleanup.js";
 import {
   enqueueMatchRun,
   enqueueRecommendationRun,
@@ -376,14 +377,10 @@ describeWithDatabase("complete local MVP service journey", () => {
             fixtureVersions.map((version) => version.id),
           )
           .execute();
-        await transaction
-          .deleteFrom("catalog.job_requirement_sets")
-          .where(
-            "published_job_version_id",
-            "in",
-            fixtureVersions.map((version) => version.id),
-          )
-          .execute();
+        await deleteRequirementFixtures(
+          transaction,
+          fixtureVersions.map((version) => version.id),
+        );
       }
       await transaction
         .updateTable("catalog.published_jobs")

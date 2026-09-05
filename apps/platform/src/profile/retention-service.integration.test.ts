@@ -10,6 +10,7 @@ import {
   findActiveSession,
   type OwnerContext,
 } from "../identity/session-repository.js";
+import { deleteRequirementFixtures } from "../lib/immutable-fixture-cleanup.js";
 import { enqueueMatchRun } from "../matching/service.js";
 import { encryptResumePayload } from "../resume/crypto.js";
 import { purgeExpiredResumeExports } from "../tailoring/export-retention.js";
@@ -239,22 +240,10 @@ describeWithDatabase("owner, export and tombstone retention", () => {
       .deleteFrom("profile.resume_review_suggestions")
       .where("owner_id", "=", ownerId)
       .execute();
-    await db
-      .deleteFrom("profile.resume_review_findings")
-      .where("owner_id", "=", ownerId)
-      .execute();
-    await db
-      .deleteFrom("profile.resume_review_runs")
-      .where("owner_id", "=", ownerId)
-      .execute();
-    await db
-      .deleteFrom("application.interview_feedback")
-      .where("owner_id", "=", ownerId)
-      .execute();
-    await db
-      .deleteFrom("application.interview_turns")
-      .where("owner_id", "=", ownerId)
-      .execute();
+    await db.deleteFrom("profile.resume_review_findings").where("owner_id", "=", ownerId).execute();
+    await db.deleteFrom("profile.resume_review_runs").where("owner_id", "=", ownerId).execute();
+    await db.deleteFrom("application.interview_feedback").where("owner_id", "=", ownerId).execute();
+    await db.deleteFrom("application.interview_turns").where("owner_id", "=", ownerId).execute();
     await db
       .deleteFrom("application.debrief_item_decisions")
       .where("owner_id", "=", ownerId)
@@ -264,36 +253,24 @@ describeWithDatabase("owner, export and tombstone retention", () => {
       .where("owner_id", "=", ownerId)
       .execute();
     await db.deleteFrom("application.debriefs").where("owner_id", "=", ownerId).execute();
-    await db
-      .deleteFrom("application.interview_sessions")
-      .where("owner_id", "=", ownerId)
-      .execute();
+    await db.deleteFrom("application.interview_sessions").where("owner_id", "=", ownerId).execute();
     await db
       .deleteFrom("application.knowledge_clip_case_links")
       .where("owner_id", "=", ownerId)
       .execute();
-    await db
-      .deleteFrom("application.knowledge_clips")
-      .where("owner_id", "=", ownerId)
-      .execute();
+    await db.deleteFrom("application.knowledge_clips").where("owner_id", "=", ownerId).execute();
     await db.deleteFrom("profile.resume_documents").where("owner_id", "=", ownerId).execute();
     await db
       .deleteFrom("application.case_requirement_evidence_links")
       .where("owner_id", "=", ownerId)
       .execute();
-    await db
-      .deleteFrom("application.case_questions")
-      .where("owner_id", "=", ownerId)
-      .execute();
+    await db.deleteFrom("application.case_questions").where("owner_id", "=", ownerId).execute();
     await db
       .deleteFrom("application.case_requirement_states")
       .where("owner_id", "=", ownerId)
       .execute();
     await db.deleteFrom("application.case_events").where("owner_id", "=", ownerId).execute();
-    await db
-      .deleteFrom("application.application_cases")
-      .where("owner_id", "=", ownerId)
-      .execute();
+    await db.deleteFrom("application.application_cases").where("owner_id", "=", ownerId).execute();
     await db
       .deleteFrom("application.private_job_snapshots")
       .where("owner_id", "=", ownerId)
@@ -326,10 +303,7 @@ describeWithDatabase("owner, export and tombstone retention", () => {
         .where("id", "in", [...auditIds])
         .execute();
     }
-    await db
-      .deleteFrom("catalog.job_requirement_sets")
-      .where("published_job_version_id", "=", fixture.publishedVersionId)
-      .execute();
+    await deleteRequirementFixtures(db, [fixture.publishedVersionId]);
     await db
       .updateTable("catalog.published_jobs")
       .set({ current_version_id: null })

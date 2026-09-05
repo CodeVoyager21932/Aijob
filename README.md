@@ -1,38 +1,32 @@
 # Aijob：可信官方岗位驱动的求职 OS
 
-> 2026-08-28：M1–M4、PA-1、UX-0 与 OS-1–OS-7 已全部完成，Career OS 前后端同步改进阶段收敛结束。OS-7 双库浏览器 Gate 输出 `passed: true`，全仓 808/808、lint 485 files、typecheck、build（主包 401.33 kB）、audit 与 diff check 通过。当前以[OS-7 验收证据](docs/evidence/product/career-os-v2/os-7-system-gate-acceptance-2026-08-28.md)和[current handoff](docs/handoffs/current.md)为准；真实邮件、解析镜像、服务器、供给和参与者 Gate 仍未通过，下一条轨道需 coco 明确授权。
+> 2026-09-05：OS-7 已完成；Kiro 后续供给工作与岗位事实纠偏已整合到独立主工作区 `C:\Users\72998\Projects\Aijob`。当前状态以[路线图](docs/06-mvp-roadmap.md)、[交接](docs/handoffs/current.md)和[本轮验收](docs/evidence/product/job-fact-fidelity-acceptance-2026-09-05.md)为准。旧桌面 job 与 OS-7 目录的处理见[工作区手册](docs/runbooks/workspace-takeover.md)。
 
-这是一个待验证的产品项目，面向**未来 30 天真实投递实习岗位、已有中文简历、近期使用过多个官方渠道的中国大陆在校生**。它只把企业官方招聘网站和经企业官网确认的官方 ATS 中当前存在的具体岗位整理为可追溯信息；高校就业网站、政府页面、公众号和其他二手页面只用于发现企业及其官网方向。系统依据用户确认过的约束与经历证据，帮助用户完成投递、暂缓或放弃的高质量决定，最终回到企业官网或官方 ATS 投递。
+Aijob 面向近期做真实求职决定的中国大陆在校生，把资格核对、经历证据、岗位定制简历、投递记录、文字面试和复盘组织在一个岗位 Case 中。岗位事实来自经过准入的企业官网与官方 ATS；用户最终回官方页面自行投递。
 
-它不是追求岗位数量的招聘信息流，也不以“官方来源”暗示绝对真实。项目需要证明的增量是：跨来源的资格核对、经历证据解释和轻量决策管理，是否能让目标用户更准确、更高效地决定要不要投。
+供给范围按已接受的 ADR-0035 包括在校生可投的实习、校招、应届与管培；未说明保留 unknown，不以规则补写。100家/1000岗和人工占比为报告项，城市/职能为观察指标；逐来源质量、权限与安全条件继续守门。产品成功指标是高质量投递决定，当前仍 E0，未验证真实用户增量价值。
 
 ## 当前状态快照
 
 | 项目 | 当前值 |
 |---|---|
-| 快照日期 | 2026-08-28 |
-| 当前阶段 | Career OS 前后端同步改进已收敛：UX-0 与 OS-1–OS-7 五项 Gate 全部关闭。M1–M4 与 PA-1 保留为工程基线，真实邮件、解析镜像与服务器 Gate 通过前，G0/G1 继续暂停 |
-| 当前范围 | 干净验收库 `aijob_alpha` 为 22 条可信可见活动岗位、3 家企业、3 个官方 ATS 来源；距离硬门槛仍缺 978 岗、97 家。SME 为 2/3 家、14/22 岗，人工来源为 0；Alpha 与公共岗位均为 0。开发库 14/2 及纠偏前 231/149/29 只保留为历史运行事实 |
-| 协议校准 | 尚未开始；供给硬门槛和服务器就绪 Gate 通过后，只有 coco 明确启动才做 2 人校准；历史可核验记录仍为 0/2 |
-| 正式实验 | 暂停；供给硬门槛、服务器就绪 Gate 与 G0 通过后再做 6 人正式任务和 72 小时回访 |
-| 历史研究样本 | 5 条本地产品/运营岗位；不等于完整 MVP 目录 |
-| 当前证据 | E0：尚无可复核目标用户行为证据，两个产品假设均未判定 |
-| 当前实现策略 | 不默认后端已匹配，也不无依据重做。UX-0 已把每个用户动作绑定到 Contracts、Platform 模块、PostgreSQL 事实、权限/并发/删除语义和真实测试；OS-1–OS-7 已按纵向切片同步修改 Platform 与 Web，并在触达边界补齐运行时契约。三张概念图作为布局、信息层级和交互关系的高保真目标；Recommendation、Insights、申请看板、Case 固定版本三轴核对、Resume Review、显式投递、模板面试、复盘和数据控制已从规范路径可用；不因此启动真实 Alpha |
-| 来源发现进度 | 已按 ADR-0019 完成 1000/1000 家企业/机构审查记录；34 个来源配置中 12 个为 canonical（7 个活动确定性、2 个浏览器提醒、3 个硬冲突暂停），22 个高校等来源均降级为 `discovery_only`。当前审计没有 `capacity` 就绪候选 |
-| 工程切片 | 可信完成基线为 OS-7：Config 20、Contracts 86、Database 54、Platform 466、Web 182，共 **808/808**，一次跑通无 flake；lint 485 files、typecheck、build（主包 401.33 kB / gzip 117.04 kB，上限 411.31 kB）、audit 与 diff check 通过；双库四视口浏览器 Gate 输出 `passed: true`。上一基线 OS-6 为 801/801（`e56ceae`）。真实邮件/解析镜像/服务器、真实 AI 与真实来源仍未实施，公共版本仍为 0 |
-| AI 状态 | Review、Interview、Feedback 与 Debrief 均必须与用户确认事实分离；公开环境继续关闭，M4 沿用确定性模板，不调用真实 AI |
+| 主目录与分支 | `C:\Users\72998\Projects\Aijob` / `codex/job-fact-fidelity-handoff`，独立 Git |
+| 工程路线 | OS-7 已关闭 → SA Phase A/首次取证已完成 → 岗位事实纠偏已验收 → SA 准入证据核验与恢复准备 |
+| 本轮修复 | 完整原句与独立资格断言、硬/优先时长分离、三态投递、同版本要求集升级、不可变历史、私有JD与Review一致展示 |
+| 来源状态 | 34配置，0 approved；历史7个robots检查通过不等于完整访问政策或来源准入 |
+| 业务数据 | 本轮没有读取或迁移原业务数据库；22岗/3企业/3 ATS、公共0仅为历史记录 |
+| 测试与构建 | 全仓948/948、双库与专项浏览器、lint/typecheck/build/audit通过；主包403.58kB，详见本轮验收 |
+| 外部 Gate | 真实邮件、解析镜像、服务器、AI与参与者未在本轮启用，E0不变 |
 
-以上内容只用于帮助首次阅读者定位本次文档基线。后续动态阶段、样本进度、Gate 状态和下一决策日期只更新到 [MVP 路线与当前决策面板](docs/06-mvp-roadmap.md)；如有差异，以该面板为准。
-
-从新的 Codex 任务继续推进时，必须先读项目根目录的 [协作约束](AGENTS.md) 和 [当前项目交接](docs/handoffs/current.md)，再检查当前分支与工作区。交接文档负责保存最近工程事实和下一项唯一总目标，避免依赖长对话上下文。
+后续任务先读根目录 [AGENTS](AGENTS.md)、路线图、交接与计划索引，再检查当前分支和未提交工作。不要同时在新主目录、桌面副本和旧工作树开发。
 
 ## 当前已经能运行什么
 
 仓库已经具备完整的本地纵向闭环：
 
 ```text
-腾讯官方招聘 + 南开就业网公开招聘页 + 美团官方招聘 + 百度官方实习招聘 + 京东校园招聘 + 字节校园招聘人工快照
-  + 帆软实习生招聘 + 慧策/灵明光子/普渡北森官方门户
+企业官方招聘 + 企业确认的官方 ATS
+  （高校等二手来源仅提供企业发现线索）
   -> 来源策略、限速采集、快照、清洗、去重、要求拆解
   -> PostgreSQL
   -> 正式岗位目录、简历确认、三轴推荐
@@ -41,7 +35,7 @@
   -> 官方投递链接、五态决定、全部个人数据删除
 ```
 
-这条链路只证明本地工程可行，不代表来源获准公开或产品价值已验证。通过来源均为 `pending_review`，全部岗位只进入本机 `local_mvp`；数据库公共版本指针仍为 0，公共模式的 `/v1/jobs` 返回空列表。当前干净验收库返回 22 条内部岗位；开发库保留 14 条可信岗位及历史修订，不再作为验收分母。
+这条链路只证明本地工程可行，不代表来源获准公开或产品价值已验证。通过来源均为 `pending_review`，全部岗位只进入本机 `local_mvp`；数据库公共版本指针仍为 0，公共模式的 `/v1/jobs` 返回空列表。历史干净验收库曾返回22条内部岗位；历史开发库14条仅为旧运行记录，本轮未读取这些业务库。
 
 ### 本地启动
 
@@ -56,7 +50,7 @@ pnpm dev
 
 `pnpm local:bootstrap --confirm-live` 按迁移、来源登记、获准低频探测、目录物化和健康检查顺序恢复本地目录。它只读取 Git 已忽略的 `.data/local-bootstrap.json` 清单；清单、来源或明确确认缺失时会 fail-closed，不会用空目录冒充成功。当前清单已校准为先临三维 9、卧安机器人 5、灵明光子 8，预期 22 岗/3 家/公共 0；`aijob_alpha` 已升级至迁移 022 并恢复出相同目录。首次准备清单和隔离库演练方式见 [本地空库恢复手册](docs/runbooks/local-bootstrap.md)。
 
-第一次本地启动时，Aijob 会自动生成随机的 32-byte 简历加密密钥，并复用 Git 已忽略的 `.data/resume-encryption.key`；不需要手工配置，也不会把密钥写入日志。不要在仍需读取临时简历或 DOCX 导出时删除该文件。测试环境可以通过 `RESUME_ENCRYPTION_KEY` 显式使用固定测试密钥；`alpha` 和 `production` 环境必须通过该环境变量提供独立随机密钥，不会回退到本地文件。
+**迁移旧业务数据时先保留原密钥与数据库的对应关系，不要用新生成密钥替代旧材料。** 第一次全新本地启动时，Aijob 会自动生成随机的 32-byte 简历加密密钥，并复用 Git 已忽略的 `.data/resume-encryption.key`；不需要手工配置，也不会把密钥写入日志。不要在仍需读取临时简历或 DOCX 导出时删除该文件。测试环境可以通过 `RESUME_ENCRYPTION_KEY` 显式使用固定测试密钥；`alpha` 和 `production` 环境必须通过该环境变量提供独立随机密钥，不会回退到本地文件。
 
 需要测试真实 AI 接口时，使用后端命令填写配置，不需要编辑 `.env`：
 
@@ -66,7 +60,7 @@ pnpm ai:configure
 
 该命令只填写接口地址、模型和 API Key；配置保存在 Git 已忽略的 `.data/ai-provider.local.json`。填写或替换配置后重启 `pnpm dev`。需要验收真实接口时再运行 `pnpm ai:smoke`，这不是日常配置步骤。前端没有读取或修改供应商配置的接口；未来线上部署只替换后端配置来源，不改岗位推荐和简历优化链路。
 
-旧 `ProductShell` 仍由 `VITE_CAREER_OS_V2=false` 保留为紧急回退，不是当前同步改进目标。V2 已由 `/resumes/import*` 承接简历解析与确认，由 `/jobs/recommended*` 和 `/jobs/insights*` 承接规范推荐与市场洞察，由 `/applications` 承接服务端完整集合看板、Peek 与显式阶段命令，并由 `/applications/:caseId/*` 承接固定岗位版本、Requirements、三轴核对、显式版本升级、岗位简历工作室、显式投递、模板面试和复盘；`/today`、`/settings/data*` 与兼容 `/data-control*` 已接入同一运行与删除边界。旧 Tailoring 继续只读，Resume Review 是模板与受控 AI 的唯一新写入所有者。OS-6 的完成不代表 OS-7、真实供给或 Private Alpha 已完成。`/research/*` 与 `/internal-preview/*` 是内部或历史页面，不进入本轮用户旅程收敛。
+旧 `ProductShell` 仍由 `VITE_CAREER_OS_V2=false` 保留为紧急回退，不是当前同步改进目标。V2 已由 `/resumes/import*` 承接简历解析与确认，由 `/jobs/recommended*` 和 `/jobs/insights*` 承接规范推荐与市场洞察，由 `/applications` 承接服务端完整集合看板、Peek 与显式阶段命令，并由 `/applications/:caseId/*` 承接固定岗位版本、Requirements、三轴核对、显式版本升级、岗位简历工作室、显式投递、模板面试和复盘；`/today`、`/settings/data*` 与兼容 `/data-control*` 已接入同一运行与删除边界。旧 Tailoring 继续只读，Resume Review 是模板与受控 AI 的唯一新写入所有者。OS-7 已完成，但不代表真实供给或 Private Alpha 已完成。`/research/*` 与 `/internal-preview/*` 是内部或历史页面，不进入本轮用户旅程收敛。
 
 `VITE_CAREER_OS_V2` 回退旗标继续保留。进行当前 UX 基线或实现验收时，在启动开发进程前显式开启它，即可从 <http://127.0.0.1:5173/today> 进入当前 Career OS；正常会话使用真实本地 Case API，不回退到仓库静态 Case，也不会访问真实招聘来源或真实 AI：
 
@@ -81,7 +75,7 @@ pnpm dev
 
 扩容规划使用两个零网络命令：`pnpm source:batch-plan --milestone 40` 输出当前/投影分母、结构缺口和批次；`pnpm source:candidate-audit --milestone 40` 按来源族汇总容量证据与暂停原因。命令为空表示没有候选满足准入，不代表应退回抓取综合平台或批量浏览器快照。
 
-`browser_required` 来源不进入 `source:probe` 或自动网络刷新。来源到期后只在 Worker 日志和 `source:refresh-status` 中生成快照提醒。coco 明确批准的人工浏览器或认证公众号快照只能保存在 Git 忽略的 `.data/browser-imports/`，再用 `pnpm source:import-browser-snapshot <source-key> --file <path>` 离线导入；成功导入新快照会清除提醒并更新下次到期时间，该命令没有招聘站网络请求能力。只接受明确实习岗位；公众号投递方式还必须是白名单官方 HTTPS 页面或带原句的企业域名邮箱，个人邮箱、二维码-only、正式校招全职和社会招聘会被整批拒绝。
+`browser_required` 来源不进入 `source:probe` 或自动网络刷新。来源到期后只在 Worker 日志和 `source:refresh-status` 中生成快照提醒。coco 明确批准的人工浏览器或认证公众号快照只能保存在 Git 忽略的 `.data/browser-imports/`，再用 `pnpm source:import-browser-snapshot <source-key> --file <path>` 离线导入；成功导入新快照会清除提醒并更新下次到期时间，该命令没有招聘站网络请求能力。岗位范围按ADR-0035的在校生可投判据；官方投递方式仍须通过白名单与来源证据校验，不接受个人邮箱、二维码-only或绕过访问控制。企业认证公众号和高校页面仅能提供发现线索，不能因此获得公共目录准入。
 
 日常代码检查：
 

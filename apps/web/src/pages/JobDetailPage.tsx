@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { careerOsQueryKeys, createApplicationCase } from "../api/career-os";
 import { createIdempotencyKey } from "../api/client";
-import { legacySurfaceMode } from "../career-os/legacy-compatibility";
 import {
   createMatchRun,
   createResumeTailoring,
@@ -17,6 +16,7 @@ import {
   markOfficialLinkOpened,
   putJobDecision,
 } from "../api/product";
+import { legacySurfaceMode } from "../career-os/legacy-compatibility";
 import { CopyTextButton } from "../components/CopyTextButton";
 import { OfficialJobText } from "../components/OfficialJobText";
 import {
@@ -264,11 +264,9 @@ export function JobDetailPage() {
   const location = displayField(job.locations, (values) => values.join("、"));
   const family = displayField(job.jobFamily, (value) => jobFamilyLabels[value] || value);
   const showStaleMatch = staleMatchNoticeJobId === jobId || matchVersionMismatch;
-  const officialUrlMethod = job.applicationMethods?.find(
-    (method) => method.type === "official_url",
-  );
   const emailMethod = job.applicationMethods?.find((method) => method.type === "company_email");
-  const officialApplicationUrl = officialUrlMethod?.url ?? job.officialLink;
+  const officialApplicationUrl =
+    job.applicationHandoff.kind === "missing" ? null : job.applicationHandoff.url;
 
   return (
     <>
@@ -531,6 +529,12 @@ export function JobDetailPage() {
                 : "打开链接不会自动标记“已投递”；返回后请按真实进度更新状态。"}
             </p>
           </div>
+          {job.applicationHandoff.kind === "official_list_fallback" ? (
+            <p>
+              请按「{job.applicationHandoff.locator.title}」或编号「
+              {job.applicationHandoff.locator.sourceJobId}」在官方列表核对岗位。
+            </p>
+          ) : null}
           {officialApplicationUrl ? (
             <div className="product-handoff__actions">
               <a
@@ -546,7 +550,9 @@ export function JobDetailPage() {
                     : undefined
                 }
               >
-                前往企业招聘入口 ↗
+                {job.applicationHandoff.kind === "official_list_fallback"
+                  ? "前往官方列表查找岗位 ↗"
+                  : "前往企业招聘入口 ↗"}
               </a>
             </div>
           ) : emailMethod ? (

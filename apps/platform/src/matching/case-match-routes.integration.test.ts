@@ -12,6 +12,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { buildApp } from "../app.js";
 import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME, SESSION_COOKIE_NAME } from "../identity/fastify.js";
 import { createAnonymousSession } from "../identity/session-repository.js";
+import { deleteRequirementFixtures } from "../lib/immutable-fixture-cleanup.js";
 import {
   putJobPreferences,
   putProfileFacts,
@@ -345,10 +346,7 @@ describeWithDatabase("Case-scoped matching API and worker context", () => {
         .deleteFrom("catalog.job_condition_projections")
         .where("published_job_version_id", "in", versionIds)
         .execute();
-      await transaction
-        .deleteFrom("catalog.job_requirement_sets")
-        .where("published_job_version_id", "in", versionIds)
-        .execute();
+      await deleteRequirementFixtures(transaction, versionIds);
       await transaction
         .deleteFrom("catalog.published_job_versions")
         .where("id", "in", versionIds)
@@ -656,6 +654,7 @@ describeWithDatabase("Case-scoped matching API and worker context", () => {
       payload: {
         expectedRevision: upgradeCase.revision,
         targetPublishedJobVersionId: upgradeTarget.versionId,
+        targetRequirementSetId: upgradeTarget.requirementSetId,
       },
     });
     expect(upgraded.statusCode).toBe(200);

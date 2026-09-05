@@ -122,6 +122,10 @@ describe("Resume Document V2 contracts", () => {
           publishedJobVersionId: ids.version,
           requirementSetId: ids.requirements,
           officialUrl: "https://example.test/jobs/1",
+          applicationHandoff: {
+            kind: "exact",
+            url: "https://example.test/jobs/1",
+          },
         },
         baseDocumentId: ids.document,
         baseDocumentRevisionId: ids.revision,
@@ -716,6 +720,7 @@ describe("Resume Document V2 contracts", () => {
     expect(CurrentResumeReviewResponseSchema.parse({ review: null })).toEqual({
       review: null,
       requirements: [],
+      sourceUnits: [],
     });
   });
 

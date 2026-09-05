@@ -49,9 +49,8 @@ const universityApplicationSchema = z.discriminatedUnion("type", [
     .object({
       type: z.literal("official_url"),
       url: z.string().url(),
-      verification: z
-        .enum(["page_exact", "browser_verified_official_ats"])
-        .default("page_exact"),
+      linkKind: z.enum(["exact", "official_list_fallback"]),
+      verification: z.enum(["page_exact", "browser_verified_official_ats"]).default("page_exact"),
     })
     .strict(),
   z.object({ type: z.literal("company_email") }).strict(),
@@ -105,6 +104,7 @@ export interface UniversityEmploymentSource {
     | {
         type: "official_url";
         url: string;
+        linkKind: "exact" | "official_list_fallback";
         verification?: "page_exact" | "browser_verified_official_ats";
       }
     | { type: "company_email" };
@@ -128,7 +128,11 @@ const universityEmploymentSourceList: UniversityEmploymentSource[] = [
       "https://career.nankai.edu.cn/correcruit/content/id/116235.html",
     ],
     // 页面邮箱域 jtsupvan.com 无法核验主体归属，按白名单拒绝，只保留官方投递网址。
-    application: { type: "official_url", url: "https://www.supvan.com/joinUs" },
+    application: {
+      type: "official_url",
+      url: "https://www.supvan.com/joinUs",
+      linkKind: "official_list_fallback",
+    },
   },
   {
     sourceKey: "jcquant-internships",
@@ -182,6 +186,7 @@ const universityEmploymentSourceList: UniversityEmploymentSource[] = [
     application: {
       type: "official_url",
       url: "https://campus.allwinnertech.com/campus-recruitment/allwinnertech/43436/#/jobs?zhineng%5B0%5D=240584",
+      linkKind: "official_list_fallback",
       verification: "browser_verified_official_ats",
     },
   },
@@ -195,6 +200,7 @@ const universityEmploymentSourceList: UniversityEmploymentSource[] = [
     application: {
       type: "official_url",
       url: "https://careers.citics.com/mobile/position/detail?resumeType=3&recruitType=08&practice=1&deptype=Branch&pagetype=xz&positionNo=5468&deptNo=637&status=&full=0",
+      linkKind: "exact",
       verification: "browser_verified_official_ats",
     },
   },
@@ -233,6 +239,7 @@ const universityEmploymentSourceList: UniversityEmploymentSource[] = [
     application: {
       type: "official_url",
       url: "https://app.mokahr.com/campus-recruitment/hanxu/144645?locale=zh-CN#/",
+      linkKind: "official_list_fallback",
     },
   },
   {
@@ -254,6 +261,7 @@ const universityEmploymentSourceList: UniversityEmploymentSource[] = [
     application: {
       type: "official_url",
       url: "https://www.dytechlab.com/careers",
+      linkKind: "official_list_fallback",
     },
   },
   {
@@ -665,9 +673,7 @@ function hustCompanyName(lines: string[], titleIndex: number, firstRoleIndex: nu
 function hustMarker(line: string, kind: "requirements" | "application"): boolean {
   const normalized = line.normalize("NFKC").replace(/\s+/g, "");
   if (kind === "requirements") {
-    return /^(?:[一二三四五六七八九十\d]+[、.]?)?(?:岗位要求|任职要求)[:：]?$/u.test(
-      normalized,
-    );
+    return /^(?:[一二三四五六七八九十\d]+[、.]?)?(?:岗位要求|任职要求)[:：]?$/u.test(normalized);
   }
   return /^(?:[一二三四五六七八九十\d]+[、.]?)?(?:投递方式|招聘流程及方式)[:：]?$/u.test(
     normalized,
@@ -679,9 +685,7 @@ function hustBenefitMarker(line: string): boolean {
 }
 
 function hustCleanLines(lines: string[]): string[] {
-  return lines
-    .map((line) => line.replace(/[\t\u3000 ]+/g, " ").trim())
-    .filter(Boolean);
+  return lines.map((line) => line.replace(/[\t\u3000 ]+/g, " ").trim()).filter(Boolean);
 }
 
 function parseHustAggregateJobInfoPage(
@@ -735,9 +739,7 @@ function parseHustAggregateJobInfoPage(
     .split(/\s+/u)
     .filter(Boolean)
     .join("/");
-  const publishedAt = lines
-    .find((line) => line.startsWith("发布时间："))
-    ?.match(datePattern)?.[0];
+  const publishedAt = lines.find((line) => line.startsWith("发布时间："))?.match(datePattern)?.[0];
 
   const tableHeaderIndex = lines.findIndex((line) => line === "需求岗位");
   const tableEndIndex = lines.findIndex(
@@ -751,7 +753,9 @@ function parseHustAggregateJobInfoPage(
       : [];
   const tableTitle = tableLines.slice(1).find((line) => /实习/u.test(line));
   const title = tableTitle ?? "AI实习生";
-  const titleLineIndex = lines.findIndex((line, index) => index > tableHeaderIndex && line === title);
+  const titleLineIndex = lines.findIndex(
+    (line, index) => index > tableHeaderIndex && line === title,
+  );
   const rowWindowStart = Math.max(titleLineIndex + 1, tableHeaderIndex + 1);
   const headcountText = lines
     .slice(rowWindowStart, rowWindowStart + 4)
@@ -765,10 +769,10 @@ function parseHustAggregateJobInfoPage(
     (line, index) => index > requirementSectionIndex && /^五、投递方式/u.test(line),
   );
   const applicationLines =
-    applicationSectionIndex >= 0
-      ? lines.slice(applicationSectionIndex, pageBodyEnd)
-      : [];
-  const applicationLine = applicationLines.find((line) => /(?:https?:\/\/)?we\.dji\.com\b/i.test(line));
+    applicationSectionIndex >= 0 ? lines.slice(applicationSectionIndex, pageBodyEnd) : [];
+  const applicationLine = applicationLines.find((line) =>
+    /(?:https?:\/\/)?we\.dji\.com\b/i.test(line),
+  );
   const applicationMatch = applicationLine?.match(/(?:https?:\/\/)?we\.dji\.com[^\s，。；]*/i)?.[0];
   const applicationUrlOnPage = applicationMatch
     ? applicationMatch.startsWith("http")
@@ -840,20 +844,18 @@ export function parseHustJobInfoPage(html: string, pageUrl: string): UniversityE
   }
 
   const companyName = hustCompanyName(lines, titleIndex, roleIndexes[0]?.index ?? -1);
-  const publishedAt = lines
-    .find((line) => line.startsWith("发布时间："))
-    ?.match(datePattern)?.[0];
+  const publishedAt = lines.find((line) => line.startsWith("发布时间："))?.match(datePattern)?.[0];
   const deadline = lines
     .find((line) => /(?:截止|结束)时间?[:：]/u.test(line))
     ?.match(datePattern)?.[0];
   const locationIndex = lines.findIndex(
-    (line, index) =>
-      index > titleIndex && /^(?:【)?工作地点(?:】)?[:：]?$/u.test(line),
+    (line, index) => index > titleIndex && /^(?:【)?工作地点(?:】)?[:：]?$/u.test(line),
   );
   const locationText = locationIndex >= 0 ? lines[locationIndex + 1] : undefined;
   const headcountText = lines.find((line) => line.startsWith("招聘人数："));
   const commonRequirementIndex = lines.findIndex(
-    (line, index) => index > (roleIndexes.at(-1)?.index ?? titleIndex) && hustMarker(line, "requirements"),
+    (line, index) =>
+      index > (roleIndexes.at(-1)?.index ?? titleIndex) && hustMarker(line, "requirements"),
   );
   const applicationIndex = applicationMarkerIndex;
   const applicationEnd = footerIndex >= 0 ? footerIndex : lines.length;
@@ -878,10 +880,7 @@ export function parseHustJobInfoPage(html: string, pageUrl: string): UniversityE
   const commonRequirements =
     commonRequirementIndex >= 0
       ? lines
-          .slice(
-            commonRequirementIndex + 1,
-            applicationIndex >= 0 ? applicationIndex : contentEnd,
-          )
+          .slice(commonRequirementIndex + 1, applicationIndex >= 0 ? applicationIndex : contentEnd)
           .filter((line) => !hustBenefitMarker(line))
           .join("\n")
       : "";
@@ -917,7 +916,7 @@ export function parseHustJobInfoPage(html: string, pageUrl: string): UniversityE
     const emails =
       allApplicationEmails.length === 1
         ? allApplicationEmails
-        : roleEmailMap.get(role.title) ?? [];
+        : (roleEmailMap.get(role.title) ?? []);
     return {
       sourceJobId: `${pageIdentity("hust-jobinfo", pageUrl)}-role-${String(index + 1).padStart(2, "0")}`,
       pageUrl,
@@ -1139,9 +1138,7 @@ function sustechRoleTitle(line: string): string {
 
 export function parseSustechBysjyPage(html: string, pageUrl: string): UniversityEmploymentJob[] {
   const lines = htmlToDeterministicLines(html);
-  const titleMatch = html.match(
-    /<h1[^>]*class=["'][^"']*dh-tit[^"']*["'][^>]*>([\s\S]*?)<\/h1>/i,
-  );
+  const titleMatch = html.match(/<h1[^>]*class=["'][^"']*dh-tit[^"']*["'][^>]*>([\s\S]*?)<\/h1>/i);
   const title = titleMatch?.[1]
     ? decodeTitleEntities(titleMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " "))
     : undefined;
@@ -1191,7 +1188,10 @@ export function parseSustechBysjyPage(html: string, pageUrl: string): University
       .slice(responsibilityIndex + 1, requirementIndex)
       .join("\n")
       .trim();
-    const requirements = segment.slice(requirementIndex + 1).join("\n").trim();
+    const requirements = segment
+      .slice(requirementIndex + 1)
+      .join("\n")
+      .trim();
     if (!responsibilities || !requirements) {
       throw new Error("UNIVERSITY_EMPLOYMENT_REQUIREMENTS_SECTION_MISSING");
     }
@@ -1447,6 +1447,10 @@ export function normalizeUniversityEmploymentJob(input: {
     activityState: "active" as const,
     sourceUrl: job.pageUrl,
     applyUrl,
+    applicationLinkKind:
+      source.application.type === "official_url"
+        ? source.application.linkKind
+        : ("missing" as const),
     qualityFlags,
     reviewReasons,
   };

@@ -1,4 +1,5 @@
 import type {
+  ApplicationLinkKind,
   FieldValue,
   FreshnessState,
   JobDetail,
@@ -28,10 +29,11 @@ import { type Kysely, sql, type Transaction } from "kysely";
 import { z } from "zod";
 import { validateNavigationUrl } from "../ingestion/safe-http.js";
 import type { SourceTarget } from "../sources/source-config.js";
+import { buildApplicationHandoff, exactOfficialLink } from "./application-handoff.js";
 import { approvedCompanyEmail } from "./application-methods.js";
 import {
-  collectCatalogSearchItems,
   type CatalogSearchRecord,
+  collectCatalogSearchItems,
   searchCatalogRecords,
 } from "./filtering.js";
 
@@ -84,6 +86,7 @@ interface CatalogDatabaseRow {
   activity_state: string;
   source_url: string;
   apply_url: string | null;
+  application_link_kind: ApplicationLinkKind;
   import_mode: string;
   review_reasons: JsonValue;
   last_verified_at: Date | string;
@@ -274,6 +277,10 @@ function mapRow(row: CatalogDatabaseRow): CatalogSearchRecord {
     languages: parseField(row.languages, z.array(z.string().trim().min(1)).min(1)),
     responsibilitiesText: safeText(row.responsibilities, row.revision_id, "responsibilities"),
     requirementsText: safeText(row.requirements, row.revision_id, "requirements"),
+    // List/search context does not resolve the navigation allowlist, so it must not expose an
+    // unresolved apply URL. The single-job read (`get`) recomputes the real handoff after
+    // allowlist validation. Until then this stays a safe non-actionable placeholder.
+    applicationHandoff: { kind: "missing", reasonCode: "APPLICATION_LINK_NOT_RESOLVED" },
     officialLink: null,
   });
 
@@ -333,6 +340,7 @@ async function loadLocalRows(db: DbExecutor): Promise<CatalogDatabaseRow[]> {
       END AS activity_state,
       preview.source_url,
       preview.apply_url,
+      preview.application_link_kind,
       preview.import_mode,
       preview.review_reasons,
       preview.last_verified_at,
@@ -449,6 +457,7 @@ async function loadPublicRows(db: DbExecutor): Promise<CatalogDatabaseRow[]> {
       activity.effective_activity_state AS activity_state,
       version.source_url,
       version.apply_url,
+      version.application_link_kind,
       revision.import_mode,
       '[]'::jsonb AS review_reasons,
       record.last_seen_at AS last_verified_at,
@@ -670,14 +679,24 @@ export function createCatalogRepository(input: {
         : await loadPublicRows(input.db);
       const raw = rawRows.find((row) => row.job_id === jobId);
       if (!raw) return null;
-      const officialLink = await approvedOfficialLink(
+      const approvedApplyUrl = await approvedOfficialLink(
         input.db,
         record.detail.source.sourceId,
         raw.apply_url,
       );
+      const applicationHandoff = buildApplicationHandoff({
+        applicationLinkKind: raw.application_link_kind,
+        approvedApplyUrl,
+        title: raw.title,
+        sourceJobId: raw.source_job_id,
+      });
+      // The compatibility `officialLink` and the official_url method are exact-only: a shared
+      // official list URL must never be presented as a direct apply link to older clients.
+      const officialLink = exactOfficialLink(applicationHandoff);
       const emailMethod = approvedCompanyEmail(raw.structured_fields, raw.official_domain);
       return JobDetailSchema.parse({
         ...record.detail,
+        applicationHandoff,
         officialLink,
         applicationMethods: [
           ...(officialLink ? [{ type: "official_url" as const, url: officialLink }] : []),

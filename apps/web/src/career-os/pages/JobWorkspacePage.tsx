@@ -11,6 +11,7 @@ import {
   jobFamilyLabels,
   sourceTypeLabels,
 } from "../../product/domain";
+import { ApplicationHandoffLink } from "../components/ApplicationHandoffLink";
 import { Icon } from "../components/Icon";
 import { safeJobReturnPath } from "../job-navigation";
 
@@ -63,7 +64,9 @@ export function JobWorkspacePage() {
     return (
       <section className="career-route-state" aria-labelledby="job-workspace-error-title">
         <p>岗位工作台</p>
-        <h1 id="job-workspace-error-title">{missing ? "这个岗位不可读取" : "岗位详情暂时不可用"}</h1>
+        <h1 id="job-workspace-error-title">
+          {missing ? "这个岗位不可读取" : "岗位详情暂时不可用"}
+        </h1>
         <span>
           {missing
             ? "岗位不存在、已从当前目录移除，或不属于当前可见范围。"
@@ -124,17 +127,10 @@ export function JobWorkspacePage() {
           </div>
         </div>
         <div className="career-job-workspace__actions">
-          {job.officialLink ? (
-            <a
-              className="career-button career-button--quiet"
-              href={job.officialLink}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <Icon name="external" size={16} />
-              打开官方页面
-            </a>
-          ) : null}
+          <ApplicationHandoffLink
+            handoff={job.applicationHandoff}
+            methods={job.applicationMethods}
+          />
           <button
             className="career-button career-button--primary"
             type="button"

@@ -25,6 +25,7 @@ describeWithDatabase("ingestion persistence fencing and idempotency", () => {
   }
 
   const normalized: NormalizedTencentJob = {
+    applicationLinkKind: "exact",
     sourceJobId,
     companyName: "Concurrency Test Company",
     title: "Product Intern",

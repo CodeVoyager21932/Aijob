@@ -289,6 +289,7 @@ export function normalizeMeituanJob(input: {
     activityState: "active" as const,
     sourceUrl,
     applyUrl: sourceUrl,
+    applicationLinkKind: "exact" as const,
     qualityFlags: missingFields.map((field) => ({
       code: "SOURCE_FIELD_NOT_STATED",
       detail: field,

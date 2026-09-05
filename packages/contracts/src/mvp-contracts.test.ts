@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ApplicationHandoffSchema,
   CompanyScaleSchema,
   CreateRecommendationRunRequestSchema,
   CreateResumeTailoringRequestSchema,
   JobDetailSchema,
-  MatchRunResultSchema,
   MAX_RECOMMENDATION_CANDIDATES,
+  MatchRunResultSchema,
   normalizeCityPreferences,
   ProfileDeletionSchema,
   ResumeAnalysisSubmissionSchema,
@@ -71,7 +72,7 @@ describe("local complete MVP contracts", () => {
     });
   });
 
-  it("keeps the existing job detail payload backward compatible", () => {
+  it("requires an explicit application handoff while retaining compatibility fields", () => {
     const result = JobDetailSchema.safeParse({
       id: "job-1",
       publishedJobVersionId: null,
@@ -104,10 +105,50 @@ describe("local complete MVP contracts", () => {
       deadlineAt: unknown,
       responsibilitiesText: unknown,
       requirementsText: unknown,
+      applicationHandoff: {
+        kind: "exact",
+        url: "https://example.com/jobs/1",
+      },
       officialLink: "https://example.com/jobs/1",
     });
 
     expect(result.success).toBe(true);
+  });
+
+  it("validates exact, official-list fallback and missing application handoffs", () => {
+    expect(
+      ApplicationHandoffSchema.safeParse({
+        kind: "exact",
+        url: "https://example.com/jobs/1/apply",
+      }).success,
+    ).toBe(true);
+    expect(
+      ApplicationHandoffSchema.safeParse({
+        kind: "official_list_fallback",
+        url: "https://example.com/campus/jobs",
+        locator: { title: "产品实习生", sourceJobId: "job-1" },
+      }).success,
+    ).toBe(true);
+    expect(
+      ApplicationHandoffSchema.safeParse({
+        kind: "missing",
+        reasonCode: "SOURCE_NOT_STATED",
+      }).success,
+    ).toBe(true);
+    expect(
+      ApplicationHandoffSchema.safeParse({
+        kind: "official_list_fallback",
+        url: "http://example.com/campus/jobs",
+        locator: { title: "产品实习生", sourceJobId: "job-1" },
+      }).success,
+    ).toBe(false);
+    expect(
+      ApplicationHandoffSchema.safeParse({
+        kind: "missing",
+        url: "https://example.com/jobs/1",
+        reasonCode: "SOURCE_NOT_STATED",
+      }).success,
+    ).toBe(false);
   });
 
   it("requires company scale evidence to be complete or entirely absent", () => {

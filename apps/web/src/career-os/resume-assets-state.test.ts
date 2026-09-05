@@ -54,6 +54,7 @@ describe("resume asset state", () => {
         publishedJobId: randomUUID(),
         publishedJobVersionId: randomUUID(),
         requirementSetId: randomUUID(),
+        applicationHandoff: { kind: "exact", url: "https://example.com/jobs/1" },
         officialUrl: "https://example.com/jobs/1",
       },
       baseDocumentId: newer.id,

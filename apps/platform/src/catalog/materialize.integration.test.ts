@@ -3,6 +3,7 @@ import { JobSearchQuerySchema } from "@aijob/contracts";
 import { createDatabase, migrateToLatest } from "@aijob/database";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getInternalPreviewJob } from "../api/job-repository.js";
+import { deleteRequirementFixtures } from "../lib/immutable-fixture-cleanup.js";
 import { lockLocalCatalogMaterialization, materializeLocalCatalog } from "./materialize.js";
 import { createCatalogRepository } from "./repository.js";
 
@@ -44,10 +45,7 @@ describeWithDatabase("catalog materialization revision links", () => {
           .set({ active_requirement_set_id: null })
           .where("id", "in", versionIds)
           .execute();
-        await transaction
-          .deleteFrom("catalog.job_requirement_sets")
-          .where("published_job_version_id", "in", versionIds)
-          .execute();
+        await deleteRequirementFixtures(transaction, versionIds);
       }
       if (jobIds.length > 0) {
         await transaction
@@ -196,7 +194,7 @@ describeWithDatabase("catalog materialization revision links", () => {
         evidenceRefs: [`${input.id}#recruitment-type`],
       }),
       responsibilities: "Support product research and delivery.",
-      requirements: "Use SQL for product analysis.",
+      requirements: "每周至少到岗3天，至少实习3个月，实习6个月优先；具备良好的自驱力。",
       structured_fields: JSON.stringify({}),
       ingestion_state: "validated",
       publication_state: "review",
@@ -252,6 +250,40 @@ describeWithDatabase("catalog materialization revision links", () => {
       .where("published_job_id", "=", firstMaterialization.jobId)
       .execute();
     expect(versions).toEqual([{ id: firstMaterialization.versionId }]);
+    const sets = await db
+      .selectFrom("catalog.job_requirement_sets")
+      .selectAll()
+      .where("published_job_version_id", "=", firstMaterialization.versionId)
+      .execute();
+    expect(sets).toHaveLength(1);
+    const set = sets[0];
+    if (!set) throw new Error("REQUIREMENT_SET_MISSING");
+    expect(set.schema_version).toBe("job-requirements-v5");
+    const requirements =
+      typeof set.requirements === "string" ? JSON.parse(set.requirements) : set.requirements;
+    expect(requirements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "duration", expectedValue: 3, necessity: "required" }),
+        expect.objectContaining({ kind: "duration", expectedValue: 6, necessity: "preferred" }),
+        expect.objectContaining({
+          kind: "weekly_attendance",
+          expectedValue: 3,
+          necessity: "required",
+        }),
+      ]),
+    );
+    const units =
+      typeof set.source_units === "string" ? JSON.parse(set.source_units) : set.source_units;
+    expect(units).toEqual(
+      expect.arrayContaining([expect.objectContaining({ text: "具备良好的自驱力" })]),
+    );
+    const projection = await db
+      .selectFrom("catalog.job_condition_projections")
+      .selectAll()
+      .where("requirement_set_id", "=", set.id)
+      .executeTakeFirstOrThrow();
+    expect(projection.duration_months).toMatchObject({ state: "known", value: 3 });
+    expect(projection.weekly_attendance_days).toMatchObject({ state: "known", value: 3 });
 
     const links = await db
       .selectFrom("catalog.published_job_version_revision_links")
@@ -322,10 +354,7 @@ describeWithDatabase("catalog company quota selections (ADR-0021)", () => {
           .set({ active_requirement_set_id: null })
           .where("id", "in", versionIds)
           .execute();
-        await transaction
-          .deleteFrom("catalog.job_requirement_sets")
-          .where("published_job_version_id", "in", versionIds)
-          .execute();
+        await deleteRequirementFixtures(transaction, versionIds);
       }
       if (jobIds.length > 0) {
         await transaction

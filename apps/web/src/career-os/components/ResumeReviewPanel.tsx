@@ -12,6 +12,7 @@ import {
   getCurrentResumeReview,
 } from "../../api/career-os";
 import { createIdempotencyKey, ProductApiError } from "../../api/client";
+import { requirementAssertionLabel } from "../requirements-view";
 import {
   buildResumeReviewDecisionRequest,
   type ResumeReviewDecisionDraft,
@@ -27,6 +28,7 @@ import {
   resumeReviewStatusLabel,
 } from "../resume-review-view";
 import { Icon } from "./Icon";
+import { RequirementSourceUnits } from "./RequirementSourceUnits";
 
 interface DecisionCommand {
   signature: string;
@@ -113,6 +115,7 @@ export function ResumeReviewPanel({
   });
   const review = reviewQuery.data?.review ?? null;
   const requirements = reviewQuery.data?.requirements ?? [];
+  const sourceUnits = reviewQuery.data?.sourceUnits ?? [];
   const requirementById = useMemo(
     () => new Map(requirements.map((requirement) => [requirement.id, requirement])),
     [requirements],
@@ -262,9 +265,7 @@ export function ResumeReviewPanel({
         <button
           className="career-button career-button--primary"
           type="button"
-          disabled={
-            !privacyConsent || disabled || mutationBusy || currentReviewIsPending
-          }
+          disabled={!privacyConsent || disabled || mutationBusy || currentReviewIsPending}
           onClick={() => startMutation.mutate("controlled_ai")}
         >
           {startMutation.isPending && startMutation.variables === "controlled_ai"
@@ -284,7 +285,20 @@ export function ResumeReviewPanel({
           </div>
           <span>{requirements.length}</span>
         </header>
-        {requirements.length > 0 ? (
+        {sourceUnits.length > 0 ? (
+          <RequirementSourceUnits
+            data={{ requirements, sourceUnits }}
+            renderAssertion={(requirement) => (
+              <button
+                type="button"
+                aria-pressed={requirement.id === selectedRequirementId}
+                onClick={() => onSelectRequirement(requirement.id)}
+              >
+                {requirementAssertionLabel(requirement)}
+              </button>
+            )}
+          />
+        ) : requirements.length > 0 ? (
           <ol>
             {requirements.map((requirement, index) => (
               <li
@@ -369,7 +383,8 @@ export function ResumeReviewPanel({
           {review.reviewRun.schemaVersion === "resume-review-run-v2" &&
           review.reviewRun.usedTemplateFallback ? (
             <p className="career-resume-review__notice is-fallback">
-              {resumeReviewGenerationLabel(review.reviewRun)}。降级原因已随本次 Run 保存，正文没有被自动修改。
+              {resumeReviewGenerationLabel(review.reviewRun)}。降级原因已随本次 Run
+              保存，正文没有被自动修改。
             </p>
           ) : null}
           {review.reviewRun.schemaVersion === "resume-review-run-v1" ? (

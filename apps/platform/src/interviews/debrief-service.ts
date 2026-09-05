@@ -26,6 +26,11 @@ import {
 } from "@aijob/contracts";
 import type { Database, JsonValue } from "@aijob/database";
 import { type Kysely, type Selectable, sql, type Transaction } from "kysely";
+import {
+  loadPublicJobHandoffs,
+  missingPublicJobHandoff,
+  type PublicJobHandoff,
+} from "../catalog/public-job-handoff.js";
 import { assertActiveOwnerEpoch, type OwnerScope } from "../identity/session-repository.js";
 import { hashCanonicalJson } from "../lib/canonical-json.js";
 import { lockOwnerIdempotencyKey } from "../lib/idempotency.js";
@@ -39,7 +44,6 @@ type FeedbackRow = Selectable<Database["application.interview_feedback"]>;
 type InterviewTurnRow = Selectable<Database["application.interview_turns"]>;
 
 interface DebriefReadRow extends DebriefRow {
-  public_official_url: string | null;
   private_title: string | null;
   private_company_name: string | null;
   private_source_label: string | null;
@@ -168,9 +172,6 @@ function debriefReadQuery(db: DbExecutor) {
     )
     .selectAll("debrief")
     .select([
-      sql<string | null>`COALESCE(public_version.apply_url, public_version.source_url)`.as(
-        "public_official_url",
-      ),
       "private_revision.title as private_title",
       "private_revision.company_name as private_company_name",
       "private_revision.source_label as private_source_label",
@@ -180,14 +181,23 @@ function debriefReadQuery(db: DbExecutor) {
     ]);
 }
 
-function mapJobContext(row: DebriefReadRow): JobContext {
+async function mapJobContext(
+  db: DbExecutor,
+  row: DebriefReadRow,
+  handoffs?: Map<string, PublicJobHandoff>,
+): Promise<JobContext> {
+  const publicHandoff = row.published_job_version_id
+    ? ((handoffs ?? (await loadPublicJobHandoffs(db, [row.published_job_version_id]))).get(
+        row.published_job_version_id,
+      ) ?? missingPublicJobHandoff)
+    : missingPublicJobHandoff;
   if (row.job_context_kind === "public") {
     return {
       kind: "public",
       publishedJobId: row.published_job_id ?? "",
       publishedJobVersionId: row.published_job_version_id ?? "",
       requirementSetId: row.requirement_set_id ?? "",
-      officialUrl: row.public_official_url ?? "",
+      ...publicHandoff,
     };
   }
   return {
@@ -204,7 +214,7 @@ function mapJobContext(row: DebriefReadRow): JobContext {
   };
 }
 
-function mapDebrief(row: DebriefReadRow): Debrief {
+async function mapDebrief(db: DbExecutor, row: DebriefReadRow): Promise<Debrief> {
   return DebriefSchema.parse({
     schemaVersion: row.schema_version,
     id: row.id,
@@ -212,7 +222,7 @@ function mapDebrief(row: DebriefReadRow): Debrief {
     ownerEpoch: Number(row.owner_epoch),
     caseId: row.case_id,
     detachedFromCaseId: row.detached_from_case_id,
-    jobContext: mapJobContext(row),
+    jobContext: await mapJobContext(db, row),
     interviewSessionId: row.interview_session_id,
     evidenceRevisionId: row.evidence_revision_id,
     expressionIssues: parseJsonValue(row.expression_issues),
@@ -389,7 +399,7 @@ async function detailForDebrief(
   ]);
   return GetCaseDebriefResponseSchema.parse({
     feedback: feedback ? mapFeedback(feedback) : null,
-    debrief: mapDebrief(row),
+    debrief: await mapDebrief(db, row),
     itemDecisions,
     confirmation,
   });
@@ -546,7 +556,7 @@ async function prepareResponse(
   return PrepareCaseDebriefResponseSchema.parse({
     created,
     feedback: mapFeedback(feedback),
-    debrief: mapDebrief(row),
+    debrief: await mapDebrief(db, row),
   });
 }
 
@@ -835,7 +845,7 @@ export async function confirmCaseDebrief(input: {
       throw debriefRevisionConflict();
     }
 
-    const debrief = mapDebrief(debriefRow);
+    const debrief = await mapDebrief(transaction, debriefRow);
     if (debrief.status !== "draft" || debrief.revision !== input.request.expectedDebriefRevision) {
       throw debriefRevisionConflict();
     }

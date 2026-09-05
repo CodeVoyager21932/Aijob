@@ -94,14 +94,20 @@ async function seedCatalog(client, options = {}) {
       `INSERT INTO source_control.source_policy_versions
         (source_id, version, policy_status, config_registered, catalog_role, runtime_scope,
          provenance_level, acquisition_mode, adapter_key, adapter_version, entrypoints,
-         crawl_interval, policy_notes, reviewed_at)
+         crawl_interval, policy_notes, reviewed_at, absence_policy, refresh_coverage)
        VALUES ($1, 1, 'approved', true, 'canonical', 'alpha', 'organization_owned',
-         'public_api', 'm1-offline-browser-fixture', '1', $2::jsonb, '24h', $3, now())`,
+         'public_api', 'm1-offline-browser-fixture', '1', $2::jsonb, '24h', $3, now(), 'close_after_two_complete_absences', 'full_scope')`,
       [
         sourceId,
         JSON.stringify(["https://m1.example.test/jobs"]),
         "Synthetic offline fixture; never fetched.",
       ],
+    );
+    await client.query(
+      `INSERT INTO source_control.source_apply_targets
+        (id, source_id, policy_version, method, scheme, host, port, path_prefix, allow_redirects, allowed_query_parameters)
+       VALUES ($1, $2, 1, 'GET', 'https', $3, 443, '/jobs/', false, '{}')`,
+      [randomUUID(), sourceId, new URL(sourceUrl).hostname],
     );
     await client.query(
       `INSERT INTO source_control.source_runtime_states

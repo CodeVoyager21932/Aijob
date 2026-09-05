@@ -1,4 +1,4 @@
-import type { JobFamily } from "@aijob/contracts";
+import type { ApplicationLinkKind, JobFamily } from "@aijob/contracts";
 
 export type EvidenceField<T> =
   | { state: "known"; value: T; evidenceRefs: string[] }
@@ -35,6 +35,7 @@ export interface NormalizedOfficialJob {
   activityState: "active";
   sourceUrl: string;
   applyUrl: string | null;
+  applicationLinkKind: ApplicationLinkKind;
   qualityFlags: Array<{ code: string; detail: string }>;
   reviewReasons: Array<{ code: string; details: Record<string, unknown> }>;
   revisionContentHash: string;
