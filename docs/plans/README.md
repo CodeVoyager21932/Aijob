@@ -5,7 +5,7 @@
 ## 当前执行
 
 - [岗位事实纠偏与独立工作区接手](job-fact-fidelity-handoff.md)：**四步已完成**；关闭依据为[验收证据](../evidence/product/job-fact-fidelity-acceptance-2026-09-05.md)。
-- [供给准入扩容轨道（SA Track）](supply-admission-scaleup-track.md)：**当前唯一目标**为准入证据核验与业务恢复准备，先对齐旧配额残留。Phase A已完成，40/70/100为报告检查点。触网边界仍服从AGENTS与已有授权。
+- [供给准入扩容轨道（SA Track）](supply-admission-scaleup-track.md)：**当前唯一目标**为准入证据核验与业务恢复准备，按ADR-0036取消单家公司上限。Phase A已完成，40/70/100为报告检查点。触网边界仍服从AGENTS与已有授权。
 - [主工作区与旧目录处置](../runbooks/workspace-takeover.md)：只在独立主目录继续开发；原目录和私有业务材料的保存、恢复边界。
 - [Career OS 前后端同步改进计划](career-os-current-delivery-plan.md)：**已收敛完成**；UX-0 与 OS-1–OS-7 五项 Gate 全部关闭。保留为实施契约与历史依据，不再提供当前任务。
 - [Career OS 端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)：OS-1–OS-7 必须遵守的系统归属、Contracts/Platform/DB/Web、路由、状态、视觉、响应式、焦点和夹具规则；不提供新的任务顺序。
@@ -53,7 +53,7 @@
 
 1. 当前阶段、目标和下一决定：`docs/06-mvp-roadmap.md`。
 2. 当前分支、工程基线和执行入口：`docs/handoffs/current.md`。
-3. 当前切片、顺序和退出条件：`docs/plans/career-os-current-delivery-plan.md`。
+3. 当前切片、顺序和退出条件：`docs/plans/supply-admission-scaleup-track.md`。
 4. 不可静默改变的架构与产品决定：ADR。
 5. Private Alpha 完整条件：`private-alpha-readiness-gates.md`，只守门。
 6. 历史设计、验收与归档：只作证据和上下文。

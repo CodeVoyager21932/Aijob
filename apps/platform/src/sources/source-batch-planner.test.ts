@@ -1,4 +1,4 @@
-import { JobFamilySchema, type JobFamily } from "@aijob/contracts";
+import { type JobFamily, JobFamilySchema } from "@aijob/contracts";
 import { describe, expect, it } from "vitest";
 import {
   auditSourceBatchPlan,
@@ -12,9 +12,7 @@ import {
   TARGET_ALPHA_CITIES,
 } from "./source-candidates.js";
 
-function baseline(
-  overrides: Partial<CatalogSupplyMetrics> = {},
-): CatalogSupplyMetrics {
+function baseline(overrides: Partial<CatalogSupplyMetrics> = {}): CatalogSupplyMetrics {
   return {
     totalSupply: 0,
     visibleJobs: 0,
@@ -26,9 +24,10 @@ function baseline(
     manualVisibleJobs: 0,
     manualCompanies: 0,
     publicJobs: 0,
-    jobFamilies: Object.fromEntries(
-      JobFamilySchema.options.map((family) => [family, 0]),
-    ) as Record<JobFamily, number>,
+    jobFamilies: Object.fromEntries(JobFamilySchema.options.map((family) => [family, 0])) as Record<
+      JobFamily,
+      number
+    >,
     cities: Object.fromEntries(TARGET_ALPHA_CITIES.map((city) => [city, 0])) as Record<
       (typeof TARGET_ALPHA_CITIES)[number],
       number
@@ -114,9 +113,7 @@ describe("source batch planner", () => {
       baseline: baseline(),
       milestone: 40,
       registry,
-      ledgerRows: [
-        ledgerRow("DATE-001", "Deadline Company", { closeDate: "2026-08-01" }),
-      ],
+      ledgerRows: [ledgerRow("DATE-001", "Deadline Company", { closeDate: "2026-08-01" })],
       now: new Date("2026-08-02T00:01:00+08:00"),
     });
 
@@ -153,9 +150,10 @@ describe("source batch planner", () => {
       now: new Date("2026-08-02T08:00:00+08:00"),
     });
 
-    expect(
-      plan.candidatePool.preflightQueue.map((candidate) => candidate.candidateId),
-    ).toEqual(["ORDER-001", "ORDER-002"]);
+    expect(plan.candidatePool.preflightQueue.map((candidate) => candidate.candidateId)).toEqual([
+      "ORDER-001",
+      "ORDER-002",
+    ]);
   });
 
   it("selects at most ten Alpha-approved companies", async () => {
@@ -280,9 +278,7 @@ describe("source batch planner", () => {
   it("selects non-reachable candidates instead of gating the batch on a reachable-job ratio", async () => {
     const registry = await loadSourceCandidateRegistry();
     const reachable = Array.from({ length: 7 }, (_, index) => approvedOverride(index + 1));
-    const nonReachable = Array.from({ length: 3 }, (_, index) =>
-      nonReachableOverride(index + 8),
-    );
+    const nonReachable = Array.from({ length: 3 }, (_, index) => nonReachableOverride(index + 8));
     const candidates = [...reachable, ...nonReachable];
     const plan = planSourceBatch({
       baseline: baseline({
@@ -315,9 +311,7 @@ describe("source batch planner", () => {
     ).toHaveLength(3);
     expect(
       plan.candidatePool.selected.some((candidate) =>
-        candidate.selectionReasons.some((reason) =>
-          reason.startsWith("batch_reachable_job_floor"),
-        ),
+        candidate.selectionReasons.some((reason) => reason.startsWith("batch_reachable_job_floor")),
       ),
     ).toBe(false);
     // 落后信号仍然如实报出，只是不再改变选择结果。
@@ -387,6 +381,28 @@ describe("source batch planner", () => {
         (candidate) => candidate.companyName === belowFloor.displayName,
       )?.readinessBlockers,
     ).toContain("below_capacity_threshold");
+  });
+
+  it("reports all 85 verified company jobs without a company cap", async () => {
+    const registry = await loadSourceCandidateRegistry();
+    const candidate = approvedOverride(399);
+    if (!candidate.capacity) throw new Error("missing fixture capacity");
+    candidate.capacity = {
+      ...candidate.capacity,
+      verifiedActiveInternships: 85,
+      completeJdInternships: 85,
+      reachableInternships: 60,
+    };
+    const plan = planSourceBatch({
+      baseline: baseline(),
+      milestone: 40,
+      registry: { ...registry, reserveBatch: [...registry.reserveBatch, candidate] },
+      ledgerRows: [ledgerRow("UNCAPPED", candidate.displayName)],
+      now: new Date("2026-08-03T08:00:00+08:00"),
+    });
+    expect(auditSourceBatchPlan(plan).familyGroups[0]).toMatchObject({
+      projectedVisibleJobs: 85,
+    });
   });
 
   it("groups zero-network audit candidates by reusable adapter family", async () => {

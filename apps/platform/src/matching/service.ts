@@ -516,14 +516,12 @@ async function caseMatchCatalogState(
       "activity.published_job_version_id",
       "version.id",
     )
-    .leftJoin("catalog.company_quota_selections as quota", "quota.published_job_id", "job.id")
     .select([
       "version.id as current_version_id",
       "version.active_requirement_set_id as current_requirement_set_id",
       "eligibility.eligible_for_local_mvp",
       "eligibility.eligible_for_alpha",
       "activity.effective_activity_state",
-      "quota.selected as quota_selected",
     ])
     .where("job.id", "=", applicationCase.published_job_id)
     .executeTakeFirst();
@@ -532,8 +530,7 @@ async function caseMatchCatalogState(
     !row?.current_version_id ||
     !row.current_requirement_set_id ||
     !eligible ||
-    !row.effective_activity_state ||
-    (options.enableLocalMvp && row.quota_selected === false)
+    !row.effective_activity_state
   ) {
     return "unavailable";
   }

@@ -42,6 +42,8 @@
 - [ADR-0034：两层来源准入（厂商／租户）与资格对账驱动的发布步骤](0034-two-layer-source-admission-and-reconciled-publication.md)
 - [ADR-0035：以「在校生可投」取代「必须是实习」，并按观察次数而非在线时长计量来源稳定性](0035-student-applicable-supply-admission.md)
 
+- [ADR-0036：取消单家公司岗位数量上限](0036-remove-company-job-cap.md)（2026-09-05，accepted）。
+
 尚未接受的提案：
 
 - [ADR-0024：统一来源适配器描述符与运行模式](0024-unify-source-adapter-descriptors-and-run-modes.md)

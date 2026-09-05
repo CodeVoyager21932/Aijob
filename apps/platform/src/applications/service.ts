@@ -1145,7 +1145,6 @@ async function loadEligibleCurrentPublicVersion(
       "eligibility.published_job_version_id",
       "version.id",
     )
-    .leftJoin("catalog.company_quota_selections as quota", "quota.published_job_id", "job.id")
     .where("job.id", "=", input.publishedJobId)
     .whereRef(
       input.enableLocalMvp ? "job.current_version_id" : "job.public_version_id",
@@ -1159,9 +1158,6 @@ async function loadEligibleCurrentPublicVersion(
       "=",
       true,
     );
-  if (input.enableLocalMvp) {
-    query = query.where(sql<boolean>`COALESCE(quota.selected, TRUE)`);
-  }
   if (input.targetPublishedJobVersionId) {
     query = query.where("version.id", "=", input.targetPublishedJobVersionId);
   }
@@ -2010,7 +2006,7 @@ async function resolvePublicJobContext(
   request: Extract<CreateApplicationCaseWithJobContextRequest["jobContext"], { kind: "public" }>,
   enableLocalMvp: boolean,
 ): Promise<ResolvedJobContext> {
-  let query = db
+  const query = db
     .selectFrom("catalog.published_job_versions as version")
     .innerJoin("catalog.published_jobs as job", "job.id", "version.published_job_id")
     .innerJoin(
@@ -2023,7 +2019,6 @@ async function resolvePublicJobContext(
       "requirement_set.id",
       "version.active_requirement_set_id",
     )
-    .leftJoin("catalog.company_quota_selections as quota", "quota.published_job_id", "job.id")
     .select([
       "job.id as publishedJobId",
       "version.id as publishedJobVersionId",
@@ -2045,9 +2040,6 @@ async function resolvePublicJobContext(
       true,
     )
     .forUpdate("job");
-  if (enableLocalMvp) {
-    query = query.where(sql<boolean>`COALESCE(quota.selected, TRUE)`);
-  }
   const row = await query.executeTakeFirst();
   const applicationHandoff = row
     ? buildApplicationHandoff({

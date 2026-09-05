@@ -7,6 +7,7 @@ import {
 import type { Database, JsonValue } from "@aijob/database";
 import { type Kysely, sql } from "kysely";
 import { shanghaiDateKey } from "../catalog/effective-activity.js";
+import { isOfficialSourceAdapterKey } from "./official-source-adapters.js";
 import {
   type CandidateActivityState,
   type CandidateApplicationSignal,
@@ -27,7 +28,6 @@ import {
   TARGET_ALPHA_CITIES,
 } from "./source-candidates.js";
 import { listSourceKeys } from "./source-config.js";
-import { isOfficialSourceAdapterKey } from "./official-source-adapters.js";
 
 export type SourceScaleMilestone = 40 | 70 | 100;
 
@@ -79,8 +79,8 @@ export interface PlannerCandidate {
   lane: SourceCandidateOverride["lane"];
   automationMode: SourceCandidateOverride["automationMode"];
   capacity: SourceCandidateOverride["capacity"];
-  /** ADR-0035：不再按可达性分档，恒为 30。 */
-  quota: 30;
+  /** ADR-0036：null 表示没有公司岗位数量上限。 */
+  quota: null;
   projectedVisibleJobs: number;
   /** 其中判定为可达的部分，来自容量证据；缺失即 0。 */
   projectedReachableVisibleJobs: number;
@@ -103,27 +103,14 @@ const CAPACITY_EVIDENCE_MAX_AGE_DAYS = 7;
 const CAPACITY_MINIMUM_COMPLETE_JOBS = 3;
 
 /**
- * ADR-0032 反霸榜配额：单家企业最多贡献 30 条可见岗位。
- *
- * ADR-0035 取消了 30/10 分档。分档的判定轴是「该企业有没有可达岗位」，而可达性已经下沉为
- * 逐岗位准入判据——被收录的岗位按构造全部可投，于是「非可达企业」不再是有意义的分类，按它
- * 减半配额只是凭空砍掉三分之二的供给。
- */
-const COMPANY_VISIBLE_JOB_QUOTA = 30;
-
-/**
  * 候选企业尚未入库，没有岗位正文，因此可达性只能来自容量探测记录的证据。
  * 缺失或为 0 时一律视为不可达（fail-closed），不猜测。
  */
-function candidateReachableInternships(
-  capacity: SourceCandidateOverride["capacity"],
-): number {
+function candidateReachableInternships(capacity: SourceCandidateOverride["capacity"]): number {
   return capacity?.reachableInternships ?? 0;
 }
 
-function isReachableCandidateCapacity(
-  capacity: SourceCandidateOverride["capacity"],
-): boolean {
+function isReachableCandidateCapacity(capacity: SourceCandidateOverride["capacity"]): boolean {
   return candidateReachableInternships(capacity) > 0;
 }
 
@@ -198,16 +185,14 @@ export async function loadLocalCatalogSupplyMetrics(
   const [catalogRows, totalSupplyRow, publicJobsRow, registeredOrganizations] = await Promise.all([
     sql<CatalogMetricRow>`
       SELECT
-        quota.company_name,
-        quota.scale_band,
+        version.company_name,
+        organization.scale_band,
         version.job_family,
         version.requirements,
         version.responsibilities,
         projection.locations,
         policy.acquisition_mode
-      FROM catalog.company_quota_selections AS quota
-      JOIN catalog.published_jobs AS job
-        ON job.id = quota.published_job_id
+      FROM catalog.published_jobs AS job
       JOIN catalog.published_job_versions AS version
         ON version.id = job.current_version_id
       JOIN catalog.current_job_effective_activity AS activity
@@ -223,11 +208,12 @@ export async function loadLocalCatalogSupplyMetrics(
         ON record.id = revision.source_job_record_id
       JOIN source_control.sources AS source
         ON source.id = record.source_id
+      JOIN source_control.organizations AS organization
+        ON organization.id = source.organization_id
       JOIN source_control.source_policy_versions AS policy
         ON policy.source_id = source.id
         AND policy.version = source.current_policy_version
-      WHERE quota.selected = TRUE
-        AND eligibility.eligible_for_local_mvp
+      WHERE eligibility.eligible_for_local_mvp
         AND activity.effective_activity_state <> 'closed'
         AND source.source_key IN (${sql.join(
           configuredSourceKeys.map((sourceKey) => sql`${sourceKey}`),
@@ -341,9 +327,7 @@ function milestoneTargets(registry: SourceCandidateRegistry, milestone: SourceSc
   return {
     companies: milestone,
     visibleJobs,
-    reachableVisibleJobs: Math.ceil(
-      visibleJobs * registry.targets.minimumReachableVisibleJobRatio,
-    ),
+    reachableVisibleJobs: Math.ceil(visibleJobs * registry.targets.minimumReachableVisibleJobRatio),
     maximumManualCompanies: Math.floor(
       milestone * registry.targets.manualSourceMaximumCompanyRatio,
     ),
@@ -374,11 +358,9 @@ function dynamicRequirements(input: {
   const minimumReachableVisibleJobs = Math.ceil(
     visibleDenominator * input.registry.targets.minimumReachableVisibleJobRatio,
   );
-  const deterministicVisibleJobs =
-    input.baseline.visibleJobs - input.baseline.manualVisibleJobs;
+  const deterministicVisibleJobs = input.baseline.visibleJobs - input.baseline.manualVisibleJobs;
   const minimumDeterministicVisibleJobsBeforeManualExpansion = Math.ceil(
-    input.baseline.manualVisibleJobs /
-      input.registry.targets.manualSourceMaximumVisibleJobRatio,
+    input.baseline.manualVisibleJobs / input.registry.targets.manualSourceMaximumVisibleJobRatio,
   );
   const reachableRatioRecovered =
     ratio(input.baseline.reachableVisibleJobs, input.baseline.visibleJobs) >=
@@ -398,10 +380,7 @@ function dynamicRequirements(input: {
       deterministicVisibleJobs >= minimumDeterministicVisibleJobsBeforeManualExpansion,
     reachabilityRecoveryRequired: !reachableRatioRecovered,
     currentRatios: {
-      reachableVisibleJobs: ratio(
-        input.baseline.reachableVisibleJobs,
-        input.baseline.visibleJobs,
-      ),
+      reachableVisibleJobs: ratio(input.baseline.reachableVisibleJobs, input.baseline.visibleJobs),
       // 以下两项仅为观察，不参与门槛（ADR-0032）。
       smeCompanies: ratio(input.baseline.smeCompanies, input.baseline.companies),
       smeVisibleJobs: ratio(input.baseline.smeVisibleJobs, input.baseline.visibleJobs),
@@ -485,17 +464,15 @@ function plannerCandidate(
   const capacity = override?.capacity ?? null;
   const scaleBand = override?.scaleBand ?? "unknown";
   const reachableCapacity = isReachableCandidateCapacity(capacity);
-  const quota = COMPANY_VISIBLE_JOB_QUOTA;
-  const projectedVisibleJobs = Math.min(capacity?.completeJdInternships ?? 0, quota);
+  const quota = null;
+  const projectedVisibleJobs = capacity?.completeJdInternships ?? 0;
   const projectedReachableVisibleJobs = Math.min(
     candidateReachableInternships(capacity),
-    quota,
+    projectedVisibleJobs,
   );
   const capacityAge = capacity ? dateAgeDays(currentShanghaiDate, capacity.verifiedAt) : null;
   const capacityFresh =
-    capacityAge !== null &&
-    capacityAge >= 0 &&
-    capacityAge <= CAPACITY_EVIDENCE_MAX_AGE_DAYS;
+    capacityAge !== null && capacityAge >= 0 && capacityAge <= CAPACITY_EVIDENCE_MAX_AGE_DAYS;
   const readinessBlockers: string[] = [];
   if (lane === "deferred") readinessBlockers.push("deferred");
   if (lane === "capacity" && automationMode !== "deterministic") {
@@ -850,9 +827,7 @@ export function planSourceBatch(input: {
       manualVisibleJobsOverLimit: Math.max(
         0,
         baseline.manualVisibleJobs -
-          Math.floor(
-            baseline.visibleJobs * registry.targets.manualSourceMaximumVisibleJobRatio,
-          ),
+          Math.floor(baseline.visibleJobs * registry.targets.manualSourceMaximumVisibleJobRatio),
       ),
     },
     candidatePool: {

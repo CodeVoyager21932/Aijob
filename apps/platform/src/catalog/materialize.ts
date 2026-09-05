@@ -404,10 +404,7 @@ export interface LocalCatalogMaterializationResult {
   quotaSuppressedJobs: number;
 }
 
-// ADR-0021：无已接受 small/medium 规模证据的企业单家配额压缩到 10 条；
-// 有证据的中小企业维持 30 条。择优保留 ADR-0020 两条优先轨道岗位。
-const NON_SME_COMPANY_QUOTA = 10;
-const SME_COMPANY_QUOTA = 30;
+// ADR-0036：历史配额表仅保留兼容投影，全部岗位选中，不设置公司上限。
 const SME_SCALE_BANDS = new Set(["small", "medium"]);
 const PRIORITY_TRACK_FAMILIES = new Set(["product", "operations", "engineering", "data_ai"]);
 
@@ -426,9 +423,9 @@ export interface CompanyQuotaApplication {
 }
 
 /**
- * 确定性计算并整表重写单家配额选择（ADR-0021）。
+ * 重写历史兼容投影（ADR-0036），公司规模与岗位数量不再决定是否选中。
  * 排序键：优先轨道岗位在前，其余按 published_jobs.created_at 与 id 稳定排序；
- * 不删除任何岗位版本或来源修订，仅在读取层过滤并公开缺口。
+ * 不删除任何岗位版本或来源修订；quota 字段记录本次供给数，不是上限。
  */
 export async function applyCompanyQuotaSelections(
   db: DbExecutor,
@@ -475,7 +472,7 @@ export async function applyCompanyQuotaSelections(
   }
 
   let selectedJobs = 0;
-  let suppressedJobs = 0;
+  const suppressedJobs = 0;
   const values: Array<{
     published_job_id: string;
     company_name: string;
@@ -486,12 +483,12 @@ export async function applyCompanyQuotaSelections(
     selected: boolean;
   }> = [];
   for (const [companyName, group] of byCompany) {
-    // 同名公司出现多个来源组织时，只要任一组织有已接受的中小规模证据即按中小配额。
+    // 规模证据只作报告，不影响选中结果。
     const smeEvidence = group.some((row) => SME_SCALE_BANDS.has(row.scaleBand));
     const scaleBand = smeEvidence
       ? (group.find((row) => SME_SCALE_BANDS.has(row.scaleBand))?.scaleBand ?? "unknown")
       : (group[0]?.scaleBand ?? "unknown");
-    const quota = smeEvidence ? SME_COMPANY_QUOTA : NON_SME_COMPANY_QUOTA;
+    const quota = group.length;
     const ranked = [...group].sort((left, right) => {
       const leftPriority = isPriorityTrackFamily(left.jobFamily) ? 0 : 1;
       const rightPriority = isPriorityTrackFamily(right.jobFamily) ? 0 : 1;
@@ -501,9 +498,8 @@ export async function applyCompanyQuotaSelections(
       return left.jobId < right.jobId ? -1 : left.jobId > right.jobId ? 1 : 0;
     });
     for (const [index, row] of ranked.entries()) {
-      const selected = index < quota;
-      if (selected) selectedJobs += 1;
-      else suppressedJobs += 1;
+      const selected = true;
+      selectedJobs += 1;
       values.push({
         published_job_id: row.jobId,
         company_name: companyName,

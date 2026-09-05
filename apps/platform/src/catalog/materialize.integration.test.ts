@@ -305,7 +305,7 @@ describeWithDatabase("catalog materialization revision links", () => {
   }, 15_000);
 });
 
-describeWithDatabase("catalog company quota selections (ADR-0021)", () => {
+describeWithDatabase("catalog unlimited company supply (ADR-0036)", () => {
   const db = createDatabase(databaseUrl ?? "postgresql://unused");
   const runMarker = randomUUID().slice(0, 8);
   const largeCompany = `配额大厂测试-${runMarker}`;
@@ -315,7 +315,7 @@ describeWithDatabase("catalog company quota selections (ADR-0021)", () => {
     largeSource: randomUUID(),
     smeOrganization: randomUUID(),
     smeSource: randomUUID(),
-    largeRecords: Array.from({ length: 12 }, () => randomUUID()),
+    largeRecords: Array.from({ length: 35 }, () => randomUUID()),
     smeRecords: Array.from({ length: 2 }, () => randomUUID()),
   };
 
@@ -402,7 +402,7 @@ describeWithDatabase("catalog company quota selections (ADR-0021)", () => {
     await db.destroy();
   });
 
-  it("caps companies without SME evidence at 10 with priority-track jobs first", async () => {
+  it("keeps more than 30 company jobs visible even with stale suppressed projections", async () => {
     const baseTime = Date.now() - 120_000;
     await db
       .insertInto("source_control.organizations")
@@ -580,11 +580,11 @@ describeWithDatabase("catalog company quota selections (ADR-0021)", () => {
       .execute();
     const largeRows = selections.filter((row) => row.company_name === largeCompany);
     const smeRows = selections.filter((row) => row.company_name === smeCompany);
-    expect(largeRows).toHaveLength(12);
-    expect(largeRows.every((row) => row.quota === 10 && row.supply === 12)).toBe(true);
-    expect(largeRows.filter((row) => row.selected)).toHaveLength(10);
+    expect(largeRows).toHaveLength(35);
+    expect(largeRows.every((row) => row.quota === 35 && row.supply === 35)).toBe(true);
+    expect(largeRows.filter((row) => row.selected)).toHaveLength(35);
     expect(smeRows).toHaveLength(2);
-    expect(smeRows.every((row) => row.quota === 30 && row.selected)).toBe(true);
+    expect(smeRows.every((row) => row.quota === 2 && row.selected)).toBe(true);
 
     // 优先轨道岗位必须整体排在非优先岗位之前（ADR-0020/0021 择优规则）。
     const largeTitles = await db
@@ -601,20 +601,20 @@ describeWithDatabase("catalog company quota selections (ADR-0021)", () => {
       .execute();
     const prioritySuffixes = largeTitles.slice(0, 6).map((row) => Number(row.title.slice(-2)));
     expect(prioritySuffixes.every((suffix) => suffix >= 6)).toBe(true);
-    expect(largeTitles.slice(10).every((row) => !row.selected)).toBe(true);
+    expect(largeTitles.every((row) => row.selected)).toBe(true);
+    // 历史 selected=false 不得继续隐藏岗位。
+    await db
+      .updateTable("catalog.company_quota_selections")
+      .set({ selected: false, quota: 10 })
+      .where("company_name", "=", largeCompany)
+      .execute();
 
     const catalog = createCatalogRepository({ db, enableLocalMvp: true });
     const searched = await catalog.search(
-      JobSearchQuerySchema.parse({ keyword: `quota-large-${runMarker}`, limit: 20 }),
+      JobSearchQuerySchema.parse({ keyword: `quota-large-${runMarker}`, limit: 100 }),
     );
-    expect(searched.items).toHaveLength(10);
-    expect(searched.companyQuotaGaps).toContainEqual({
-      companyName: largeCompany,
-      scaleBand: "unknown",
-      quota: 10,
-      supply: 12,
-      selected: 10,
-    });
+    expect(searched.items).toHaveLength(35);
+    expect(searched.companyQuotaGaps).toBeUndefined();
 
     const trackedSelection = largeRows.find((row) => row.selected);
     if (!trackedSelection) throw new Error("missing selected quota fixture");

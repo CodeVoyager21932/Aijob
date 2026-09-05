@@ -440,19 +440,6 @@ export function JobListPage() {
                 : " 当前结果已全部载入。"}
             </p>
           </div>
-          {catalogPage?.companyQuotaGaps?.length ? (
-            <aside className="quota-gap-note" aria-label="公司目录配额说明">
-              <span aria-hidden="true">配额旁注</span>
-              <p>
-                <strong>部分公司当前只展示代表岗位。</strong>
-                无中小规模证据企业按单家配额显示：
-                {catalogPage.companyQuotaGaps
-                  .map((gap) => `${gap.companyName} ${gap.selected}/供给 ${gap.supply}`)
-                  .join("、")}
-                。被压缩的供给保留缺口记录，不代表岗位关闭。
-              </p>
-            </aside>
-          ) : null}
           {groups.clear.length > 0 ? (
             <JobGroup
               title={

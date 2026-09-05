@@ -143,18 +143,17 @@ export async function readLocalBootstrapCatalogStats(
     .where("catalog.current_job_eligibility.eligible_for_local_mvp", "=", true)
     .executeTakeFirstOrThrow();
   const quotaRows = await db
-    .selectFrom("catalog.company_quota_selections as quota")
-    .innerJoin("catalog.published_jobs as job", "job.id", "quota.published_job_id")
+    .selectFrom("catalog.published_jobs as job")
     .innerJoin("catalog.published_job_versions as version", "version.id", "job.current_version_id")
     .innerJoin(
       "catalog.current_job_eligibility as eligibility",
       "eligibility.revision_id",
       "version.source_job_revision_id",
     )
-    .select(["quota.company_name", "quota.selected"])
+    .select(["version.company_name"])
     .where("eligibility.eligible_for_local_mvp", "=", true)
     .execute();
-  const selectedRows = quotaRows.filter((row) => row.selected);
+  const selectedRows = quotaRows;
   const publicJobsRow = await db
     .selectFrom("catalog.published_jobs as job")
     .innerJoin("catalog.published_job_versions as version", "version.id", "job.public_version_id")
