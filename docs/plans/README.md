@@ -4,8 +4,10 @@
 
 ## 当前执行
 
+**最新状态：** 单家公司上限取消与业务恢复均已完成，等待coco同步下一阶段需求，不自动启动SA后续操作。恢复环境与证据见[运行手册](../runbooks/recovered-local-workspace.md)。
+
 - [岗位事实纠偏与独立工作区接手](job-fact-fidelity-handoff.md)：**四步已完成**；关闭依据为[验收证据](../evidence/product/job-fact-fidelity-acceptance-2026-09-05.md)。
-- [供给准入扩容轨道（SA Track）](supply-admission-scaleup-track.md)：**当前唯一目标**为准入证据核验与业务恢复准备，按ADR-0036取消单家公司上限。Phase A已完成，40/70/100为报告检查点。触网边界仍服从AGENTS与已有授权。
+- [供给准入扩容轨道（SA Track）](supply-admission-scaleup-track.md)：Phase A、公司上限取消与业务恢复已完成；后续准入证据项保留，等待coco指定下一阶段需求。40/70/100为报告检查点，触网边界仍服从AGENTS与已有授权。
 - [主工作区与旧目录处置](../runbooks/workspace-takeover.md)：只在独立主目录继续开发；原目录和私有业务材料的保存、恢复边界。
 - [Career OS 前后端同步改进计划](career-os-current-delivery-plan.md)：**已收敛完成**；UX-0 与 OS-1–OS-7 五项 Gate 全部关闭。保留为实施契约与历史依据，不再提供当前任务。
 - [Career OS 端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)：OS-1–OS-7 必须遵守的系统归属、Contracts/Platform/DB/Web、路由、状态、视觉、响应式、焦点和夹具规则；不提供新的任务顺序。
