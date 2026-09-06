@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-09-06T02:18:13.496Z",
+  "scope": "Standalone synthetic prototype only; not the production application",
+  "status": "passed",
+  "checks": [
+    "Default sample: 8 jobs, 4 companies, 7 parsed; SQL mention 7/8 (88% rounded).",
+    "Denominator switch: SQL coverage 3/4 companies (75%); jobs remain untruncated.",
+    "Requirement selection exposes job context and adds a separately marked preparation action.",
+    "Combined filters preserve a one-job sample, handle empty results, and retain the temporary plan.",
+    "All four role filters and the combined 32-job scope update counts and evidence.",
+    "360px layout has no horizontal overflow; keyboard toggles and requirement selection work.",
+    "No browser errors or HTTP(S) requests; all content is local and synthetic."
+  ]
+}

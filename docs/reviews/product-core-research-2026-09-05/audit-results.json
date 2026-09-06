@@ -1,0 +1,516 @@
+{
+  "generatedAt": "2026-09-06T02:22:03.999Z",
+  "codeBaseline": "f385ed5",
+  "synthetic": true,
+  "scope": "Pure functions and tracked source configurations; no real-site assessment or load benchmark",
+  "familyClassification": [
+    {
+      "title": "产品运营实习生",
+      "value": {
+        "state": "conflict",
+        "rawValues": [
+          "product",
+          "operations"
+        ],
+        "evidenceRefs": [
+          "synthetic-title",
+          "synthetic-title"
+        ]
+      },
+      "requiresManualReview": true
+    },
+    {
+      "title": "AI产品经理",
+      "value": {
+        "state": "conflict",
+        "rawValues": [
+          "product",
+          "data_ai"
+        ],
+        "evidenceRefs": [
+          "synthetic-title",
+          "synthetic-title"
+        ]
+      },
+      "requiresManualReview": true
+    },
+    {
+      "title": "数据分析工程师",
+      "value": {
+        "state": "conflict",
+        "rawValues": [
+          "data_ai",
+          "engineering"
+        ],
+        "evidenceRefs": [
+          "synthetic-title",
+          "synthetic-title"
+        ]
+      },
+      "requiresManualReview": true
+    },
+    {
+      "title": "供应链质量工程师",
+      "value": {
+        "state": "conflict",
+        "rawValues": [
+          "engineering",
+          "supply_chain_manufacturing"
+        ],
+        "evidenceRefs": [
+          "synthetic-title",
+          "synthetic-title"
+        ]
+      },
+      "requiresManualReview": true
+    },
+    {
+      "title": "法务实习生",
+      "value": {
+        "state": "known",
+        "value": "people_admin_legal",
+        "evidenceRefs": [
+          "synthetic-title"
+        ]
+      },
+      "requiresManualReview": true
+    },
+    {
+      "title": "用户研究实习生",
+      "value": {
+        "state": "known",
+        "value": "research_consulting",
+        "evidenceRefs": [
+          "synthetic-title"
+        ]
+      },
+      "requiresManualReview": true
+    }
+  ],
+  "reachability": [
+    {
+      "requirements": "硕士及以上学历",
+      "verdict": "not_reachable_postgrad_only"
+    },
+    {
+      "requirements": "本科及以上，不限985、211",
+      "verdict": "not_reachable_school_restricted"
+    },
+    {
+      "requirements": "本科及以上，985院校优先",
+      "verdict": "not_reachable_school_restricted"
+    },
+    {
+      "requirements": "本科及以上学历",
+      "verdict": "reachable"
+    }
+  ],
+  "insights": {
+    "nineteenJobs": {
+      "sample": {
+        "jobCount": 19,
+        "companyCount": 5,
+        "knownScaleCompanyCount": 0,
+        "structuredRequirementJobCount": 19,
+        "requirementCoverage": 1,
+        "lastVerifiedAt": "2026-09-05T00:00:00.000Z"
+      },
+      "dataSufficient": false,
+      "reasons": [
+        "too_few_jobs"
+      ],
+      "hardItems": 0,
+      "capabilityItems": 0,
+      "preferredItems": 0
+    },
+    "twentyJobs": {
+      "sample": {
+        "jobCount": 20,
+        "companyCount": 5,
+        "knownScaleCompanyCount": 0,
+        "structuredRequirementJobCount": 20,
+        "requirementCoverage": 1,
+        "lastVerifiedAt": "2026-09-05T00:00:00.000Z"
+      },
+      "dataSufficient": true,
+      "reasons": [],
+      "hardItems": 0,
+      "capabilityItems": 2,
+      "preferredItems": 0
+    },
+    "unknownNecessity": {
+      "sample": {
+        "jobCount": 20,
+        "companyCount": 5,
+        "knownScaleCompanyCount": 0,
+        "structuredRequirementJobCount": 20,
+        "requirementCoverage": 1,
+        "lastVerifiedAt": "2026-09-05T00:00:00.000Z"
+      },
+      "dataSufficient": true,
+      "reasons": [],
+      "hardItems": 0,
+      "capabilityItems": 0,
+      "preferredItems": 0
+    },
+    "fourCompanies": {
+      "sample": {
+        "jobCount": 20,
+        "companyCount": 4,
+        "knownScaleCompanyCount": 0,
+        "structuredRequirementJobCount": 20,
+        "requirementCoverage": 1,
+        "lastVerifiedAt": "2026-09-05T00:00:00.000Z"
+      },
+      "dataSufficient": false,
+      "reasons": [
+        "too_few_companies"
+      ],
+      "hardItems": 0,
+      "capabilityItems": 0,
+      "preferredItems": 0
+    }
+  },
+  "sourceInventory": [
+    {
+      "key": "adaps-photonics-internships",
+      "company": "杭州灵明光子科技有限公司",
+      "adapter": "beisen-zhiye-public-api",
+      "status": "pending_review",
+      "acquisitionMode": "public_api",
+      "refreshEnabled": true,
+      "minimumHours": 24,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "allwinner-gdut-internships",
+      "company": "珠海全志科技股份有限公司",
+      "adapter": "university-employment-detail-html",
+      "status": "paused",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "anxin-fund-internships",
+      "company": "安信基金管理有限责任公司",
+      "adapter": "university-employment-sustech-html",
+      "status": "pending_review",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "baidu-internships",
+      "company": "百度",
+      "adapter": "baidu-ssr-deterministic-html",
+      "status": "paused",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 24,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "byfunds-internships",
+      "company": "宝盈基金管理有限公司",
+      "adapter": "university-employment-detail-html",
+      "status": "paused",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "bytedance-campus-manual",
+      "company": "字节跳动",
+      "adapter": "bytedance-manual-browser-snapshot",
+      "status": "pending_review",
+      "acquisitionMode": "browser_required",
+      "refreshEnabled": true,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "citics-shanghai-summer-internship",
+      "company": "中信证券股份有限公司上海分公司",
+      "adapter": "university-employment-detail-html",
+      "status": "pending_review",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "dingwei-consulting-internships",
+      "company": "北京鼎帷管理顾问有限公司",
+      "adapter": "university-employment-detail-html",
+      "status": "pending_review",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "dji-hust-jobinfo-internships",
+      "company": "深圳市大疆创新科技有限公司",
+      "adapter": "university-employment-detail-html",
+      "status": "pending_review",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "dtl-quant-internships",
+      "company": "北京道泰量合私募基金管理有限公司",
+      "adapter": "university-employment-detail-html",
+      "status": "paused",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "fanruan-trainee-internships",
+      "company": "帆软软件有限公司",
+      "adapter": "fanruan-trainee-public-api",
+      "status": "pending_review",
+      "acquisitionMode": "public_api",
+      "refreshEnabled": true,
+      "minimumHours": 24,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "galasports-internships",
+      "company": "深圳市望尘科技有限公司",
+      "adapter": "university-employment-detail-html",
+      "status": "paused",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "guanggu-venture-internships",
+      "company": "武汉光谷创新投资有限公司",
+      "adapter": "university-employment-detail-html",
+      "status": "pending_review",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "hanxu-tech-internships",
+      "company": "寒序科技（北京）有限公司",
+      "adapter": "university-employment-detail-html",
+      "status": "pending_review",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "hr-soft-internships",
+      "company": "广州红海云计算股份有限公司",
+      "adapter": "university-employment-detail-html",
+      "status": "pending_review",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "huice-campus-internships",
+      "company": "北京掌上先机网络科技有限公司",
+      "adapter": "beisen-zhiye-public-api",
+      "status": "paused",
+      "acquisitionMode": "public_api",
+      "refreshEnabled": false,
+      "minimumHours": 24,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "jcquant-internships",
+      "company": "深圳市鲸驰寰宇科技有限公司",
+      "adapter": "university-employment-detail-html",
+      "status": "pending_review",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "jd-campus-internships",
+      "company": "京东",
+      "adapter": "jd-campus-public-api",
+      "status": "pending_review",
+      "acquisitionMode": "public_api",
+      "refreshEnabled": true,
+      "minimumHours": 24,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "kunlunxin-internships",
+      "company": "昆仑芯（北京）科技股份有限公司",
+      "adapter": "university-employment-detail-html",
+      "status": "paused",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "meituan-official",
+      "company": "美团",
+      "adapter": "meituan-public-api",
+      "status": "pending_review",
+      "acquisitionMode": "public_api",
+      "refreshEnabled": true,
+      "minimumHours": 24,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "nankai-tal-2027",
+      "company": "南开大学就业指导中心",
+      "adapter": "nankai-tal-deterministic-html",
+      "status": "pending_review",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 24,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "onerobotics-internships",
+      "company": "卧安机器人（深圳）股份有限公司",
+      "adapter": "beisen-zhiye-public-api",
+      "status": "pending_review",
+      "acquisitionMode": "public_api",
+      "refreshEnabled": true,
+      "minimumHours": 24,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "pudutech-internships",
+      "company": "深圳市普渡科技股份有限公司",
+      "adapter": "beisen-zhiye-public-api",
+      "status": "pending_review",
+      "acquisitionMode": "public_api",
+      "refreshEnabled": true,
+      "minimumHours": 24,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "sharecapital-internships",
+      "company": "深圳市分享成长投资管理有限公司",
+      "adapter": "university-employment-detail-html",
+      "status": "pending_review",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "shengumedia-internships",
+      "company": "北京神谷文化传播有限公司",
+      "adapter": "university-employment-detail-html",
+      "status": "pending_review",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "shining3d-internships",
+      "company": "先临三维科技股份有限公司",
+      "adapter": "beisen-zhiye-public-api",
+      "status": "pending_review",
+      "acquisitionMode": "public_api",
+      "refreshEnabled": true,
+      "minimumHours": 24,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "spirit-ai-feishu-manual",
+      "company": "千寻智能",
+      "adapter": "official-account-manual-snapshot",
+      "status": "pending_review",
+      "acquisitionMode": "browser_required",
+      "refreshEnabled": true,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "supvan-info-internships",
+      "company": "北京硕方信息技术有限公司",
+      "adapter": "university-employment-detail-html",
+      "status": "pending_review",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "tencent-campus",
+      "company": "腾讯",
+      "adapter": "tencent-public-api",
+      "status": "paused",
+      "acquisitionMode": "public_api",
+      "refreshEnabled": false,
+      "minimumHours": 24,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "triple-stone-internships",
+      "company": "广东三石园科技有限公司",
+      "adapter": "university-employment-detail-html",
+      "status": "pending_review",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "unity-drive-internships",
+      "company": "深圳一清创新科技有限公司",
+      "adapter": "university-employment-detail-html",
+      "status": "pending_review",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "weride-nankai-internships",
+      "company": "上海文远知行汽车科技有限公司",
+      "adapter": "university-employment-detail-html",
+      "status": "pending_review",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "xiaoyong-zju-internships",
+      "company": "上海孝庸私募基金管理有限公司",
+      "adapter": "university-employment-detail-html",
+      "status": "pending_review",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    },
+    {
+      "key": "zhaopin-wuhan-internships",
+      "company": "北京网聘信息技术有限公司武汉分公司",
+      "adapter": "university-employment-detail-html",
+      "status": "pending_review",
+      "acquisitionMode": "deterministic_html",
+      "refreshEnabled": false,
+      "minimumHours": 168,
+      "accessPolicyStatus": "fail"
+    }
+  ]
+}

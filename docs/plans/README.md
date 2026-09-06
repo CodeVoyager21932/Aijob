@@ -4,7 +4,9 @@
 
 ## 当前执行
 
-**最新状态：** coco已明确面向本科、硕士、博士在校生发布，先推广给1000人以内的尝试者，不以2人校准/6人研究为前置执行路线。[首发产品与架构审视](../reviews/product-architecture-and-launch-review-2026-09-05.md)已完成，首发实施清单待冻结；下列历史研究与SA条目不能自动生成开发顺序。
+**最新状态（2026-09-06）：** coco明确产品主体尚不满意，先改需求理解、体验、供给自动化和共性要求分析，后续仍面向本硕博及1000人以内首批尝试者。[产品主体研究](../reviews/product-core-research-2026-09-05/report.md)已完成，下一开发入口见[实施顺序切片A](../reviews/product-core-research-2026-09-05/implementation-plan.md)：理解规则与方向比较最小旅程。当前只有研究、代码复现与虚构交互示意，业务功能尚未实施。上一轮优先补账号部署的建议被取代；不重做OS-7/纠偏/恢复，也不以2/6人研究为前置路线。
+
+- [产品主体改进实施顺序](../reviews/product-core-research-2026-09-05/implementation-plan.md)：**当前接手建议**；五个切片按依赖展开，先完成一个有用旅程，不把全部候选功能都变为发布条件。涉及边界调整的建议尚未生效。
 
 - [岗位事实纠偏与独立工作区接手](job-fact-fidelity-handoff.md)：**四步已完成**；关闭依据为[验收证据](../evidence/product/job-fact-fidelity-acceptance-2026-09-05.md)。
 - [供给准入扩容轨道（SA Track）](supply-admission-scaleup-track.md)：Phase A、公司上限取消与业务恢复已完成；后续准入证据项保留，按本轮首发目标重新安排必要工作。40/70/100为报告检查点，触网边界仍服从AGENTS与已有授权。
@@ -55,7 +57,7 @@
 
 1. 当前阶段、目标和下一决定：`docs/06-mvp-roadmap.md`。
 2. 当前分支、工程基线和执行入口：`docs/handoffs/current.md`。
-3. 当前切片、顺序和退出条件：`docs/plans/supply-admission-scaleup-track.md`。
+3. 当前开发入口与实施建议：`docs/reviews/product-core-research-2026-09-05/implementation-plan.md`；SA Track只提供供给依赖与已有证据。
 4. 不可静默改变的架构与产品决定：ADR。
 5. Private Alpha 完整条件：`private-alpha-readiness-gates.md`，只守门。
 6. 历史设计、验收与归档：只作证据和上下文。

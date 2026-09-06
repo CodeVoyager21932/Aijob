@@ -2,6 +2,8 @@
 
 > 2026-09-05：OS-7 已完成；Kiro 后续供给工作与岗位事实纠偏已整合到独立主工作区 `C:\Users\72998\Projects\Aijob`。当前状态以[路线图](docs/06-mvp-roadmap.md)、[交接](docs/handoffs/current.md)和[本轮验收](docs/evidence/product/job-fact-fidelity-acceptance-2026-09-05.md)为准。旧桌面 job 与 OS-7 目录的处理见[工作区手册](docs/runbooks/workspace-takeover.md)。
 
+> 2026-09-06：按coco最新要求，当前优先改进产品主体。[中文需求研究与架构审查](docs/reviews/product-core-research-2026-09-05/report.md)、[实施建议](docs/reviews/product-core-research-2026-09-05/implementation-plan.md)和[交互概念](docs/reviews/product-core-research-2026-09-05/role-map.html)已完成；研究建议尚未变成业务实现。下一入口是理解规则与方向比较，不再直接沿账号部署清单推进。
+
 Aijob 面向近期做真实求职决定的中国大陆在校生，把资格核对、经历证据、岗位定制简历、投递记录、文字面试和复盘组织在一个岗位 Case 中。岗位事实来自经过准入的企业官网与官方 ATS；用户最终回官方页面自行投递。
 
 供给范围按已接受的 ADR-0035 包括在校生可投的实习、校招、应届与管培；未说明保留 unknown，不以规则补写。100家/1000岗和人工占比为报告项，城市/职能为观察指标；逐来源质量、权限与安全条件继续守门。产品成功指标是高质量投递决定，当前仍 E0，未验证真实用户增量价值。
@@ -11,10 +13,10 @@ Aijob 面向近期做真实求职决定的中国大陆在校生，把资格核�
 | 项目 | 当前值 |
 |---|---|
 | 主目录与分支 | `C:\Users\72998\Projects\Aijob` / `codex/job-fact-fidelity-handoff`，独立 Git |
-| 工程路线 | OS-7 已关闭 → SA Phase A/首次取证已完成 → 岗位事实纠偏已验收 → SA 准入证据核验与恢复准备 |
+| 工程路线 | OS-7/SA Phase A/纠偏/上限取消/业务恢复已完成 → 产品主体研究完成 → 理解规则与方向体验改进 |
 | 本轮修复 | 完整原句与独立资格断言、硬/优先时长分离、三态投递、同版本要求集升级、不可变历史、私有JD与Review一致展示 |
 | 来源状态 | 34配置，0 approved；历史7个robots检查通过不等于完整访问政策或来源准入 |
-| 业务数据 | 已恢复独立业务库并迁移038；本机93岗/7公司、公共0；恢复后等待下一阶段需求 |
+| 业务数据 | 已恢复独立业务库并迁移038；恢复时本机93岗/7公司、公共0；本轮研究未刷新或重验业务数据 |
 | 测试与构建 | 全仓948/948、双库与专项浏览器、lint/typecheck/build/audit通过；主包403.58kB，详见本轮验收 |
 | 外部 Gate | 真实邮件、解析镜像、服务器、AI与参与者未在本轮启用，E0不变 |
 

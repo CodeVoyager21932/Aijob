@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Aijob · 方向与准备｜交互概念</title>
+<link rel="icon" href="data:,">
+<style>
+:root{--paper:#f5f3ed;--white:#fffefa;--ink:#19342f;--muted:#586a64;--line:#d9ded5;--green:#17634e;--tint:#e8eee3;--amber:#906218;--serif:Georgia,"Source Han Serif SC","Noto Serif CJK SC","SimSun",serif;--sans:"Segoe UI","Microsoft YaHei",sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.65}button,select,input{font:inherit}button,select{cursor:pointer}button{color:inherit}a{color:var(--green);text-underline-offset:4px}button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid #ca7826;outline-offset:4px}button{touch-action:manipulation}h1,h2,h3,p{margin:0}h2{font-size:21px;letter-spacing:-.5px}h3{font-size:16px}button:disabled{cursor:default;opacity:.55}.demo-band{background:#e8ddbc;color:#50431d;text-align:center;padding:9px 20px;font-size:12px;font-weight:650;letter-spacing:.5px}.wrap{max-width:1376px;margin:auto;padding:0 48px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:24px;height:90px;border-bottom:1px solid var(--line)}.brand{font-size:27px;font-family:var(--serif);font-weight:700;letter-spacing:-1px}.brand span{font-family:var(--sans);font-weight:400;font-size:11px;letter-spacing:2px;margin-left:17px;color:var(--muted)}.nav{display:flex;gap:28px;font-size:13px}.nav a{text-decoration:none;color:var(--muted)}.nav a:first-child{color:var(--ink);font-weight:700;border-bottom:2px solid var(--green);padding-bottom:7px}.edition{font-size:11px;color:var(--muted);letter-spacing:1px}.hero{padding:39px 0 29px;display:grid;grid-template-columns:1fr 275px;gap:30px;align-items:end}.eyebrow{font-size:11px;letter-spacing:2px;color:var(--green);font-weight:700;text-transform:uppercase;margin-bottom:10px}h1{font-family:var(--serif);font-size:clamp(33px,3.6vw,48px);font-weight:500;letter-spacing:-1px;line-height:1.3;margin-bottom:15px}.hero p{color:var(--muted);max-width:690px;font-size:14px}.hero-note{border-left:1px solid #bcc7b9;padding-left:22px;font-size:12px;color:var(--muted)}.hero-note strong{display:block;color:var(--ink);font-size:14px;margin-bottom:7px}.filters{display:grid;grid-template-columns:1.35fr 1fr 1.1fr .9fr auto;gap:16px;background:var(--white);padding:19px 22px;border:1px solid var(--line)}.filters label{font-size:11px;color:var(--muted);display:grid;gap:5px;letter-spacing:.4px}.filters select{width:100%;border:0;border-bottom:1px solid #aebeb2;padding:6px 24px 7px 0;border-radius:0;background:transparent;color:var(--ink);font-weight:600;font-size:13px;min-height:36px}.reset{align-self:end;background:none;border:1px solid var(--line);padding:7px 13px;min-height:36px;font-size:12px}.scope-note{font-size:11px;color:var(--muted);margin:9px 0 24px}.overview{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:24px;margin-bottom:26px;align-items:center}.purpose{font-size:12px;color:var(--muted);max-width:340px}.purpose strong{display:block;font-size:16px;color:var(--ink);margin-bottom:4px}.stat{border-left:1px solid var(--line);padding-left:26px}.stat strong{font:37px/1.1 var(--serif);display:block;letter-spacing:-1px;font-variant-numeric:tabular-nums}.stat small{font-family:var(--sans);font-size:13px;letter-spacing:0}.stat span{color:var(--muted);font-size:11px}.workspace{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);border-top:1px solid var(--line);gap:34px;padding-top:27px}.panel-top{display:flex;justify-content:space-between;align-items:start;gap:15px;margin-bottom:20px}.step{color:var(--muted);font-size:10px;letter-spacing:1.5px;margin-bottom:5px}.toggle{display:flex;border:1px solid #b7c7ba;padding:3px;align-self:center;flex-shrink:0}.toggle button{border:0;background:transparent;padding:5px 9px;font-size:11px}.toggle button[aria-pressed=true]{background:var(--ink);color:var(--white)}.chart-legend{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;margin:0 1px 10px}.chart{display:grid;gap:6px}.bar-row{position:relative;isolation:isolate;width:100%;border:1px solid transparent;background:transparent;text-align:left;padding:13px 12px;display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;min-height:65px}.bar-row::before{content:"";position:absolute;left:0;top:5px;bottom:5px;width:var(--bar);background:#e5e9df;z-index:-1;transition:width .24s}.bar-row[aria-pressed=true]{border:1px solid #749282}.bar-row[aria-pressed=true]::before{background:#cedfcf}.bar-row:hover{border-color:#98b09d}.bar-name{font-weight:650;font-size:14px}.bar-name small{font-size:10px;display:block;font-weight:400;color:var(--muted);margin-top:2px}.bar-value{text-align:right;font-size:17px;font-family:var(--serif);font-variant-numeric:tabular-nums}.bar-value small{font-size:10px;font-family:var(--sans);display:block;color:var(--muted)}.sample-note{font-size:11px;color:var(--amber);border-top:1px solid var(--line);margin-top:17px;padding-top:13px}.method{margin-top:14px;font-size:11px;color:var(--muted)}.method summary{cursor:pointer;color:var(--ink);padding:6px 0}.method p{padding:5px 0}.evidence{background:var(--white);padding:24px;border:1px solid var(--line);min-width:0;align-self:start}.evidence-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.pill{font-size:10px;padding:3px 8px;border:1px solid var(--line);white-space:nowrap}.evidence-intro{font-size:12px;color:var(--muted);margin:12px 0 16px}.breakdown{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:12px 0;margin-bottom:18px}.breakdown div+div{border-left:1px solid var(--line);padding-left:12px}.breakdown strong{display:block;font-size:19px;font-weight:500}.breakdown span{font-size:10px;color:var(--muted)}.source{padding:12px 0;border-bottom:1px solid var(--line)}.source .source-meta{font-size:10px;color:var(--muted);margin-bottom:5px}.source blockquote{margin:5px 0 7px;font-size:12px;color:var(--ink);line-height:1.8}.source summary{font-size:11px;color:var(--green);cursor:pointer}.source details p{font-size:11px;color:var(--muted);margin-top:6px}.source-list{max-height:366px;overflow:auto;scrollbar-width:thin;padding-right:5px}.more-note{font-size:10px;color:var(--muted);margin-top:9px}.prep-link{display:block;margin-top:17px;font-size:12px}.preparation{margin:35px 0 0;border-top:1px solid var(--line);padding:27px 0 30px;display:grid;grid-template-columns:.9fr 1.25fr 1fr;gap:32px}.preparation p{font-size:12px;color:var(--muted);margin-top:9px}.action-box{border-left:3px solid var(--green);padding:0 0 0 20px}.action-box h3{font-size:15px}.primary{background:var(--ink);color:var(--white);border:0;padding:10px 16px;font-size:12px;margin-top:15px}.plan-list{display:grid;gap:9px;margin-top:12px}.plan-item{font-size:12px;display:flex;gap:8px;align-items:start;justify-content:space-between}.plan-item label{display:flex;gap:7px;align-items:start}.plan-item input{accent-color:var(--green);margin-top:5px}.plan-item button{background:none;border:0;text-decoration:underline;color:var(--muted);font-size:10px;white-space:nowrap}.plan-item label.done{text-decoration:line-through;color:var(--muted)}.empty{padding:30px 10px;color:var(--muted);font-size:13px}.foot{border-top:1px solid var(--line);padding:20px 0 30px;display:flex;justify-content:space-between;font-size:10px;color:var(--muted);gap:20px}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(min-width:1550px){.wrap{padding:0 35px}}
+@media(max-width:1000px){.wrap{padding:0 25px}.hero{grid-template-columns:1fr 215px}.workspace{gap:20px;grid-template-columns:1.15fr 1fr}.panel-top{display:block}.toggle{width:fit-content;margin-top:12px}.preparation{grid-template-columns:.8fr 1.2fr}.plan-section{grid-column:1/-1;border-top:1px solid var(--line);padding-top:18px}.overview{grid-template-columns:1.2fr 1fr 1fr 1fr;gap:15px}.stat{padding-left:16px}.filters{gap:12px}.edition{display:none}}
+@media(max-width:700px){.wrap{padding:0 19px}.topbar{height:74px;gap:12px}.brand{font-size:23px}.brand span{display:none}.nav{gap:17px;font-size:12px}.hero{display:block;padding-top:30px}.hero-note{display:none}h1{font-size:34px}.hero p{font-size:13px}.filters{grid-template-columns:1fr 1fr;padding:16px;gap:15px}.reset{grid-column:1/-1}.scope-note{font-size:10px}.overview{grid-template-columns:repeat(3,1fr);gap:12px}.purpose{grid-column:1/-1;max-width:100%}.stat{padding-left:11px}.stat strong{font-size:31px}.workspace{grid-template-columns:1fr;gap:24px}.panel-top{display:flex}.toggle{margin-top:0}.evidence{padding:20px}.preparation{grid-template-columns:1fr;gap:22px}.plan-section{grid-column:auto}.foot{display:block}.foot span{display:block;margin-top:7px}.sample-note{font-size:11px}.demo-band{font-size:10px;padding:8px 13px}.bar-row{padding:12px 10px}.bar-name{font-size:13px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<div class="demo-band">交互概念 · 全部为虚构演示数据，非真实招聘统计 · 准备清单仅在本页临时保留</div>
+<div class="wrap">
+<header class="topbar"><div class="brand">Aijob<span>CAREER FIELDNOTES</span></div><nav class="nav" aria-label="页面内导航"><a href="#opportunity">方向与机会</a><a href="#preparation">我的准备</a></nav><div class="edition">DESIGN STUDY / 2026.09</div></header>
+<main id="opportunity">
+<section class="hero"><div><div class="eyebrow">读懂岗位，再决定下一步</div><h1>一个方向，究竟在要求什么？</h1><p>从一组岗位里看见共同任务。对照原句，找到可复用的经历，把准备落到一件具体的事上。</p></div><aside class="hero-note"><strong>先了解，不急着做选择。</strong>不需要先有一份完整简历。你可以从方向开始，也可以只研究已选中的岗位。</aside></section>
+<section class="filters" aria-label="岗位集合筛选">
+<label>岗位子方向<select id="role"><option value="data">数据分析</option><option value="product">AI产品</option><option value="operations">内容运营</option><option value="research">算法研究</option><option value="all">全部演示方向</option></select></label>
+<label>招聘类型<select id="kind"><option value="all">全部类型</option><option value="实习">实习</option><option value="校招">校招</option></select></label>
+<label>岗位写明的最低学历<select id="degree"><option value="all">全部要求</option><option value="0">本科及以上</option><option value="1">硕士及以上</option><option value="2">仅博士</option></select></label>
+<label>工作城市<select id="city"><option value="all">全部城市</option><option value="上海">上海</option><option value="北京">北京</option><option value="杭州">杭州</option></select></label>
+<button type="button" class="reset" id="reset">重置筛选</button></section>
+<p class="scope-note">学历筛选对应岗位原文要求，不代替个人资格核对。所有图表共用当前筛选集合；未提及不等于不需要。</p>
+<section class="overview" aria-label="样本概览"><div class="purpose"><strong id="role-title">数据分析 · 任务侧写</strong><span id="role-description"></span></div><div class="stat"><strong id="job-count">0</strong><span>当前集合 · 去重岗位</span></div><div class="stat"><strong id="company-count">0</strong><span>企业覆盖 · 不截断大公司</span></div><div class="stat"><strong id="parsed-count">0<small> / 0</small></strong><span>已有语义标注 / 全部岗位</span></div></section>
+<div id="announcement" class="sr-only" aria-live="polite"></div>
+<section class="workspace">
+<div><div class="panel-top"><div><div class="step">01 / 发现共性</div><h2>这些要求，在多少岗位出现</h2></div><div class="toggle" role="group" aria-label="统计口径"><button type="button" data-mode="jobs" aria-pressed="true">按岗位</button><button type="button" data-mode="companies" aria-pressed="false">按企业</button></div></div><div class="chart-legend"><span>点选一项，查看原句 →</span><span id="denominator"></span></div><div class="chart" id="chart"></div><p class="sample-note" id="sample-note"></p><details class="method"><summary>这些数字怎么计算？</summary><p>岗位口径：提及该项的去重岗位数 ÷ 当前集合全部岗位数。企业口径：至少一岗提及的企业数 ÷ 当前集合全部企业数。同一岗位、同一概念只计一次。</p><p>未完成标注的岗位仍在分母内，因此同时展示解析覆盖。本页按“明确必需 / 优先 / 仅提及”标注演示原句；仅提及不等于硬性条件。小样本展示事实，不外推市场。</p><p id="freshness"></p></details></div>
+<aside class="evidence" aria-labelledby="evidence-heading"><div class="step">02 / 回到依据</div><div class="evidence-head"><h2 id="evidence-heading">要求与原句</h2><span class="pill">演示原句</span></div><p class="evidence-intro" id="evidence-intro"></p><div class="breakdown" id="breakdown"></div><div id="sources" class="source-list"></div><p class="more-note" id="more-note"></p><a class="prep-link" href="#preparation">看看怎样转成我的准备 ↓</a></aside>
+</section>
+<section class="preparation" id="preparation"><div><div class="step">03 / 变成行动</div><h2>先整理一份已有成果</h2><p>高频词不是简历填空题。先找到自己真实做过的事，再决定是否需要补充学习。</p></div><div class="action-box"><div class="eyebrow" id="action-label">准备建议</div><h3 id="action-title"></h3><p id="action-description"></p><button type="button" class="primary" id="add-plan">加入本页准备清单</button></div><div class="plan-section"><h3>本页准备清单 <span id="plan-count">0</span></h3><p>这不是已确认经历；完成后也不会自动写入简历。刷新页面会清空。</p><div class="plan-list" id="plans"></div></div></section>
+</main><footer class="foot"><span>Aijob · 产品主体研究 / 可操作的设计示意</span><span>纯本地演示 · 无真实企业 · 无模型调用 · 未接入产品数据库</span></footer>
+</div>
+<script>
+"use strict";
+// Every job, employer, requirement and date below is synthetic. No external requests.
+const roles={
+ data:{name:"数据分析",description:"从业务问题出发，把数据转成可以解释的结论。",skills:["sql","analysis","communication","python","experiment"]},
+ product:{name:"AI产品",description:"理解用户任务，设计方案，再用反馈与指标检验。",skills:["research","analysis","communication","experiment","prototype"]},
+ operations:{name:"内容运营",description:"理解受众，制作内容，复盘传播与转化结果。",skills:["writing","analysis","communication","research","experiment"]},
+ research:{name:"算法研究",description:"提出问题，设计实验，说明方法贡献与应用边界。",skills:["python","experiment","paper","analysis","communication"]}
+};
+const skills={
+ sql:{name:"SQL / 数据提取",kind:"工具",phrases:["需能使用SQL完成数据提取与聚合。","有SQL数据处理经验者优先。","参与SQL取数与业务指标整理。"],action:"用一个已有项目，解释一次取数与判断",detail:"整理业务问题、数据口径、关键查询和结论限制。没有相关经历时，可做一个公开数据练习，并明确标为练习。"},
+ analysis:{name:"分析问题与解释结果",kind:"任务",phrases:["需能拆解问题并解释数据分析结果。","有业务分析及复盘经验者优先。","参与指标分析与业务复盘。"],action:"把一次已有分析写成一页说明",detail:"写清你解决什么问题、做了哪些判断、依据是什么、哪些结论仍不确定。先补解释，不急着堆更多数字。"},
+ communication:{name:"沟通与协作",kind:"任务",phrases:["需能清晰说明方案并协调相关同学。","有跨团队协作经历者优先。","参与需求沟通和阶段成果汇报。"],action:"复盘一次你推动过的真实协作",detail:"说明具体分歧、你采取的行动与能够确认的结果。与“沟通能力强”相比，具体情境更容易用于面试。"},
+ python:{name:"Python / 实验实现",kind:"工具",phrases:["需能使用Python处理数据并复现实验。","有Python项目实践者优先。","使用Python参与实验和结果整理。"],action:"为一个已有脚本补上可复现说明",detail:"记录输入、环境、运行方法、输出与已知限制。课程或研究代码也可以，保持贡献和项目性质准确。"},
+ experiment:{name:"实验设计与验证",kind:"方法",phrases:["需掌握实验设计与结果验证方法。","有对照实验或A/B测试经验者优先。","参与实验设计和效果评估。"],action:"说明一次实验为什么这样设计",detail:"整理假设、对照、指标和可能的干扰因素。复用已有研究或课程实验，不虚构业务收益。"},
+ research:{name:"用户研究与需求理解",kind:"任务",phrases:["需能开展用户访谈并提炼需求。","有用户调研实践者优先。","参与用户访谈、反馈整理与需求讨论。"],action:"从一次真实观察里提炼需求依据",detail:"保留观察或访谈内容，区分对方说了什么与你如何解释；说明这条依据能支持什么，不能支持什么。"},
+ prototype:{name:"方案与原型表达",kind:"产物",phrases:["需能用原型表达关键用户流程。","有原型设计作品者优先。","参与产品原型及需求文档制作。"],action:"解释一个已有原型的设计取舍",detail:"选择一个关键流程，补上目标用户、要解决的问题、为何这样设计，以及还没有确认的假设。"},
+ writing:{name:"内容策划与写作",kind:"产物",phrases:["需能独立策划内容并完成文案。","有内容运营或写作作品者优先。","参与选题、文案制作与效果复盘。"],action:"整理一组能说明思路的真实作品",detail:"补充受众、选题理由、你负责的部分和已知反馈。没有商业数据时保留未知，不编造阅读或转化数字。"},
+ paper:{name:"研究方法与论文贡献",kind:"研究",phrases:["需能说明研究方法及个人研究贡献。","有相关方向论文成果者优先。","参与文献调研、研究实现和成果撰写。"],action:"把一个研究成果讲成企业能理解的问题",detail:"说明研究对象、你的贡献、验证方法与适用边界，再对照岗位任务；不将论文数量转成匹配分数。"}
+};
+const necessityNames=["明确必需","优先条件","仅提及"];
+const degreeNames=["本科及以上","硕士及以上","仅博士"];
+const jobs=Object.entries(roles).flatMap(([role,info],r)=>Array.from({length:8},(_,i)=>({
+ id:`DEMO-${r+1}${String(i+1).padStart(2,"0")}`,role,company:`演示企业${["甲","甲","甲","甲","乙","乙","丙","丁"][i]}`,
+ title:`${info.name}${i%2===0?"实习生":"校招岗位"}`,kind:i%2===0?"实习":"校招",city:["上海","北京","杭州"][i%3],degree:[0,0,0,0,1,1,2,0][i],
+ verified:`2026-09-0${(i%5)+1}`,parsed:i!==7,
+ requirements:i===7?[]:info.skills.filter((s,k)=>k===0||((i+k+r)%(k+2)!==0)).map((id,k)=>({skill:id,necessity:(i+k)%3,text:skills[id].phrases[(i+k)%3]}))
+})));
+let mode="jobs",selected="sql",currentRows=[],stats=[],plan=new Map();
+const $=id=>document.getElementById(id);
+const esc=value=>String(value).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+function filtered(){return jobs.filter(j=>($('role').value==='all'||j.role===$('role').value)&&($('kind').value==='all'||j.kind===$('kind').value)&&($('degree').value==='all'||String(j.degree)===$('degree').value)&&($('city').value==='all'||j.city===$('city').value));}
+function aggregate(rows){return Object.keys(skills).map(id=>{const matches=rows.filter(j=>j.requirements.some(r=>r.skill===id));return{id,rows:matches,jobs:matches.length,companies:new Set(matches.map(j=>j.company)).size};}).filter(s=>s.jobs>0);}
+function update(){
+ currentRows=filtered();stats=aggregate(currentRows);if(!stats.some(s=>s.id===selected))selected=stats[0]?.id??null;
+ const companies=new Set(currentRows.map(j=>j.company)).size,parsed=currentRows.filter(j=>j.parsed).length;
+ $('job-count').textContent=currentRows.length;$('company-count').textContent=companies;$('parsed-count').innerHTML=`${parsed}<small> / ${currentRows.length}</small>`;
+ const role=roles[$('role').value];$('role-title').textContent=role?`${role.name} · 任务侧写`:'跨方向 · 演示集合';$('role-description').textContent=role?role.description:'多个方向可以共享工具，但承担的任务与预期产物不同。';
+ $('sample-note').textContent=currentRows.length?`本组仅有 ${currentRows.length} 个虚构岗位、${companies} 家演示企业。可查看样本事实，不能代表市场；${currentRows.length-parsed} 岗尚未标注要求。`:'这个组合没有演示岗位。尝试放宽筛选，已加入的准备清单会保留。';
+ const dates=currentRows.map(j=>j.verified).sort();$('freshness').textContent=dates.length?`演示核验日期：${dates[0]} 至 ${dates.at(-1)}。展示范围，不用单个最新日期代表全部岗位。`:'当前集合为空，没有核验日期。';
+ $('announcement').textContent=`筛选结果：${currentRows.length} 个演示岗位，${companies} 家企业。`;
+ renderBars();renderEvidence();
+}
+function renderBars(){
+ const denominator=mode==='jobs'?currentRows.length:new Set(currentRows.map(j=>j.company)).size;
+ $('denominator').textContent=mode==='jobs'?`分母：${denominator} 岗`:`分母：${denominator} 家企业`;
+ document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===mode)));
+ const sorted=[...stats].sort((a,b)=>b[mode]-a[mode]||a.id.localeCompare(b.id));
+ $('chart').innerHTML=sorted.length?sorted.map(s=>{const percent=Math.round(s[mode]/denominator*100);return `<button type="button" class="bar-row" data-skill="${s.id}" aria-pressed="${s.id===selected}" style="--bar:${percent}%" aria-label="${esc(skills[s.id].name)}，${mode==='jobs'?s.jobs+'岗':s.companies+'家企业'}提及，查看原句"><span class="bar-name">${esc(skills[s.id].name)}<small>${skills[s.id].kind} · 明确必需、优先与仅提及分别列示</small></span><span class="bar-value">${percent}%<small>${s.jobs} 岗 / ${s.companies} 家企业</small></span></button>`;}).join(''):'<p class="empty">没有符合筛选的演示要求。</p>';
+}
+function renderEvidence(){
+ const stat=stats.find(s=>s.id===selected),skill=skills[selected];
+ if(!stat){$('evidence-heading').textContent='等待选择';$('evidence-intro').textContent='放宽筛选后，可继续查看具体要求。';$('breakdown').innerHTML='';$('sources').innerHTML='';$('more-note').textContent='';$('action-title').textContent='先选择一组岗位';$('action-description').textContent='准备清单中的已有动作仍可查看。';$('action-label').textContent='准备建议';$('add-plan').disabled=true;return;}
+ $('evidence-heading').textContent=skill.name;$('evidence-intro').textContent=`${stat.jobs} 个岗位、${stat.companies} 家企业提到这一项。下面保留句子表达，职责描述不自动变成资格门槛。`;
+ const counts=[0,0,0];stat.rows.forEach(j=>counts[j.requirements.find(r=>r.skill===selected).necessity]++);
+ $('breakdown').innerHTML=counts.map((n,i)=>`<div><strong>${n} <small>岗</small></strong><span>${necessityNames[i]}</span></div>`).join('');
+ $('sources').innerHTML=stat.rows.map(j=>{const req=j.requirements.find(r=>r.skill===selected);return `<article class="source"><div class="source-meta">${esc(j.company)} · ${esc(j.title)} · ${necessityNames[req.necessity]}</div><blockquote>“${esc(req.text)}”</blockquote><details><summary>查看这个演示岗位的上下文</summary><p>${j.id} · ${j.city} · ${j.kind} · ${degreeNames[j.degree]}<br>演示核验日期：${j.verified}。这是虚构句子，无外部招聘链接。</p></details></article>`;}).join('');
+ $('more-note').textContent=`共列出 ${stat.rows.length} 条岗位依据；上方区域可滚动。`;
+ $('action-label').textContent=`与 ${stat.jobs} 个当前岗位有关 · 系统准备建议`;$('action-title').textContent=skill.action;$('action-description').textContent=skill.detail;
+ $('add-plan').disabled=plan.has(selected);$('add-plan').textContent=plan.has(selected)?'已在本页准备清单':'加入本页准备清单';
+}
+function renderPlan(){
+ $('plan-count').textContent=plan.size;
+ $('plans').innerHTML=plan.size?[...plan].map(([id,done])=>`<div class="plan-item"><label class="${done?'done':''}"><input type="checkbox" data-plan="${id}" ${done?'checked':''}><span>${esc(skills[id].action)}</span></label><button type="button" data-remove="${id}" aria-label="移除${esc(skills[id].action)}">移除</button></div>`).join(''):'<p>还没有加入动作。可以先查看原句，再决定。</p>';
+}
+['role','kind','degree','city'].forEach(id=>$(id).addEventListener('change',update));
+document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>{mode=b.dataset.mode;renderBars();}));
+$('chart').addEventListener('click',event=>{const b=event.target.closest('[data-skill]');if(!b)return;selected=b.dataset.skill;renderBars();renderEvidence();document.querySelector(`[data-skill="${selected}"]`).focus({preventScroll:true});$('announcement').textContent=`已展开${skills[selected].name}的原句与准备建议。`;});
+$('reset').addEventListener('click',()=>{$('role').value='data';['kind','degree','city'].forEach(id=>$(id).value='all');mode='jobs';update();});
+$('add-plan').addEventListener('click',()=>{if(!selected||plan.has(selected))return;plan.set(selected,false);renderPlan();renderEvidence();$('announcement').textContent='已加入本页准备清单。此操作没有写入简历。';document.querySelector(`[data-plan="${selected}"]`).focus({preventScroll:true});});
+$('plans').addEventListener('change',event=>{if(!event.target.dataset.plan)return;plan.set(event.target.dataset.plan,event.target.checked);event.target.closest('label').classList.toggle('done',event.target.checked);});
+$('plans').addEventListener('click',event=>{const b=event.target.closest('[data-remove]');if(!b)return;plan.delete(b.dataset.remove);renderPlan();renderEvidence();if(!$('add-plan').disabled)$('add-plan').focus({preventScroll:true});});
+update();renderPlan();
+</script>
+</body>
+</html>
