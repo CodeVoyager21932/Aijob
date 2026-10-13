@@ -52,7 +52,7 @@ export const JobInsightRequirementSchema = z.object({
 export type JobInsightRequirement = z.infer<typeof JobInsightRequirementSchema>;
 
 export const JobInsightResultSchema = z.object({
-  algorithmVersion: z.literal("job-market-insight-v1"),
+  algorithmVersion: z.enum(["job-market-insight-v1", "job-market-insight-v2"]),
   dataSufficient: z.boolean(),
   insufficiencyReasons: z.array(
     z.enum(["too_few_jobs", "too_few_companies", "low_requirement_coverage"]),
@@ -64,10 +64,12 @@ export const JobInsightResultSchema = z.object({
     structuredRequirementJobCount: z.number().int().nonnegative(),
     requirementCoverage: z.number().min(0).max(1),
     lastVerifiedAt: TimestampSchema.nullable(),
+    firstVerifiedAt: TimestampSchema.nullable().optional(),
   }),
   commonHardRequirements: z.array(JobInsightRequirementSchema),
   frequentCapabilities: z.array(JobInsightRequirementSchema),
   preferredRequirements: z.array(JobInsightRequirementSchema),
+  mentionedRequirements: z.array(JobInsightRequirementSchema).optional(),
 });
 export type JobInsightResult = z.infer<typeof JobInsightResultSchema>;
 
@@ -87,7 +89,7 @@ export const JobInsightRunSchema = z.object({
     }),
   ),
   dataVersionHash: Sha256Schema,
-  algorithmVersion: z.literal("job-market-insight-v1"),
+  algorithmVersion: z.enum(["job-market-insight-v1", "job-market-insight-v2"]),
   result: JobInsightResultSchema,
   createdAt: TimestampSchema,
   completedAt: TimestampSchema,

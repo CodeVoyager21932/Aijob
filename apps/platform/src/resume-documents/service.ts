@@ -14,6 +14,8 @@ import {
   ResumeEvidenceRevisionSchema,
   ResumeLayoutSettingsSchema,
   ResumeSemanticContentRevisionSchema,
+  ResumeStudioContentSchema,
+  ResumeStudioLayoutSchema,
   ResumeTemplateKeySchema,
 } from "@aijob/contracts";
 import type { Database, JsonValue } from "@aijob/database";
@@ -28,10 +30,14 @@ import { assertActiveOwnerEpoch, type OwnerScope } from "../identity/session-rep
 import { hashCanonicalJson } from "../lib/canonical-json.js";
 import { lockOwnerIdempotencyKey } from "../lib/idempotency.js";
 import { ServiceError } from "../lib/service-error.js";
+import { copyResumeIntoDocument } from "./copy-service.js";
+import { checkpointNativeDraftInTransaction } from "./native-checkpoint.js";
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
 interface ResumeDocumentReadRow {
+  direction_scope: JsonValue | null;
+  copied_from_revision_id: string | null;
   id: string;
   owner_id: string;
   owner_epoch: number;
@@ -124,6 +130,8 @@ function documentReadQuery(db: DbExecutor) {
       "document.owner_epoch",
       "document.kind",
       "document.title",
+      "document.direction_scope",
+      "document.copied_from_revision_id",
       "document.case_id",
       "document.detached_from_case_id",
       "document.job_context_kind",
@@ -162,6 +170,8 @@ async function mapResumeDocument(
       ) ?? missingPublicJobHandoff)
     : missingPublicJobHandoff;
   const common = {
+    ...(row.direction_scope ? { directionScope: row.direction_scope } : {}),
+    ...(row.copied_from_revision_id ? { copiedFromRevisionId: row.copied_from_revision_id } : {}),
     id: row.id,
     ownerId: row.owner_id,
     ownerEpoch: Number(row.owner_epoch),
@@ -397,14 +407,6 @@ function resumeBaseRevisionInvalid(): ServiceError {
   );
 }
 
-function resumeEvidenceRequired(): ServiceError {
-  return new ServiceError(
-    409,
-    "RESUME_EVIDENCE_REQUIRED",
-    "创建岗位简历前，请先确认至少一条属于当前账户的经历证据。",
-  );
-}
-
 function resumeForCaseExists(): ServiceError {
   return new ServiceError(
     409,
@@ -418,14 +420,6 @@ function applicationCaseRevisionConflict(): ServiceError {
     409,
     "APPLICATION_CASE_REVISION_CONFLICT",
     "求职项目已在其他页面更新，请重新核对后再创建岗位简历。",
-  );
-}
-
-function resumeBaseEvidenceInvalid(): ServiceError {
-  return new ServiceError(
-    422,
-    "RESUME_BASE_EVIDENCE_INVALID",
-    "基础简历引用了当前未确认的经历证据，请先重新确认基础简历。",
   );
 }
 
@@ -479,12 +473,15 @@ async function loadStrictBaseRevision(
       "content_revision.confirmed_at",
       "content_revision.created_at",
       "content_revision.sections",
+      "content_revision.studio_content",
+      "content_revision.schema_version",
+      "content_revision.result_document_revision",
       "base_document.kind as document_kind",
     ])
     .where("content_revision.id", "=", revisionId)
     .where("content_revision.owner_id", "=", owner.ownerId)
     .where("content_revision.owner_epoch", "=", owner.ownerEpoch)
-    .where("content_revision.schema_version", "=", "resume-content-v1")
+    .where("content_revision.schema_version", "in", ["resume-content-v1", "aijob-native-content-v1"])
     .where("base_document.owner_epoch", "=", owner.ownerEpoch)
     .where("base_document.kind", "=", "base")
     .where("base_document.deleted_at", "is", null)
@@ -493,6 +490,14 @@ async function loadStrictBaseRevision(
   if (!row?.document_id || !row.document_revision || row.document_kind !== "base") {
     throw resumeBaseRevisionInvalid();
   }
+  if (row.schema_version === "aijob-native-content-v1") return {
+    schemaVersion: "resume-content-revision-v1" as const,
+    id:row.id, documentId:row.document_id, ownerId:row.owner_id, ownerEpoch:Number(row.owner_epoch),
+    documentRevision:Number(row.document_revision), baseDocumentRevisionId:row.base_document_revision_id,
+    contentHash:row.content_hash, confirmedAt:toIso(row.confirmed_at), createdAt:toIso(row.created_at),
+    content:{schemaVersion:"resume-content-v1" as const, sections:[]},
+    native:true, studioContent:null, resultDocumentRevision:row.result_document_revision,
+  };
   const parsed = ResumeSemanticContentRevisionSchema.safeParse({
     schemaVersion: "resume-content-revision-v1",
     id: row.id,
@@ -510,7 +515,12 @@ async function loadStrictBaseRevision(
     },
   });
   if (!parsed.success) throw resumeBaseRevisionInvalid();
-  return parsed.data;
+  return {
+    ...parsed.data,
+    native: row.schema_version === "aijob-native-content-v1",
+    studioContent: row.schema_version !== "aijob-native-content-v1" && row.studio_content ? ResumeStudioContentSchema.parse(row.studio_content) : null,
+    resultDocumentRevision: row.result_document_revision,
+  };
 }
 
 async function loadCurrentEvidenceRevision(transaction: Transaction<Database>, owner: OwnerScope) {
@@ -537,23 +547,7 @@ async function loadCurrentEvidenceRevision(transaction: Transaction<Database>, o
         evidence: parseJsonValue(row.evidence),
       })
     : null;
-  if (!parsed?.success || !parsed.data.evidence.some((item) => item.confirmed)) {
-    throw resumeEvidenceRequired();
-  }
-  return parsed.data;
-}
-
-function assertBaseContentEvidence(
-  baseRevision: z.infer<typeof ResumeSemanticContentRevisionSchema>,
-  evidenceRevision: z.infer<typeof ResumeEvidenceRevisionSchema>,
-): void {
-  const confirmedIds = new Set(
-    evidenceRevision.evidence.filter((item) => item.confirmed).map((item) => item.id),
-  );
-  const referencedIds = baseRevision.content.sections.flatMap((section) =>
-    section.blocks.flatMap((block) => block.evidenceIds),
-  );
-  if (referencedIds.some((id) => !confirmedIds.has(id))) throw resumeBaseEvidenceInvalid();
+  return parsed?.success ? parsed.data : null;
 }
 
 async function nextGlobalResumeRevision(
@@ -584,21 +578,29 @@ async function loadDerivedLayoutSeed(input: {
   transaction: Transaction<Database>;
   owner: OwnerScope;
   baseDocumentId: string;
-  baseRevision: z.infer<typeof ResumeSemanticContentRevisionSchema>;
+  baseRevision: Awaited<ReturnType<typeof loadStrictBaseRevision>>;
 }) {
   const fallback = {
     templateKey: "cn_classic_single_column" as const,
     sectionOrder: orderedSectionIds(input.baseRevision),
     settings: DefaultLayoutSettings,
+    studioLayout: null as z.infer<typeof ResumeStudioLayoutSchema> | null,
   };
   const row = await input.transaction
     .selectFrom("profile.resume_documents as document")
-    .innerJoin(
-      "profile.resume_layout_revisions as layout",
-      "layout.id",
-      "document.current_layout_revision_id",
+    .innerJoin("profile.resume_layout_revisions as layout", "layout.document_id", "document.id")
+    .select([
+      "layout.template_key",
+      "layout.section_order",
+      "layout.settings",
+      "layout.studio_layout",
+    ])
+    .$if(Boolean(input.baseRevision.studioContent), (qb) =>
+      qb.where("layout.result_document_revision", "=", input.baseRevision.resultDocumentRevision!),
     )
-    .select(["layout.template_key", "layout.section_order", "layout.settings"])
+    .$if(!input.baseRevision.studioContent, (qb) =>
+      qb.whereRef("layout.id", "=", "document.current_layout_revision_id"),
+    )
     .where("document.id", "=", input.baseDocumentId)
     .where("document.owner_id", "=", input.owner.ownerId)
     .where("document.owner_epoch", "=", input.owner.ownerEpoch)
@@ -625,6 +627,7 @@ async function loadDerivedLayoutSeed(input: {
     templateKey: templateKey.data,
     sectionOrder: sectionOrder.data,
     settings: settings.data,
+    studioLayout: row.studio_layout ? ResumeStudioLayoutSchema.parse(row.studio_layout) : null,
   };
 }
 
@@ -654,8 +657,16 @@ export async function createResumeDocument(input: {
   owner: OwnerScope;
   request: CreateResumeDocumentRequest;
   idempotencyKey: string;
+  initializeBase?: {
+    fingerprint?: unknown;
+    run: (tx: Transaction<Database>, documentId: string) => Promise<void>;
+  };
 }): Promise<CreateResumeDocumentResponse> {
-  const requestHash = hashCanonicalJson(input.request);
+  const requestHash = hashCanonicalJson(
+    input.initializeBase?.fingerprint === undefined
+      ? input.request
+      : { request: input.request, initialization: input.initializeBase.fingerprint },
+  );
   try {
     return await input.db.transaction().execute(async (transaction) => {
       await lockOwnerIdempotencyKey(transaction, {
@@ -663,6 +674,9 @@ export async function createResumeDocument(input: {
         scope: "resume-document-create",
         idempotencyKey: input.idempotencyKey,
       });
+      await sql`select pg_advisory_xact_lock(hashtextextended(${`resume-evidence:${input.owner.ownerId}`}, 0))`.execute(
+        transaction,
+      );
       await assertActiveOwnerEpoch(transaction, input.owner.ownerId, input.owner.ownerEpoch);
 
       const replay = await transaction
@@ -694,6 +708,9 @@ export async function createResumeDocument(input: {
             owner_id: input.owner.ownerId,
             owner_epoch: input.owner.ownerEpoch,
             kind: "base",
+            direction_scope: input.request.directionScope
+              ? JSON.stringify(input.request.directionScope)
+              : null,
             title: input.request.title,
             case_id: null,
             detached_from_case_id: null,
@@ -715,6 +732,14 @@ export async function createResumeDocument(input: {
             deleted_at: null,
           })
           .execute();
+        if (input.request.copyFrom)
+          await copyResumeIntoDocument(
+            transaction,
+            input.owner,
+            documentId,
+            input.request.copyFrom,
+          );
+        if (input.initializeBase) await input.initializeBase.run(transaction, documentId);
       } else {
         await lockOwnerIdempotencyKey(transaction, {
           ownerId: input.owner.ownerId,
@@ -745,15 +770,14 @@ export async function createResumeDocument(input: {
           input.request.baseDocumentRevisionId,
         );
         const evidenceRevision = await loadCurrentEvidenceRevision(transaction, input.owner);
-        assertBaseContentEvidence(baseRevision, evidenceRevision);
         const layout = await loadDerivedLayoutSeed({
           transaction,
           owner: input.owner,
           baseDocumentId: baseRevision.documentId,
           baseRevision,
         });
-        const contentRevisionId = randomUUID();
-        const layoutRevisionId = randomUUID();
+        let contentRevisionId: string = randomUUID();
+        let layoutRevisionId: string = randomUUID();
         await transaction
           .insertInto("profile.resume_documents")
           .values({
@@ -772,7 +796,7 @@ export async function createResumeDocument(input: {
             job_context_revision: applicationCase.job_context_revision,
             base_document_id: baseRevision.documentId,
             base_document_revision_id: baseRevision.id,
-            evidence_revision_id: evidenceRevision.id,
+            evidence_revision_id: evidenceRevision?.id ?? null,
             current_content_revision_id: null,
             current_layout_revision_id: null,
             revision: 1,
@@ -782,6 +806,18 @@ export async function createResumeDocument(input: {
             deleted_at: null,
           })
           .execute();
+        if (baseRevision.native) {
+          if(baseRevision.resultDocumentRevision === null) throw resumeBaseRevisionInvalid();
+          const nativeLayout = await transaction.selectFrom("profile.resume_layout_revisions").select("id")
+            .where("document_id", "=", baseRevision.documentId).where("owner_id", "=", input.owner.ownerId)
+            .where("owner_epoch", "=", input.owner.ownerEpoch)
+            .where("result_document_revision", "=", baseRevision.resultDocumentRevision)
+            .where("schema_version", "=", "aijob-native-layout-v1").executeTakeFirstOrThrow();
+          await copyResumeIntoDocument(transaction, input.owner, documentId, {
+            documentId: baseRevision.documentId, contentRevisionId: baseRevision.id, layoutRevisionId: nativeLayout.id,
+          });
+          ({ contentRevisionId, layoutRevisionId } = await checkpointNativeDraftInTransaction(transaction, input.owner, documentId, 1));
+        } else {
         await transaction
           .insertInto("profile.resume_document_revisions")
           .values({
@@ -793,15 +829,20 @@ export async function createResumeDocument(input: {
             base_revision: null,
             schema_version: "resume-content-v1",
             sections: JSON.stringify(baseRevision.content.sections) as unknown as JsonValue,
+            ...(baseRevision.studioContent
+              ? { studio_content: JSON.stringify(baseRevision.studioContent) }
+              : {}),
             content_hash: hashCanonicalJson(baseRevision.content),
             confirmed_at: sql<Date>`clock_timestamp()`,
             document_id: documentId,
             document_revision: 1,
             base_document_revision_id: null,
             legacy_source_revision_id: null,
-            mutation_idempotency_key: null,
-            mutation_request_hash: null,
-            result_document_revision: null,
+            mutation_idempotency_key: baseRevision.studioContent
+              ? `studio-derive:${input.idempotencyKey}`
+              : null,
+            mutation_request_hash: baseRevision.studioContent ? requestHash : null,
+            result_document_revision: baseRevision.studioContent ? 1 : null,
           })
           .execute();
         await transaction
@@ -817,10 +858,13 @@ export async function createResumeDocument(input: {
             template_key: layout.templateKey,
             section_order: JSON.stringify(layout.sectionOrder) as unknown as JsonValue,
             settings: JSON.stringify(layout.settings) as unknown as JsonValue,
+            ...(layout.studioLayout ? { studio_layout: JSON.stringify(layout.studioLayout) } : {}),
             content_hash: derivedLayoutHash(layout),
-            mutation_idempotency_key: null,
-            mutation_request_hash: null,
-            result_document_revision: null,
+            mutation_idempotency_key: baseRevision.studioContent
+              ? `studio-derive:${input.idempotencyKey}`
+              : null,
+            mutation_request_hash: baseRevision.studioContent ? requestHash : null,
+            result_document_revision: baseRevision.studioContent ? 1 : null,
           })
           .execute();
         await transaction
@@ -836,6 +880,7 @@ export async function createResumeDocument(input: {
           .where("revision", "=", 1)
           .executeTakeFirstOrThrow();
 
+        }
         const nextCaseRevision = Number(applicationCase.revision) + 1;
         const updatedCase = await transaction
           .updateTable("application.application_cases")

@@ -970,6 +970,25 @@ describeWithDatabase("source refresh automation PostgreSQL integration", () => {
     ).toMatchObject({ state: "circuit_open_or_not_due" });
   });
 
+  it("runs only the persisted selected scope even when another source is overdue", async () => {
+    const [unselected, selected] = await loadUnusedScheduledSourceConfigs(2);
+    if (!unselected || !selected) throw new Error("missing scheduled source fixtures");
+    const outside = await createSource({ sourceKey: unselected.sourceKey, policyVersion: unselected.policy.version, adapterVersion: unselected.policy.adapterVersion, nextDueAt: new Date("2030-01-01T09:00:00Z") });
+    const inside = await createSource({ sourceKey: selected.sourceKey, policyVersion: selected.policy.version, adapterVersion: selected.policy.adapterVersion, nextDueAt: new Date("2030-01-01T10:00:00Z") });
+    const executeRefresh = vi.fn(async () => fakeProbeResult());
+    const cycle = await runOneCollectorCycle({
+      db, now: new Date("2030-01-01T12:00:00Z"),
+      config: { appEnv: "local", enableSourceProbe: true, snapshotDir: workspaceRoot, probeRequestIntervalMs: 2000, workspaceRoot },
+      sourceKeys: [unselected.sourceKey, selected.sourceKey],
+      readRefreshControl: () => ({ version: 1, enabled: true, sourceKeys: [selected.sourceKey], updatedAt: "2030-01-01T12:00:00Z" }),
+      executeRefresh,
+    });
+    expect(cycle).toMatchObject({ state: "ran", sourceKey: selected.sourceKey });
+    expect(executeRefresh).toHaveBeenCalledOnce();
+    expect(await db.selectFrom("source_control.source_runtime_states").select(["automation_paused", "next_due_at"]).where("source_id", "=", outside.sourceId).executeTakeFirstOrThrow()).toEqual({ automation_paused: false, next_due_at: new Date("2030-01-01T09:00:00Z") });
+    await db.updateTable("source_control.source_runtime_states").set({ next_due_at: null }).where("source_id", "in", [outside.sourceId, inside.sourceId]).execute();
+  });
+
   it("isolates an exhausted scheduled task so the next due source can run", async () => {
     await db
       .updateTable("source_control.source_runtime_states")

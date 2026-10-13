@@ -39,6 +39,7 @@ function config(): AppConfig {
     host: "127.0.0.1",
     port: 3000,
     probeRequestIntervalMs: 750,
+    ownerTaskInteractiveConcurrency: 8,
     logLevel: "silent",
     enableInternalPreview: true,
     enableSourceProbe: false,
@@ -1156,7 +1157,7 @@ describeWithDatabase("owner, export and tombstone retention", () => {
   }
 
   async function createDeletedTombstone(deletedAt: Date, suffix: string) {
-    const session = await createAnonymousSession({ db });
+    const session = await createAnonymousSession({ db, retentionMode: "anonymous_ttl" });
     ownerIds.add(session.context.ownerId);
     const deletionId = randomUUID();
     await db
@@ -1231,7 +1232,7 @@ describeWithDatabase("owner, export and tombstone retention", () => {
 
   it("keeps account-managed owners active and purges their identity on deletion", async () => {
     const now = new Date();
-    const session = await createAnonymousSession({ db, now });
+    const session = await createAnonymousSession({ db, now, retentionMode: "anonymous_ttl" });
     ownerIds.add(session.context.ownerId);
     const ownerGraph = await insertOwnerGraph(session.context, `account-${randomUUID()}`);
     const accountId = randomUUID();
@@ -1505,8 +1506,8 @@ describeWithDatabase("owner, export and tombstone retention", () => {
 
   it("enforces 24h, 30d and 90d retention without crossing owners", async () => {
     const now = new Date();
-    const expiredSession = await createAnonymousSession({ db });
-    const survivorSession = await createAnonymousSession({ db });
+    const expiredSession = await createAnonymousSession({ db, retentionMode: "anonymous_ttl" });
+    const survivorSession = await createAnonymousSession({ db, retentionMode: "anonymous_ttl" });
     ownerIds.add(expiredSession.context.ownerId);
     ownerIds.add(survivorSession.context.ownerId);
     const expiredGraph = await insertOwnerGraph(expiredSession.context, "expired");

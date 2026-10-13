@@ -138,7 +138,7 @@ async function parseDocx(buffer) {
   return usefulText(result.value);
 }
 
-async function parsePdf(buffer) {
+async function parsePdf(buffer, structured = false) {
   let loadingTask;
   try {
     const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
@@ -154,9 +154,24 @@ async function parsePdf(buffer) {
         throw new ParserError("RESUME_PARSE_FAILED", "PDF 页数超过 30 页安全上限。");
       }
       const pages = [];
+      const links = [];
+      let characters=0;
       for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
         const page = await document.getPage(pageNumber);
-        const content = await page.getTextContent();
+        const content = await page.getTextContent({disableNormalization:structured});
+        if(structured) {
+          const items=content.items.filter(item=>"str" in item).map(item=>{
+            let fontName="";
+            try { fontName=page.commonObjs.get(item.fontName)?.name??""; } catch { /* Unknown weight is retained as unknown, not guessed. */ }
+            return {str:item.str,transform:item.transform,width:item.width,height:item.height,fontRef:item.fontName,hasEol:!!item.hasEOL,bold:/bold|black|heavy|semibold/i.test(fontName)};
+          });
+          characters+=items.reduce((sum,item)=>sum+item.str.length,0);
+          if(characters>MAX_RESUME_TEXT_CHARACTERS)throw new ParserError("RESUME_PARSE_FAILED","简历文本超出上限，未截断导入。");
+          const viewport=page.getViewport({scale:1,rotation:0});
+          pages.push({pageNumber,width:viewport.width,height:viewport.height,rotation:page.rotate,items,operators:null});
+          for(const annotation of await page.getAnnotations({intent:"display"}))if(annotation.subtype==="Link")links.push({page:pageNumber,url:annotation.url??null,rect:annotation.rect});
+          page.cleanup();continue;
+        }
         pages.push(
           content.items
             .map((item) => ("str" in item ? item.str : ""))
@@ -164,6 +179,10 @@ async function parsePdf(buffer) {
             .join(" "),
         );
         page.cleanup();
+      }
+      if(structured) {
+        usefulText(pages.flatMap(page=>page.items.map(item=>item.str)).join("\n"));
+        return {schemaVersion:"native-pdf-extraction-v1",pages,links};
       }
       return usefulText(pages.join("\n\n"));
     } finally {
@@ -196,13 +215,21 @@ async function readInput() {
 
 async function main() {
   const operation = process.argv[2];
-  if (!new Set(["parse-pdf", "parse-docx", "validate-docx"]).has(operation)) {
+  if (!new Set(["parse-pdf", "parse-docx", "validate-docx", "extract-pdf-structure", "extract-docx-structure"]).has(operation)) {
     throw new ParserError("RESUME_PARSE_FAILED", "解析操作无效。");
   }
   const buffer = await readInput();
   if (operation === "validate-docx") {
     await validateDocxArchive(buffer);
     return { ok: true };
+  }
+  if(operation==="extract-pdf-structure")return {ok:true,structure:await parsePdf(buffer,true)};
+  if(operation==="extract-docx-structure") {
+    await validateDocxArchive(buffer);
+    const result=await mammoth.convertToHtml({buffer},{includeDefaultStyleMap:true,convertImage:mammoth.images.imgElement(()=>({src:""}))});
+    if(result.value.length>MAX_RESUME_TEXT_CHARACTERS*4)throw new ParserError("RESUME_PARSE_FAILED","文档结构超出上限，未截断导入。");
+    usefulText(result.value.replace(/<[^>]*>/g," "));
+    return {ok:true,structure:{schemaVersion:"native-docx-extraction-v1",html:result.value,warnings:result.messages.map(message=>({type:message.type,message:message.message}))}};
   }
   const text = operation === "parse-pdf" ? await parsePdf(buffer) : await parseDocx(buffer);
   return { ok: true, text };

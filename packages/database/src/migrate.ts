@@ -39,11 +39,45 @@ import { reconciledPublicationMigration } from "./migrations/035_reconciled_publ
 import { sourceAssessmentInProgressMigration } from "./migrations/036_source_assessment_in_progress.js";
 import { studentApplicableSupplyMigration } from "./migrations/037_student_applicable_supply.js";
 import { jobFactFidelityMigration } from "./migrations/038_job_fact_fidelity.js";
+import { studentScopeSemanticsMigration } from "./migrations/039_student_scope_semantics.js";
+import { supplyAutomationAuditMigration } from "./migrations/040_supply_automation_audit.js";
+import { publicAiExecutionMigration } from "./migrations/041_public_ai_execution.js";
+import { currentJobGraphMigration } from "./migrations/042_current_job_graph.js";
+import { personalPlannerMigration } from "./migrations/043_personal_planner.js";
+import { materialsAndSubmissionsMigration } from "./migrations/044_materials_and_submissions.js";
+import { submissionEventCompatibilityMigration } from "./migrations/045_submission_event_compatibility.js";
+import { recruitmentPlansMigration } from "./migrations/046_recruitment_plans.js";
+import { interviewContinuityMigration } from "./migrations/047_interview_continuity.js";
+import { semanticEnrichmentMigration } from "./migrations/048_semantic_enrichment.js";
+import { experienceConditionScopeMigration } from "./migrations/049_experience_condition_scope.js";
+import { projectionRuntimeIntegrityMigration } from "./migrations/050_projection_runtime_integrity.js";
+import { projectionCacheLookupMigration } from "./migrations/051_projection_cache_lookup.js";
+import { projectionChangeDetectionMigration } from "./migrations/052_projection_change_detection.js";
+import { personalAiBudgetMigration } from "./migrations/053_personal_ai_budget.js";
+import { resumeStudioMigration } from "./migrations/054_resume_studio.js";
+import { careerAssistantMigration } from "./migrations/055_career_assistant.js";
+import { userAiConnectionsMigration } from "./migrations/056_user_ai_connections.js";
+import { bookmarksMigration } from "./migrations/057_bookmarks.js";
+import { resumeDerivationWithoutEvidenceGate } from "./migrations/058_resume_derivation_without_evidence_gate.js";
+import { graphExperienceLinksMigration } from "./migrations/059_graph_experience_links.js";
+import { persistentGuestRetentionMigration } from "./migrations/060_persistent_guest_retention.js";
+import { assistantCaseLifecycleMigration } from "./migrations/061_assistant_case_lifecycle.js";
+import { desktopIdentityMigration } from "./migrations/074_desktop_identity.js";
+import { localRuntimeRetentionPermissionsMigration } from "./migrations/075_local_runtime_retention_permissions.js";
+import { nativeImportWorkerPermissionsMigration } from "./migrations/076_native_import_worker_permissions.js";
+import { catalogRuntimeViewPermissionsMigration } from "./migrations/077_catalog_runtime_view_permissions.js";
+import { caseCatalogLockMigration } from "./migrations/078_case_catalog_lock.js";
 import type { Database } from "./types.js";
 
 class StaticMigrationProvider implements MigrationProvider {
   async getMigrations(): Promise<Record<string, Migration>> {
     return {
+      "074_desktop_identity": desktopIdentityMigration,
+      "075_local_runtime_retention_permissions": localRuntimeRetentionPermissionsMigration,
+      "076_native_import_worker_permissions": nativeImportWorkerPermissionsMigration,
+      "077_catalog_runtime_view_permissions": catalogRuntimeViewPermissionsMigration,
+      "078_case_catalog_lock": caseCatalogLockMigration,
+      "062_direction_graph_v2": directionGraphV2Migration,
       "001_initial": initialMigration,
       "002_harden_source_and_catalog_integrity": hardenSourceAndCatalogIntegrityMigration,
       "003_persist_source_target_policy": persistSourceTargetPolicyMigration,
@@ -88,6 +122,40 @@ class StaticMigrationProvider implements MigrationProvider {
       "036_source_assessment_in_progress": sourceAssessmentInProgressMigration,
       "037_student_applicable_supply": studentApplicableSupplyMigration,
       "038_job_fact_fidelity": jobFactFidelityMigration,
+      "039_student_scope_semantics": studentScopeSemanticsMigration,
+      "040_supply_automation_audit": supplyAutomationAuditMigration,
+      "041_public_ai_execution": publicAiExecutionMigration,
+      "042_current_job_graph": currentJobGraphMigration,
+      "043_personal_planner": personalPlannerMigration,
+      "044_materials_and_submissions": materialsAndSubmissionsMigration,
+      "045_submission_event_compatibility": submissionEventCompatibilityMigration,
+      "046_recruitment_plans": recruitmentPlansMigration,
+      "047_interview_continuity": interviewContinuityMigration,
+      "048_semantic_enrichment": semanticEnrichmentMigration,
+      "049_experience_condition_scope": experienceConditionScopeMigration,
+      "050_projection_runtime_integrity": projectionRuntimeIntegrityMigration,
+      "051_projection_cache_lookup": projectionCacheLookupMigration,
+      "052_projection_change_detection": projectionChangeDetectionMigration,
+      "053_personal_ai_budget": personalAiBudgetMigration,
+      "054_resume_studio": resumeStudioMigration,
+      "055_career_assistant": careerAssistantMigration,
+      "056_user_ai_connections": userAiConnectionsMigration,
+      "057_bookmarks": bookmarksMigration,
+      "059_graph_experience_links": graphExperienceLinksMigration,
+      "060_persistent_guest_retention": persistentGuestRetentionMigration,
+      "061_assistant_case_lifecycle": assistantCaseLifecycleMigration,
+      "063_resume_template_library": resumeTemplateLibraryMigration,
+      "064_semantic_projection_refresh": semanticProjectionRefreshMigration,
+      "065_resume_export_artifacts": resumeExportArtifactsMigration,
+      "066_native_resume_revisions": nativeResumeRevisionsMigration,
+      "067_native_experience_links": nativeExperienceLinksMigration,
+      "068_opportunity_discovery": opportunityDiscoveryMigration,
+      "069_native_preview_artifacts": nativePreviewArtifactsMigration,
+      "070_submitted_material_files": submittedMaterialFilesMigration,
+      "071_opportunity_digest_permissions": opportunityDigestPermissionsMigration,
+      "072_user_discovery": userDiscoveryMigration,
+      "073_source_onboarding": sourceOnboardingMigration,
+      "058_resume_derivation_without_evidence_gate": resumeDerivationWithoutEvidenceGate,
     };
   }
 }
@@ -130,3 +198,17 @@ export async function migrateToForTesting(
   }
   assertMigrationResult(await createMigrator(db).migrateTo(migrationName));
 }
+
+import { directionGraphV2Migration } from "./migrations/062_direction_graph_v2.js";
+import { resumeTemplateLibraryMigration } from "./migrations/063_resume_template_library.js";
+import { semanticProjectionRefreshMigration } from "./migrations/064_semantic_projection_refresh.js";
+import { resumeExportArtifactsMigration } from "./migrations/065_resume_export_artifacts.js";
+import { nativeResumeRevisionsMigration } from "./migrations/066_native_resume_revisions.js";
+
+import { nativeExperienceLinksMigration } from "./migrations/067_native_experience_links.js";
+import { opportunityDiscoveryMigration } from "./migrations/068_opportunity_discovery.js";
+import { nativePreviewArtifactsMigration } from "./migrations/069_native_preview_artifacts.js";
+import { submittedMaterialFilesMigration } from "./migrations/070_submitted_material_files.js";
+import { opportunityDigestPermissionsMigration } from "./migrations/071_opportunity_digest_permissions.js";
+import { userDiscoveryMigration } from "./migrations/072_user_discovery.js";
+import { sourceOnboardingMigration } from "./migrations/073_source_onboarding.js";

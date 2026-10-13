@@ -147,6 +147,14 @@ export function registerTailoringRoutes(
   app.get("/v1/resume-exports/:exportId/file", async (request, reply) => {
     const owner = requireOwnerContext(request);
     const { exportId } = ExportParamsSchema.parse(request.params);
+    try {
+      if(!z.string().uuid().safeParse(exportId).success) throw new ServiceError(404,'RESUME_EXPORT_NOT_FOUND','导出不存在');
+      const artifact=await downloadStudioExportArtifact(options.db,owner,exportId,options.config.resumeEncryptionKey);
+      const disposition=z.object({inline:z.enum(['0','1']).optional()}).parse(request.query).inline==='1'?'inline':'attachment';
+      return reply.header('Cache-Control','no-store').header('Content-Disposition',`${disposition}; filename*=UTF-8''${encodeURIComponent(artifact.fileName)}`).header('X-Content-Type-Options','nosniff').type(artifact.mediaType).send(artifact.buffer);
+    } catch(error) {
+      if(!(error instanceof ServiceError && error.code==='RESUME_EXPORT_NOT_FOUND'))return handleError(error,request,reply);
+    }
     const result = await downloadResumeExport(options.db, options.config, owner, exportId);
     if (!result) {
       return sendApiProblem(
@@ -170,3 +178,4 @@ export function registerTailoringRoutes(
       .send(result.buffer);
   });
 }
+import { downloadResumeExport as downloadStudioExportArtifact } from '../resume-documents/export-artifacts.js';

@@ -1,0 +1,23 @@
+{
+  "method": "GB2312 characters plus Latin, punctuation and fullwidth symbols, with unchanged advance widths. Rare characters fall back to the complete same-source CJK font.",
+  "fonts": [
+    {
+      "file": "AijobCJKCommon.woff2",
+      "source": "AijobCJK.otf",
+      "codepoints": 7848,
+      "bytes": 2484912,
+      "sha256": "05f6a70a17446380dc710dbc2f260916febe390923c022c5a2221d7e656bd97f",
+      "advanceWidthsUnchanged": true,
+      "fallback": "AijobCJK.woff2"
+    },
+    {
+      "file": "AijobSerifCJKCommon.woff2",
+      "source": "AijobSerifCJK.otf",
+      "codepoints": 7848,
+      "bytes": 3417892,
+      "sha256": "2d810ecbf9ec03c1390f008a6c397c41839c4ba897f370a03bcb3312e94497af",
+      "advanceWidthsUnchanged": true,
+      "fallback": "AijobSerifCJK.woff2"
+    }
+  ]
+}

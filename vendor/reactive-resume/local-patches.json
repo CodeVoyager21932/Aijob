@@ -1,0 +1,425 @@
+{
+  "upstream": "86a72bef138ae51771ea3bdeda9b2871a3a838c8",
+  "patches": [
+    {
+      "path": "fonts/package.json",
+      "upstreamSha256": "09cf790a84547e92a7bcb30bf050ef9026af4b5529361997cbb11d8311b2ce71",
+      "localSha256": "d1fd94c612246f8d1d5cef9fe4d28fb05be7f95a37978790264cf8d22b08e5e2",
+      "change": "modified"
+    },
+    {
+      "path": "fonts/src/index.ts",
+      "upstreamSha256": "f321966a03a371f6df8101f6b06b57817ea45673e3c15908451b6fdcd00444ec",
+      "localSha256": "63d0e2252b50a9095ea903f99c2b726ca8b04a1c61f75f597f952c605ee3cc8a",
+      "change": "modified"
+    },
+    {
+      "path": "fonts/tsconfig.json",
+      "upstreamSha256": "56c167835331024fd68ccf6b81211f8574940b7495bc8e28f90e4781630e9301",
+      "localSha256": "5fac5893019cc45d126063ff1f36988bd709d6e1d2e61ed7b9d7b1d15bc7bffa",
+      "change": "modified"
+    },
+    {
+      "path": "pdf/package.json",
+      "upstreamSha256": "6986e6bb016487164e3fa994c7d839637fcb1963db3619b4af23666f7f866b73",
+      "localSha256": "08c58b27254d7566b24e4b79a60cb3bfe3b08621a5f2e50efa2b00feccb2a3b7",
+      "change": "modified"
+    },
+    {
+      "path": "pdf/src/document.tsx",
+      "upstreamSha256": "2b5c41eedde144be45033e87580a229230b26fbde66e215340c18fe2b8d5c720",
+      "localSha256": "64a8d9bc430e47ad170542d8e8c8a9dc343a99a142f0dc28eafecf4649512217",
+      "change": "modified"
+    },
+    {
+      "path": "pdf/src/semantic/binding-inventory.ts",
+      "upstreamSha256": "31a2448231af85c09617b34af482e743e5a53019cac192103c07366911c177dd",
+      "localSha256": "f831242434943b7d51326612756f9a9cf3bae45977157558675f111554d6bd99",
+      "change": "modified"
+    },
+    {
+      "path": "pdf/src/semantic/tree.ts",
+      "upstreamSha256": "2e865f6d7c5979b0cc24c1853cf07cd86062283df60de7c408bccfc1309e5ae6",
+      "localSha256": "6aa9da89adc568c262979152ff48c4d77cddd99b34b26cddc5ebd1aa5c3a2c50",
+      "change": "modified"
+    },
+    {
+      "path": "pdf/src/templates/aijob/BillryanCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "a7b78b02ff9bbc614512d8bce36a6f13b6b1b9b7c2002e94061d11503232bd44",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/DeedyCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "ff4e084582d8432bc847bdae2f8815bd3dfc34a7169c25a682f59b7b01c08011",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/EngineerCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "b5f1212305d2213f877a7389b148ad9b54acbe1d5ae6d2afba193b9180972de4",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/EuroCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "7cf5dbb1d95c0c6c687ea7d302e690f777169348e4204d2afdad25eaf0f2ded7",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/GengarCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "e2812f4f9dd19ac58777aea09fcb26f316f797330718e52c17991c31ef2f5cdb",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/JpAcademicCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "d416a9f27645f24c2df3f96934b5d8bb3009b95493b733457a6bf0102e5f8eeb",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/JpAtsCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "395c781adb21ad434fe5ec29de61df3ed95b4a3cd5552f85cf20a324f67c77ba",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/JpBerlinCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "53609e21db80b1617ef70c691bacf6b18efc5cd94411ca3fb41b748c3c8f1974",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/JpBlocksCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "e7a69754e5e3b72382b3db5d8ffea4a6aa3865096db3841f2834dca4d886e2e4",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/JpClassicCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "057e0e1c57fcb830242fc0b46899e8c38ee46e12bf99d09cd21d96f9d3e8b050",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/JpDesignerCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "1542f7fdbef1c73e568145188707ba120f2d5bce959dd43eef9dbfaa82ecb196",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/JpMinimalCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "1bf058b924cfdf06e4fb8668a9e70dacd1bfa6c5cb1cc08946cb9abe098afdd6",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/JpRibbonCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "729460dc78415e06a366c6071d9bcb7e657c5791f0ab326823e812ff5ec73bab",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/JpScientistCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "faf88acc992f5ad3e174d9a894540cdc714b86e16749e7361f40da0efe53cb72",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/LapisCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "36a474bf7f7fc84d6308bc70efec90689cc56e05ec47228eb14093f83a00cd51",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/MagicCleanCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "956cff98d64a4dbe8b5cb6a8e36da12107d63c4a5d53d0937d014116dc00bf1f",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/MagicCompactCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "00f9f4fdb94c4dbf0bae920df519fc52236191e37474a614295843b9f004b47b",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/MagicExecutiveCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "5704a25507b4173f28b9e76ac415f362a78828d3053a2c3b8793e5b465dc9c2b",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/MagicFormalCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "43d585602b38605459f4ae362d805604018238defce6c0624bf554d6ea2271a5",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/MagicProductCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "799747f829734fbd6510a539d13c2a35dc0d2ff8923adb58e28e314a0d64251c",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/ModernCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "67a6bd23500b4879d4ea0b8cc1c2473cbaa074d47ff6942217a3db91ae21e80a",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/RenderClassicCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "77acf5dda3c723a379ff87ab3604388837c187e0e6294c6c3ef8356f1427178a",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/RenderEngineeringCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "1ec7e86f36841b2b0d78c7ef1ce71e60e95278d0b075e503710dd90a67b07a6b",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/SwissCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "3b4b538807d0dadfa1b4f5fa87b984269f01deb8da05418916f7d6a5ab12960b",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/VisikyCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "c7b32cf9f9afff0aabff122a36be1d5050932013609397ce6c954397dbde26a1",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/aijob/VisikySingleCnPage.tsx",
+      "upstreamSha256": null,
+      "localSha256": "2b3fb0b52e3f65849d38b4f952f0eaf526bc34740448b6456ddc631c31faaf44",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/azurill/AzurillPage.tsx",
+      "upstreamSha256": "7ede45c21532eee043c300bfa1f85acf00544d5a67d6f29f06bb95e0d11d177b",
+      "localSha256": "5d3b5581a5a754e02f3a66ee239691197628af6205d8b86497d5baf4bf306971",
+      "change": "modified"
+    },
+    {
+      "path": "pdf/src/templates/leafish/LeafishPage.tsx",
+      "upstreamSha256": "ad03c9d2cf8cc5a1f41a920c66e468b0681a34ffcd3314570059ef9ff02f8c16",
+      "localSha256": "26c45811a2963702c15c13c10c832a3c7991354763598a7d86864d57f0e33220",
+      "change": "modified"
+    },
+    {
+      "path": "pdf/src/templates/shared/aijob-icons.tsx",
+      "upstreamSha256": null,
+      "localSha256": "4c30ba13c53e5658a1f7cd718161a1a35adfbbb0efe963a2a96d1eed39cac302",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/shared/context.tsx",
+      "upstreamSha256": "72bcd857ee2a7175bb9f4d18c42fa55f95f9643563520610087d5638f5adc75b",
+      "localSha256": "a9fdbab8986b3f64d054d68e74ee8397c7efced62864751701278a3506384d4d",
+      "change": "modified"
+    },
+    {
+      "path": "pdf/src/templates/shared/filtering.ts",
+      "upstreamSha256": "284815b5d941702f268526a3bf00d1ad295c8a264b2f30edbbe7ed67408727cb",
+      "localSha256": "a82792d7a172ef7e696e1fbb1407ebdd25cb2e1e9585cfbd70fe201532bf9c52",
+      "change": "modified"
+    },
+    {
+      "path": "pdf/src/templates/shared/header-summary.ts",
+      "upstreamSha256": null,
+      "localSha256": "b18579ef9b8dedd692a73b280400f9464dc68380363104446c91aceda9eaa2c2",
+      "change": "added"
+    },
+    {
+      "path": "pdf/src/templates/shared/metrics.ts",
+      "upstreamSha256": "402922531fcfdcfc4950c5f217000c91dfbb36c26305424a8eee20241bb838a9",
+      "localSha256": "e67e2068fe06fb27b2eae6b76761cb709cdc14302e26beb1a3c452f30485479a",
+      "change": "modified"
+    },
+    {
+      "path": "pdf/src/templates/shared/primitives.tsx",
+      "upstreamSha256": "7be8b3978ec610ebd364a09924df3349f7cc44a691708c176b4e462b32e12997",
+      "localSha256": "7e6c3bd9ee7655f88e522eca72cea659a2c52f260c3a902051af7e303b1dac3a",
+      "change": "modified"
+    },
+    {
+      "path": "pdf/src/templates/shared/sections.tsx",
+      "upstreamSha256": "03ebe0adfda6f7c98f1114bb858c1d170adbe277629d355e9c630846b1e5d6b8",
+      "localSha256": "9ae0104fd2d199294738737d2216b81329dd202fa5ee95833665ad5e1578f48f",
+      "change": "modified"
+    },
+    {
+      "path": "pdf/src/templates/shared/types.ts",
+      "upstreamSha256": "3ba3c2208a67a5c47b214d06a2b86b01663a430a8fc46bed721c07cc3dad6ab7",
+      "localSha256": "0575e70eb7be4c136200a83f1178ced729ba8e5136e0cadec43504d257e9a50d",
+      "change": "modified"
+    },
+    {
+      "path": "pdf/tsconfig.json",
+      "upstreamSha256": "e38214cc1d27be26a8cddc46ced07471d34790cfeb619e6ff11c9598263e06ef",
+      "localSha256": "5fac5893019cc45d126063ff1f36988bd709d6e1d2e61ed7b9d7b1d15bc7bffa",
+      "change": "modified"
+    },
+    {
+      "path": "resume/package.json",
+      "upstreamSha256": "af27189e58f491d02a918f4f57c718ed44abacbbefa06dc3c2dd271be150f4b2",
+      "localSha256": "7cee24f6b1b3ce01e49704e1e89ed7a1f233906ae029ad56295843b67501703a",
+      "change": "modified"
+    },
+    {
+      "path": "resume/src/ats-pdf/catalog.ts",
+      "upstreamSha256": "2e81e20f440bd2b70a7a51f4f1998ec4f43248736ee99645156d0e8e7a4eead8",
+      "localSha256": "dba3e96133bea4d93effb19aa49e8b5dd3dd0ee8d73055b422e369032d2e19ea",
+      "change": "modified"
+    },
+    {
+      "path": "resume/src/ats-pdf/extract.ts",
+      "upstreamSha256": "698b00d2f5dc536cc44f9485ec3b133132fc59f31ff3f7973f5be079f8578fa6",
+      "localSha256": "6e327e7cad74c7e45b192ace4f53e6e64848a317b977ec79465c0461015457a2",
+      "change": "modified"
+    },
+    {
+      "path": "resume/src/ats-pdf/types.ts",
+      "upstreamSha256": "2949d6a5e833350ecc4a3e27a81b3b764d7154bd1308ddb45ebeca0249d1213f",
+      "localSha256": "794a2558b8f77aff21f3280585a79340085265dd3b7651b40b830f2be96d7326",
+      "change": "modified"
+    },
+    {
+      "path": "resume/tsconfig.json",
+      "upstreamSha256": "56c167835331024fd68ccf6b81211f8574940b7495bc8e28f90e4781630e9301",
+      "localSha256": "5fac5893019cc45d126063ff1f36988bd709d6e1d2e61ed7b9d7b1d15bc7bffa",
+      "change": "modified"
+    },
+    {
+      "path": "schema/package.json",
+      "upstreamSha256": "60fe46bdfe80fc385cb5b5fa116d238e0e66c6589673c47edf5b44a0ac581402",
+      "localSha256": "419037fc3281fb0b40c0a877c0d1a6786949f41a077cb6f2b288dff11f75e3ee",
+      "change": "modified"
+    },
+    {
+      "path": "schema/src/cover-letter/data.ts",
+      "upstreamSha256": "46422ff68dd3e6e2278b7fe1549fa95efd53e51e1295139f74fb87e81c544e7a",
+      "localSha256": "9a8aa80b6cdbbe51ea23a97603d3cf1832200807903e8b41d7ab4312029f4ec1",
+      "change": "modified"
+    },
+    {
+      "path": "schema/src/resume/data.test.ts",
+      "upstreamSha256": "2b95b135a189f95d48178d1317b646e9dcc8461ea6afc867cf6c591311ddbcfa",
+      "localSha256": "1d0d853bc566dc719ccef2daf58e55e540663ff3dade34ff34619cf272b58527",
+      "change": "modified"
+    },
+    {
+      "path": "schema/src/resume/data.ts",
+      "upstreamSha256": "cce1e7d8a6f63c3b7d1f7a63a336863cfddd15f9c9ff619b1dda9acc736204ae",
+      "localSha256": "a732a5edeab9b8f13b7ecc4da12cb42d548414d9a333c099f57d45b2e381086c",
+      "change": "modified"
+    },
+    {
+      "path": "schema/src/resume/default.test.ts",
+      "upstreamSha256": "18a5bf2e94d825d5cf0e264643bb27fa2a7c61b6ad1eef0f837bd08d4f820b0e",
+      "localSha256": "2c1e9b7d9e35750121bbc1e70fb36112572701d5709aa62aa4078f276c3def61",
+      "change": "modified"
+    },
+    {
+      "path": "schema/src/resume/default.ts",
+      "upstreamSha256": "1d3469b979c886ac3b60cfb2d667c9ae02b1132fcab86db03d46f50a244e30f0",
+      "localSha256": "0a4dd5c3ed9312184508035d321c427cf385c92b7d4a1e2e5478bbb3e6c79427",
+      "change": "modified"
+    },
+    {
+      "path": "schema/src/resume/hyphenation.test.ts",
+      "upstreamSha256": "75c0a7e388bcd7af0bc7cae756f0b4d9bddb81598648fc22e9b10f528ceb2328",
+      "localSha256": "ae67ac8a0acda15c0327d27b5a03f9f8664a5d1c35079e4808e20cf73d739201",
+      "change": "modified"
+    },
+    {
+      "path": "schema/src/resume/json-schema.test.ts",
+      "upstreamSha256": "de36747d486d551e3a1c6345bca784692600e3b89ceeceb1ef9703e4b39e90e9",
+      "localSha256": "44f28ba34cd2009fca5542d64c578836bcf6db6d3e553fa6af5c3afacfafa02d",
+      "change": "modified"
+    },
+    {
+      "path": "schema/src/resume/json-schema.ts",
+      "upstreamSha256": "137451e515a19c94c5349d3aeddcff21cdb433d542275e3a9ef7af953504d6f4",
+      "localSha256": "1ab48489388b82556fae4ae3fccbe94b3238bf8086746739d4edb465a709c758",
+      "change": "modified"
+    },
+    {
+      "path": "schema/src/resume/level-display-sizes.test.ts",
+      "upstreamSha256": "8c09284980dd7ba740aca4a7d921076f94bda108519f9028e1174ec4b86d778e",
+      "localSha256": "21135322f2be4ab23c9a6d7af4a786688cb64830b466d2e78e8009386f2c0fd9",
+      "change": "modified"
+    },
+    {
+      "path": "schema/src/resume/sample.ts",
+      "upstreamSha256": "8e7281955d91180024249b4b9e093f85a5e66c1143434746149390692d6a3243",
+      "localSha256": "8c0764e6fbab66524c49b657ee1b857b191d9d7ee816cfe3c1825c32a25b6034",
+      "change": "modified"
+    },
+    {
+      "path": "schema/src/resume/section-icons.ts",
+      "upstreamSha256": "5d17a936e3670b193ae404194ec8899eede6b1c102cf007d84f0f7c16b5e3c01",
+      "localSha256": "44e76bf235c47cb0c9ce11522f4edbd33e305e011ce3ed0970f831a0fae546ed",
+      "change": "modified"
+    },
+    {
+      "path": "schema/src/resume/skill-keyword-layout.test.ts",
+      "upstreamSha256": "6f78afa7ddfadfb65189d73a3d0896b3c2c9846cc12cbc6d5564cdfbe408fb94",
+      "localSha256": "e672c2fe8e71e1114b099661514c9a34e7ca8f7eb5cc96c640a455166f89b2f7",
+      "change": "modified"
+    },
+    {
+      "path": "schema/src/resume/style-rules.test.ts",
+      "upstreamSha256": "d00ca9274f2a153c943e0ddba1b694eea6f15089ce4d05cfadc46fea18f36f5f",
+      "localSha256": "294a24873c5e55669dd3906068d671577ea9ab1d0bd067c7cfa349de4aec0797",
+      "change": "modified"
+    },
+    {
+      "path": "schema/src/resume/style-rules.ts",
+      "upstreamSha256": "89d62cf0bececa0cb26167677099fb4233e4ebf2acfc8d88a52d116341af79fb",
+      "localSha256": "9bd21f78d483de7d429e3b216cadbcfe6c4650117d31fed516c38b4998199170",
+      "change": "modified"
+    },
+    {
+      "path": "schema/src/resume/stylesheet.test.ts",
+      "upstreamSha256": "46fe4689878992003cc50dcea7776cc386abe93aca16f06220bbe78a5770a53b",
+      "localSha256": "c4201789d1e777e28b7c0bd1391688b543443e1fca2c41622920c513d3313533",
+      "change": "modified"
+    },
+    {
+      "path": "schema/src/resume/write.test.ts",
+      "upstreamSha256": "f11916ef9fbc071af37c5c4b790ce470ddf5de716567521bd29b8c13fdb4e466",
+      "localSha256": "b5f1808544eb332fad06a8f7e8fbf8bfb4e22995b0c8fa74e653f64b4ea72be0",
+      "change": "modified"
+    },
+    {
+      "path": "schema/src/resume/write.ts",
+      "upstreamSha256": "34c9f9159cae671da407b1cf65a254af1ad7dde1137958aadfa0c22cff7f3574",
+      "localSha256": "9b173803fbb2e3f022163b1cf7cff5472f6f6351eb049208dba50419b7306f61",
+      "change": "modified"
+    },
+    {
+      "path": "schema/tsconfig.json",
+      "upstreamSha256": "56c167835331024fd68ccf6b81211f8574940b7495bc8e28f90e4781630e9301",
+      "localSha256": "5fac5893019cc45d126063ff1f36988bd709d6e1d2e61ed7b9d7b1d15bc7bffa",
+      "change": "modified"
+    },
+    {
+      "path": "utils/package.json",
+      "upstreamSha256": "046b0bb97f3462d2bf530eb085a851b577155a1d909cb53a3303edf35158d0ed",
+      "localSha256": "8038e1d177e72bef0f9ffd555b149a42d7ab0f743280598f90286ab505474a7e",
+      "change": "modified"
+    },
+    {
+      "path": "utils/tsconfig.json",
+      "upstreamSha256": "1deb6932fe92c37bcd654d0cac3e3a0d28b4dc54e4338572c364ba8ba948b015",
+      "localSha256": "5fac5893019cc45d126063ff1f36988bd709d6e1d2e61ed7b9d7b1d15bc7bffa",
+      "change": "modified"
+    }
+  ]
+}

@@ -13,6 +13,7 @@ import { z } from "zod";
 import { hashCanonicalJson } from "../lib/canonical-json.js";
 import { semanticRevisionValue } from "../sources/normalized-official-job.js";
 import { findCrossSourceDuplicateCandidates } from "./dedupe.js";
+import { indexOfficialJob } from "./job-semantics-store.js";
 import {
   decomposeKnownJobRequirements,
   decomposeTextualJobRequirements,
@@ -23,6 +24,7 @@ type RevisionRow = Selectable<Database["ingestion.source_job_revisions"]>;
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
 const REQUIREMENT_SCHEMA_VERSION = "job-requirements-v5";
+const EXTRACTION_VERSION = "deterministic-v3-list-projections";
 const LOCAL_CATALOG_MATERIALIZATION_LOCK_KEY = "aijob:local-catalog-materialization:v1";
 
 const NumberFieldSchema = fieldValueSchema(z.number());
@@ -73,7 +75,10 @@ function projectedField(requirements: JobRequirement[], kind: RequirementKind): 
   const candidates = required.length > 0 ? required : allCandidates;
   if (candidates.length === 0) return unknownProjection;
 
-  const values = candidates.map(({ expectedValue }) => expectedValue);
+  const listKind = ["city", "graduation_year", "education", "major", "language"].includes(kind);
+  const values = candidates.map(({ expectedValue }) =>
+    listKind && !Array.isArray(expectedValue) ? [expectedValue] : expectedValue,
+  );
   const canonical = new Set(values.map((value) => JSON.stringify(value)));
   if (canonical.size !== 1) {
     return {
@@ -93,7 +98,7 @@ function projectedField(requirements: JobRequirement[], kind: RequirementKind): 
   if (!supportsProjection) return { state: "unknown", reason: "parse_failed" };
   return {
     state: "known",
-    value: candidate.expectedValue,
+    value: values[0],
     evidenceRefs: candidates.map(({ id }) => id),
   } as JsonValue;
 }
@@ -253,6 +258,7 @@ async function materializeRevision(
     .updateTable("catalog.published_jobs")
     .set({ current_version_id: version.id })
     .where("id", "=", publishedJobId)
+    .where(sql<boolean>`current_version_id IS DISTINCT FROM ${version.id}::uuid`)
     .execute();
 
   const requirementStructured = asObject(version.structured_fields);
@@ -332,7 +338,14 @@ async function materializeRevision(
     ...structuredDecomposition.sourceUnits.filter((unit) => retainedStructuredUnits.has(unit.id)),
     ...textualDecomposition.sourceUnits,
   ];
+  await indexOfficialJob(transaction, {
+    jobVersionId: version.id,
+    title: version.title,
+    requirements: version.requirements,
+    responsibilities: version.responsibilities,
+  });
   const requirementHash = hashCanonicalJson({
+    extractionVersion: EXTRACTION_VERSION,
     schemaVersion: REQUIREMENT_SCHEMA_VERSION,
     sourceUnits,
     requirements,
@@ -343,6 +356,7 @@ async function materializeRevision(
       id: randomUUID(),
       published_job_version_id: version.id,
       schema_version: REQUIREMENT_SCHEMA_VERSION,
+      extraction_version: EXTRACTION_VERSION,
       source_units: JSON.stringify(sourceUnits),
       requirements: JSON.stringify(requirements),
       content_hash: requirementHash,
@@ -388,6 +402,7 @@ async function materializeRevision(
     .updateTable("catalog.published_job_versions")
     .set({ active_requirement_set_id: requirementSetId })
     .where("id", "=", version.id)
+    .where(sql<boolean>`active_requirement_set_id IS DISTINCT FROM ${requirementSetId}::uuid`)
     .execute();
   return {
     createdVersion,
@@ -429,7 +444,9 @@ export interface CompanyQuotaApplication {
  */
 export async function applyCompanyQuotaSelections(
   db: DbExecutor,
+  companyNames?: string[],
 ): Promise<CompanyQuotaApplication> {
+  if (companyNames?.length === 0) return { selectedJobs: 0, suppressedJobs: 0 };
   const rows = await db
     .selectFrom("catalog.published_jobs as job")
     .innerJoin("catalog.published_job_versions as version", "version.id", "job.current_version_id")
@@ -456,6 +473,9 @@ export async function applyCompanyQuotaSelections(
       "version.job_family as jobFamily",
       "organization.scale_band as scaleBand",
     ])
+    .$if(companyNames !== undefined, (query) =>
+      query.where("version.company_name", "in", companyNames ?? []),
+    )
     .where(sql<boolean>`EXISTS (
       SELECT 1
       FROM catalog.current_job_effective_activity AS activity
@@ -512,9 +532,18 @@ export async function applyCompanyQuotaSelections(
     }
   }
 
-  await db.deleteFrom("catalog.company_quota_selections").execute();
-  if (values.length > 0) {
-    await db.insertInto("catalog.company_quota_selections").values(values).execute();
+  await db
+    .deleteFrom("catalog.company_quota_selections")
+    .$if(companyNames !== undefined, (query) =>
+      query.where("company_name", "in", companyNames ?? []),
+    )
+    .execute();
+  // Bound statement parameters for a full maintenance run as well as a large employer.
+  for (let offset = 0; offset < values.length; offset += 1000) {
+    await db
+      .insertInto("catalog.company_quota_selections")
+      .values(values.slice(offset, offset + 1000))
+      .execute();
   }
   return { selectedJobs, suppressedJobs };
 }
@@ -549,7 +578,7 @@ async function persistCrossSourceDuplicateReviews(
       "ingestion.source_job_revisions.locations as locations",
       "source_control.organizations.official_domain as officialDomain",
     ])
-    .where("ingestion.source_job_revisions.id", "in", revisionIds)
+    .where(sql<boolean>`ingestion.source_job_revisions.id=ANY(${revisionIds}::uuid[])`)
     .execute();
   const pairs = findCrossSourceDuplicateCandidates(
     rows.map((row) => ({
@@ -611,6 +640,7 @@ export async function lockLocalCatalogMaterialization(
 
 export async function materializeLocalCatalog(
   db: Kysely<Database>,
+  scope: { sourceId?: string } = {},
 ): Promise<LocalCatalogMaterializationResult> {
   return db.transaction().execute(async (transaction) => {
     await lockLocalCatalogMaterialization(transaction);
@@ -622,6 +652,12 @@ export async function materializeLocalCatalog(
         "catalog.internal_job_previews.revision_id",
       )
       .selectAll("ingestion.source_job_revisions")
+      .$if(scope.sourceId !== undefined, (query) =>
+        query.where(sql<boolean>`EXISTS (
+        SELECT 1 FROM ingestion.source_job_records scoped_record
+        WHERE scoped_record.id=ingestion.source_job_revisions.source_job_record_id AND scoped_record.source_id=${scope.sourceId}::uuid
+      )`),
+      )
       .where("catalog.internal_job_previews.ingestion_state", "=", "validated")
       .where("catalog.internal_job_previews.publication_state", "in", ["review", "published"])
       .where("catalog.internal_job_previews.policy_status", "in", ["pending_review", "approved"])
@@ -634,11 +670,37 @@ export async function materializeLocalCatalog(
       if (result.createdVersion) createdVersions += 1;
       if (result.createdRequirementSet) createdRequirementSets += 1;
     }
+    // Read the current preview identifiers once for cross-source comparisons, without
+    // re-materializing other sources or revising any historical content.
+    const duplicateRevisions = scope.sourceId
+      ? await transaction
+          .selectFrom("catalog.internal_job_previews")
+          .select("revision_id")
+          .where("ingestion_state", "=", "validated")
+          .where("publication_state", "in", ["review", "published"])
+          .where("policy_status", "in", ["pending_review", "approved"])
+          .execute()
+      : revisions.map((row) => ({ revision_id: row.id }));
     const suspectedDuplicatePairs = await persistCrossSourceDuplicateReviews(
       transaction,
-      revisions.map(({ id }) => id),
+      duplicateRevisions.map(({ revision_id }) => revision_id),
     );
-    const quota = await applyCompanyQuotaSelections(transaction);
+    const affectedCompanies = scope.sourceId
+      ? (
+          await transaction
+            .selectFrom("ingestion.source_job_revisions as revision")
+            .innerJoin(
+              "ingestion.source_job_records as record",
+              "record.id",
+              "revision.source_job_record_id",
+            )
+            .select("revision.company_name")
+            .distinct()
+            .where("record.source_id", "=", scope.sourceId)
+            .execute()
+        ).map((row) => row.company_name)
+      : undefined;
+    const quota = await applyCompanyQuotaSelections(transaction, affectedCompanies);
     return {
       materializedRevisions: revisions.length,
       createdVersions,

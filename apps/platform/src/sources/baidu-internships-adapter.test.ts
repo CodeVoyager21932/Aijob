@@ -35,7 +35,7 @@ describe("Baidu internships adapter", () => {
     expect(normalized.applyUrl).toBe(
       "https://talent.baidu.com/jobs/detail/INTERN/cc518dbb-e0ff-491d-a4df-c9e7d02acdab",
     );
-    expect(normalized.jobFamily.state).toBe("conflict");
+    expect(normalized.jobFamily.state).toBe("known");
     expect(normalized.structuredFields.durationMonths).toMatchObject({
       state: "known",
       value: 6,

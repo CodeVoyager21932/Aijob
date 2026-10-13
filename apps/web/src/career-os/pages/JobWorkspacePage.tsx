@@ -1,3 +1,4 @@
+import { BookmarkButton } from "../components/BookmarkButton";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -13,6 +14,7 @@ import {
 } from "../../product/domain";
 import { ApplicationHandoffLink } from "../components/ApplicationHandoffLink";
 import { Icon } from "../components/Icon";
+import { RecruitmentPlan } from "../components/RecruitmentPlan";
 import { safeJobReturnPath } from "../job-navigation";
 
 export function JobWorkspacePage() {
@@ -40,6 +42,7 @@ export function JobWorkspacePage() {
       }
       return createApplicationCase(
         {
+          initialStage:"preparing",
           jobContext: {
             kind: "public",
             publishedJobId: input.publishedJobId,
@@ -52,7 +55,7 @@ export function JobWorkspacePage() {
     retry: false,
     onSuccess: async ({ applicationCase }) => {
       await queryClient.invalidateQueries({ queryKey: careerOsQueryKeys.cases });
-      navigate(`/applications/${applicationCase.id}/requirements`);
+      navigate(`/applications/${applicationCase.id}/resume`);
     },
   });
 
@@ -127,6 +130,8 @@ export function JobWorkspacePage() {
           </div>
         </div>
         <div className="career-job-workspace__actions">
+          <BookmarkButton jobId={job.id}/>
+          <Link className="career-button" to={`/assistant?task=job_explanation&jobId=${job.id}`}>请助手解读岗位</Link>
           <ApplicationHandoffLink
             handoff={job.applicationHandoff}
             methods={job.applicationMethods}
@@ -144,7 +149,7 @@ export function JobWorkspacePage() {
             }}
           >
             <Icon name="briefcase" size={16} />
-            {caseMutation.isPending ? "正在建立 Case…" : "加入我的求职"}
+            {caseMutation.isPending ? "正在开始准备…" : "开始准备这份申请"}
           </button>
         </div>
       </header>
@@ -185,6 +190,7 @@ export function JobWorkspacePage() {
             </dl>
           </section>
 
+          <RecruitmentPlan jobId={jobId} />
           <section id="official-jd" className="career-job-workspace__section">
             <header>
               <p>企业原文</p>

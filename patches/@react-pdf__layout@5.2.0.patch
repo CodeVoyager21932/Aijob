@@ -1,0 +1,75 @@
+diff --git a/lib/index.js b/lib/index.js
+index 18c2618f4630b3c1296c8c3cac317b8d7666bbe8..ad1645e87ee1268749f58b6245c107c08cca0404 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -1837,7 +1837,7 @@ const getEndOfPresence = (child, futureElements) => {
+         return afterMinPresenceAhead;
+     return Math.min(afterMinPresenceAhead, endOfFurthestFutureElement);
+ };
+-const shouldBreak = (child, futureElements, height, previousElements) => {
++const shouldBreak = (child, futureElements, height, previousElements, contentArea) => {
+     if ('fixed' in child.props)
+         return false;
+     const shouldSplit = height < child.box.top + child.box.height;
+@@ -1846,9 +1846,14 @@ const shouldBreak = (child, futureElements, height, previousElements) => {
+     const endOfPresence = getEndOfPresence(child, futureElements);
+     // If the child is already at the top of the page, breaking won't improve its presence
+     // (as long as react-pdf does not support breaking into differently sized containers)
+-    const breakingImprovesPresence = previousElements.filter((node) => !isFixed(node)).length > 0;
++    // Aijob opt-in: the first child of a nested box is not necessarily at the page top.
++    // Preserve upstream flow for all unmarked historical documents.
++    const breakingImprovesPresence = previousElements.filter((node) => !isFixed(node)).length > 0 ||
++        (child.props.aijobKeepWithNext === true && height < contentArea - 0.01);
+     return (getBreak(child) ||
+         (shouldSplit && !canWrap) ||
++        (shouldSplit && child.props.aijobKeepSmallItem === true && child.box.height <= Math.min(180, contentArea * 0.25) && height - child.box.top < contentArea - 0.01) ||
++        (shouldSplit && child.props.aijobKeepWithNext === true && child.box.height <= contentArea && height < contentArea - 0.01) ||
+         (!shouldSplit && endOfPresence > height && breakingImprovesPresence));
+ };
+ 
+@@ -3118,6 +3123,8 @@ const isDynamic$1 = (node) => node.props && 'render' in node.props;
+ const warnUnavailableSpace = (node) => {
+     console.warn(`Node of type ${node.type} can't wrap between pages and it's bigger than available page height`);
+ };
++const hasAijobKeepWithNext = (node) => node.props?.aijobKeepWithNext === true || node.props?.aijobKeepSmallItem === true ||
++    (node.children || []).some(hasAijobKeepWithNext);
+ const splitNodes = (height, contentArea, nodes) => {
+     const currentChildren = [];
+     const nextChildren = [];
+@@ -3128,7 +3135,7 @@ const splitNodes = (height, contentArea, nodes) => {
+         const nodeTop = getTop(child);
+         const nodeHeight = child.box.height;
+         const isOutside = height <= nodeTop;
+-        const shouldBreak$1 = shouldBreak(child, futureNodes, height, currentChildren);
++        const shouldBreak$1 = shouldBreak(child, futureNodes, height, currentChildren, contentArea);
+         const shouldSplit = height + SAFETY_THRESHOLD < nodeTop + nodeHeight;
+         const canWrap = getWrap(child);
+         const fitsInsidePage = nodeHeight <= contentArea;
+@@ -3165,7 +3172,7 @@ const splitNodes = (height, contentArea, nodes) => {
+             // All children are moved to the next page, it doesn't make sense to show the parent on the current page
+             if (child.children.length > 0 && currentChild.children.length === 0) {
+                 // But if the current page is empty then we can just include the parent on the current page
+-                if (currentChildren.length === 0) {
++                if (currentChildren.length === 0 && !(height < contentArea - 0.01 && hasAijobKeepWithNext(child))) {
+                     currentChildren.push(child, ...futureFixedNodes);
+                     nextChildren.push(...futureNodes);
+                 }
+@@ -3187,6 +3194,18 @@ const splitNodes = (height, contentArea, nodes) => {
+         }
+         currentChildren.push(child);
+     }
++    // A nested header can move only after its ancestor heading was measured.
++    // Roll back trailing opt-in headings so they follow the first real content.
++    // At the top of a full page allow normal wrapping to guarantee progress.
++    if (height < contentArea - 0.01 && nextChildren.some(node => !isFixed(node))) {
++        let last = currentChildren.findLastIndex(node => !isFixed(node));
++        while (last >= 0 && currentChildren[last].props?.aijobKeepWithNext === true) {
++            const heading = currentChildren.splice(last, 1)[0];
++            const box = Object.assign({}, heading.box, { top: heading.box.top - height });
++            nextChildren.unshift(Object.assign({}, heading, { box }));
++            last = currentChildren.findLastIndex(node => !isFixed(node));
++        }
++    }
+     return [currentChildren, nextChildren];
+ };
+ const splitChildren = (height, contentArea, node) => {

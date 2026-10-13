@@ -16,7 +16,7 @@ const unknown = JSON.stringify({ state: "unknown", reason: "source_not_stated" }
 const known = (value: unknown, evidenceRef: string) =>
   JSON.stringify({ state: "known", value, evidenceRefs: [evidenceRef] });
 
-describeWithDatabase("migrations 026B through 038 forward repairs and Review v2 expansion", () => {
+describeWithDatabase("migrations 026B through 053 forward repairs and Review v2 expansion", () => {
   const ids = {
     organization: randomUUID(),
     source: randomUUID(),
@@ -571,8 +571,8 @@ describeWithDatabase("migrations 026B through 038 forward repairs and Review v2 
         SELECT name FROM kysely_migration ORDER BY timestamp DESC LIMIT 1
       `.execute(emptyDb),
     ]);
-    expect(migration.rows[0]?.name).toBe("038_job_fact_fidelity");
-    expect(emptyMigration.rows[0]?.name).toBe("038_job_fact_fidelity");
+    expect(migration.rows[0]?.name).toBe("053_personal_ai_budget");
+    expect(emptyMigration.rows[0]?.name).toBe("053_personal_ai_budget");
 
     const accountOwner = await db
       .selectFrom("identity.owners")

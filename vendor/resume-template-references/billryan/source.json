@@ -1,0 +1,30 @@
+{
+  "repository": "billryan/resume",
+  "commit": "eadc3955cf006254dc8f2419e971fbe3f5bab413",
+  "files": [
+    {
+      "path": "LICENSE",
+      "local": "LICENSE",
+      "sha256": "d92e7f89ae796169222b476b1a629a73a1c1c807ac974cd6ff934062505367a5",
+      "url": "https://raw.githubusercontent.com/billryan/resume/eadc3955cf006254dc8f2419e971fbe3f5bab413/LICENSE"
+    },
+    {
+      "path": "resume.cls",
+      "local": "resume.cls",
+      "sha256": "4d293646b3f12f9f49eb33faae5d20ba69831370bce8430cca9be261ce7d9c0a",
+      "url": "https://raw.githubusercontent.com/billryan/resume/eadc3955cf006254dc8f2419e971fbe3f5bab413/resume.cls"
+    },
+    {
+      "path": "resume.tex",
+      "local": "resume.tex",
+      "sha256": "ab6ccae5471721811304f7c1243954d6a51baca55d8a873baae04019f5357003",
+      "url": "https://raw.githubusercontent.com/billryan/resume/eadc3955cf006254dc8f2419e971fbe3f5bab413/resume.tex"
+    },
+    {
+      "path": "resume_photo.tex",
+      "local": "resume_photo.tex",
+      "sha256": "ffea8fb7d7058c2ba3a97e35643f29a2a37363430e069759244764126c18ab84",
+      "url": "https://raw.githubusercontent.com/billryan/resume/eadc3955cf006254dc8f2419e971fbe3f5bab413/resume_photo.tex"
+    }
+  ]
+}

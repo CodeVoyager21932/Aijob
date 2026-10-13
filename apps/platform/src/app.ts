@@ -5,8 +5,12 @@ import { checkDatabase, type Database } from "@aijob/database";
 import Fastify, { type FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
 import { ZodError, z } from "zod";
+import { registerAssistantRoutes } from "./ai/assistant-routes.js";
+import { registerUserAiRoutes } from "./ai/user-ai-routes.js";
 import { getInternalPreviewJob, listInternalPreviewJobs } from "./api/job-repository.js";
 import { registerApplicationCaseRoutes } from "./applications/routes.js";
+import { registerBookmarkRoutes } from "./catalog/bookmarks.js";
+import { registerRecruitmentPlanRoutes } from "./catalog/recruitment-plan-routes.js";
 import { catalogRoutes } from "./catalog/routes.js";
 import { registerDecisionRoutes } from "./decisions/routes.js";
 import {
@@ -15,13 +19,20 @@ import {
 } from "./identity/email-delivery.js";
 import { installAnonymousIdentity } from "./identity/fastify.js";
 import { isApiProblem, sendApiProblem } from "./identity/http.js";
+import { SmtpEmailVerificationDelivery } from "./identity/smtp-delivery.js";
 import { registerInsightRoutes } from "./insights/routes.js";
 import { registerInterviewRoutes } from "./interviews/routes.js";
 import { sha256 } from "./lib/canonical-json.js";
 import { registerMatchingRoutes } from "./matching/routes.js";
+import { registerUserDiscoveryRoutes } from "./opportunities/user-discovery-routes.js";
+import { registerPlannerRoutes } from "./planner/routes.js";
 import { registerProfileRoutes } from "./profile/routes.js";
 import { registerResumeRoutes } from "./resume/routes.js";
+import { registerMaterialRoutes } from "./resume-documents/material-routes.js";
+import { registerNativeStudioRoutes } from "./resume-documents/native-studio-routes.js";
 import { registerResumeDocumentRoutes } from "./resume-documents/routes.js";
+import { registerResumeStudioRoutes } from "./resume-documents/studio-routes.js";
+import { builtinSourceCatalog } from "./sources/builtin-catalog.js";
 import { registerTailoringRoutes } from "./tailoring/routes.js";
 
 const listQuerySchema = z.object({
@@ -55,7 +66,9 @@ export function buildApp(input: { config: AppConfig; db: Kysely<Database> }): Fa
   const emailDelivery =
     input.config.identity.emailDeliveryMode === "fixture"
       ? new FixtureEmailVerificationDelivery()
-      : new DisabledEmailVerificationDelivery();
+      : input.config.identity.emailDeliveryMode === "smtp" && input.config.identity.smtp
+        ? new SmtpEmailVerificationDelivery(input.config.identity.smtp)
+        : new DisabledEmailVerificationDelivery();
   installAnonymousIdentity(app, {
     db: input.db,
     appEnv: input.config.appEnv,
@@ -73,15 +86,22 @@ export function buildApp(input: { config: AppConfig; db: Kysely<Database> }): Fa
 
   app.addHook("onSend", async (request, reply, payload) => {
     const ownerScopedPrefixes = [
+      "/v2/private-job-graph",
+      "/v2/job-graph/personal-comparison",
       "/v1/profile",
       "/v1/resume-analyses",
       "/v1/resume-documents",
+      "/v1/material-snippets",
       "/v1/match-runs",
       "/v1/recommendation-runs",
       "/v1/resume-tailorings",
       "/v1/resume-exports",
       "/v1/job-decisions",
       "/v1/job-insight-runs",
+      "/v1/job-graph/personal-comparison",
+      "/v1/private-job-graph",
+      "/v1/planner-",
+      "/v1/saved-searches",
       "/v1/application-cases",
       "/v1/session",
       "/v1/email-verification-challenges",
@@ -95,6 +115,8 @@ export function buildApp(input: { config: AppConfig; db: Kysely<Database> }): Fa
   });
 
   app.get("/health/live", async () => ({ status: "ok" }));
+  if (input.config.appEnv === "local")
+    app.get("/v1/local-source-catalog", () => builtinSourceCatalog(input.config.workspaceRoot));
   app.get("/health/ready", async (_request, reply) => {
     try {
       await checkDatabase(input.db);
@@ -120,9 +142,23 @@ export function buildApp(input: { config: AppConfig; db: Kysely<Database> }): Fa
     deletionReceiptSecret: sha256(`${input.config.resumeEncryptionKey}:deletion-receipt-v1`),
   });
   registerResumeDocumentRoutes(app, {
+    encryptionKey: input.config.resumeEncryptionKey,
     db: input.db,
     reviewV2WriteEnabled: input.config.resumeReviewV2WriteEnabled,
+    ...(input.config.pdfRuntime ? { pdfRuntime: input.config.pdfRuntime } : {}),
   });
+  registerResumeStudioRoutes(app, { db: input.db, config: input.config });
+  if (input.config.appEnv === "local" || input.config.appEnv === "test")
+    registerNativeStudioRoutes(
+      app,
+      input.db,
+      input.config.resumeEncryptionKey,
+      input.config.nativeStudioTemplatesEnabled,
+    );
+  registerAssistantRoutes(app, { db: input.db, config: input.config });
+  registerUserAiRoutes(app, input);
+  registerUserDiscoveryRoutes(app, input);
+  registerBookmarkRoutes(app, input);
   registerMatchingRoutes(app, {
     db: input.db,
     enableLocalMvp: input.config.enableLocalMvp,
@@ -134,10 +170,23 @@ export function buildApp(input: { config: AppConfig; db: Kysely<Database> }): Fa
   registerTailoringRoutes(app, { db: input.db, config: input.config });
   registerDecisionRoutes(app, { db: input.db });
   registerApplicationCaseRoutes(app, {
+    encryptionKey: input.config.resumeEncryptionKey,
     db: input.db,
     enableLocalMvp: input.config.enableLocalMvp,
   });
   registerInterviewRoutes(app, { db: input.db });
+  registerPlannerRoutes(app, {
+    db: input.db,
+    local: input.config.enableLocalMvp,
+    config: input.config,
+    ...(input.config.opportunityDiscovery ? { discovery: input.config.opportunityDiscovery } : {}),
+  });
+  registerMaterialRoutes(app, {
+    db: input.db,
+    encryptionKey: input.config.resumeEncryptionKey,
+    ...(input.config.pdfRuntime ? { pdfRuntime: input.config.pdfRuntime } : {}),
+  });
+  registerRecruitmentPlanRoutes(app, { db: input.db, local: input.config.enableLocalMvp });
 
   if (
     input.config.enableInternalPreview &&

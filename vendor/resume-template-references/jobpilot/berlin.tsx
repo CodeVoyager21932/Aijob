@@ -1,0 +1,300 @@
+'use client';
+
+import type {
+  Resume,
+  PersonalInfoContent,
+  SummaryContent,
+  WorkExperienceContent,
+  EducationContent,
+  SkillsContent,
+  ProjectsContent,
+  CertificationsContent,
+  LanguagesContent,
+  CustomContent,
+  GitHubContent,
+} from '@/types/resume';
+import { AvatarImage } from '../avatar-image';
+import { degreeField, extractMarkdownBulletItems, isSectionEmpty, md } from '../utils';
+import { QrCodesPreview } from '../qr-codes-preview';
+
+const BLUE = '#2563eb';
+const YELLOW = '#eab308';
+const RED_B = '#dc2626';
+const TEXT = '#18181b';
+
+function BerlinBulletList({ items, className = 'space-y-0.5' }: { items: string[]; className?: string }) {
+  return (
+    <ul className={className}>
+      {items.map((item, index) => (
+        <li key={index} className="flex items-start gap-2 text-sm text-zinc-600">
+          <span className="mt-1.5 h-1.5 w-1.5 shrink-0" style={{ backgroundColor: RED_B }} />
+          <span dangerouslySetInnerHTML={{ __html: md(item) }} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function BerlinTemplate({ resume }: { resume: Resume }) {
+  const personalInfo = resume.sections.find((s) => s.type === 'personal_info');
+  const pi = (personalInfo?.content || {}) as PersonalInfoContent;
+
+  const contacts = [pi.age, pi.politicalStatus, pi.gender, pi.ethnicity, pi.hometown, pi.maritalStatus, pi.yearsOfExperience, pi.educationLevel, pi.email, pi.phone, pi.wechat, pi.location, pi.website].filter(Boolean);
+
+  return (
+    <div className="mx-auto max-w-[210mm] overflow-hidden bg-white shadow-lg" style={{ fontFamily: 'Inter, sans-serif' }}>
+      {/* Header with geometric block */}
+      <div className="relative px-10 py-8 text-white" style={{ backgroundColor: '#000000' }}>
+        {/* Geometric decorations */}
+        <div className="absolute right-8 top-4 h-20 w-20 rounded-full border-4" style={{ borderColor: YELLOW, opacity: 0.6 }} />
+        <div className="absolute right-24 bottom-3 h-8 w-8" style={{ backgroundColor: RED_B, opacity: 0.7 }} />
+        <div className="absolute right-6 bottom-6 h-12 w-3" style={{ backgroundColor: BLUE, opacity: 0.7 }} />
+
+        <div className="relative flex items-center gap-6">
+          {pi.avatar && (
+            <AvatarImage src={pi.avatar} size={80} avatarStyle={resume.themeConfig?.avatarStyle} wrapperClassName="shrink-0 border-4 p-0.5" wrapperStyle={{ borderColor: YELLOW }} />
+          )}
+          <div>
+            <h1 className="text-3xl font-extrabold uppercase tracking-tight">{pi.fullName || 'Your Name'}</h1>
+            {pi.jobTitle && <p className="mt-1 text-sm font-light tracking-wider" style={{ color: YELLOW }}>{pi.jobTitle}</p>}
+            {contacts.length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-white/70">
+                {contacts.map((c, i) => (
+                  <span key={i}>{c}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="p-8 pt-6">
+        {resume.sections
+          .filter((s) => s.visible && s.type !== 'personal_info' && !isSectionEmpty(s))
+          .map((section) => (
+            <div key={section.id} className="mb-6" data-section>
+              {/* Section header with geometric accent */}
+              <div className="mb-3 flex items-center gap-2">
+                <div className="h-5 w-5 rounded-full" style={{ backgroundColor: BLUE }} />
+                <h2 className="text-sm font-extrabold uppercase tracking-wider" style={{ color: TEXT }}>{section.title}</h2>
+                <div className="ml-auto h-1 w-12" style={{ backgroundColor: YELLOW }} />
+              </div>
+              <BerlinSectionContent section={section} lang={resume.language} />
+            </div>
+          ))}
+      </div>
+    </div>
+  );
+}
+
+function BerlinSectionContent({ section, lang }: { section: any; lang?: string }) {
+  const content = section.content;
+
+  if (section.type === 'summary') {
+    const summaryItems = extractMarkdownBulletItems((content as SummaryContent).text);
+    return (
+      <div className="border-l-4 pl-4" style={{ borderColor: BLUE }}>
+        {summaryItems ? (
+          <BerlinBulletList items={summaryItems} />
+        ) : (
+          <p className="text-sm leading-relaxed text-zinc-600" dangerouslySetInnerHTML={{ __html: md((content as SummaryContent).text) }} />
+        )}
+      </div>
+    );
+  }
+
+  if (section.type === 'work_experience') {
+    return (
+      <div className="space-y-4">
+        {((content as WorkExperienceContent).items || []).map((item: any) => {
+          const responsibilityItems = extractMarkdownBulletItems(item.description);
+
+          return (
+            <div key={item.id} className="border-l-4 pl-4" style={{ borderColor: YELLOW }}>
+              <div className="flex items-baseline justify-between">
+                <h3 className="text-sm font-bold" style={{ color: TEXT }}>{item.position}</h3>
+                <span className="shrink-0 text-xs font-bold" style={{ color: BLUE }}>{item.startDate} &ndash; {item.endDate || (item.current ? (lang === 'zh' ? '至今' : 'Present') : '')}</span>
+              </div>
+              {item.company && <p className="text-sm font-semibold" style={{ color: BLUE }}>{item.company}{item.location ? `, ${item.location}` : ''}</p>}
+              {item.description && responsibilityItems && <div className="mt-1.5"><p className="text-xs font-medium text-zinc-500">{lang === 'zh' ? '职责' : 'Responsibilities'}:</p><BerlinBulletList items={responsibilityItems} className="mt-0.5 space-y-0.5" /></div>}
+              {item.description && !responsibilityItems && <p className="mt-1 text-sm text-zinc-600"><span className="font-medium text-zinc-700">{lang === 'zh' ? '职责' : 'Responsibilities'}:</span> <span dangerouslySetInnerHTML={{ __html: md(item.description) }} /></p>}
+              {item.technologies?.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {item.technologies.map((t: string, i: number) => (
+                    <span key={i} className="px-2 py-0.5 text-[10px] font-bold text-white" style={{ backgroundColor: BLUE }}>{t}</span>
+                  ))}
+                </div>
+              )}
+              {item.highlights?.length > 0 && (
+                <div className="mt-1.5">
+                  <p className="text-xs font-medium text-zinc-500">{lang === 'zh' ? '主要成就' : 'Key Achievements'}:</p>
+                  <BerlinBulletList items={item.highlights} className="mt-0.5 space-y-0.5" />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (section.type === 'education') {
+    return (
+      <div className="space-y-3">
+        {((content as EducationContent).items || []).map((item: any) => (
+          <div key={item.id} className="border-l-4 pl-4" style={{ borderColor: BLUE }}>
+            <div className="flex items-baseline justify-between">
+              <h3 className="text-sm font-bold" style={{ color: TEXT }}>{degreeField(item.degree, item.field)}</h3>
+              <span className="shrink-0 text-xs" style={{ color: BLUE }}>{item.startDate} &ndash; {item.endDate || (lang === 'zh' ? '至今' : 'Present')}</span>
+            </div>
+            {item.institution && <p className="text-sm font-semibold" style={{ color: YELLOW }}>{item.institution}{item.location ? `, ${item.location}` : ''}</p>}
+            {item.gpa && <p className="text-xs text-zinc-500">GPA: {item.gpa}</p>}
+            {item.highlights?.length > 0 && <BerlinBulletList items={item.highlights} className="mt-1 space-y-0.5" />}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (section.type === 'skills') {
+    return (
+      <div className="space-y-3">
+        {((content as SkillsContent).categories || []).map((cat: any) => (
+          <div key={cat.id}>
+            <p className="mb-1 text-xs font-bold uppercase tracking-wider" style={{ color: BLUE }}>{cat.name}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {(cat.skills || []).map((skill: string, i: number) => (
+                <span
+                  key={i}
+                  className="border px-2.5 py-0.5 text-xs font-medium"
+                  style={{ borderColor: BLUE, color: TEXT }}
+                >
+                  {skill}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (section.type === 'projects') {
+    return (
+      <div className="space-y-3">
+        {((content as ProjectsContent).items || []).map((item: any) => (
+          <div key={item.id} className="border-l-4 pl-4" style={{ borderColor: YELLOW }}>
+            <div className="flex items-baseline justify-between">
+              <h3 className="text-sm font-bold" style={{ color: BLUE }}>{item.name}</h3>
+              {item.startDate && (
+                <span className="shrink-0 text-xs" style={{ color: BLUE }}>{item.startDate} {'\u2013'} {item.endDate || (lang === 'zh' ? '至今' : 'Present')}</span>
+              )}
+            </div>
+            {item.description && <p className="mt-0.5 text-sm text-zinc-600" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
+            {item.technologies?.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {item.technologies.map((t: string, i: number) => (
+                  <span key={i} className="px-2 py-0.5 text-[10px] font-bold text-white" style={{ backgroundColor: BLUE }}>{t}</span>
+                ))}
+              </div>
+            )}
+            {item.highlights?.length > 0 && <BerlinBulletList items={item.highlights} className="mt-1.5 space-y-0.5" />}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (section.type === 'certifications') {
+    return (
+      <div className="space-y-1.5">
+        {((content as CertificationsContent).items || []).map((item: any) => (
+          <div key={item.id} className="flex items-baseline justify-between">
+            <div>
+              <span className="text-sm font-bold" style={{ color: TEXT }}>{item.name}</span>
+              {item.issuer && <span className="text-sm text-zinc-500"> &mdash; {item.issuer}</span>}
+            </div>
+            {item.date && <span className="shrink-0 text-xs font-bold" style={{ color: BLUE }}>{item.date}</span>}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (section.type === 'languages') {
+    return (
+      <div className="flex flex-wrap gap-2">
+        {((content as LanguagesContent).items || []).map((item: any) => (
+          <div key={item.id} className="flex items-center gap-2 border px-3 py-1" style={{ borderColor: BLUE }}>
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: YELLOW }} />
+            <span className="text-sm font-medium" style={{ color: TEXT }}>{item.language}</span>
+            <span className="text-xs text-zinc-400">{item.proficiency}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (section.type === 'github') {
+    const items = (content as GitHubContent).items || [];
+    return (
+      <div className="space-y-3">
+        {items.map((item: any) => (
+          <div key={item.id} className="border-l-4 pl-4" style={{ borderColor: YELLOW }}>
+            <div className="flex items-baseline justify-between">
+              <h3 className="text-sm font-bold" style={{ color: BLUE }}>{item.name}
+                {item.repoUrl && (
+                  <a href={item.repoUrl} target="_blank" rel="noopener noreferrer"
+                     className="ml-1 text-xs font-normal text-blue-500 hover:underline">
+                    {item.repoUrl}
+                  </a>
+                )}
+              </h3>
+              <span className="shrink-0 text-xs font-bold" style={{ color: BLUE }}>&#11088; {item.stars?.toLocaleString()}</span>
+            </div>
+{item.language && <span className="text-xs font-medium" style={{ color: TEXT }}>{item.language}</span>}
+            {item.description && <p className="mt-0.5 text-sm text-zinc-600" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (section.type === 'custom') {
+    return (
+      <div className="space-y-3">
+        {((content as CustomContent).items || []).map((item: any) => (
+          <div key={item.id} className="border-l-4 pl-4" style={{ borderColor: BLUE }}>
+            <div className="flex items-baseline justify-between">
+              <h3 className="text-sm font-bold" style={{ color: TEXT }}>{item.title}</h3>
+              {item.date && <span className="shrink-0 text-xs" style={{ color: BLUE }}>{item.date}</span>}
+            </div>
+            {item.subtitle && <p className="text-sm font-semibold" style={{ color: YELLOW }}>{item.subtitle}</p>}
+            {item.description && <p className="mt-0.5 text-sm text-zinc-600" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (section.type === 'qr_codes') {
+    return <QrCodesPreview items={(content as any).items || []} />;
+  }
+
+  // Generic items fallback
+  if (content.items) {
+    return (
+      <div className="space-y-2">
+        {content.items.map((item: any) => (
+          <div key={item.id} className="border-l-4 pl-4" style={{ borderColor: BLUE }}>
+            <span className="text-sm font-bold" style={{ color: TEXT }}>{item.name || item.title || item.language}</span>
+            {item.description && <p className="text-sm text-zinc-600" dangerouslySetInnerHTML={{ __html: md(item.description) }} />}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return null;
+}

@@ -1,4 +1,4 @@
-import type { Database, JsonValue } from "@aijob/database";
+import type { Database } from "@aijob/database";
 import { type Kysely, sql } from "kysely";
 
 const TRANSPORT_ERROR_CODES = new Set([
@@ -75,6 +75,7 @@ export function refreshCapacityProfile(crawlIntervals: string[]): RefreshCapacit
 async function loadRefreshCapacityProfile(
   db: Kysely<Database>,
   sourceKeys?: readonly string[],
+  runtimeScopes: readonly string[] = ["local"],
 ): Promise<RefreshCapacityProfile> {
   if (sourceKeys?.length === 0) return refreshCapacityProfile([]);
   let query = db
@@ -88,7 +89,7 @@ async function loadRefreshCapacityProfile(
     .select("policy.crawl_interval as crawlInterval")
     .where("runtime.automation_paused", "=", false)
     .where("policy.catalog_role", "=", "canonical")
-    .where("policy.runtime_scope", "=", "local")
+    .where("policy.runtime_scope", "in", runtimeScopes)
     .where("policy.config_registered", "=", true)
     .where("policy.crawl_interval", "is not", null)
     .where("policy.refresh_coverage", "!=", "manual_snapshot")
@@ -100,15 +101,6 @@ async function loadRefreshCapacityProfile(
   return refreshCapacityProfile(
     rows.flatMap(({ crawlInterval }) => (crawlInterval ? [crawlInterval] : [])),
   );
-}
-
-function errorCodes(value: JsonValue): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((item) => {
-    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
-    const code = (item as Record<string, JsonValue>).code;
-    return typeof code === "string" ? [code] : [];
-  });
 }
 
 export async function refreshFreshnessAndSnapshotReminders(
@@ -190,32 +182,13 @@ export async function isRefreshCircuitOpen(
   return state.open_until !== null && new Date(state.open_until).getTime() > now.getTime();
 }
 
+/** Per-source retries and pauses own transport failures. The global breaker is
+ * reserved for an explicit operator action; unrelated sources remain runnable. */
 export async function openCircuitForTransportFailures(
-  db: Kysely<Database>,
-  now = new Date(),
+  _db: Kysely<Database>,
+  _now = new Date(),
 ): Promise<boolean> {
-  const runs = await db
-    .selectFrom("ingestion.crawl_runs")
-    .select(["source_id", "error_summary"])
-    .where("run_mode", "=", "scheduled")
-    .where("started_at", ">=", new Date(now.getTime() - 60 * 60 * 1_000))
-    .execute();
-  const affectedSources = new Set(
-    runs
-      .filter((run) => errorCodes(run.error_summary).some(isTransportErrorCode))
-      .map((run) => run.source_id),
-  );
-  if (affectedSources.size < 3) return false;
-  await db
-    .updateTable("source_control.refresh_circuit_breaker")
-    .set({
-      open_until: new Date(now.getTime() + 60 * 60 * 1_000),
-      reason: "three_distinct_transport_failures_within_one_hour",
-      updated_at: now,
-    })
-    .where("id", "=", "global")
-    .execute();
-  return true;
+  return false;
 }
 
 export async function selectDueSourceRefreshes(
@@ -223,12 +196,13 @@ export async function selectDueSourceRefreshes(
   now = new Date(),
   maximumPerHour?: number,
   sourceKeys?: readonly string[],
+  runtimeScopes: readonly string[] = ["local"],
 ): Promise<DueSourceRefresh[]> {
   if (await isRefreshCircuitOpen(db, now)) return [];
   if (sourceKeys?.length === 0) return [];
   const maximum =
     maximumPerHour ??
-    (await loadRefreshCapacityProfile(db, sourceKeys)).maximumSourceStartsPerHour;
+    (await loadRefreshCapacityProfile(db, sourceKeys, runtimeScopes)).maximumSourceStartsPerHour;
   const started = await db
     .selectFrom("ingestion.crawl_runs")
     .select("source_id")
@@ -256,7 +230,7 @@ export async function selectDueSourceRefreshes(
     ])
     .where("runtime.automation_paused", "=", false)
     .where("policy.catalog_role", "=", "canonical")
-    .where("policy.runtime_scope", "=", "local")
+    .where("policy.runtime_scope", "in", runtimeScopes)
     .where("policy.config_registered", "=", true)
     .where("runtime.next_due_at", "is not", null)
     .where("runtime.next_due_at", "<=", now)
@@ -295,6 +269,7 @@ export async function requestImmediateSourceRefresh(input: {
   db: Kysely<Database>;
   sourceKey: string;
   now?: Date;
+  allowedRuntimeScopes?: readonly string[];
 }): Promise<{ sourceKey: string; scheduled: boolean; manualSnapshotRequired: boolean }> {
   const now = input.now ?? new Date();
   const dueWindow = immediateRefreshWindowStart(now);
@@ -322,7 +297,7 @@ export async function requestImmediateSourceRefresh(input: {
   if (
     !row.configRegistered ||
     row.catalogRole !== "canonical" ||
-    row.runtimeScope !== "local" ||
+    !(input.allowedRuntimeScopes ?? ["local"]).includes(row.runtimeScope) ||
     !row.crawlInterval ||
     !["pending_review", "approved"].includes(row.policyStatus)
   ) {
@@ -418,22 +393,24 @@ export async function loadSourceRefreshStatus(
       openUntil: circuit.open_until ? new Date(circuit.open_until).toISOString() : null,
       reason: circuit.reason,
     },
-    sources: rows.rows.filter((row) => allowedSourceKeys?.has(row.source_key) ?? true).map((row) => ({
-      sourceKey: row.source_key,
-      policyStatus: row.policy_status,
-      refreshCoverage: row.refresh_coverage,
-      crawlInterval: row.crawl_interval,
-      freshnessState: row.freshness_state,
-      automationPaused: row.automation_paused,
-      automationPauseReason: row.automation_pause_reason,
-      manualSnapshotRequired: row.manual_snapshot_required,
-      lastSuccessfulRunAt: row.last_successful_run_at
-        ? new Date(row.last_successful_run_at).toISOString()
-        : null,
-      nextDueAt: row.next_due_at ? new Date(row.next_due_at).toISOString() : null,
-      jobCount: Number(row.job_count),
-      lastCompletion: row.last_completion,
-      lastErrorCode: row.last_error_code,
-    })),
+    sources: rows.rows
+      .filter((row) => allowedSourceKeys?.has(row.source_key) ?? true)
+      .map((row) => ({
+        sourceKey: row.source_key,
+        policyStatus: row.policy_status,
+        refreshCoverage: row.refresh_coverage,
+        crawlInterval: row.crawl_interval,
+        freshnessState: row.freshness_state,
+        automationPaused: row.automation_paused,
+        automationPauseReason: row.automation_pause_reason,
+        manualSnapshotRequired: row.manual_snapshot_required,
+        lastSuccessfulRunAt: row.last_successful_run_at
+          ? new Date(row.last_successful_run_at).toISOString()
+          : null,
+        nextDueAt: row.next_due_at ? new Date(row.next_due_at).toISOString() : null,
+        jobCount: Number(row.job_count),
+        lastCompletion: row.last_completion,
+        lastErrorCode: row.last_error_code,
+      })),
   };
 }

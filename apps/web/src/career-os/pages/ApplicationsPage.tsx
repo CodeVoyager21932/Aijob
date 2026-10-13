@@ -25,6 +25,7 @@ import {
 import { Icon } from "../components/Icon";
 import { ModalSurface } from "../components/ModalSurface";
 import { StageBadge } from "../components/StageBadge";
+import { BulkCaseProgress } from "../components/BulkCaseProgress";
 import { useMediaQuery } from "../use-media-query";
 import { caseStages, getCaseStageLabel } from "../workspace-model";
 
@@ -207,13 +208,15 @@ function PrivateJdDrawer({ open, onClose }: PrivateJdDrawerProps) {
           <label>
             <span>JD 原文</span>
             <textarea
+              aria-label="JD 原文"
+              aria-describedby="private-jd-length"
               required
               maxLength={200_000}
               rows={12}
               value={contentText}
               onChange={(event) => setContentText(event.target.value)}
             />
-            <small>{contentText.length.toLocaleString("zh-CN")} / 200,000 字符</small>
+            <small id="private-jd-length">{contentText.length.toLocaleString("zh-CN")} / 200,000 字符</small>
           </label>
 
           <fieldset>
@@ -534,7 +537,7 @@ export function ApplicationsPage() {
     <section className="career-applications-page" aria-labelledby="applications-title">
       <header className="career-page-heading">
         <div>
-          <h1 id="applications-title">我的求职</h1>
+          <h1 id="applications-title">申请</h1>
           <p aria-live="polite">当前筛选共 {collectionTotal} 个求职项目</p>
         </div>
         <button
@@ -547,6 +550,23 @@ export function ApplicationsPage() {
           导入私有 JD
         </button>
       </header>
+
+      <nav className="career-job-discovery__modes" aria-label="申请工作台">
+        <Link to="/applications" className="is-active" aria-current="page">
+          申请进度
+        </Link>
+        <Link to="/applications/planner">准备与日程</Link>
+        <Link to="/today">今日概览</Link>
+      </nav>
+      <div>
+        <BulkCaseProgress
+          items={
+            viewState.view === "board"
+              ? visibleBoardColumns.flatMap((column) => column.items)
+              : listCases
+          }
+        />
+      </div>
 
       {(location.state as { careerNotice?: string } | null)?.careerNotice ? (
         <output className="career-resume-assets__notice">

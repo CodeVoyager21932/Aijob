@@ -104,6 +104,7 @@ function policyComparable(
 ): string {
   return canonicalJson({
     policy_status: config.policy.status,
+    access_policy_evidence: config.policy.accessPolicyEvidence,
     catalog_role: config.catalogRole,
     runtime_scope: config.runtimeScope,
     provenance_level: config.candidate.provenanceLevel,
@@ -318,6 +319,7 @@ export async function registerSourceConfig(
         .execute();
       const existingComparable = canonicalJson({
         policy_status: existingPolicy.policy_status,
+        access_policy_evidence: existingPolicy.access_policy_evidence,
         catalog_role: existingPolicy.catalog_role,
         runtime_scope: existingPolicy.runtime_scope,
         provenance_level: existingPolicy.provenance_level,
@@ -366,6 +368,9 @@ export async function registerSourceConfig(
           source_id: source.id,
           version: config.policy.version,
           policy_status: config.policy.status,
+          access_policy_evidence: config.policy.accessPolicyEvidence
+            ? canonicalJson(config.policy.accessPolicyEvidence)
+            : null,
           config_registered: true,
           catalog_role: config.catalogRole,
           runtime_scope: config.runtimeScope,

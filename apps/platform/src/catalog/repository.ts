@@ -1,3 +1,4 @@
+import { catalogSourceForRecord } from "./source-context.js";
 import type {
   ApplicationLinkKind,
   FieldValue,
@@ -30,18 +31,16 @@ import { z } from "zod";
 import { validateNavigationUrl } from "../ingestion/safe-http.js";
 import type { SourceTarget } from "../sources/source-config.js";
 import { buildApplicationHandoff, exactOfficialLink } from "./application-handoff.js";
+import { searchCatalogInDatabase } from "./sql-search.js";
+import { eligibleJobVersions } from "./eligibility-query.js";
 import { approvedCompanyEmail } from "./application-methods.js";
-import {
-  type CatalogSearchRecord,
-  collectCatalogSearchItems,
-  searchCatalogRecords,
-} from "./filtering.js";
+import { type CatalogSearchRecord } from "./filtering.js";
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
 type UnknownReason = "source_not_stated" | "parse_failed" | "not_yet_verified";
 
-interface CatalogDatabaseRow {
+export interface CatalogDatabaseRow {
   job_id: string;
   published_job_version_id: string | null;
   active_requirement_set_id: string | null;
@@ -290,8 +289,8 @@ function mapRow(row: CatalogDatabaseRow): CatalogSearchRecord {
   };
 }
 
-async function loadLocalRows(db: DbExecutor): Promise<CatalogDatabaseRow[]> {
-  const result = await sql<CatalogDatabaseRow>`
+function localRowsQuery() {
+  return sql<CatalogDatabaseRow>`
     SELECT
       COALESCE(published.published_job_id, preview.job_id) AS job_id,
       published.published_job_version_id,
@@ -374,12 +373,11 @@ async function loadLocalRows(db: DbExecutor): Promise<CatalogDatabaseRow[]> {
     LEFT JOIN catalog.current_job_effective_activity AS activity
       ON activity.published_job_version_id = published.published_job_version_id
     WHERE preview.eligible_for_local_mvp
-  `.execute(db);
-  return result.rows;
+  `;
 }
 
-async function loadPublicRows(db: DbExecutor): Promise<CatalogDatabaseRow[]> {
-  const result = await sql<CatalogDatabaseRow>`
+function publicRowsQuery() {
+  return sql<CatalogDatabaseRow>`
     SELECT
       job.id AS job_id,
       version.id AS published_job_version_id,
@@ -389,13 +387,13 @@ async function loadPublicRows(db: DbExecutor): Promise<CatalogDatabaseRow[]> {
       source.id AS source_id,
       source.name AS source_name,
       source.source_type,
-      organization.official_domain,
-      organization.scale_band,
-      organization.scale_evidence_url,
-      organization.scale_evidence_text,
-      organization.scale_verified_at,
-      policy.provenance_level,
-      policy.policy_status,
+      source.official_domain,
+      source.scale_band,
+      source.scale_evidence_url,
+      source.scale_evidence_text,
+      source.scale_verified_at,
+      source.provenance_level,
+      source.policy_status,
       version.company_name,
       version.title,
       version.job_family,
@@ -427,21 +425,19 @@ async function loadPublicRows(db: DbExecutor): Promise<CatalogDatabaseRow[]> {
         WHEN version.id = job.public_version_id THEN 'published'
         ELSE revision.publication_state
       END AS publication_state,
-      activity.effective_activity_state AS activity_state,
+      eligibility.effective_activity_state AS activity_state,
       version.source_url,
       version.apply_url,
       version.application_link_kind,
       revision.import_mode,
       '[]'::jsonb AS review_reasons,
       record.last_seen_at AS last_verified_at,
-      COALESCE(runtime.freshness_state, 'unknown') AS freshness_state
+      source.freshness_state AS freshness_state
     FROM catalog.published_jobs AS job
     JOIN catalog.published_job_versions AS version
       ON version.id = job.public_version_id
-    JOIN catalog.job_version_eligibility AS eligibility
+    JOIN (${eligibleJobVersions(false)}) AS eligibility
       ON eligibility.published_job_version_id = version.id
-    JOIN catalog.current_job_effective_activity AS activity
-      ON activity.published_job_version_id = version.id
     JOIN catalog.job_condition_projections AS projection
       ON projection.published_job_version_id = version.id
       AND projection.requirement_set_id = version.active_requirement_set_id
@@ -449,24 +445,14 @@ async function loadPublicRows(db: DbExecutor): Promise<CatalogDatabaseRow[]> {
       ON revision.id = version.source_job_revision_id
     JOIN ingestion.source_job_records AS record
       ON record.id = revision.source_job_record_id
-    JOIN source_control.sources AS source
-      ON source.id = record.source_id
-    JOIN source_control.organizations AS organization
-      ON organization.id = source.organization_id
-    JOIN source_control.source_policy_versions AS policy
-      ON policy.source_id = source.id
-      AND policy.version = source.current_policy_version
-    LEFT JOIN source_control.source_runtime_states AS runtime
-      ON runtime.source_id = source.id
-    WHERE eligibility.eligible_for_alpha
-      AND policy.policy_status = 'approved'
+    JOIN LATERAL (${catalogSourceForRecord(sql`record.source_id`)}) AS source ON true
+    WHERE source.policy_status = 'approved'
       AND revision.ingestion_state = 'validated'
       -- ADR-0034：此处原有 revision.publication_state = 'published'，与 eligible_for_alpha
       -- 里那份条件共同构成结构性死锁：适配器恒产出 review。「已发布」现由上方
       -- version.id = job.public_version_id 这个 JOIN 表达，无需再看修订状态。
-      AND activity.effective_activity_state = 'active'
-  `.execute(db);
-  return result.rows;
+      AND eligibility.effective_activity_state = 'active'
+  `;
 }
 
 export async function approvedOfficialLinks(
@@ -611,6 +597,19 @@ async function approvedOfficialLink(
   );
 }
 
+export function catalogRowsQuery(local: boolean) {
+  return local ? localRowsQuery() : publicRowsQuery();
+}
+async function loadRows(db: DbExecutor, local: boolean, jobId?: string) {
+  return (
+    await sql<CatalogDatabaseRow>`SELECT * FROM (${catalogRowsQuery(local)}) catalog ${jobId ? sql`WHERE catalog.job_id=${jobId}::uuid` : sql``}`.execute(
+      db,
+    )
+  ).rows;
+}
+export async function loadLegacyCatalogRecords(db: DbExecutor, local: boolean) {
+  return (await loadRows(db, local)).map(mapRow);
+}
 export interface CatalogRepository {
   search(query: JobSearchQuery): Promise<JobSearchResponse>;
   collectRecommendationCandidates(
@@ -624,32 +623,34 @@ export function createCatalogRepository(input: {
   db: DbExecutor;
   enableLocalMvp: boolean;
 }): CatalogRepository {
-  const load = async () =>
-    (input.enableLocalMvp ? await loadLocalRows(input.db) : await loadPublicRows(input.db)).map(
-      mapRow,
-    );
-
   return {
     async search(query) {
-      const response = searchCatalogRecords(await load(), query);
-      return response;
+      return searchCatalogInDatabase({
+        db: input.db,
+        rowsQuery: catalogRowsQuery(input.enableLocalMvp),
+        query,
+        mapRecord: mapRow,
+        local: input.enableLocalMvp,
+      });
     },
     async collectRecommendationCandidates(scope, maximum) {
-      const ready = (await load()).filter(
-        ({ detail }) =>
-          detail.publishedJobVersionId !== null && detail.activeRequirementSetId !== null,
-      );
-      return collectCatalogSearchItems(ready, scope, maximum);
+      const items: JobSearchItem[] = [];
+      let cursor: string | undefined;
+      while (items.length <= maximum) {
+        const page = await this.search({ ...scope, limit: 100, ...(cursor ? { cursor } : {}) });
+        for (const item of page.items) {
+          if (item.publishedJobVersionId && item.activeRequirementSetId) items.push(item);
+          if (items.length > maximum) return items;
+        }
+        if (!page.nextCursor) break;
+        cursor = page.nextCursor;
+      }
+      return items;
     },
     async get(jobId) {
-      const records = await load();
-      const record = records.find(({ detail }) => detail.id === jobId);
-      if (!record) return null;
-      const rawRows = input.enableLocalMvp
-        ? await loadLocalRows(input.db)
-        : await loadPublicRows(input.db);
-      const raw = rawRows.find((row) => row.job_id === jobId);
+      const raw = (await loadRows(input.db, input.enableLocalMvp, jobId))[0];
       if (!raw) return null;
+      const record = mapRow(raw);
       const approvedApplyUrl = await approvedOfficialLink(
         input.db,
         record.detail.source.sourceId,

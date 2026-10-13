@@ -200,3 +200,22 @@ describe("long-lived identity forward contracts", () => {
     ).toBe(false);
   });
 });
+
+it("accepts a persistent guest without inventing an account or extending its session", () => {
+  const guest = {
+    id: "guest",
+    status: "active",
+    epoch: 1,
+    retentionMode: "persistent_guest",
+    retentionExpiresAt: null,
+    accountId: null,
+    createdAt: timestamp,
+    lastSeenAt: timestamp,
+    deletedAt: null,
+  };
+  expect(CareerOwnerSchema.parse(guest)).toEqual(guest);
+  expect(CareerOwnerSchema.safeParse({ ...guest, accountId: "fake-account" }).success).toBe(false);
+  expect(CareerOwnerSchema.safeParse({ ...guest, retentionExpiresAt: timestamp }).success).toBe(
+    false,
+  );
+});

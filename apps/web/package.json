@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "build:desktop": "tsc -p tsconfig.json --noEmit && vite build --mode desktop",
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit --pretty false"
@@ -13,9 +14,16 @@
   "dependencies": {
     "@aijob/contracts": "workspace:*",
     "@tanstack/react-query": "5.81.5",
+    "@tiptap/pm": "^3.31.3",
+    "@tiptap/react": "^3.31.3",
+    "@tiptap/starter-kit": "^3.31.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "react-router-dom": "7.18.2"
+    "react-router-dom": "7.18.2",
+    "zod": "3.25.76",
+    "@aijob/resume-core": "workspace:*",
+    "@aijob/resume-renderer": "workspace:*",
+    "pdfjs-dist": "6.3.289"
   },
   "devDependencies": {
     "@types/node": "24.0.14",

@@ -7,14 +7,14 @@ import {
 
 describe("official source adapter descriptors", () => {
   it("keeps network and manual handlers mutually exclusive", () => {
-    expect(Object.keys(officialSourceAdapterDescriptors)).toHaveLength(11);
+    expect(Object.keys(officialSourceAdapterDescriptors)).toHaveLength(13);
 
     for (const descriptor of Object.values(officialSourceAdapterDescriptors)) {
       expect(descriptor.adapterKey).toBeTruthy();
       expect(descriptor.adapterVersion).toBeTruthy();
       expect(descriptor.normalizerVersion).toBeTruthy();
       expect(descriptor.pipelineVersion).toBeTruthy();
-      if (descriptor.acquisitionMode === "browser_required") {
+      if (descriptor.manualHandler !== null) {
         expect(descriptor.probeHandler).toBeNull();
         expect(descriptor.manualHandler).not.toBeNull();
       } else {

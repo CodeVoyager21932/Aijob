@@ -9,6 +9,7 @@ import {
   UuidSchema,
 } from "./common.js";
 import { ResumeSuggestionDecisionSchema } from "./enums.js";
+import { JobGraphScopeSchema } from "./job-graph.js";
 import { JobRequirementSchema, RequirementSourceUnitSchema } from "./matching.js";
 
 export const ResumeDocumentKindSchema = z.enum(["base", "case_derived"]);
@@ -180,10 +181,12 @@ const DerivedDocumentReferenceSchema = z.object({
   jobContext: JobContextSchema,
   baseDocumentId: UuidSchema,
   baseDocumentRevisionId: UuidSchema,
-  evidenceRevisionId: UuidSchema,
+  evidenceRevisionId: UuidSchema.nullable(),
 });
 
 const ResumeDocumentFieldsSchema = z.object({
+  directionScope: JobGraphScopeSchema.nullable().optional(),
+  copiedFromRevisionId: UuidSchema.nullable().optional(),
   id: UuidSchema,
   ownerId: UuidSchema,
   ownerEpoch: z.number().int().positive(),
@@ -839,6 +842,16 @@ const BaseDocumentCreateRequestSchema = z
   .object({
     kind: z.literal("base"),
     title: z.string().trim().min(1).max(200),
+    directionScope: JobGraphScopeSchema.optional(),
+    copyFrom: z
+      .object({
+        documentId: UuidSchema,
+        contentRevisionId: UuidSchema,
+        layoutRevisionId: UuidSchema,
+        targetCore: z.literal("native-v1").optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 

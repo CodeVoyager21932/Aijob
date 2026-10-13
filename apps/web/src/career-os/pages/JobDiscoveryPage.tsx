@@ -1,6 +1,10 @@
+import { useWorkspaceDraft, resetWorkspaceDraft } from "../use-workspace-draft";
+import { BookmarkButton } from "../components/BookmarkButton";
+import { CatalogSavedFilters } from "../components/CatalogSavedFilters";
+import { getBookmarkedJobs } from "../../api/bookmarks";
 import type { JobFacet, JobSearchItem } from "@aijob/contracts";
 import { useQuery } from "@tanstack/react-query";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useMemo } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { getJobs, type JobFilters } from "../../api/product";
 import { displayField, formatDateTime, jobFamilyLabels } from "../../product/domain";
@@ -28,25 +32,32 @@ function facet(response: { facets: JobFacet[] } | undefined, key: string) {
 function activeFilterCount(filters: JobFilters): number {
   const { cursor: _cursor, includeUnknownHardConditions, ...values } = filters;
   return (
-    Object.values(values).filter((value) => (Array.isArray(value) ? value.length > 0 : Boolean(value)))
-      .length + (includeUnknownHardConditions ? 0 : 1)
+    Object.values(values).filter((value) =>
+      Array.isArray(value) ? value.length > 0 : Boolean(value),
+    ).length + (includeUnknownHardConditions ? 0 : 1)
   );
 }
 
 export function JobDiscoveryPage() {
   const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, setRawSearchParams] = useSearchParams();
+  const savedOnly = searchParams.get("view") === "saved";
+  function setSearchParams(next: URLSearchParams) {
+    if (savedOnly) next.set("view", "saved");
+    resetWorkspaceDraft(`job-discovery:${next}`);
+    setRawSearchParams(next);
+  }
   const searchKey = searchParams.toString();
   const filters = useMemo(
     () => jobFiltersFromSearchParams(new URLSearchParams(searchKey)),
     [searchKey],
   );
-  const [draft, setDraft] = useState(filters);
-  useEffect(() => setDraft(filters), [filters]);
+  const [draft, setDraft] = useWorkspaceDraft(`job-discovery:${searchKey}`, filters);
 
   const jobsQuery = useQuery({
     queryKey: ["career-os", "jobs", searchKey],
-    queryFn: ({ signal }) => getJobs(filters, signal),
+    queryFn: ({ signal }) =>
+      savedOnly ? getBookmarkedJobs(filters, signal) : getJobs(filters, signal),
   });
   const result = jobsQuery.data;
   const currentPath = `${location.pathname}${location.search}`;
@@ -75,9 +86,9 @@ export function JobDiscoveryPage() {
     <section className="career-job-discovery" aria-labelledby="job-discovery-title">
       <header className="career-page-heading career-job-discovery__heading">
         <div>
-          <p>可信岗位入口</p>
-          <h1 id="job-discovery-title">发现岗位</h1>
-          <span>只展示经过当前目录政策允许的企业官网与官方 ATS 岗位事实。</span>
+          <p>找机会</p>
+          <h1 id="job-discovery-title">发现机会</h1>
+          <span>先了解工作内容，再决定要不要进一步准备。</span>
         </div>
         <nav className="career-job-discovery__modes" aria-label="岗位工作区视图">
           <Link className="is-active" to={currentPath} aria-current="page">
@@ -90,11 +101,38 @@ export function JobDiscoveryPage() {
           </Link>
           <Link to="/jobs/insights">
             <Icon name="book" size={17} />
-            市场洞察
+            方向图谱
           </Link>
         </nav>
       </header>
 
+      <CatalogSavedFilters filters={filters} onApply={(f) => setSearchParams(jobFiltersToSearchParams(f))} />
+      <nav className="materials-tabs" aria-label="岗位范围">
+        <button
+          type="button"
+          aria-current={!savedOnly ? "page" : undefined}
+          onClick={() => {
+            const p = new URLSearchParams(searchParams);
+            p.delete("view");
+            p.delete("cursor");
+            setRawSearchParams(p);
+          }}
+        >
+          全部岗位
+        </button>
+        <button
+          type="button"
+          aria-current={savedOnly ? "page" : undefined}
+          onClick={() => {
+            const p = new URLSearchParams(searchParams);
+            p.set("view", "saved");
+            p.delete("cursor");
+            setRawSearchParams(p);
+          }}
+        >
+          已收藏
+        </button>
+      </nav>
       <search>
         <form className="career-job-searchbar" onSubmit={submit}>
           <Icon name="search" size={19} />
@@ -119,6 +157,24 @@ export function JobDiscoveryPage() {
         </form>
       </search>
 
+      <label className="catalog-sort">
+        排序
+        <select
+          value={filters.sort ?? "verified_desc"}
+          onChange={(e) =>
+            setSearchParams(
+              jobFiltersToSearchParams({
+                ...filters,
+                sort: e.target.value as "verified_desc" | "company_asc",
+                cursor: undefined,
+              }),
+            )
+          }
+        >
+          <option value="verified_desc">最近核验</option>
+          <option value="company_asc">按企业名称</option>
+        </select>
+      </label>
       <div className="career-job-discovery__layout">
         <aside className="career-job-filters" aria-label="岗位筛选">
           <header>
@@ -373,7 +429,9 @@ export function JobDiscoveryPage() {
           ) : result?.items.length === 0 ? (
             <div className="career-empty-state">
               <Icon name="search" size={28} />
-              <strong>{hasActiveJobFilters(filters) ? "当前筛选没有岗位" : "可信岗位目录当前为空"}</strong>
+              <strong>
+                {hasActiveJobFilters(filters) ? "当前筛选没有岗位" : "可信岗位目录当前为空"}
+              </strong>
               <p>
                 {hasActiveJobFilters(filters)
                   ? "筛选条件会保留在地址中。你可以清除部分条件，再查看官方未说明的信息。"
@@ -483,7 +541,7 @@ function JobDiscoveryCard({
             {job.source.displayName}
           </span>
           <span className={`career-job-card__state${unknown ? " is-unknown" : ""}`}>
-            {unknown ? "用户尚未确认" : "用户尚未确认"}
+            {unknown ? "部分条件未说明" : ""}
           </span>
         </div>
         <h3>
@@ -510,6 +568,7 @@ function JobDiscoveryCard({
         </div>
       </dl>
       <footer>
+        <BookmarkButton jobId={job.id} />
         <span>核验 {formatDateTime(job.source.lastVerifiedAt)}</span>
         <Link to={jobDetailPath(job.id, from)}>
           查看岗位事实 <Icon name="chevron" size={15} />

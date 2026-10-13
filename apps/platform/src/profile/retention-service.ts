@@ -1,6 +1,7 @@
 import type { Database } from "@aijob/database";
 import { type Kysely, sql } from "kysely";
 import { beginOwnerDeletion } from "./deletion-service.js";
+import { purgeExpiredPreviewArtifacts } from "../resume-documents/export-artifacts.js";
 
 export const OWNER_RETENTION_MAINTENANCE_INTERVAL_MS = 60_000;
 export const AUDIT_AND_TOMBSTONE_RETENTION_MS = 90 * 24 * 60 * 60 * 1_000;
@@ -108,6 +109,7 @@ export async function runOwnerRetentionMaintenance(input: {
 }): Promise<OwnerRetentionMaintenanceResult> {
   const now = input.now ?? new Date();
   const batchSize = input.batchSize ?? DEFAULT_BATCH_SIZE;
+  await purgeExpiredPreviewArtifacts(input.db, now);
   const expiredOwnersQueued = await enqueueExpiredOwnerDeletions({
     db: input.db,
     now,

@@ -56,7 +56,10 @@ function transportCodeFromText(value: string): string | undefined {
 
 function sourceSkipReason(config: SourceConfig): string | undefined {
   if (config.policy.status !== "pending_review") return "SOURCE_POLICY_NOT_PROBE_AUTHORIZED";
-  if (config.candidate.acquisitionMode === "browser_required") {
+  if (
+    config.candidate.acquisitionMode === "browser_required" &&
+    config.policy.adapterKey !== "configured-official-browser"
+  ) {
     return "BROWSER_FALLBACK_REQUIRED";
   }
   if (config.policy.refreshCoverage === "manual_snapshot") {
@@ -112,19 +115,9 @@ export async function runBatchImport(input: {
   let normalizedCount = 0;
   let rejectedCount = 0;
   let transportFailureCount = 0;
-  let stoppedByTransportCircuit = false;
+  const stoppedByTransportCircuit = false; // Retained response field; source-local failures no longer stop unrelated sources.
 
   for (const sourceKey of sourceKeys) {
-    if (transportFailureCount >= transportFailureLimit) {
-      stoppedByTransportCircuit = true;
-      items.push({
-        sourceKey,
-        state: "skipped",
-        reason: "GLOBAL_TRANSPORT_CIRCUIT_OPEN",
-      });
-      continue;
-    }
-
     let config: SourceConfig;
     try {
       config = await loadConfig(sourceKey);
@@ -171,8 +164,6 @@ export async function runBatchImport(input: {
       items.push({ sourceKey, state: "failed", limit, error: message });
     }
   }
-
-  if (transportFailureCount >= transportFailureLimit) stoppedByTransportCircuit = true;
 
   const attempted = items.some((item) => item.state === "ran" || item.state === "reused");
   if (attempted && input.enableLocalMvp !== false) {

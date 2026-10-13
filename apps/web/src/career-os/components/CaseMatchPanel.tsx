@@ -14,9 +14,9 @@ import { Icon } from "./Icon";
 
 function MatchStateHeading({ state }: { state: CaseMatchState }) {
   if (state.status === "not_applicable_private") {
-    return <strong>私有 JD 保持逐项核对</strong>;
+    return <strong>此岗位可在要求页查看原句</strong>;
   }
-  if (state.status === "profile_incomplete") return <strong>资料还没有准备完整</strong>;
+  if (state.status === "profile_incomplete") return <strong>当前没有历史规则核对所需的资料</strong>;
   if (state.status === "not_run") return <strong>尚未核对这个固定岗位版本</strong>;
   if (state.status === "queued") return <strong>核对任务已进入队列</strong>;
   if (state.status === "processing") return <strong>正在核对三类依据</strong>;
@@ -27,17 +27,18 @@ function MatchStateHeading({ state }: { state: CaseMatchState }) {
 
 function MatchInputSummary({ state }: { state: CaseMatchState }) {
   if (state.status === "not_applicable_private") {
-    return <p>当前岗位只在你的私有 Case 中保存，不与公共目录岗位建立三轴运行。</p>;
+    return <p>你导入的岗位可以直接用于简历准备和面试练习。</p>;
   }
   if (state.status === "profile_incomplete") {
     return (
       <div className="career-case-match__missing">
         <p>
-          待确认：
+          历史核对使用的资料：
           {state.missingInputs.map((item) => caseMatchMissingInputLabels[item]).join("、")}。
         </p>
-        <Link className="career-button career-button--quiet" to="/resumes/import">
-          完善资料
+        <p>这不影响直接编辑简历或使用求职助手。</p>
+        <Link className="career-button career-button--quiet" to="/resumes">
+          打开我的简历
           <Icon name="chevron" size={16} />
         </Link>
       </div>

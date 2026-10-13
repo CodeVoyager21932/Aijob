@@ -16,6 +16,7 @@ describe("job reachability contract (ADR-0032)", () => {
       "not_reachable_school_restricted",
       "not_reachable_postgrad_only",
       "unknown",
+      "not_reachable_experience_required",
     ]);
   });
 
@@ -56,10 +57,10 @@ describe("reachable classification", () => {
 });
 
 describe("not reachable classification", () => {
-  it("rejects postgraduate-only requirements", () => {
-    expect(verdict("硕士及以上学历")).toBe("not_reachable_postgrad_only");
-    expect(verdict("博士在读优先")).toBe("not_reachable_postgrad_only");
-    expect(verdict("研究生学历")).toBe("not_reachable_postgrad_only");
+  it("includes postgraduate-only requirements", () => {
+    expect(verdict("硕士及以上学历")).toBe("reachable");
+    expect(verdict("博士在读优先")).toBe("reachable");
+    expect(verdict("研究生学历")).toBe("reachable");
   });
 
   it("keeps postgraduate mentions reachable when undergraduate is also accepted", () => {
@@ -67,17 +68,17 @@ describe("not reachable classification", () => {
     expect(verdict("学历要求：本科、硕士、博士")).toBe("reachable");
   });
 
-  it("rejects explicit school-tier restrictions with highest priority", () => {
-    expect(verdict("985/211 院校本科及以上")).toBe("not_reachable_school_restricted");
-    expect(verdict("双一流高校在读")).toBe("not_reachable_school_restricted");
-    expect(verdict("重点院校本科")).toBe("not_reachable_school_restricted");
-    expect(verdict("QS 前 100 院校")).toBe("not_reachable_school_restricted");
-    expect(verdict("国内名校本科在读")).toBe("not_reachable_school_restricted");
+  it("keeps school-tier conditions for individual review", () => {
+    expect(verdict("985/211 院校本科及以上")).toBe("reachable");
+    expect(verdict("双一流高校在读")).toBe("unknown");
+    expect(verdict("重点院校本科")).toBe("reachable");
+    expect(verdict("QS 前 100 院校")).toBe("unknown");
+    expect(verdict("国内名校本科在读")).toBe("reachable");
   });
 
-  it("lets school restriction win over an otherwise reachable undergraduate signal", () => {
-    expect(verdict("本科及以上，限 985 院校")).toBe("not_reachable_school_restricted");
-    expect(verdict("学历不限，但需 211 背景")).toBe("not_reachable_school_restricted");
+  it("does not use school restriction as a global exclusion", () => {
+    expect(verdict("本科及以上，限 985 院校")).toBe("reachable");
+    expect(verdict("学历不限，但需 211 背景")).toBe("reachable");
   });
 });
 

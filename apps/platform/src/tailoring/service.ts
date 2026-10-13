@@ -13,8 +13,9 @@ import {
 import type { Database, JsonValue } from "@aijob/database";
 import type { Kysely, Selectable, Transaction } from "kysely";
 import { z } from "zod";
-import { AiProviderError, OpenAiCompatibleProvider } from "../ai/provider.js";
+import { AiProviderError } from "../ai/provider.js";
 import { STRUCTURED_BLOCK_REWRITE_OUTPUT_INSTRUCTION } from "../ai/selection-contract.js";
+import { loadUserAiConnection, userAiSettings, userBudgetProvider } from "../ai/user-ai-service.js";
 import {
   assertActiveOwnerEpoch,
   type OwnerScope as OwnerContext,
@@ -62,6 +63,26 @@ interface TailoringRequestIdentity {
   publishedJobVersionId: string;
   evidenceRevisionId: string;
   privacyConsent: true;
+}
+
+/** The compatibility workflow uses only this account's connection, never the operator model. */
+async function ownerTailoringConfig(
+  db: DbExecutor,
+  owner: OwnerContext,
+  config: AppConfig,
+): Promise<AppConfig> {
+  const { settings } = await userAiSettings(db, owner);
+  return {
+    ...config,
+    ai: {
+      ...config.ai,
+      enabled: Boolean(settings?.enabled),
+      baseUrl: settings?.baseUrl,
+      model: settings?.model,
+      apiKey: settings?.enabled ? "owner-supplied" : undefined,
+      requestTimeoutMs: settings?.requestTimeoutMs ?? config.ai.requestTimeoutMs,
+    },
+  };
 }
 
 function tailoringRequestHash(config: AppConfig, request: TailoringRequestIdentity): string {
@@ -453,6 +474,8 @@ async function tailoringInputs(db: DbExecutor, run: TailoringRunRow) {
 }
 
 async function generateSegments(input: {
+  db: Kysely<Database>;
+  owner: OwnerContext;
   config: AppConfig;
   requirements: Array<z.infer<typeof JobRequirementSchema>>;
   evidence: Array<z.infer<typeof ResumeEvidenceSchema>>;
@@ -481,16 +504,20 @@ async function generateSegments(input: {
     outcomes: item.outcomes.map((outcome) => redactPersonalInformation(outcome).redactedText),
     confirmed: true as const,
   }));
-  const provider = new OpenAiCompatibleProvider(
-    {
-      enabled: input.config.ai.enabled,
-      requestTimeoutMs: input.config.ai.requestTimeoutMs,
-      ...(input.config.ai.baseUrl ? { baseUrl: input.config.ai.baseUrl } : {}),
-      ...(input.config.ai.model ? { model: input.config.ai.model } : {}),
-      ...(input.config.ai.apiKey ? { apiKey: input.config.ai.apiKey } : {}),
-    },
-    input.fetchImpl ?? fetch,
-  );
+  let provider: ReturnType<typeof userBudgetProvider>;
+  try {
+    const connection = await loadUserAiConnection(input.db, input.owner, input.config);
+    provider = userBudgetProvider({
+      db: input.db,
+      owner: input.owner,
+      connection,
+      purpose: "resume_tailoring",
+      fetchImpl: input.fetchImpl,
+    });
+  } catch (error) {
+    if (input.signal?.aborted) throw error;
+    return fallback();
+  }
   const providerInput = {
     requirements: input.requirements.map((requirement) => ({
       id: requirement.id,
@@ -617,6 +644,7 @@ export async function enqueueTailoringRun(
   if (!idempotencyKey.trim()) {
     throw new ServiceError(400, "IDEMPOTENCY_KEY_REQUIRED", "创建简历优化任务时必须提供幂等键。");
   }
+  config = await ownerTailoringConfig(db, owner, config);
   const requestHash = tailoringRequestHash(config, request);
   const row = await db.transaction().execute(async (transaction) => {
     await lockOwnerIdempotencyKey(transaction, {
@@ -812,6 +840,7 @@ export async function processTailoringRun(
     if (signal?.aborted) throw new Error("OWNER_TASK_ABORTED");
     await withOwnerTaskLease(db, lease, async () => undefined);
     if (signal?.aborted) throw new Error("OWNER_TASK_ABORTED");
+    config = await ownerTailoringConfig(db, owner, config);
     const executionConfig =
       run.request_hash ===
       tailoringRequestHash(config, {
@@ -823,6 +852,8 @@ export async function processTailoringRun(
         ? config
         : { ...config, ai: { ...config.ai, enabled: false } };
     const generated = await generateSegments({
+      db,
+      owner,
       config: executionConfig,
       ...inputs,
       ...(fetchImpl ? { fetchImpl } : {}),

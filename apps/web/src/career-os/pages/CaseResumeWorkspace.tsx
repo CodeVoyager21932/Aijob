@@ -6,14 +6,14 @@ import {
   careerOsQueryKeys,
   createResumeDocument,
   deleteResumeDocument,
-  getCareerOsEvidence,
   listResumeDocuments,
 } from "../../api/career-os";
-import { createIdempotencyKey, ProductApiError } from "../../api/client";
+import { apiRequest, createIdempotencyKey, ProductApiError } from "../../api/client";
+import { checkpointStudio, getStudio } from "../../api/resume-studio";
 import { toApplicationCaseView } from "../application-case-view";
 import { AssetDeletionDialog } from "../components/AssetDeletionDialog";
 import { Icon } from "../components/Icon";
-import { ResumeDocumentEditor } from "../components/ResumeDocumentEditor";
+import { flushOpenStudioDraft } from "../studio/use-studio-draft";
 
 export function CaseResumeWorkspace({
   applicationCase,
@@ -42,36 +42,38 @@ export function CaseResumeWorkspace({
     queryFn: ({ signal }) => listResumeDocuments({ kind: "base", limit: 100 }, signal),
     enabled: derivedQuery.isSuccess && !derivedDocument,
   });
-  const evidenceQuery = useQuery({
-    queryKey: careerOsQueryKeys.evidence,
-    queryFn: ({ signal }) => getCareerOsEvidence(signal),
-    enabled: derivedQuery.isSuccess && !derivedDocument,
-  });
   const baseDocuments = useMemo(
     () =>
       (baseQuery.data?.items ?? [])
         .filter(
           (document): document is Extract<ResumeDocument, { kind: "base" }> =>
-            document.kind === "base" && document.currentContentRevisionId !== null,
+            document.kind === "base",
         )
         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
     [baseQuery.data?.items],
   );
   const selectedBase =
     baseDocuments.find((document) => document.id === selectedBaseId) ?? baseDocuments[0];
-  const hasEvidence = Boolean(
-    evidenceQuery.data && "id" in evidenceQuery.data && evidenceQuery.data.evidence.length > 0,
-  );
-
   const createMutation = useMutation({
-    mutationFn: ({
-      baseDocumentRevisionId,
+    mutationFn: async ({
+      baseDocumentId,
       idempotencyKey,
     }: {
-      baseDocumentRevisionId: string;
+      baseDocumentId: string;
       idempotencyKey: string;
-    }) =>
-      createResumeDocument(
+    }) => {
+      let baseDocumentRevisionId: string;
+      try {
+        const draft = await apiRequest<{revision:number}>(`/v2/resume-documents/${baseDocumentId}/native`);
+        ({contentRevisionId:baseDocumentRevisionId} = await apiRequest<{contentRevisionId:string}>(
+          `/v2/resume-documents/${baseDocumentId}/native/checkpoint`, {method:"POST",body:{expectedRevision:draft.revision}}));
+      } catch (error) {
+        if (!(error instanceof ProductApiError) || error.code !== "RESUME_CORE_VERSION_MISMATCH" && error.status !== 404) throw error;
+        await flushOpenStudioDraft(baseDocumentId);
+        const draft = await getStudio(baseDocumentId);
+        ({contentRevisionId:baseDocumentRevisionId} = await checkpointStudio(baseDocumentId,draft.revision));
+      }
+      return createResumeDocument(
         {
           kind: "case_derived",
           caseId: applicationCase.id,
@@ -84,7 +86,8 @@ export function CaseResumeWorkspace({
             ),
         },
         idempotencyKey,
-      ),
+      );
+    },
     retry: false,
     onSuccess: async () => {
       await Promise.all([
@@ -158,9 +161,9 @@ export function CaseResumeWorkspace({
   });
 
   const createDerivedResume = () => {
-    const baseDocumentRevisionId = selectedBase?.currentContentRevisionId;
-    if (!baseDocumentRevisionId || !hasEvidence) return;
-    const signature = `${applicationCase.id}:${applicationCase.revision}:${baseDocumentRevisionId}`;
+    const baseDocumentId = selectedBase?.id;
+    if (!baseDocumentId) return;
+    const signature = `${applicationCase.id}:${applicationCase.revision}:${baseDocumentId}`;
     if (!createCommandRef.current || createCommandRef.current.signature !== signature) {
       createCommandRef.current = {
         signature,
@@ -168,7 +171,7 @@ export function CaseResumeWorkspace({
       };
     }
     createMutation.mutate({
-      baseDocumentRevisionId,
+      baseDocumentId,
       idempotencyKey: createCommandRef.current.key,
     });
   };
@@ -191,29 +194,29 @@ export function CaseResumeWorkspace({
   }
 
   if (!derivedDocument) {
-    const prerequisiteLoading = baseQuery.isPending || evidenceQuery.isPending;
-    const prerequisiteError = baseQuery.error ?? evidenceQuery.error;
-    const ready = Boolean(selectedBase?.currentContentRevisionId && hasEvidence);
+    const prerequisiteLoading = baseQuery.isPending;
+    const prerequisiteError = baseQuery.error;
+    const ready = Boolean(selectedBase);
     return (
       <section className="career-resume-prerequisite" aria-labelledby="resume-prerequisite-title">
         <span className="career-resume-prerequisite__icon">
           <Icon name="document" />
         </span>
         <div>
-          <p>岗位派生简历</p>
+          <p>岗位简历</p>
           <h2 id="resume-prerequisite-title">
-            {ready ? "创建这份岗位派生简历" : "请先准备并确认基础简历"}
+            {ready ? "创建这份岗位简历" : "选择一份简历，开始准备这份申请"}
           </h2>
           <p>
             {ready
-              ? "系统会固定当前基础内容修订、岗位版本与证据修订；打开页面本身不会写入数据。"
-              : "系统不会创建空白或伪造正文，请先完成基础简历初始化与证据确认。"}
+              ? "以所选简历的当前内容和版式创建岗位稿，后续修改只影响这份稿件。"
+              : "你可以从空白开始、导入已有简历，或用已有经历写一份简历。"}
           </p>
 
-          {prerequisiteLoading ? <output>正在核对基础简历与证据…</output> : null}
+          {prerequisiteLoading ? <output>正在读取你的简历…</output> : null}
           {prerequisiteError ? (
             <div className="career-inline-error" role="alert">
-              <strong>前置条件暂时无法核对</strong>
+              <strong>暂时无法读取简历</strong>
               <span>
                 {prerequisiteError instanceof Error ? prerequisiteError.message : "请稍后重试。"}
               </span>
@@ -251,7 +254,7 @@ export function CaseResumeWorkspace({
           <div className="career-resume-prerequisite__actions">
             {!ready ? (
               <Link className="career-button career-button--quiet" to="/resumes">
-                前往基础简历
+                开始写简历
               </Link>
             ) : null}
             {ready ? (
@@ -283,11 +286,12 @@ export function CaseResumeWorkspace({
           删除这份岗位简历
         </button>
       </div>
-      <ResumeDocumentEditor
-        resumeDocument={derivedDocument}
-        contextLabel={`${applicationCaseView.companyName} · ${applicationCaseView.roleTitle} 岗位简历`}
-        evidenceRevisionId={derivedDocument.evidenceRevisionId}
-      />
+      <section className="career-resume-prerequisite">
+        <div><h2>{applicationCaseView.companyName} · {applicationCaseView.roleTitle}</h2>
+          <p>这是一份独立岗位稿。选材、调整表达、模板和下载都在同一个编辑器完成。</p>
+          <Link className="career-button career-button--primary" to={`/resumes/${derivedDocument.id}?caseId=${applicationCase.id}`}>继续准备岗位简历</Link>
+        </div>
+      </section>
       <AssetDeletionDialog
         open={deleteOpen}
         title="删除这份岗位简历？"

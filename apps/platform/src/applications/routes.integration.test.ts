@@ -37,6 +37,7 @@ function config(overrides: Partial<AppConfig> = {}): AppConfig {
     host: "127.0.0.1",
     port: 3000,
     probeRequestIntervalMs: 750,
+    ownerTaskInteractiveConcurrency: 8,
     logLevel: "silent",
     enableInternalPreview: true,
     enableSourceProbe: false,
@@ -1091,6 +1092,9 @@ describeWithDatabase("ApplicationCase owner-protected API", () => {
     );
     expect(interestedContinuationBody.total).toBe(4);
     expect(interestedContinuationBody.items).toHaveLength(2);
+    expect(interestedContinuationBody.items.map(({id}) => id).sort()).toEqual(
+      [privateBody.applicationCase.id, concurrentCaseId].sort(),
+    );
     expect(interestedContinuationBody.nextCursor).toBeNull();
 
     const crossSortCursor = await app.inject({

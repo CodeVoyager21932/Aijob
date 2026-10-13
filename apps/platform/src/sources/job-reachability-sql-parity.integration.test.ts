@@ -6,16 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
 
-/**
- * ADR-0035 第一条：可达性判定同时存在于两处——`packages/contracts` 的
- * `classifyJobReachability`（供 planner 与审计使用）与迁移 037 建立的
- * `catalog.job_reachability_verdict`（供资格视图使用）。
- *
- * 两份实现必然走偏，因此逐分支对账。只测总数不够：两处相反的错误会互相抵消而总数仍相等。
- *
- * 契约侧目前**没有**「明示多年经验」这一分支，SQL 侧有（ADR-0035 新增）。这个差异是已知且
- * 有意的，在下面显式登记，而不是让它静默存在——契约侧补齐后应删除该登记。
- */
+/** Current ADR-0037 semantics must agree across TypeScript and PostgreSQL. */
 describeWithDatabase("job reachability TypeScript and SQL parity", () => {
   const db = createDatabase(databaseUrl ?? "postgresql://unused");
 
@@ -67,18 +58,35 @@ describeWithDatabase("job reachability TypeScript and SQL parity", () => {
     );
   });
 
-  it("registers the one intentional divergence: SQL adds an experience exclusion", async () => {
-    const text = "本科及以上，3 年以上相关工作经验";
-    // SQL 侧按 ADR-0035 排除明示多年经验；契约侧尚未实现该分支，仍判 reachable。
-    expect(await sqlVerdict(text)).toBe("not_reachable_experience_required");
-    expect(classifyJobReachability({ requirements: text })).toBe("reachable");
-    // 该差异只影响「更严」的方向：SQL 排除得更多，不会让不可投岗位进入 Alpha。
-    // 契约侧补齐后请删除本用例，并把该文本移入 sharedBranches。
+  it.each([
+    "本科及以上，3 年以上相关工作经验",
+    "至少三年工作经验",
+    "无需3年工作经验",
+    "3年工作经验优先",
+    "3年工作经验或优秀应届生",
+    "本科及以上，不限985、211",
+    "985院校优先",
+    "1-3年工作经验",
+  ])("unifies experience and education semantics: %s", async (text) => {
+    expect(await sqlVerdict(text)).toBe(classifyJobReachability({ requirements: text }));
   });
 
   it("keeps the experience exclusion from catching internship months", async () => {
     const text = "本科及以上，具备 3 个月实习经验";
     expect(await sqlVerdict(text)).toBe("reachable");
     expect(classifyJobReachability({ requirements: text })).toBe("reachable");
+  });
+
+  it.each([
+    ["2年工作经验且硕士优先", "not_reachable_experience_required"],
+    ["应届硕士需3年工作经验", "not_reachable_experience_required"],
+    ["硕士优先，但需三年工作经验", "not_reachable_experience_required"],
+    ["本科或硕士，需3年工作经验", "not_reachable_experience_required"],
+    ["本科及以上，3年工作经验，或优秀应届生", "reachable"],
+    ["本科及以上，无需三年经验且接受应届生", "reachable"],
+    ["硕士，有两年实习经验优先", "reachable"],
+  ] as const)("scopes independent conditions: %s", async (text, expected) => {
+    expect(classifyJobReachability({ requirements: text })).toBe(expected);
+    expect(await sqlVerdict(text)).toBe(expected);
   });
 });

@@ -870,6 +870,8 @@ export async function appendResumeDocumentContentRevisionInTransaction(input: {
   }
 
   const contentChain = await loadContentChain(transaction, input.owner, document);
+  const studio = await sql`SELECT document_id FROM profile.resume_document_drafts WHERE document_id=${document.id} AND owner_id=${input.owner.ownerId}`.execute(transaction);
+  if(studio.rows.length) throw new ServiceError(409,"RESUME_STUDIO_REQUIRED","请在简历工作区继续编辑，以保留模块、经历与格式。");
   const layoutChain = await loadLayoutChain(transaction, input.owner, document);
   let legacySourceRevisionId: string | null = null;
   let baseDocumentRevisionId: string | null = null;

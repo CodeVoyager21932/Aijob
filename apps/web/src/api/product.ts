@@ -66,6 +66,7 @@ function appendList(params: URLSearchParams, key: string, values: string[]) {
 }
 
 export interface JobFilters {
+  sort?: "verified_desc" | "company_asc";
   keyword: string;
   companies: string[];
   cities: string[];
@@ -89,6 +90,7 @@ export interface JobFilters {
 
 export function jobSearchPath(filters: JobFilters): string {
   const params = new URLSearchParams();
+  if (filters.sort) params.set("sort",filters.sort);
   if (filters.keyword.trim()) params.set("keyword", filters.keyword.trim());
   appendList(params, "companies", filters.companies);
   appendList(params, "cities", filters.cities);

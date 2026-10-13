@@ -33,6 +33,13 @@ import { assertActiveOwnerEpoch, type OwnerScope } from "../identity/session-rep
 import { hashCanonicalJson } from "../lib/canonical-json.js";
 import { lockOwnerIdempotencyKey } from "../lib/idempotency.js";
 import { ServiceError } from "../lib/service-error.js";
+import {
+  CONTINUOUS_INTERVIEW_VERSION,
+  prepareInterviewContinuity,
+  saveInterviewContinuity,
+  loadInterviewContinuity,
+  continueFromAnswer,
+} from "./continuity.js";
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 type InterviewSessionRow = Selectable<Database["application.interview_sessions"]>;
@@ -70,7 +77,7 @@ interface InterviewQuestionSeed {
   requirementIds: string[];
 }
 
-const TEMPLATE_VERSION = "deterministic-zh-cn-v1";
+const TEMPLATE_VERSION = CONTINUOUS_INTERVIEW_VERSION;
 const MAX_REQUIREMENT_QUESTIONS = 3;
 const MAX_QUESTION_SOURCE_CHARS = 6_000;
 const JobRequirementArraySchema = z.array(JobRequirementSchema);
@@ -451,6 +458,11 @@ async function questionPlanForSession(
   session: InterviewSessionRow,
 ): Promise<InterviewQuestionSeed[]> {
   if (!session.case_id) throw interviewSessionNotFound();
+  if (session.template_version === CONTINUOUS_INTERVIEW_VERSION) {
+    const context = await loadInterviewContinuity(db, owner, session.id);
+    if (!context) throw new Error("INTERVIEW_CONTINUITY_MISSING");
+    return context.plan;
+  }
   const requirements = await loadFixedRequirements(db, owner, {
     jobContextKind: session.job_context_kind,
     publishedJobVersionId: session.published_job_version_id,
@@ -664,10 +676,15 @@ export async function createInterviewSession(input: {
       requirementSetId: applicationCase.requirement_set_id,
       jobContextRevision: Number(applicationCase.job_context_revision),
     });
-    const firstSeed = buildTemplateInterviewQuestions({
+    const continuity = await prepareInterviewContinuity({
+      tx: transaction,
+      owner: input.owner,
+      caseId: input.caseId,
+      resumeContentRevisionId: resumeDocument.current_content_revision_id,
       requirements,
-      persistedRequirementIds,
-    })[0];
+      persisted: persistedRequirementIds,
+    });
+    const firstSeed = continuity.plan[0];
     if (!firstSeed) throw new Error("INTERVIEW_TEMPLATE_QUESTION_MISSING");
 
     const sessionId = randomUUID();
@@ -701,6 +718,7 @@ export async function createInterviewSession(input: {
         deleted_at: null,
       })
       .execute();
+    await saveInterviewContinuity(transaction, input.owner, sessionId, continuity);
     const firstQuestion = await insertTurn(transaction, {
       id: randomUUID(),
       owner: input.owner,
@@ -883,7 +901,17 @@ export async function submitInterviewAnswer(input: {
       content: input.request.answer,
       requirementIds: parseJsonValue(pendingQuestion.requirement_ids) as string[],
     });
-    const nextSeed = plan[questionIndex + 1] ?? null;
+    let nextSeed = plan[questionIndex + 1] ?? null;
+    if (nextSeed && session.template_version === CONTINUOUS_INTERVIEW_VERSION) {
+      const turns = await loadTurns(transaction, input.owner, input.sessionId);
+      nextSeed = continueFromAnswer(
+        nextSeed,
+        input.request.answer,
+        turns
+          .filter((turn) => turn.kind === "answer" && turn.id !== answer.id)
+          .map((turn) => turn.content),
+      );
+    }
     const nextQuestion = nextSeed
       ? await insertTurn(transaction, {
           id: deterministicUuid({ answerId, purpose: "next-question" }),

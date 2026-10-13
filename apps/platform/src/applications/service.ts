@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { pinRecruitmentPlan } from "../catalog/recruitment-plans.js";
 import {
   type ApplicationBoardQuery,
   type ApplicationBoardResponse,
@@ -72,6 +73,7 @@ import { canonicalJson, hashCanonicalJson } from "../lib/canonical-json.js";
 import { lockOwnerIdempotencyKey } from "../lib/idempotency.js";
 import { ServiceError } from "../lib/service-error.js";
 import { semanticRevisionValue } from "../sources/normalized-official-job.js";
+import { captureSubmittedMaterial } from "./submitted-materials.js";
 
 type DbExecutor = Kysely<Database> | Transaction<Database>;
 
@@ -1162,7 +1164,7 @@ async function loadEligibleCurrentPublicVersion(
     query = query.where("version.id", "=", input.targetPublishedJobVersionId);
   }
   if (input.lockJob) {
-    query = query.forUpdate("job");
+    await sql`SELECT catalog.lock_job_for_case(${input.publishedJobId}::uuid)`.execute(db);
   }
   return ((await query.executeTakeFirst()) as PublicVersionRow | undefined) ?? null;
 }
@@ -1290,6 +1292,7 @@ function applyApplicationCaseCursor(
   }
   const deadlineAt = new Date(cursor.deadlineAt);
   return query.where(sql<boolean>`
+    (
     ${knownDeadlineExpression()} > ${deadlineAt}
     OR ${knownDeadlineExpression()} IS NULL
     OR (
@@ -1301,6 +1304,7 @@ function applyApplicationCaseCursor(
           AND application_case.id < ${cursor.id}
         )
       )
+    )
     )
   `);
 }
@@ -2006,6 +2010,7 @@ async function resolvePublicJobContext(
   request: Extract<CreateApplicationCaseWithJobContextRequest["jobContext"], { kind: "public" }>,
   enableLocalMvp: boolean,
 ): Promise<ResolvedJobContext> {
+  await sql`SELECT catalog.lock_job_for_case(${request.publishedJobId}::uuid)`.execute(db);
   const query = db
     .selectFrom("catalog.published_job_versions as version")
     .innerJoin("catalog.published_jobs as job", "job.id", "version.published_job_id")
@@ -2038,8 +2043,7 @@ async function resolvePublicJobContext(
       enableLocalMvp ? "eligibility.eligible_for_local_mvp" : "eligibility.eligible_for_alpha",
       "=",
       true,
-    )
-    .forUpdate("job");
+    );
   const row = await query.executeTakeFirst();
   const applicationHandoff = row
     ? buildApplicationHandoff({
@@ -2386,7 +2390,7 @@ export async function createApplicationCase(input: {
         job_context_kind: context.kind,
         private_job_snapshot_id: context.kind === "private" ? context.snapshotId : null,
         job_context_revision: context.jobContextRevision,
-        stage: "interested",
+        stage: input.request.initialStage??"interested",
         outcome: null,
         revision: 1,
         creation_idempotency_key: input.idempotencyKey,
@@ -2408,7 +2412,7 @@ export async function createApplicationCase(input: {
         actor_type: "owner",
         event_data: JSON.stringify({
           schemaVersion: "case-event-v1",
-          initialStage: "interested",
+          initialStage: input.request.initialStage??"interested",
           jobContextKind: context.kind,
           jobContextRevision: context.jobContextRevision,
         }) as unknown as JsonValue,
@@ -2418,6 +2422,8 @@ export async function createApplicationCase(input: {
       })
       .execute();
 
+    if (context.kind === "public")
+      await pinRecruitmentPlan(transaction, input.owner, caseId, context.publishedJobVersionId);
     const applicationCase = await loadCaseById(transaction, input.owner, caseId);
     if (!applicationCase) throw new Error("APPLICATION_CASE_INSERT_NOT_READABLE");
     return CreateApplicationCaseResponseSchema.parse({ applicationCase, created: true });
@@ -2482,6 +2488,7 @@ export async function recordManualApplication(input: {
   caseId: string;
   request: RecordManualApplicationRequest;
   idempotencyKey: string;
+  encryptionKey?: string | undefined;
 }): Promise<ApplicationCaseCommandResponse> {
   const idempotencyScope = "application-case:manual-application";
   const requestHash = hashCanonicalJson({ caseId: input.caseId, request: input.request });
@@ -2536,6 +2543,14 @@ export async function recordManualApplication(input: {
       .where("revision", "=", input.request.expectedRevision)
       .executeTakeFirstOrThrow();
     await projectManualApplicationToLegacyDecision(transaction, input.owner, applicationCase);
+    const submittedMaterialId = await captureSubmittedMaterial(
+      transaction,
+      input.owner,
+      applicationCase.id,
+      nextRevision,
+      input.request,
+      input.encryptionKey,
+    );
     return appendCaseEvent(transaction, {
       owner: input.owner,
       caseId: applicationCase.id,
@@ -2546,6 +2561,8 @@ export async function recordManualApplication(input: {
         fromStage,
         toStage: "applied",
         reasonCode: null,
+        ...(submittedMaterialId ? { submittedMaterialId } : {}),
+        ...(input.request.submittedAt ? { submittedAt: input.request.submittedAt } : {}),
       },
       idempotencyScope,
       idempotencyKey: input.idempotencyKey,

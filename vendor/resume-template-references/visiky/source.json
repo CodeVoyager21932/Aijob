@@ -1,0 +1,31 @@
+{
+  "repository": "visiky/resume",
+  "commit": "2eb87e51ccdb63f0565d3d6935bd1b92fa2dbc00",
+  "files": [
+    {
+      "path": "LICENSE",
+      "local": "LICENSE",
+      "sha256": "2dfd453273c5c65d70e7fd6274a207ef72734e59b9fa2ec7dec40d2a9fd76d46"
+    },
+    {
+      "path": "src/components/Resume/Template1/index.tsx",
+      "local": "index.tsx",
+      "sha256": "ba7a6f40cdf50d9b6cce5fa871ab077dff3ba2a88abd7c50e17d33713747786a"
+    },
+    {
+      "path": "src/components/Resume/Template1/index.less",
+      "local": "index.less",
+      "sha256": "a80185e08fae1a830b3a2572042e4bffb0d86b2a65e8ed340cf53e61f919db0c"
+    },
+    {
+      "path": "src/components/Resume/Template2/index.tsx",
+      "local": "template2-index.tsx",
+      "sha256": "b0daa4cc5c77ad2c500737501804bc13ba40d72856ac04380e869101988d935c"
+    },
+    {
+      "path": "src/components/Resume/Template2/index.less",
+      "local": "template2-index.less",
+      "sha256": "6dc93c35f0b367333081a11277c23d48850d9480ba8d8d0bc598e4df2a23cba9"
+    }
+  ]
+}

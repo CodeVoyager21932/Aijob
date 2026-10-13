@@ -52,46 +52,69 @@ export function findCrossSourceDuplicateCandidates(
 ): SuspectedDuplicatePair[] {
   const candidates: SuspectedDuplicatePair[] = [];
 
-  for (let leftIndex = 0; leftIndex < jobs.length; leftIndex += 1) {
-    for (let rightIndex = leftIndex + 1; rightIndex < jobs.length; rightIndex += 1) {
-      const left = jobs[leftIndex];
-      const right = jobs[rightIndex];
-      if (!left || !right) continue;
-      if (left.sourceId === right.sourceId) continue;
-
-      const leftDomain = left.officialDomain;
-      const rightDomain = right.officialDomain;
-      const sameDomain =
-        leftDomain !== undefined &&
-        rightDomain !== undefined &&
-        normalized(leftDomain) === normalized(rightDomain);
-      const sameCompany = normalized(left.companyName) === normalized(right.companyName);
-      if (!sameCompany && !sameDomain) continue;
-
-      const titleSimilarity = jaccard(bigrams(left.title), bigrams(right.title));
-      if (titleSimilarity < 0.72) continue;
-
-      const locationOverlap = knownLocationOverlap(left.locations, right.locations);
-      if (locationOverlap === false) continue;
-
-      const reasons = [
-        sameDomain ? "same_official_domain" : "same_normalized_company",
-        "similar_normalized_title",
-        locationOverlap === true ? "overlapping_location" : "location_unknown",
-      ];
-      const score = Math.min(
-        1,
-        0.45 + titleSimilarity * 0.4 + (locationOverlap === true ? 0.15 : 0.05),
-      );
-      const leftJobId = left.id.localeCompare(right.id) <= 0 ? left.id : right.id;
-      const rightJobId = left.id.localeCompare(right.id) <= 0 ? right.id : left.id;
-      candidates.push({
-        leftJobId,
-        rightJobId,
-        score: Number(score.toFixed(4)),
-        reasons,
-      });
+  // Compare only companies/domains that could match, and never within one source.
+  const buckets = new Map<string, Map<string, number[]>>();
+  jobs.forEach((job, index) => {
+    const keys = [`company:${normalized(job.companyName)}`];
+    if (job.officialDomain !== undefined) keys.push(`domain:${normalized(job.officialDomain)}`);
+    for (const key of keys) {
+      const sources = buckets.get(key) ?? new Map<string, number[]>();
+      const indices = sources.get(job.sourceId) ?? [];
+      indices.push(index);
+      sources.set(job.sourceId, indices);
+      buckets.set(key, sources);
     }
+  });
+  const pairs = new Set<string>();
+  for (const sources of buckets.values()) {
+    const groups = [...sources.values()];
+    for (let i = 0; i < groups.length; i++)
+      for (let j = i + 1; j < groups.length; j++)
+        for (const left of groups[i] ?? [])
+          for (const right of groups[j] ?? [])
+            pairs.add(`${Math.min(left, right)}:${Math.max(left, right)}`);
+  }
+  const titles = jobs.map((job) => bigrams(job.title));
+  for (const pair of pairs) {
+    const [leftIndex, rightIndex] = pair.split(":").map(Number);
+    const left = jobs[leftIndex ?? -1],
+      right = jobs[rightIndex ?? -1];
+    if (!left || !right) continue;
+    const leftDomain = left.officialDomain;
+    const rightDomain = right.officialDomain;
+    const sameDomain =
+      leftDomain !== undefined &&
+      rightDomain !== undefined &&
+      normalized(leftDomain) === normalized(rightDomain);
+    const sameCompany = normalized(left.companyName) === normalized(right.companyName);
+    if (!sameCompany && !sameDomain) continue;
+
+    const titleSimilarity = jaccard(
+      titles[leftIndex ?? -1] ?? new Set(),
+      titles[rightIndex ?? -1] ?? new Set(),
+    );
+    if (titleSimilarity < 0.72) continue;
+
+    const locationOverlap = knownLocationOverlap(left.locations, right.locations);
+    if (locationOverlap === false) continue;
+
+    const reasons = [
+      sameDomain ? "same_official_domain" : "same_normalized_company",
+      "similar_normalized_title",
+      locationOverlap === true ? "overlapping_location" : "location_unknown",
+    ];
+    const score = Math.min(
+      1,
+      0.45 + titleSimilarity * 0.4 + (locationOverlap === true ? 0.15 : 0.05),
+    );
+    const leftJobId = left.id.localeCompare(right.id) <= 0 ? left.id : right.id;
+    const rightJobId = left.id.localeCompare(right.id) <= 0 ? right.id : left.id;
+    candidates.push({
+      leftJobId,
+      rightJobId,
+      score: Number(score.toFixed(4)),
+      reasons,
+    });
   }
 
   return candidates.sort(

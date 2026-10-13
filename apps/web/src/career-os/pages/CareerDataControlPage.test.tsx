@@ -4,10 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { careerOsQueryKeys } from "../../api/career-os";
-import {
-  CareerDataControlPage,
-  publishAssetDeletionAfterRefresh,
-} from "./CareerDataControlPage";
+import { CareerDataControlPage, publishAssetDeletionAfterRefresh } from "./CareerDataControlPage";
 
 const timestamp = "2026-08-12T00:00:00.000Z";
 
@@ -109,7 +106,7 @@ describe("Career data control truth", () => {
   it("shows the real anonymous expiry and detached asset controls", () => {
     const html = renderScope(scope("anonymous_ttl"));
     const visibleText = html.replace(/<[^>]+>/g, " ");
-    expect(html).toContain("本机匿名兼容模式");
+    expect(html).toContain("旧版临时资料");
     expect(html).toContain("用邮箱认领这个本机身份");
     expect(html).toContain("认领不会复制或替换已有职业资产");
     expect(html).toContain("产品实习生");
@@ -120,8 +117,8 @@ describe("Career data control truth", () => {
 
   it("distinguishes an account-managed owner from the anonymous fallback", () => {
     const html = renderScope(scope("account_managed"));
-    expect(html).toContain("长期账号管理");
-    expect(html).toContain("没有固定自动到期日");
+    expect(html).toContain("账号资料");
+    expect(html).toContain("资料与上传原件保留至你主动删除");
     expect(html).not.toContain("本机匿名兼容模式");
     expect(html).not.toContain("用邮箱认领这个本机身份");
   });
@@ -145,4 +142,20 @@ describe("Career data control truth", () => {
     await completion;
     expect(publish).toHaveBeenCalledOnce();
   });
+});
+
+it("separates persistent guest data retention from browser access expiry", () => {
+  const data = scope("anonymous_ttl");
+  data.owner = {
+    ...data.owner,
+    retentionMode: "persistent_guest",
+    retentionExpiresAt: null,
+    accountId: null,
+  };
+  const html = renderScope(data);
+  expect(html).toContain("当前浏览器的资料");
+  expect(html).toContain("资料与上传原件保留至你主动删除");
+  expect(html).toContain("跨设备找回");
+  expect(html).toContain("会话到期不会删除资料");
+  expect(html).not.toContain("当前本机身份将于");
 });

@@ -11,6 +11,13 @@ import {
 } from "./environment";
 import { ResearchShell } from "./research/ResearchShell";
 
+const GuidesPage = lazy(() => import("./career-os/studio/GuidesPage").then((m) => ({default:m.GuidesPage})));
+const MaterialsWorkspace = lazy(() => import("./career-os/studio/MaterialsWorkspace").then((m) => ({default:m.MaterialsWorkspace})));
+const AiSettingsPage = lazy(() => import("./career-os/studio/AiSettingsPage").then((m) => ({default:m.AiSettingsPage})));
+const LegacyResumeRecoveryPage = lazy(() => import("./career-os/studio/LegacyResumeRecoveryPage").then(m => ({default:m.LegacyResumeRecoveryPage})));
+const NativeStudioPage = lazy(() => import("./career-os/native/NativeStudioPage").then(m => ({default:m.NativeStudioPage})));
+const AssistantWorkspace = lazy(() => import("./career-os/studio/AssistantWorkspace").then((m) => ({ default: m.AssistantWorkspace })));
+
 const WorkspaceShell = lazy(() =>
   import("./career-os/WorkspaceShell").then((module) => ({ default: module.WorkspaceShell })),
 );
@@ -47,6 +54,16 @@ const JobDiscoveryPage = lazy(() =>
 const JobInsightsWorkspacePage = lazy(() =>
   import("./career-os/pages/JobInsightsWorkspacePage").then((module) => ({
     default: module.JobInsightsWorkspacePage,
+  })),
+);
+const CurrentJobGraphPage = lazy(() =>
+  import("./career-os/pages/CurrentJobGraphPage").then((module) => ({
+    default: module.CurrentJobGraphPage,
+  })),
+);
+const PlannerWorkspacePage = lazy(() =>
+  import("./career-os/pages/PlannerWorkspacePage").then((module) => ({
+    default: module.PlannerWorkspacePage,
   })),
 );
 const JobRecommendationsPage = lazy(() =>
@@ -185,16 +202,26 @@ export function App() {
               <Route path="/jobs" element={<JobDiscoveryPage />} />
               <Route path="/jobs/recommended" element={<JobRecommendationsPage />} />
               <Route path="/jobs/recommended/:runId" element={<JobRecommendationsPage />} />
-              <Route path="/jobs/insights" element={<JobInsightsWorkspacePage />} />
+              <Route path="/jobs/insights" element={<CurrentJobGraphPage />} />
               <Route path="/jobs/insights/:runId" element={<JobInsightsWorkspacePage />} />
               <Route path="/jobs/:jobId" element={<JobWorkspacePage />} />
               <Route path="/applications" element={<ApplicationsPage />} />
+              <Route path="/applications/planner" element={<PlannerWorkspacePage />} />
               <Route path="/applications/:caseId" element={<Navigate to="overview" replace />} />
               <Route path="/applications/:caseId/:tab" element={<CaseWorkspacePage />} />
-              <Route path="/resumes/import" element={<ResumePage />} />
-              <Route path="/resumes/import/confirm/:analysisId" element={<ResumeConfirmPage />} />
+              <Route path="/resumes/import" element={<Navigate to="/resumes?start=import" replace />} />
+              <Route path="/resumes/import/confirm/:analysisId" element={<LegacyResumeRecoveryPage />} />
               <Route path="/resumes" element={<ResumeAssetsPage />} />
-              <Route path="/resumes/:documentId" element={<ResumeAssetsPage />} />
+              <Route path="/resumes/native" element={<Navigate to="/resumes" replace />} />
+              <Route path="/resumes/native/:documentId" element={<NativeStudioPage />} />
+              <Route path="/assistant" element={<AssistantWorkspace />} />
+              <Route path="/interviews" element={<AssistantWorkspace defaultTask="interview" />} />
+              <Route path="/materials" element={<MaterialsWorkspace />} />
+              <Route path="/guides" element={<GuidesPage />} />
+              <Route path="/resumes/snippets" element={<Navigate to="/materials?view=expressions" replace />} />
+              <Route path="/experiences" element={<Navigate to="/materials" replace />} />
+              <Route path="/resumes/:documentId" element={<NativeStudioPage />} />
+              <Route path="/settings/ai" element={<AiSettingsPage />} />
               <Route path="/settings/data" element={<CareerDataControlPage />} />
               <Route path="/settings/data/deletion" element={<CareerDeletionStatusPage />} />
               <Route

@@ -16,6 +16,7 @@ import { CaseMatchPanel } from "../components/CaseMatchPanel";
 import { CaseTabs } from "../components/CaseTabs";
 import { CaseVersionControl } from "../components/CaseVersionControl";
 import { Icon } from "../components/Icon";
+import { PlannerPanel } from "../components/PlannerPanel";
 import { summarizeRequirementProgress } from "../requirements-view";
 import { type CaseTab, caseStages, isCaseTab } from "../workspace-model";
 
@@ -34,9 +35,9 @@ const CaseApplicationWorkspace = lazy(() =>
     default: module.CaseApplicationWorkspace,
   })),
 );
-const CaseInterviewWorkspace = lazy(() =>
-  import("./CaseInterviewWorkspace").then((module) => ({
-    default: module.CaseInterviewWorkspace,
+const CasePracticeWorkspace = lazy(() =>
+  import("./CasePracticeWorkspace").then((module) => ({
+    default: module.CasePracticeWorkspace,
   })),
 );
 
@@ -69,25 +70,24 @@ function CaseOverview({ applicationCase }: { applicationCase: ApplicationCaseWit
     ? summarizeRequirementProgress(requirementsQuery.data)
     : null;
 
+  const next = applicationCase.stage === "applied" || applicationCase.stage === "interviewing"
+    ? { title: "把这份简历练成能讲清的故事", detail: "结合实际投递稿练习追问，也可以先安排一次笔试或面试。", tab: "interview", action: "开始面试练习" }
+    : applicationCase.stage === "resolved"
+      ? { title: "留下这次申请的收获", detail: "整理收到的反馈，更新材料，为下一次申请留下可复用的准备。", tab: "debrief", action: "整理反馈与复盘" }
+      : { title: "准备这次申请的简历", detail: "可以直接选用已有简历，或结合岗位调整重点。岗位要求随时可以回来看。", tab: "resume", action: "准备投递简历" };
   return (
     <div className="career-case-overview">
       <section className="career-case-overview__next">
         <div>
           <h2>当前可执行步骤</h2>
-          <strong>逐项核对固定 JD 要求</strong>
-          <p>
-            {summary
-              ? `${summary.total} 项要求中，${summary.unconfirmed} 项仍未确认。`
-              : requirementsQuery.isError
-                ? "要求进度暂时无法读取，当前固定内容没有改变。"
-                : "正在读取固定岗位要求…"}
-          </p>
+          <strong>{next.title}</strong>
+          <p>{next.detail}</p>
         </div>
         <Link
           className="career-button career-button--primary"
-          to={`/applications/${applicationCase.id}/requirements`}
+          to={`/applications/${applicationCase.id}/${next.tab}`}
         >
-          查看 JD 能力
+          {next.action}
           <Icon name="chevron" size={17} />
         </Link>
       </section>
@@ -103,7 +103,20 @@ function CaseOverview({ applicationCase }: { applicationCase: ApplicationCaseWit
         </div>
       ) : null}
 
-      <CaseMatchPanel applicationCase={applicationCase} />
+      <section className="career-case-match">
+        <h2>理解岗位，选好准备重点</h2>
+        <p>{summary ? `岗位中整理了 ${summary.total} 项要求；你已记录 ${summary.confirmed} 项相关材料、${summary.needsWork} 项准备重点。` : "从工作内容、资格要求或自己的经历开始，随时补充准备。"}</p>
+        <div className="career-inline-actions">
+          <Link className="career-button career-button--quiet" to={`/applications/${applicationCase.id}/requirements`}>查看岗位要求</Link>
+          <Link className="career-button career-button--quiet" to={`/assistant?task=job_explanation&caseId=${applicationCase.id}`}>结合材料解读岗位</Link>
+        </div>
+      </section>
+      <details className="career-case-match">
+        <summary>查看已有的规则核对</summary>
+        <CaseMatchPanel applicationCase={applicationCase} />
+      </details>
+      <PlannerPanel caseId={applicationCase.id} />
+      <RecruitmentPlan caseId={applicationCase.id} />
     </div>
   );
 }
@@ -134,7 +147,7 @@ function renderCaseTab(tab: CaseTab, applicationCase: ApplicationCaseWithJobCont
   if (tab === "interview" || tab === "debrief") {
     return (
       <Suspense fallback={<output className="career-request-state">正在打开面试工作区…</output>}>
-        <CaseInterviewWorkspace
+        <CasePracticeWorkspace
           key={`${applicationCase.id}:${tab}`}
           applicationCase={applicationCase}
           surface={tab}
@@ -259,3 +272,4 @@ export function CaseWorkspacePage() {
     </section>
   );
 }
+import { RecruitmentPlan } from "../components/RecruitmentPlan";

@@ -54,6 +54,7 @@ function config(): AppConfig {
     host: "127.0.0.1",
     port: 3000,
     probeRequestIntervalMs: 750,
+    ownerTaskInteractiveConcurrency: 8,
     logLevel: "silent",
     enableInternalPreview: true,
     enableSourceProbe: false,
@@ -978,6 +979,12 @@ describeWithDatabase("complete local MVP service journey", () => {
             model: "fixture-model",
             apiKey: "fixture-key",
             requestTimeoutMs: 5_000,
+            budget: {
+              dailyCalls: 10000,
+              dailyTokens: 10000000,
+              concurrency: 4,
+              maxOutputTokens: 2048,
+            },
           },
         };
         const fencedIdempotencyKey = `fenced-tailoring-${ids.organization}`;

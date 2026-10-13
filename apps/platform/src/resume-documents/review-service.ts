@@ -30,7 +30,8 @@ import {
 import type { Database, JsonValue } from "@aijob/database";
 import { type Kysely, sql, type Transaction } from "kysely";
 import { z } from "zod";
-import { AiProviderError, OpenAiCompatibleProvider } from "../ai/provider.js";
+import { AiProviderError } from "../ai/provider.js";
+import { loadUserAiConnection, userBudgetProvider } from "../ai/user-ai-service.js";
 import {
   loadPublicJobHandoffs,
   missingPublicJobHandoff,
@@ -1112,18 +1113,9 @@ function controlledAiEvidence(input: {
   });
 }
 
-function controlledAiProviderMetadata(config: AppConfig): {
-  providerAdapter: string | null;
-  model: string | null;
-} {
-  const configured =
-    config.ai.enabled && Boolean(config.ai.baseUrl && config.ai.model && config.ai.apiKey);
-  return configured
-    ? { providerAdapter: REVIEW_PROVIDER_ADAPTER, model: config.ai.model ?? null }
-    : { providerAdapter: null, model: null };
-}
-
 async function generateResumeReviewV2(input: {
+  db: Kysely<Database>;
+  owner: OwnerScope;
   config: AppConfig;
   mode: string;
   content: ResumeSemanticContent;
@@ -1154,7 +1146,10 @@ async function generateResumeReviewV2(input: {
   }
   if (input.mode !== "controlled_ai") throw new Error("RESUME_REVIEW_MODE_UNSUPPORTED");
 
-  const providerMetadata = controlledAiProviderMetadata(input.config);
+  let providerMetadata: { providerAdapter: string | null; model: string | null } = {
+    providerAdapter: null,
+    model: null,
+  };
   try {
     if (input.signal?.aborted) throw new Error("OWNER_TASK_ABORTED");
     if (input.requirements.length === 0) {
@@ -1172,16 +1167,15 @@ async function generateResumeReviewV2(input: {
         "当前简历没有可回指区块的已确认证据。",
       );
     }
-    const provider = new OpenAiCompatibleProvider(
-      {
-        enabled: input.config.ai.enabled,
-        requestTimeoutMs: input.config.ai.requestTimeoutMs,
-        ...(input.config.ai.baseUrl ? { baseUrl: input.config.ai.baseUrl } : {}),
-        ...(input.config.ai.model ? { model: input.config.ai.model } : {}),
-        ...(input.config.ai.apiKey ? { apiKey: input.config.ai.apiKey } : {}),
-      },
-      input.fetchImpl ?? fetch,
-    );
+    const connection = await loadUserAiConnection(input.db, input.owner, input.config);
+    providerMetadata = { providerAdapter: REVIEW_PROVIDER_ADAPTER, model: connection.model };
+    const provider = userBudgetProvider({
+      db: input.db,
+      owner: input.owner,
+      connection,
+      purpose: "resume_review",
+      fetchImpl: input.fetchImpl,
+    });
     const output = await provider.completeStructured({
       systemInstruction:
         "你是岗位简历逐区块审阅器。只返回需要修改的区块；每项必须引用给定的岗位要求 ID 和已确认证据 ID。" +
@@ -1364,6 +1358,8 @@ export async function processResumeReviewV2(
   let outcome: ReviewV2GenerationOutcome | null = null;
   try {
     const generated = await generateResumeReviewV2({
+      db,
+      owner,
       config,
       mode: snapshot.mode,
       content: snapshot.content,

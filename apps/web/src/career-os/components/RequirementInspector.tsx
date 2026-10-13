@@ -6,14 +6,14 @@ import type {
   RequirementEvidenceState,
   ResumeEvidence,
 } from "@aijob/contracts";
-import type { RefObject } from "react";
+import { type RefObject, useState } from "react";
+import { PlannerEditor } from "./PlannerEditor";
 import { Link } from "react-router-dom";
 import type { ApplicationCaseView } from "../application-case-view";
 import {
   type RequirementGroup,
   requirementGroups,
   requirementKindLabel,
-  requirementNextStep,
 } from "../requirements-view";
 import { ContextInspectorFrame } from "./ContextInspector";
 import { Icon } from "./Icon";
@@ -87,6 +87,7 @@ export function RequirementInspector({
   titleId,
   closeButtonRef,
 }: RequirementInspectorProps) {
+  const [preparationOpen, setPreparationOpen] = useState(false);
   const groupLabel = requirementGroups.find((item) => item.value === group)?.label ?? "岗位要求";
 
   return (
@@ -110,7 +111,7 @@ export function RequirementInspector({
       }
     >
       <section className="career-inspector__section">
-        <h3>当前证据状态</h3>
+        <h3>我的准备情况</h3>
         <div className="career-requirement-state-editor">
           <label>
             <span>状态</span>
@@ -119,13 +120,13 @@ export function RequirementInspector({
               disabled={pending}
               onChange={(event) => onStateChange(event.target.value as RequirementEvidenceState)}
             >
-              <option value="confirmed">已有证据</option>
-              <option value="needs_work">证据待补充</option>
-              <option value="unconfirmed">用户尚未确认</option>
+              <option value="confirmed">有相关经历或材料</option>
+              <option value="needs_work">还需要准备</option>
+              <option value="unconfirmed">稍后再看</option>
             </select>
           </label>
           <label>
-            <span>用户备注</span>
+            <span>我的备注</span>
             <textarea
               rows={4}
               maxLength={2_000}
@@ -151,53 +152,74 @@ export function RequirementInspector({
           <p>{requirement.sourceText}</p>
           <cite>
             {requirementKindLabel(requirement.kind)} · {sourceLabel}
-            {requirement.sourceSpan
-              ? ` · 字符 ${requirement.sourceSpan.start}–${requirement.sourceSpan.end}`
-              : ""}
           </cite>
         </blockquote>
       </section>
 
       <section className="career-inspector__section">
-        <h3>关联已确认证据</h3>
+        <h3>从经历开始准备</h3>
+        <p>把做过的事与这项要求联系起来，整理成能写进简历、也能讲清楚的内容。</p>
+        <div className="core-actions">
+          <button
+            type="button"
+            className="career-button career-button--primary"
+            onClick={() => setPreparationOpen(true)}
+          >
+            加入准备清单
+          </button>
+          <Link
+            className="career-button"
+            to={`/assistant?task=job_explanation&caseId=${applicationCase.id}`}
+          >
+            和助手理解这个岗位
+          </Link>
+        </div>
+        {preparationOpen ? (
+          <PlannerEditor
+            initial={{
+              caseId: applicationCase.id,
+              kind: "preparation",
+              title: requirement.sourceText.slice(0, 190),
+              note: `岗位原句：${requirement.sourceText}`,
+            }}
+            onClose={() => setPreparationOpen(false)}
+          />
+        ) : null}
         {evidenceRevisionId && evidence.length > 0 ? (
-          <div className="career-requirement-evidence-picker">
-            {evidence.map((item) => (
-              <label key={item.id}>
-                <input
-                  type="checkbox"
-                  checked={evidenceIds.includes(item.id)}
-                  disabled={pending}
-                  onChange={(event) =>
-                    onEvidenceChange(
-                      event.target.checked
-                        ? [...evidenceIds, item.id]
-                        : evidenceIds.filter((id) => id !== item.id),
-                    )
-                  }
-                />
-                <span>
-                  <strong>{item.section}</strong>
-                  <small>{evidenceText(item)}</small>
-                </span>
-              </label>
-            ))}
-            <button
-              className="career-button career-button--quiet"
-              type="button"
-              disabled={pending}
-              onClick={onSaveEvidence}
-            >
-              保存证据关联
-            </button>
-          </div>
-        ) : (
-          <div className="career-inspector-empty">
-            <Icon name="question" size={18} />
-            <p>还没有可关联的已确认证据。三态和备注仍可保存。</p>
-            <Link to="/resumes/import">先确认简历证据</Link>
-          </div>
-        )}
+          <details>
+            <summary>以前关联的材料片段</summary>
+            <div className="career-requirement-evidence-picker">
+              {evidence.map((item) => (
+                <label key={item.id}>
+                  <input
+                    type="checkbox"
+                    checked={evidenceIds.includes(item.id)}
+                    disabled={pending}
+                    onChange={(event) =>
+                      onEvidenceChange(
+                        event.target.checked
+                          ? [...evidenceIds, item.id]
+                          : evidenceIds.filter((id) => id !== item.id),
+                      )
+                    }
+                  />
+                  <span>
+                    <strong>{item.section}</strong>
+                    <small>{evidenceText(item)}</small>
+                  </span>
+                </label>
+              ))}
+              <button
+                className="career-button"
+                type="button"
+                disabled={pending}
+                onClick={onSaveEvidence}
+              >
+                保存旧材料关联
+              </button>
+            </div>
+          </details>
+        ) : null}
       </section>
 
       <section className="career-inspector__section">
@@ -282,18 +304,10 @@ export function RequirementInspector({
         ) : null}
       </section>
 
-      <section className="career-inspector__section">
-        <h3>确定性下一步</h3>
-        <div className="career-next-task">
-          <Icon name={state === "confirmed" ? "check" : "warning"} size={19} />
-          <p>{requirementNextStep(state, evidenceIds.length)}</p>
-        </div>
-      </section>
-
       {conflict ? (
         <div className="career-revision-conflict" role="alert">
           <strong>数据已在另一处更新</strong>
-          <p>你的草稿仍保留。系统已读取最新 revision，请核对后再次保存。</p>
+          <p>你的草稿仍保留。已读取最新内容，请比较后继续保存。</p>
         </div>
       ) : error ? (
         <div className="career-inline-error" role="alert">

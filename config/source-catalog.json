@@ -1,0 +1,20 @@
+{
+  "version": "2026-10-13.1",
+  "reviewedAt": "2026-10-12",
+  "sources": [
+    {
+      "description": "官方实习招聘，按官网范围刷新；城市与职能以实际岗位为准。",
+      "officialUrl": "https://shining3d.zhiye.com/intern/jobs",
+      "configurationSha256": "1d8ee2c68cb27d830b4ebd3429d7f0e5ee367a32ffbd90a5fb25f36198d3f33f",
+      "name": "先临三维科技股份有限公司",
+      "sourceKey": "shining3d-internships"
+    },
+    {
+      "description": "官方实习招聘，按官网范围刷新；城市与职能以实际岗位为准。",
+      "officialUrl": "https://hellobike.zhiye.com/intern/jobs",
+      "configurationSha256": "c4c2d62e6383f718e6062011426866b6c4411b5ebc45164e4814667416237748",
+      "name": "上海哈啰普惠科技有限公司",
+      "sourceKey": "hellobike-internships"
+    }
+  ]
+}

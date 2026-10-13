@@ -1,8 +1,9 @@
+// Historical v1 corpus remains immutable; v2 behavior has a separate regression corpus.
 import { readFile } from "node:fs/promises";
 import type { JobFamily } from "@aijob/contracts";
 import { JobFamilySchema } from "@aijob/contracts";
 import { describe, expect, it } from "vitest";
-import { classifyOfficialJobFamily } from "./job-family-classifier.js";
+import { classifyOfficialJobFamilyLegacy as classifyOfficialJobFamily } from "./job-family-classifier.js";
 
 interface GoldenCase {
   caseId: string;

@@ -1,0 +1,113 @@
+{
+  "version": "cjk-2026-09-10.1",
+  "sourceImage": "aijob-platform:experience-20260908-fontfix",
+  "license": "LICENSE-Noto.txt",
+  "faces": [
+    {
+      "family": "Sans",
+      "source": "NotoSansCJK-Regular.ttc",
+      "sourceSha256": "b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a",
+      "weight": "Regular",
+      "uniqueGlyphClones": 510,
+      "unicodeCoverageUnchanged": true,
+      "advanceWidthsUnchanged": true,
+      "glyphCount": 44819,
+      "commonAdvanceWidthsUnchanged": true
+    },
+    {
+      "family": "Sans",
+      "source": "NotoSansCJK-Bold.ttc",
+      "sourceSha256": "faa5f3656a78b2e2d450d27fe8382c778bc2b6bb5ea29c986664a6a435056ceb",
+      "weight": "Bold",
+      "uniqueGlyphClones": 510,
+      "unicodeCoverageUnchanged": true,
+      "advanceWidthsUnchanged": true,
+      "glyphCount": 44819,
+      "commonAdvanceWidthsUnchanged": true
+    },
+    {
+      "family": "Serif",
+      "source": "NotoSerifCJK-Regular.ttc",
+      "sourceSha256": "a04178ec485dffdff7cc0c0c20e1fce9202d7e2160d805e8e44a4c8841c58481",
+      "weight": "Regular",
+      "uniqueGlyphClones": 515,
+      "unicodeCoverageUnchanged": true,
+      "advanceWidthsUnchanged": true,
+      "glyphCount": 44755,
+      "commonAdvanceWidthsUnchanged": true
+    },
+    {
+      "family": "Serif",
+      "source": "NotoSerifCJK-Bold.ttc",
+      "sourceSha256": "a5d4b046c127da3d7c72f98b46c41489cd29bf52abfdf18aba920903e920d4ac",
+      "weight": "Bold",
+      "uniqueGlyphClones": 515,
+      "unicodeCoverageUnchanged": true,
+      "advanceWidthsUnchanged": true,
+      "glyphCount": 44755,
+      "commonAdvanceWidthsUnchanged": true
+    }
+  ],
+  "files": [
+    {
+      "file": "AijobV3SansRegular.otf",
+      "sha256": "69c4eddc2363e434eea0938553217807a649a250bb9b8c7c7837ed5f5689225f",
+      "bytes": 10781788
+    },
+    {
+      "file": "AijobV3SansRegular.woff2",
+      "sha256": "d7e343a1e4a8ed113139f543e012f3fe251af2ff070f6e44fadcccdcdfc6f894",
+      "bytes": 7634088
+    },
+    {
+      "file": "AijobV3SansRegularCommon.woff2",
+      "sha256": "96b499de3cae45586c625c35daa147fced0352d6e436ca2f4f2e6e5805c7dcff",
+      "bytes": 1410564
+    },
+    {
+      "file": "AijobV3SansBold.otf",
+      "sha256": "7ef73e1430b5ae2545df1f03c167ae5579fe7895696c81a9fd914c04fcbe7551",
+      "bytes": 11079016
+    },
+    {
+      "file": "AijobV3SansBold.woff2",
+      "sha256": "a12e63ce917a28abe842dc1d0f34768d85290291496570171d5f8b48fa436899",
+      "bytes": 8069672
+    },
+    {
+      "file": "AijobV3SansBoldCommon.woff2",
+      "sha256": "02ded3212d94e75680ff993d3f78a5f4160f00df3d8dff5aa86249379978f954",
+      "bytes": 1469628
+    },
+    {
+      "file": "AijobV3SerifRegular.otf",
+      "sha256": "30efad8ffa323b4eee95631d8cdfeb0bf2090f7e674fcd938b56becdda7541df",
+      "bytes": 15943564
+    },
+    {
+      "file": "AijobV3SerifRegular.woff2",
+      "sha256": "aaa463bf5402783ea7e6979d01838f396e8e44050cb62109d16e014a138d5eff",
+      "bytes": 10865852
+    },
+    {
+      "file": "AijobV3SerifRegularCommon.woff2",
+      "sha256": "208f7160d497393081bd2cdd70f1bbae4787e26407b35aaa7fbe7a29460c5e05",
+      "bytes": 1914668
+    },
+    {
+      "file": "AijobV3SerifBold.otf",
+      "sha256": "39994b86144272d2d9a16390c1728a6474e92b29f348cfda9a2603f9ffb65eea",
+      "bytes": 16564056
+    },
+    {
+      "file": "AijobV3SerifBold.woff2",
+      "sha256": "d781b53ddb7fb04ecbda138c2aba11ebc34a41f3e838e95fc637917f1223b7f3",
+      "bytes": 11552380
+    },
+    {
+      "file": "AijobV3SerifBoldCommon.woff2",
+      "sha256": "dca466d35b456be80dbf92607e1ffc7281aa0c41627fb9c4aaf55c47eb24f194",
+      "bytes": 2012260
+    }
+  ]
+}

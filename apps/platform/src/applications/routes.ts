@@ -1,5 +1,6 @@
 import {
   ApplicationBoardQuerySchema,
+  BulkCaseProgressRequestSchema,
   CreateApplicationCaseWithJobContextRequestSchema,
   CreateCaseQuestionRequestSchema,
   DeleteApplicationCaseRequestSchema,
@@ -20,6 +21,7 @@ import { requireOwnerContext } from "../identity/fastify.js";
 import { ApiProblem, sendApiProblem } from "../identity/http.js";
 import { ServiceError } from "../lib/service-error.js";
 import { deleteApplicationCase } from "../career-assets/deletion-service.js";
+import { bulkCaseProgress } from "./bulk-progress.js";
 import {
   createApplicationCase,
   createApplicationCaseQuestion,
@@ -115,8 +117,22 @@ function handleBoardError(
 
 export function registerApplicationCaseRoutes(
   app: FastifyInstance,
-  options: { db: Kysely<Database>; enableLocalMvp: boolean },
+  options: { db: Kysely<Database>; enableLocalMvp: boolean; encryptionKey?: string | undefined },
 ): void {
+  app.post("/v1/application-cases/bulk-progress", async (request, reply) => {
+    try {
+      return reply.send(
+        await bulkCaseProgress({
+          db: options.db,
+          owner: requireOwnerContext(request),
+          request: BulkCaseProgressRequestSchema.parse(request.body),
+          idempotencyKey: requireIdempotencyKey(request.headers),
+        }),
+      );
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
   app.get("/v1/application-cases", async (request, reply) => {
     try {
       const owner = requireOwnerContext(request);
@@ -228,6 +244,7 @@ export function registerApplicationCaseRoutes(
       const idempotencyKey = requireIdempotencyKey(request.headers);
       return reply.send(
         await recordManualApplication({
+          encryptionKey: options.encryptionKey,
           db: options.db,
           owner,
           caseId,

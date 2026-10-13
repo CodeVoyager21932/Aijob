@@ -8,6 +8,7 @@ import type {
 } from "@aijob/contracts";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { PlannerEditor } from "./PlannerEditor";
 import {
   debriefActionItems,
   debriefBackflowPath,
@@ -49,6 +50,7 @@ export function DebriefConfirmationPanel({
 }) {
   const actionItems = useMemo(() => debriefActionItems(debrief), [debrief]);
   const [drafts, setDrafts] = useState<Record<string, DebriefItemDecisionInput | undefined>>({});
+  const [preparation, setPreparation] = useState<{ title: string; note: string } | null>(null);
   const persistedByKey = useMemo(
     () =>
       new Map(
@@ -92,6 +94,12 @@ export function DebriefConfirmationPanel({
 
   return (
     <section className="career-debrief-confirmation" aria-labelledby="debrief-confirmation-title">
+      {preparation ? (
+        <PlannerEditor
+          initial={{ kind: "preparation", caseId, ...preparation }}
+          onClose={() => setPreparation(null)}
+        />
+      ) : null}
       <header>
         <div>
           <p>复盘确认</p>
@@ -121,6 +129,18 @@ export function DebriefConfirmationPanel({
                   <small>#{index + 1}</small>
                 </header>
                 <p>{item.description}</p>
+                <button
+                  type="button"
+                  className="career-button career-button--quiet"
+                  onClick={() =>
+                    setPreparation({
+                      title: item.kind === "expression_issue" ? "改进面试表达" : "补充经历证据",
+                      note: `来自本次面试复盘：${current?.editedText ?? item.description}\n\n请补充具体准备动作与验收产物。`,
+                    })
+                  }
+                >
+                  加入准备清单
+                </button>
 
                 {confirmed ? (
                   current ? (

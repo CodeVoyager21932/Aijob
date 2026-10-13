@@ -161,6 +161,23 @@ const RawEnvironmentSchema = z
     HOST: z.string().trim().min(1).default("127.0.0.1"),
     PORT: z.coerce.number().int().min(1).max(65_535).default(3_000),
     PROBE_REQUEST_INTERVAL_MS: z.coerce.number().int().min(250).max(10_000).default(750),
+    COLLECTOR_BROWSER_EXECUTABLE: z.string().min(1).optional(),
+    COLLECTOR_AUTOMATION_ENABLED: BooleanEnvironmentValueSchema,
+    COLLECTOR_ISOLATION: z.literal("container").optional(),
+    PDF_BROWSER_EXECUTABLE: z.string().min(1).optional(),
+    PDF_FONT_PATH: z.string().min(1).optional(),
+    PDF_SERIF_FONT_PATH: z.string().min(1).optional(),
+    OWNER_TASK_INTERACTIVE_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(8),
+    OPPORTUNITY_DISCOVERY_ENABLED: BooleanEnvironmentValueSchema,
+    ENABLE_NATIVE_STUDIO_TEMPLATES: OptionalBooleanEnvironmentValueSchema,
+    OPPORTUNITY_DIGEST_ENABLED: OptionalBooleanEnvironmentValueSchema,
+    TAVILY_API_KEY: z.string().trim().min(1).optional(),
+    PDF_RENDER_CONCURRENCY: z.coerce.number().int().min(1).max(4).default(2),
+    PDF_RENDER_TIMEOUT_MS: z.coerce.number().int().min(5000).max(60000).default(20000),
+    PUBLIC_AI_DAILY_CALLS: z.coerce.number().int().min(0).max(10000).default(0),
+    PUBLIC_AI_DAILY_TOKEN_BUDGET: z.coerce.number().int().min(0).max(10000000).default(0),
+    PUBLIC_AI_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(2),
+    PUBLIC_AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(256).max(8192).default(2048),
     LOG_LEVEL: LogLevelSchema.default("info"),
     ENABLE_INTERNAL_PREVIEW: BooleanEnvironmentValueSchema,
     ENABLE_SOURCE_PROBE: BooleanEnvironmentValueSchema,
@@ -180,6 +197,10 @@ const RawEnvironmentSchema = z
     AI_MODEL: z.string().trim().min(1).optional(),
     AI_API_KEY: z.string().trim().min(1).optional(),
     AI_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(30_000),
+    PERSONAL_AI_DAILY_CALLS: z.coerce.number().int().min(0).max(10000).default(0),
+    PERSONAL_AI_DAILY_TOKEN_BUDGET: z.coerce.number().int().min(0).max(10000000).default(0),
+    PERSONAL_AI_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(2),
+    PERSONAL_AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(256).max(8192).default(2048),
     ACCEPTED_ORIGINS: z
       .string()
       .optional()
@@ -189,12 +210,49 @@ const RawEnvironmentSchema = z
       .string()
       .optional()
       .transform((value) => commaSeparatedValues(value)),
-    IDENTITY_EMAIL_DELIVERY_MODE: z.enum(["disabled", "fixture"]).default("disabled"),
-    IDENTITY_FIXTURE_VERIFICATION_CODE: z.string().regex(/^\d{6}$/).optional(),
+    IDENTITY_EMAIL_DELIVERY_MODE: z.enum(["disabled", "fixture", "smtp"]).default("disabled"),
+    SMTP_HOST: z
+      .string()
+      .regex(/^[a-zA-Z0-9.-]+$/)
+      .optional(),
+    SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(465),
+    SMTP_SECURE: BooleanEnvironmentValueSchema,
+    SMTP_USER: z.string().min(1).optional(),
+    SMTP_PASSWORD: z.string().min(1).optional(),
+    SMTP_FROM: z.string().email().optional(),
+    IDENTITY_FIXTURE_VERIFICATION_CODE: z
+      .string()
+      .regex(/^\d{6}$/)
+      .optional(),
   })
   .superRefine((environment, context) => {
     const permitsLocalCapabilities =
       environment.APP_ENV === "local" || environment.APP_ENV === "test";
+    if (
+      environment.IDENTITY_EMAIL_DELIVERY_MODE === "smtp" &&
+      (!environment.SMTP_HOST ||
+        !environment.SMTP_FROM ||
+        !environment.SMTP_USER ||
+        !environment.SMTP_PASSWORD)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["IDENTITY_EMAIL_DELIVERY_MODE"],
+        message: "SMTP_HOST, SMTP_FROM, SMTP_USER and SMTP_PASSWORD are required for SMTP delivery",
+      });
+    }
+
+    if (
+      environment.COLLECTOR_AUTOMATION_ENABLED &&
+      (environment.APP_ENV === "test" || environment.COLLECTOR_ISOLATION !== "container")
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["COLLECTOR_AUTOMATION_ENABLED"],
+        message:
+          "Controlled automation requires the isolated collector container and is forbidden in test environments",
+      });
+    }
 
     if (!permitsLocalCapabilities && environment.ENABLE_INTERNAL_PREVIEW) {
       context.addIssue({
@@ -351,12 +409,36 @@ export const AppConfigSchema = z
     host: z.string().min(1),
     port: z.number().int().min(1).max(65_535),
     probeRequestIntervalMs: z.number().int().min(250).max(10_000),
+    browserExecutablePath: z.string().min(1).optional(),
+    collectorAutomationEnabled: z.boolean().optional(),
+    collectorIsolation: z.literal("container").optional(),
+    pdfRuntime: z
+      .object({
+        executablePath: z.string().min(1),
+        fontPath: z.string().min(1),
+        serifFontPath: z.string().min(1).optional(),
+        concurrency: z.number().int().min(1).max(4),
+        timeoutMs: z.number().int().min(5000).max(60000),
+      })
+      .optional(),
+    ownerTaskInteractiveConcurrency: z.number().int().min(1).max(16).default(8),
+    opportunityDiscovery: z.object({enabled:z.boolean(),apiKey:z.string().optional()}).optional(),
+    publicAiBudget: z
+      .object({
+        dailyCalls: z.number().int().nonnegative(),
+        dailyTokens: z.number().int().nonnegative(),
+        concurrency: z.number().int().positive(),
+        maxOutputTokens: z.number().int().positive(),
+      })
+      .optional(),
     logLevel: LogLevelSchema,
     enableInternalPreview: z.boolean(),
     enableSourceProbe: z.boolean(),
     enableLocalMvp: z.boolean(),
     resumeReviewV2WriteEnabled: z.boolean().optional(),
     resumeEncryptionKey: EncryptionKeySchema,
+    nativeStudioTemplatesEnabled: z.boolean().optional(),
+    opportunityDigestEnabled: z.boolean().optional(),
     resumeMaxBytes: z
       .number()
       .int()
@@ -374,6 +456,14 @@ export const AppConfigSchema = z
       model: z.string().min(1).optional(),
       apiKey: z.string().min(1).optional(),
       requestTimeoutMs: z.number().int().min(1_000).max(120_000),
+      budget: z
+        .object({
+          dailyCalls: z.number().int().min(0),
+          dailyTokens: z.number().int().min(0),
+          concurrency: z.number().int().min(1).max(8),
+          maxOutputTokens: z.number().int().min(256).max(8192),
+        })
+        .optional(),
     }),
     identity: z.object({
       acceptedOrigins: z.array(HttpOriginSchema),
@@ -382,8 +472,21 @@ export const AppConfigSchema = z
       alphaInviteCodeHashes: z.array(Sha256Schema).default([]),
       masterKey: IdentityMasterKeySchema.optional(),
       invitedEmailHashes: z.array(Sha256Schema).optional(),
-      emailDeliveryMode: z.enum(["disabled", "fixture"]).optional(),
-      fixtureVerificationCode: z.string().regex(/^\d{6}$/).optional(),
+      emailDeliveryMode: z.enum(["disabled", "fixture", "smtp"]).optional(),
+      smtp: z
+        .object({
+          host: z.string().min(1),
+          port: z.number().int().min(1).max(65535),
+          secure: z.boolean(),
+          user: z.string().min(1),
+          password: z.string().min(1),
+          from: z.string().email(),
+        })
+        .optional(),
+      fixtureVerificationCode: z
+        .string()
+        .regex(/^\d{6}$/)
+        .optional(),
     }),
     workspaceRoot: z.string().min(1),
   })
@@ -435,6 +538,32 @@ export const parseAppConfig = (
     host: parsed.HOST,
     port: parsed.PORT,
     probeRequestIntervalMs: parsed.PROBE_REQUEST_INTERVAL_MS,
+    collectorAutomationEnabled: parsed.COLLECTOR_AUTOMATION_ENABLED,
+    ...(parsed.COLLECTOR_ISOLATION ? { collectorIsolation: parsed.COLLECTOR_ISOLATION } : {}),
+    ...(parsed.COLLECTOR_BROWSER_EXECUTABLE
+      ? { browserExecutablePath: parsed.COLLECTOR_BROWSER_EXECUTABLE }
+      : {}),
+    ...(parsed.PDF_BROWSER_EXECUTABLE && parsed.PDF_FONT_PATH
+      ? {
+          pdfRuntime: {
+            executablePath: parsed.PDF_BROWSER_EXECUTABLE,
+            fontPath: parsed.PDF_FONT_PATH,
+            ...(parsed.PDF_SERIF_FONT_PATH ? { serifFontPath: parsed.PDF_SERIF_FONT_PATH } : {}),
+            concurrency: parsed.PDF_RENDER_CONCURRENCY,
+            timeoutMs: parsed.PDF_RENDER_TIMEOUT_MS,
+          },
+        }
+      : {}),
+    ownerTaskInteractiveConcurrency: parsed.OWNER_TASK_INTERACTIVE_CONCURRENCY,
+    opportunityDiscovery: {enabled:parsed.OPPORTUNITY_DISCOVERY_ENABLED,...(parsed.TAVILY_API_KEY?{apiKey:parsed.TAVILY_API_KEY}:{})},
+    nativeStudioTemplatesEnabled: parsed.ENABLE_NATIVE_STUDIO_TEMPLATES ?? true,
+    opportunityDigestEnabled: parsed.OPPORTUNITY_DIGEST_ENABLED ?? true,
+    publicAiBudget: {
+      dailyCalls: parsed.PUBLIC_AI_DAILY_CALLS,
+      dailyTokens: parsed.PUBLIC_AI_DAILY_TOKEN_BUDGET,
+      concurrency: parsed.PUBLIC_AI_CONCURRENCY,
+      maxOutputTokens: parsed.PUBLIC_AI_MAX_OUTPUT_TOKENS,
+    },
     logLevel: parsed.LOG_LEVEL,
     enableInternalPreview:
       environment.ENABLE_INTERNAL_PREVIEW === undefined
@@ -449,13 +578,11 @@ export const parseAppConfig = (
         ? localCapabilitiesDefault
         : parsed.ENABLE_LOCAL_MVP,
     // Remote environments remain closed by default until their compatible reader/worker rollout Gate.
-    resumeReviewV2WriteEnabled:
-      parsed.RESUME_REVIEW_V2_WRITE_ENABLED ?? localCapabilitiesDefault,
+    resumeReviewV2WriteEnabled: parsed.RESUME_REVIEW_V2_WRITE_ENABLED ?? localCapabilitiesDefault,
     resumeEncryptionKey,
     resumeMaxBytes: parsed.RESUME_MAX_BYTES,
     resumeParser: {
-      mode:
-        parsed.RESUME_PARSER_MODE ?? (localCapabilitiesDefault ? "process" : "container"),
+      mode: parsed.RESUME_PARSER_MODE ?? (localCapabilitiesDefault ? "process" : "container"),
       ...(parsed.RESUME_PARSER_CONTAINER_IMAGE
         ? { containerImage: parsed.RESUME_PARSER_CONTAINER_IMAGE }
         : {}),
@@ -466,6 +593,12 @@ export const parseAppConfig = (
       model: parsed.AI_MODEL,
       apiKey: parsed.AI_API_KEY,
       requestTimeoutMs: parsed.AI_REQUEST_TIMEOUT_MS,
+      budget: {
+        dailyCalls: parsed.PERSONAL_AI_DAILY_CALLS,
+        dailyTokens: parsed.PERSONAL_AI_DAILY_TOKEN_BUDGET,
+        concurrency: parsed.PERSONAL_AI_CONCURRENCY,
+        maxOutputTokens: parsed.PERSONAL_AI_MAX_OUTPUT_TOKENS,
+      },
     },
     identity: {
       acceptedOrigins: parsed.ACCEPTED_ORIGINS,
@@ -479,6 +612,21 @@ export const parseAppConfig = (
           : undefined),
       invitedEmailHashes: parsed.ALPHA_INVITED_EMAIL_HASHES,
       emailDeliveryMode: parsed.IDENTITY_EMAIL_DELIVERY_MODE,
+      ...(parsed.IDENTITY_EMAIL_DELIVERY_MODE === "smtp"
+        ? {
+            smtp: {
+              host: parsed.SMTP_HOST,
+              port: parsed.SMTP_PORT,
+              secure:
+                environment.SMTP_SECURE === undefined
+                  ? parsed.SMTP_PORT === 465
+                  : parsed.SMTP_SECURE,
+              user: parsed.SMTP_USER,
+              password: parsed.SMTP_PASSWORD,
+              from: parsed.SMTP_FROM,
+            },
+          }
+        : {}),
       fixtureVerificationCode: parsed.IDENTITY_FIXTURE_VERIFICATION_CODE,
     },
     workspaceRoot: rootDirectory,
@@ -509,7 +657,8 @@ export const loadAppConfig = (options: LoadAppConfigOptions = {}): AppConfig => 
 
 export const toSafeConfigLog = (
   config: AppConfig,
-): Omit<AppConfig, "databaseUrl" | "resumeEncryptionKey" | "ai" | "identity"> & {
+): Omit<AppConfig, "databaseUrl" | "resumeEncryptionKey" | "ai" | "identity" | "opportunityDiscovery"> & {
+  opportunityDiscovery: {enabled:boolean;providerConfigured:boolean};
   databaseUrl: "[redacted]";
   resumeEncryptionKey: "[redacted]";
   ai: {
@@ -520,13 +669,14 @@ export const toSafeConfigLog = (
   identity: {
     acceptedOrigins: readonly string[];
     invitedEmailsConfigured: number;
-    emailDeliveryMode: "disabled" | "fixture";
+    emailDeliveryMode: "disabled" | "fixture" | "smtp";
   };
 } => {
   return {
     ...config,
     databaseUrl: "[redacted]",
     resumeEncryptionKey: "[redacted]",
+    opportunityDiscovery: {enabled:config.opportunityDiscovery?.enabled??false,providerConfigured:!!config.opportunityDiscovery?.apiKey},
     ai: {
       enabled: config.ai.enabled,
       providerConfigured: Boolean(config.ai.baseUrl && config.ai.model && config.ai.apiKey),

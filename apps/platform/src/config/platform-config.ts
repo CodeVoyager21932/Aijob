@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   type AppConfig,
@@ -46,7 +47,16 @@ export function databaseUrlForRuntime(
 }
 
 export function loadPlatformConfig(options: LoadAppConfigOptions = {}) {
-  const rootDirectory = resolve(options.rootDirectory ?? DEFAULT_WORKSPACE_ROOT);
+  const rootDirectory = resolve(
+    options.rootDirectory ?? process.env.AIJOB_DATA_ROOT ?? DEFAULT_WORKSPACE_ROOT,
+  );
+  if (
+    process.env.AIJOB_DESKTOP_CHILD !== "1" &&
+    existsSync(resolve(rootDirectory, ".data/desktop-migration.json"))
+  )
+    throw new Error(
+      "WORKSPACE_MIGRATED_TO_DESKTOP: 此目录已迁入 Aijob 安装版，请打开安装版继续。回退前先停止安装版，再移走 .data/desktop-migration.json 标记。",
+    );
   const environmentProbe = loadAppConfig({
     ...options,
     rootDirectory,

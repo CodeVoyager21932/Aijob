@@ -70,6 +70,7 @@ function currentCsrfToken(): string | null {
 let sessionBootstrapPromise: Promise<SessionStatus> | null = null;
 let sessionBootstrapSuppressedAfterDeletion = false;
 let knownOwnerKey: string | null = null;
+export function currentWorkspaceOwnerKey() { return knownOwnerKey; }
 const sessionBoundaryListeners = new Set<() => void>();
 const sessionMutationRecoveryListeners = new Set<(message: string) => void>();
 let sessionBoundaryGeneration = 0;
@@ -181,7 +182,7 @@ export function createIdempotencyKey(prefix = "web"): string {
 }
 
 export interface ApiRequestOptions<T = unknown> {
-  method?: "GET" | "POST" | "PUT" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   signal?: AbortSignal | undefined;
   idempotencyKey?: string;

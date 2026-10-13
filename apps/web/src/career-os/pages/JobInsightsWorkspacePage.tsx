@@ -1,4 +1,9 @@
-import type { CompanyScaleBand, JobFamily, JobInsightRequirement, JobInsightRun } from "@aijob/contracts";
+import type {
+  CompanyScaleBand,
+  JobFamily,
+  JobInsightRequirement,
+  JobInsightRun,
+} from "@aijob/contracts";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -27,14 +32,17 @@ export function JobInsightsWorkspacePage() {
     searchParams
       .getAll("scale")
       .flatMap((value) => value.split(","))
-      .filter((value): value is CompanyScaleBand => scaleOptions.includes(value as CompanyScaleBand)),
+      .filter((value): value is CompanyScaleBand =>
+        scaleOptions.includes(value as CompanyScaleBand),
+      ),
   );
   const [useEvidence, setUseEvidence] = useState(searchParams.get("evidence") !== "false");
   const evidenceQuery = useQuery({
     queryKey: ["career-os", "profile", "evidence"],
     queryFn: ({ signal }) => getProfileEvidence(signal),
   });
-  const evidenceRevisionId = evidenceQuery.data && "id" in evidenceQuery.data ? evidenceQuery.data.id : null;
+  const evidenceRevisionId =
+    evidenceQuery.data && "id" in evidenceQuery.data ? evidenceQuery.data.id : null;
   const runQuery = useQuery({
     queryKey: ["career-os", "insight", runId],
     queryFn: ({ signal }) => getJobInsightRun(runId ?? "", signal),
@@ -83,7 +91,7 @@ export function JobInsightsWorkspacePage() {
         <div>
           <p>跨岗位事实</p>
           <h1 id="insights-title">岗位市场洞察</h1>
-          <span>只聚合当前可信官方 JD；样本不足时明确停止，不把市场结论冒充单岗位要求。</span>
+          <span>查看当前岗位集合的要求与原句；小样本展示事实，不代表整个招聘市场。</span>
         </div>
         <Link className="career-button career-button--quiet" to="/jobs">
           返回岗位目录
@@ -110,7 +118,11 @@ export function JobInsightsWorkspacePage() {
             </label>
             <label>
               <span>城市</span>
-              <input value={city} onChange={(event) => setCity(event.target.value)} placeholder="可选" />
+              <input
+                value={city}
+                onChange={(event) => setCity(event.target.value)}
+                placeholder="可选"
+              />
             </label>
             <fieldset>
               <legend>企业规模</legend>
@@ -137,10 +149,14 @@ export function JobInsightsWorkspacePage() {
           </div>
           <aside>
             <Icon name="book" size={28} />
-            <h2>建立一份可恢复洞察运行</h2>
-            <p>结果会固定候选岗位版本、Requirements 与来源核验时间，刷新和深链不会重新计算。</p>
+            <h2>了解这一方向在要求什么</h2>
+            <p>对照岗位原句，寻找可以复用的经历与准备方向。</p>
             {!evidenceRevisionId ? <Link to="/resumes/import">先准备简历证据</Link> : null}
-            <button className="career-button career-button--primary" type="submit" disabled={mutation.isPending}>
+            <button
+              className="career-button career-button--primary"
+              type="submit"
+              disabled={mutation.isPending}
+            >
               {mutation.isPending ? "正在生成…" : "生成市场洞察"}
             </button>
           </aside>
@@ -211,17 +227,17 @@ function InsightReport({ run }: { run: JobInsightRun }) {
         <div className="career-insight-report__insufficient">
           <Icon name="warning" size={22} />
           <div>
-            <strong>当前样本不足，不生成高频排名</strong>
-            <p>{result.insufficiencyReasons.join(" · ")}</p>
+            <strong>当前样本有限，以下只描述这组岗位</strong>
+            <p>样本数量或要求解析覆盖较少，不能据此推断整个招聘市场。</p>
           </div>
         </div>
-      ) : (
-        <div className="career-insight-report__sections">
-          <InsightSection title="常见硬要求" items={result.commonHardRequirements} />
-          <InsightSection title="高频能力与经历" items={result.frequentCapabilities} />
-          <InsightSection title="常见加分项" items={result.preferredRequirements} />
-        </div>
-      )}
+      ) : null}
+      <div className="career-insight-report__sections">
+        <InsightSection title="常见硬要求" items={result.commonHardRequirements} />
+        <InsightSection title="高频能力与经历" items={result.frequentCapabilities} />
+        <InsightSection title="常见加分项" items={result.preferredRequirements} />
+        <InsightSection title="已提及，必要性未说明" items={result.mentionedRequirements ?? []} />
+      </div>
     </div>
   );
 }
@@ -265,7 +281,7 @@ function InsightSection({ title, items }: { title: string; items: JobInsightRequ
           ))}
         </ol>
       ) : (
-        <p>当前样本没有达到跨企业展示门槛的要求。</p>
+        <p>当前集合中未发现这一类已解析要求。</p>
       )}
     </section>
   );

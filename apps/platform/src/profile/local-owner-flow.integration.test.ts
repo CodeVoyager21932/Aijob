@@ -1,18 +1,22 @@
 import { randomUUID } from "node:crypto";
-import type { AppConfig } from "@aijob/config";
 import type { ResumeEvidence } from "@aijob/contracts";
 import { createDatabase, type Database, migrateToLatest } from "@aijob/database";
 import type { Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createAnonymousSession, findActiveSession } from "../identity/session-repository.js";
+import {
+  createAnonymousSession,
+  findActiveSession,
+  type OwnerContext,
+} from "../identity/session-repository.js";
 import { createJobInsightRun } from "../insights/service.js";
-import type { ResumeAnalysisResult } from "../resume/analysis-service.js";
+import { processResumeAnalysis, type ResumeAnalysisResult } from "../resume/analysis-service.js";
 import { getResumeAnalysis, submitResumeAnalysis } from "../resume/repository.js";
-import { runOneOwnerTask } from "../workers/owner-task-worker.js";
+import type { OwnerTaskLease } from "../workers/owner-task-lease.js";
 import { getCareerDataScope } from "./data-scope-service.js";
 import {
   createDeletionReceipt,
   getOwnerDeletionByReceipt,
+  processOwnerDeletion,
   requestOwnerDeletion,
 } from "./deletion-service.js";
 import {
@@ -26,26 +30,6 @@ import {
 const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
 const encryptionKey = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
-
-function config(): AppConfig {
-  return {
-    appEnv: "test",
-    databaseUrl: databaseUrl as string,
-    snapshotDirectory: ".data/job-snapshots",
-    host: "127.0.0.1",
-    port: 3000,
-    probeRequestIntervalMs: 750,
-    logLevel: "silent",
-    enableInternalPreview: true,
-    enableSourceProbe: false,
-    enableLocalMvp: true,
-    resumeEncryptionKey: encryptionKey,
-    resumeMaxBytes: 5 * 1024 * 1024,
-    ai: { enabled: false, requestTimeoutMs: 30_000 },
-    identity: { acceptedOrigins: [], alphaInviteCodeHashes: [] },
-    workspaceRoot: ".",
-  };
-}
 
 describeWithDatabase("local owner resume, revisions and deletion flow", () => {
   let db: Kysely<Database>;
@@ -110,6 +94,38 @@ describeWithDatabase("local owner resume, revisions and deletion flow", () => {
     await db.destroy();
   });
 
+  async function fixtureLease(
+    owner: OwnerContext,
+    taskType: "resume_analysis" | "owner_deletion",
+  ): Promise<OwnerTaskLease> {
+    const now = new Date(),
+      workerId = `local-flow-${randomUUID()}`;
+    const task = await db
+      .updateTable("task_queue.tasks")
+      .set({
+        status: "running",
+        attempt: 1,
+        lease_owner: workerId,
+        lease_until: new Date(now.valueOf() + 60000),
+        heartbeat_at: now,
+        fencing_token: 1,
+      })
+      .where("owner_id", "=", owner.ownerId)
+      .where("owner_epoch", "=", owner.ownerEpoch)
+      .where("task_type", "=", taskType)
+      .where("status", "=", "queued")
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    return {
+      taskId: task.id,
+      taskType,
+      ownerId: owner.ownerId,
+      ownerEpoch: owner.ownerEpoch,
+      leaseOwner: workerId,
+      fencingToken: 1,
+    };
+  }
+
   it("keeps raw content encrypted, confirms immutable revisions and prevents restoration", async () => {
     const createdSession = await createAnonymousSession({ db });
     const owner = createdSession.context;
@@ -161,13 +177,20 @@ describeWithDatabase("local owner resume, revisions and deletion flow", () => {
     expect(Buffer.from(stored.raw_ciphertext ?? []).toString("utf8")).not.toContain("13812345678");
     expect(stored.content_sha256).toMatch(/^[a-f0-9]{64}$/);
 
-    expect(
-      await runOneOwnerTask({
-        db,
-        config: config(),
-        workerId: `profile-flow-worker-${owner.ownerId}`,
-      }),
-    ).toBe(true);
+    const analysisLease = await fixtureLease(owner, "resume_analysis");
+    await processResumeAnalysis({
+      db,
+      analysisId: first.analysis.id,
+      ownerId: owner.ownerId,
+      ownerEpoch: owner.ownerEpoch,
+      encryptionKey,
+      lease: analysisLease,
+    });
+    await db
+      .updateTable("task_queue.tasks")
+      .set({ status: "succeeded", completed_at: new Date(), lease_owner: null, lease_until: null })
+      .where("id", "=", analysisLease.taskId)
+      .execute();
     const processed = await getResumeAnalysis({
       db,
       ownerId: owner.ownerId,
@@ -281,7 +304,7 @@ describeWithDatabase("local owner resume, revisions and deletion flow", () => {
     ).rejects.toBeInstanceOf(ProfileRevisionConflict);
     const dataScope = await getCareerDataScope({ db, owner });
     expect(dataScope).toMatchObject({
-      owner: { id: owner.ownerId, retentionMode: "anonymous_ttl", accountId: null },
+      owner: { id: owner.ownerId, retentionMode: "persistent_guest", accountId: null },
       counts: {
         currentFacts: 2,
         currentPreferences: 1,
@@ -417,13 +440,13 @@ describeWithDatabase("local owner resume, revisions and deletion flow", () => {
       }),
     ).toMatchObject({ status: "queued" });
 
-    expect(
-      await runOneOwnerTask({
-        db,
-        config: config(),
-        workerId: `profile-deletion-worker-${owner.ownerId}`,
-      }),
-    ).toBe(true);
+    await processOwnerDeletion({
+      db,
+      deletionId: deletionRequest.deletion.id,
+      ownerId: owner.ownerId,
+      requestedOwnerEpoch: owner.ownerEpoch,
+      lease: await fixtureLease(owner, "owner_deletion"),
+    });
     expect(
       await getOwnerDeletionByReceipt({
         db,

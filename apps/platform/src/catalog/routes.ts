@@ -47,6 +47,7 @@ function booleanValue(value: unknown): boolean | undefined | string {
 
 export function parseJobSearchQuery(raw: RawQuery): JobSearchQuery {
   return JobSearchQuerySchema.parse({
+    sort: stringValue(raw.sort),
     keyword: stringValue(raw.keyword),
     companies: listValue(raw.companies),
     cities: listValue(raw.cities),

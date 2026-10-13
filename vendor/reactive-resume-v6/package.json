@@ -1,0 +1,23 @@
+{
+  "name": "@aijob/resume-forme",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./worker": "./dist/export.worker.mjs",
+    "./primitives": "./src/forme/primitives.tsx",
+    "./render": "./src/forme/render.ts"
+    ,"./engine": "./src/engine.ts"
+  },
+  "dependencies": {
+    "@formepdf/core": "0.28.0",
+    "@formepdf/react": "0.28.0",
+    "harfbuzzjs": "1.6.2",
+    "react": "19.3.0",
+    "react-reconciler": "0.34.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.8",
+    "@types/react-reconciler": "0.33.1"
+  }
+}

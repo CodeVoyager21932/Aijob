@@ -4,16 +4,24 @@ import { COLLECTOR_ROBOTS_TOKEN } from "./safe-http.js";
  * ADR-0033 第一条：以站点公开 `robots.txt` 为访问政策依据。
  *
  * 本模块只做**解析与判定**，不发起网络请求——抓取 robots.txt 属于触网步骤，
- * 须由人工显式授权（ADR-0026）。因此这里接收已取回的文本或取回失败的原因，
+ * 首次接入或扩大范围由人工明确操作；同范围更新沿用已批准策略。因此这里接收已取回的文本或失败原因，
  * 保证判定逻辑可用本地夹具完整测试。
  *
- * 关键的 fail-closed 规则：**取不到 robots.txt（缺失、超时、非 200）一律视为禁止。**
+ * ADR-0037：404/410 缺失不构成禁止或授权；访问受限停止，临时故障交由调度退避。
  * 「技术上取不到」不等于「站点允许」。
  */
 
+export type RobotsUnavailableReason =
+  | "not_found"
+  | "access_denied"
+  | "rate_limited"
+  | "server_error"
+  | "timeout"
+  | "http_error"
+  | "network_error";
 export type RobotsFetchOutcome =
   | { status: "fetched"; body: string }
-  | { status: "unavailable"; reason: "not_found" | "timeout" | "http_error" | "network_error" };
+  | { status: "unavailable"; reason: RobotsUnavailableReason };
 
 export interface RobotsGroup {
   /** 该组匹配的 User-agent token（小写）。 */
@@ -37,10 +45,7 @@ export type RobotsDecision =
   | { allowed: true; matchedRule: string | null; crawlDelaySeconds: number | undefined }
   | { allowed: false; code: RobotsDenyCode; matchedRule: string | null };
 
-export type RobotsDenyCode =
-  | "ROBOTS_UNAVAILABLE"
-  | "ROBOTS_DISALLOWED"
-  | "ROBOTS_MALFORMED";
+export type RobotsDenyCode = "ROBOTS_UNAVAILABLE" | "ROBOTS_DISALLOWED" | "ROBOTS_MALFORMED";
 
 /** 解析 robots.txt，返回适用于本采集器的合并规则组。 */
 export function parseRobots(body: string): RobotsPolicy {
@@ -69,7 +74,12 @@ export function parseRobots(body: string): RobotsPolicy {
     }
 
     if (pendingAgents.length === 0) continue; // 组外指令，忽略。
-    current ??= { agents: [...pendingAgents], disallow: [], allow: [], crawlDelaySeconds: undefined };
+    current ??= {
+      agents: [...pendingAgents],
+      disallow: [],
+      allow: [],
+      crawlDelaySeconds: undefined,
+    };
 
     if (field === "disallow") current.disallow.push(value);
     else if (field === "allow") current.allow.push(value);
@@ -96,7 +106,10 @@ export function parseRobots(body: string): RobotsPolicy {
       .map((group) => group.crawlDelaySeconds)
       .filter((value): value is number => value !== undefined)
       // 多组并存时取最严（最长等待）。
-      .reduce<number | undefined>((max, value) => (max === undefined ? value : Math.max(max, value)), undefined),
+      .reduce<number | undefined>(
+        (max, value) => (max === undefined ? value : Math.max(max, value)),
+        undefined,
+      ),
   };
   return { group: merged, hasApplicableGroup: true };
 }
@@ -148,7 +161,7 @@ function longestMatch(rules: string[], path: string): string | null {
 /**
  * 判定某个路径是否被 robots 允许。
  *
- * @param outcome robots.txt 的取回结果；`unavailable` 一律拒绝（fail-closed）。
+ * @param outcome robots.txt 的取回结果；缺失不限制路径，其他不可用状态交给运行复核分级处理。
  * @param pathWithQuery 已登记 fetch target 的路径（含 query，若有）。
  */
 export function evaluateRobotsPath(
@@ -156,6 +169,9 @@ export function evaluateRobotsPath(
   pathWithQuery: string,
 ): RobotsDecision {
   if (outcome.status === "unavailable") {
+    // Missing rules do not imply access authorization; the independent source policy still applies.
+    if (outcome.reason === "not_found")
+      return { allowed: true, matchedRule: null, crawlDelaySeconds: undefined };
     return { allowed: false, code: "ROBOTS_UNAVAILABLE", matchedRule: null };
   }
 
@@ -228,7 +244,7 @@ export function evaluateRobotsForSource(
   outcome: RobotsFetchOutcome,
   targets: readonly RobotsTargetCheck[],
 ): RobotsSourceVerdict {
-  if (outcome.status === "unavailable") {
+  if (outcome.status === "unavailable" && outcome.reason !== "not_found") {
     return {
       allowed: false,
       code: "ROBOTS_UNAVAILABLE",

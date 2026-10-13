@@ -2,6 +2,10 @@ import type { Database } from "@aijob/database";
 import { type Kysely, sql } from "kysely";
 import { shanghaiDateKey } from "../catalog/effective-activity.js";
 import { materializeLocalCatalog } from "../catalog/materialize.js";
+import {
+  collectorRuntimeScopes,
+  controlledCollectorEnabled,
+} from "../ingestion/automation-runtime.js";
 import type { ProbeResult, ProbeRuntimeConfig } from "../ingestion/probe.js";
 import { runScheduledSourceRefresh } from "../ingestion/probe.js";
 import {
@@ -9,14 +13,17 @@ import {
   refreshFreshnessAndSnapshotReminders,
   selectDueSourceRefreshes,
 } from "../ingestion/refresh-scheduler.js";
+import { runDiscoveryCycle } from "../opportunities/discovery.js";
 import { readLocalRefreshControl } from "../sources/local-refresh-control.js";
 import { listSourceKeys, loadSourceConfig } from "../sources/source-config.js";
+import { runTenantOnboardingCycle } from "../sources/tenant-onboarding-queue.js";
 
 const DEFAULT_SCAN_INTERVAL_MS = 60_000;
 export const COLLECTOR_ADVISORY_LOCK_KEY = 2_600_026;
 
 export interface CollectorWorkerConfig extends ProbeRuntimeConfig {
   workspaceRoot: string;
+  opportunityDiscovery?: { enabled: boolean; apiKey?: string | undefined };
 }
 
 export interface CollectorCycleResult {
@@ -141,7 +148,8 @@ export async function runOneCollectorCycle(input: {
   executeRefresh?: typeof runScheduledSourceRefresh;
   readRefreshControl?: typeof readLocalRefreshControl;
 }): Promise<CollectorCycleResult> {
-  if (input.config.appEnv !== "local") return { state: "environment_blocked" };
+  if (input.config.appEnv !== "local" && !controlledCollectorEnabled(input.config))
+    return { state: "environment_blocked" };
 
   const now = input.now ?? new Date();
   const readRefreshControl = input.readRefreshControl ?? readLocalRefreshControl;
@@ -150,15 +158,22 @@ export async function runOneCollectorCycle(input: {
     return { state: "disabled", manualSnapshotSourceKeys };
   }
   const cycle = await withCollectorExecutionLock(input.db, async (connection) => {
-    if (!readRefreshControl(input.config.workspaceRoot).enabled) {
+    const control = readRefreshControl(input.config.workspaceRoot);
+    if (!control.enabled) {
       return { state: "disabled" as const };
     }
+    const configuredKeys = input.sourceKeys ?? (await listSourceKeys());
+    const sourceKeys = control.sourceKeys
+      ? configuredKeys.filter((key) => control.sourceKeys?.includes(key))
+      : configuredKeys;
+    if (sourceKeys.length === 0) return { state: "circuit_open_or_not_due" as const };
     const due = (
       await selectDueSourceRefreshes(
         connection,
         now,
         undefined,
-        input.sourceKeys ?? (await listSourceKeys()),
+        sourceKeys,
+        collectorRuntimeScopes(input.config),
       )
     )[0];
     if (!due) return { state: "circuit_open_or_not_due" as const };
@@ -181,7 +196,9 @@ export async function runOneCollectorCycle(input: {
       sourceConfig.policy.version !== due.policyVersion ||
       sourceConfig.policy.adapterVersion !== due.adapterVersion ||
       sourceConfig.catalogRole !== "canonical" ||
-      sourceConfig.runtimeScope !== "local" ||
+      !collectorRuntimeScopes(input.config).includes(
+        sourceConfig.runtimeScope as "local" | "alpha" | "production",
+      ) ||
       !sourceConfig.policy.crawlInterval.enabled
     ) {
       const errorCode = "SCHEDULED_TASK_POLICY_STALE";
@@ -195,7 +212,11 @@ export async function runOneCollectorCycle(input: {
       return { state: "source_paused" as const, sourceKey: due.sourceKey, errorCode };
     }
 
-    if (!readRefreshControl(input.config.workspaceRoot).enabled) {
+    const currentControl = readRefreshControl(input.config.workspaceRoot);
+    if (
+      !currentControl.enabled ||
+      (currentControl.sourceKeys && !currentControl.sourceKeys.includes(due.sourceKey))
+    ) {
       return { state: "disabled" as const };
     }
 
@@ -236,6 +257,8 @@ export async function runCollectorWorker(input: {
   signal: AbortSignal;
   scanIntervalMs?: number;
   onCycle?: (result: CollectorCycleResult) => void;
+  afterCycle?: () => Promise<unknown>;
+  localSettings?: () => { enabled: boolean; apiKey: string; sourceNetworkEnabled: boolean };
   onError?: (error: unknown) => void;
   dependencies?: CollectorWorkerDependencies;
 }): Promise<void> {
@@ -247,13 +270,46 @@ export async function runCollectorWorker(input: {
   while (!input.signal.aborted) {
     try {
       const cycleNow = now();
+      const settings = input.localSettings?.();
+      const runtime =
+        settings && input.config.appEnv === "local"
+          ? {
+              ...input.config,
+              enableSourceProbe: settings.sourceNetworkEnabled,
+              opportunityDiscovery: { enabled: settings.enabled, apiKey: settings.apiKey },
+            }
+          : input.config;
       const currentShanghaiDate = shanghaiDateKey(cycleNow);
       if (currentShanghaiDate !== lastReconciledShanghaiDate) {
         await materializeCatalog(input.db);
         lastReconciledShanghaiDate = currentShanghaiDate;
       }
-      const result = await runCycle({ db: input.db, config: input.config, now: cycleNow });
+      const result = await runCycle({ db: input.db, config: runtime, now: cycleNow });
       input.onCycle?.(result);
+      if (
+        !input.signal.aborted &&
+        (input.config.appEnv === "local" || controlledCollectorEnabled(input.config))
+      ) {
+        await runTenantOnboardingCycle({
+          db: input.db,
+          signal: input.signal,
+          enabled: runtime.enableSourceProbe,
+        });
+        try {
+          await runDiscoveryCycle({
+            db: input.db,
+            now: cycleNow,
+            signal: input.signal,
+            config: {
+              enabled: runtime.opportunityDiscovery?.enabled ?? false,
+              apiKey: runtime.opportunityDiscovery?.apiKey ?? "",
+            },
+          });
+        } catch (error) {
+          input.onError?.(error);
+        }
+      }
+      if (!input.signal.aborted) await input.afterCycle?.();
     } catch (error) {
       input.onError?.(error);
     }

@@ -74,7 +74,7 @@ describe("access policy recheck (ADR-0033 periodic recheck)", () => {
   });
 
   it("pauses when robots becomes unretrievable on recheck", () => {
-    for (const reason of ["not_found", "timeout", "http_error", "network_error"] as const) {
+    for (const reason of ["access_denied", "http_error"] as const) {
       const decision = decideAccessPolicyRecheck({
         recordedEvidence: evidence(),
         robots: { status: "unavailable", reason },
@@ -120,5 +120,4 @@ describe("access policy recheck (ADR-0033 periodic recheck)", () => {
     expect(decision.robotsChanged).toBe(true);
     expect(decision.crawlDelaySeconds).toBe(4);
   });
-
 });

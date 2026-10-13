@@ -1,0 +1,43 @@
+{
+  "name": "@aijob/resume-renderer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./isolated": {
+      "types": "./src/isolated.ts",
+      "default": "./dist/isolated.mjs"
+    },
+    "./server": {
+      "types": "./src/public.d.ts",
+      "default": "./dist/server.mjs"
+    },
+    "./browser": {
+      "types": "./src/public.d.ts",
+      "default": "./dist/browser.mjs"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.studio.json --noEmit",
+    "build": "node scripts/build.mjs",
+    "test": "vitest run --passWithNoTests",
+    "smoke": "node scripts/build.mjs --smoke && node dist/smoke.mjs",
+    "smoke:studio": "node scripts/studio-smoke.mjs --all"
+  },
+  "dependencies": {
+    "@aijob/resume-forme": "workspace:*",
+    "@aijob/resume-core": "workspace:*",
+    "@reactive-resume/pdf": "workspace:*",
+    "@reactive-resume/fonts": "workspace:*",
+    "@react-pdf/renderer": "^4.9.0",
+    "react": "19.1.0",
+    "node-html-parser": "9.0.4",
+    "pdfjs-dist": "6.3.289"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "tsx": "4.20.3",
+    "vitest": "3.2.6",
+    "@types/react": "19.1.8"
+  }
+}

@@ -8,7 +8,11 @@
       "!**/coverage",
       "!**/.claude",
       "!**/.data",
-      "!**/.hatch-runs"
+      "!vendor/reactive-resume",
+      "!vendor/reactive-resume-v6",
+      "!**/.hatch-runs",
+      "!docs/reviews/resume-system-research-2026-09-10/code",
+      "!docs/evidence/resume-studio-quality-2026-09-10/upstream"
     ]
   },
   "formatter": {

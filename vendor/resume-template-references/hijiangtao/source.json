@@ -1,0 +1,30 @@
+{
+  "repository": "hijiangtao/resume",
+  "commit": "408f9ab0558f72174badb89a9d626bedb66040a3",
+  "files": [
+    {
+      "path": "LICENSE",
+      "local": "LICENSE",
+      "sha256": "d92e7f89ae796169222b476b1a629a73a1c1c807ac974cd6ff934062505367a5",
+      "url": "https://raw.githubusercontent.com/hijiangtao/resume/408f9ab0558f72174badb89a9d626bedb66040a3/LICENSE"
+    },
+    {
+      "path": "resume.cls",
+      "local": "resume.cls",
+      "sha256": "27e621ca55e05adde094818eca3d9a9d7118fe547e2cb51f0a4c525c44fb1ebc",
+      "url": "https://raw.githubusercontent.com/hijiangtao/resume/408f9ab0558f72174badb89a9d626bedb66040a3/resume.cls"
+    },
+    {
+      "path": "resume-zh_CN.tex",
+      "local": "resume-zh_CN.tex",
+      "sha256": "66a1597aaa6d42f462eb1dac8fba2a41b6dc9c5209a9de26755047696ef30f33",
+      "url": "https://raw.githubusercontent.com/hijiangtao/resume/408f9ab0558f72174badb89a9d626bedb66040a3/resume-zh_CN.tex"
+    },
+    {
+      "path": "linespacing_fix.sty",
+      "local": "linespacing_fix.sty",
+      "sha256": "7e9c23d16eb3ad3477b3c0765d0808b7fc7dfa5ad2ce049687fdbd371d305298",
+      "url": "https://raw.githubusercontent.com/hijiangtao/resume/408f9ab0558f72174badb89a9d626bedb66040a3/linespacing_fix.sty"
+    }
+  ]
+}

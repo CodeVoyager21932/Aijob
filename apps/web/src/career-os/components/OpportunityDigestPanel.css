@@ -1,0 +1,56 @@
+.opportunity-digest-panel > article {
+  padding: 18px 20px;
+}
+.opportunity-digest-panel > article + article {
+  border-top: 1px solid var(--career-line);
+}
+.opportunity-digest-panel h3 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+.opportunity-digest-panel h3 small {
+  margin-left: 8px;
+  color: var(--career-muted);
+  font-weight: 400;
+}
+.opportunity-digest-panel p {
+  margin: 7px 0;
+  color: var(--career-muted);
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+.opportunity-digest-panel > p {
+  padding: 12px 20px;
+}
+.opportunity-digest-panel ul {
+  padding: 0;
+  margin: 14px 0;
+  list-style: none;
+}
+.opportunity-digest-panel li {
+  padding: 10px 0;
+  line-height: 1.7;
+}
+.opportunity-digest-panel li > a {
+  display: inline;
+  min-height: 0;
+  padding: 0;
+  color: var(--career-blue);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.opportunity-digest-panel li > span {
+  font-size: 0.8rem;
+  color: var(--career-muted);
+}
+.opportunity-digest-panel li > span:first-child {
+  color: var(--career-blue);
+  font-weight: 600;
+}
+.opportunity-digest-panel li p {
+  margin: 3px 0 0;
+}
+.opportunity-resume-continue > p {
+  padding: 0 20px;
+}

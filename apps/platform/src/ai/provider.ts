@@ -8,6 +8,10 @@ export class AiProviderError extends Error {
       | "AI_DISABLED"
       | "AI_CONFIGURATION_INVALID"
       | "AI_REQUEST_FAILED"
+      | "AI_AUTHENTICATION_FAILED"
+      | "AI_RATE_LIMITED"
+      | "AI_MODEL_UNAVAILABLE"
+      | "AI_TIMEOUT"
       | "AI_RESPONSE_TOO_LARGE"
       | "AI_RESPONSE_INVALID",
     message: string,
@@ -23,6 +27,7 @@ export interface OpenAiCompatibleProviderConfig {
   model?: string;
   apiKey?: string;
   requestTimeoutMs: number;
+  jsonMode?: "json_object" | "prompt";
 }
 
 interface ChatCompletionResponse {
@@ -49,7 +54,9 @@ function completionUrl(baseUrl: string): URL {
     );
   }
   const basePath = parsed.pathname.replace(/\/+$/, "");
-  parsed.pathname = `${basePath}/chat/completions`;
+  parsed.pathname = basePath.endsWith("/chat/completions")
+    ? basePath
+    : `${basePath}/chat/completions`;
   return parsed;
 }
 
@@ -81,6 +88,7 @@ export class OpenAiCompatibleProvider {
     systemInstruction: string;
     untrustedPayload: unknown;
     schema: z.ZodType<T>;
+    maxOutputTokens?: number;
     signal?: AbortSignal;
   }): Promise<T> {
     assertConfigured(this.config);
@@ -106,7 +114,10 @@ export class OpenAiCompatibleProvider {
         body: JSON.stringify({
           model: this.config.model,
           temperature: 0,
-          response_format: { type: "json_object" },
+          ...(input.maxOutputTokens ? { max_tokens: input.maxOutputTokens } : {}),
+          ...(this.config.jsonMode === "prompt"
+            ? {}
+            : { response_format: { type: "json_object" } }),
           messages: [
             {
               role: "system",
@@ -126,7 +137,13 @@ export class OpenAiCompatibleProvider {
 
       if (!response.ok) {
         throw new AiProviderError(
-          "AI_REQUEST_FAILED",
+          response.status === 401 || response.status === 403
+            ? "AI_AUTHENTICATION_FAILED"
+            : response.status === 429
+              ? "AI_RATE_LIMITED"
+              : response.status === 404
+                ? "AI_MODEL_UNAVAILABLE"
+                : "AI_REQUEST_FAILED",
           `AI provider returned HTTP ${response.status}.`,
         );
       }
@@ -156,7 +173,12 @@ export class OpenAiCompatibleProvider {
       }
 
       try {
-        return input.schema.parse(JSON.parse(message.content));
+        const content = message.content.trim();
+        const fenced =
+          this.config.jsonMode === "prompt"
+            ? /^```(?:json)?\s*([\s\S]*?)\s*```$/.exec(content)
+            : null;
+        return input.schema.parse(JSON.parse(fenced?.[1] ?? content));
       } catch {
         throw new AiProviderError(
           "AI_RESPONSE_INVALID",
@@ -166,8 +188,8 @@ export class OpenAiCompatibleProvider {
     } catch (error) {
       if (error instanceof AiProviderError) throw error;
       throw new AiProviderError(
-        "AI_REQUEST_FAILED",
-        error instanceof Error ? error.message : "AI request failed.",
+        controller.signal.aborted && !input.signal?.aborted ? "AI_TIMEOUT" : "AI_REQUEST_FAILED",
+        "AI request could not be completed; check the connection and retry.",
       );
     } finally {
       clearTimeout(timeout);

@@ -1,6 +1,6 @@
 export class ServiceError extends Error {
   constructor(
-    readonly statusCode: 400 | 401 | 403 | 404 | 409 | 410 | 422 | 503,
+    readonly statusCode: 400 | 401 | 403 | 404 | 409 | 410 | 422 | 429 | 503,
     readonly code: string,
     message: string,
   ) {

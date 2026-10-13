@@ -4,10 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sha256 } from "../lib/canonical-json.js";
 import type { SourceConfig } from "../sources/source-config.js";
-import {
-  type AccessPolicyProbeRuntime,
-  runAccessPolicyProbe,
-} from "./access-policy-probe.js";
+import { type AccessPolicyProbeRuntime, runAccessPolicyProbe } from "./access-policy-probe.js";
 import { robotsUnavailableReason, type RobotsFetchRecord } from "./robots-fetch.js";
 
 /**
@@ -35,15 +32,17 @@ function target(host: string, pathPrefix: string, method: "GET" | "POST" = "GET"
   };
 }
 
-function config(
-  sourceKey: string,
-  fetchTargets: ReturnType<typeof target>[],
-): SourceConfig {
+function config(sourceKey: string, fetchTargets: ReturnType<typeof target>[]): SourceConfig {
   return { sourceKey, policy: { fetchTargets } } as unknown as SourceConfig;
 }
 
 function fetched(host: string, body: string): RobotsFetchRecord {
-  return { host, requestUrl: `https://${host}/robots.txt`, outcome: { status: "fetched", body }, errorCode: null };
+  return {
+    host,
+    requestUrl: `https://${host}/robots.txt`,
+    outcome: { status: "fetched", body },
+    errorCode: null,
+  };
 }
 
 function unavailable(host: string, errorCode: string): RobotsFetchRecord {
@@ -93,9 +92,9 @@ describe("access policy first-evidence probe (ADR-0033)", () => {
     await expect(
       runAccessPolicyProbe({ ...base, runtime: { ...local, enableSourceProbe: false } }),
     ).rejects.toThrow("ACCESS_POLICY_PROBE_LOCAL_ONLY");
-    await expect(
-      runAccessPolicyProbe({ ...base, liveProbeApproved: false }),
-    ).rejects.toThrow("ACCESS_POLICY_PROBE_LIVE_CONFIRMATION_REQUIRED");
+    await expect(runAccessPolicyProbe({ ...base, liveProbeApproved: false })).rejects.toThrow(
+      "ACCESS_POLICY_PROBE_LIVE_CONFIRMATION_REQUIRED",
+    );
   });
 
   it("produces a pasteable robots draft and leaves the terms half to a human", async () => {
@@ -134,9 +133,9 @@ describe("access policy first-evidence probe (ADR-0033)", () => {
   it("records every unavailable robots as prohibited, keeping the reason distinguishable", async () => {
     const local = await runtime();
     const cases: Array<[string, string]> = [
-      ["UPSTREAM_HTTP_404", "not_found"],
+      ["UPSTREAM_HTTP_403", "access_denied"],
       ["UPSTREAM_TIMEOUT", "timeout"],
-      ["UPSTREAM_HTTP_503", "http_error"],
+      ["UPSTREAM_HTTP_503", "server_error"],
       // 站点把 /robots.txt 回成 HTML 通常是 SPA 兜底路由，即软 404，不能当「没有 robots 因此允许」。
       ["ROBOTS_RESPONSE_IS_MARKUP", "http_error"],
       ["REDIRECT_NOT_ALLOWED", "http_error"],

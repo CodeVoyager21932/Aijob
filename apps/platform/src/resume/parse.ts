@@ -16,7 +16,7 @@ const CHILD_ENVIRONMENT_ALLOWLIST = [
   "PATH",
 ] as const;
 
-type ParserOperation = "parse-pdf" | "parse-docx" | "validate-docx";
+type ParserOperation = "parse-pdf" | "parse-docx" | "validate-docx" | "extract-pdf-structure" | "extract-docx-structure";
 
 export interface ResumeParserSandboxOptions {
   mode: "process" | "container";
@@ -64,6 +64,7 @@ export function resumeParserContainerArguments(
 interface ParserSuccess {
   ok: true;
   text?: string;
+  structure?: unknown;
 }
 
 interface ParserFailure {
@@ -86,6 +87,7 @@ function parserSuccess(value: unknown): ParserSuccess | null {
   if (!value || Array.isArray(value) || typeof value !== "object") return null;
   const candidate = value as Record<string, unknown>;
   if (candidate.ok !== true) return null;
+  if("structure" in candidate)return {ok:true,structure:candidate.structure};
   return typeof candidate.text === "string"
     ? { ok: true, text: candidate.text }
     : { ok: true };
@@ -124,14 +126,14 @@ export function resumeParserEnvironment(
   return filtered;
 }
 
-export async function runResumeParserProcess(input: {
+async function runResumeParserResult(input: {
   operation: ParserOperation;
   buffer: Buffer;
   timeoutMs?: number;
   signal?: AbortSignal;
   childPath?: string;
   sandbox?: ResumeParserSandboxOptions;
-}): Promise<string | undefined> {
+}): Promise<ParserSuccess> {
   if (input.signal?.aborted) throw new Error("RESUME_PARSE_ABORTED");
   const timeoutMs = input.timeoutMs ?? DEFAULT_PARSE_TIMEOUT_MS;
   const sandbox = input.sandbox ?? { mode: "process" };
@@ -156,13 +158,13 @@ export async function runResumeParserProcess(input: {
     let outputBytes = 0;
     let settled = false;
 
-    const finish = (error?: Error, text?: string) => {
+    const finish = (error?: Error, result?: ParserSuccess) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
       input.signal?.removeEventListener("abort", abort);
       if (error) reject(error);
-      else resolve(text);
+      else resolve(result ?? {ok:true});
     };
     const stopChild = () => {
       if (!child.killed) child.kill();
@@ -186,7 +188,7 @@ export async function runResumeParserProcess(input: {
 
     child.stdout.on("data", (chunk: Buffer) => {
       outputBytes += chunk.length;
-      if (outputBytes > MAX_PARSER_OUTPUT_BYTES) {
+      if (outputBytes > (input.operation.startsWith("extract-") ? 8*MAX_PARSER_OUTPUT_BYTES : MAX_PARSER_OUTPUT_BYTES)) {
         stopChild();
         finish(new ResumeInputError("RESUME_PARSE_FAILED", "简历解析结果超过安全上限。"));
         return;
@@ -220,7 +222,7 @@ export async function runResumeParserProcess(input: {
         finish(new ResumeInputError("RESUME_PARSE_FAILED", "简历解析结果格式无效。"));
         return;
       }
-      finish(undefined, success.text);
+      finish(undefined, success);
     });
     child.stdin.on("error", () => {
       if (!settled) {
@@ -230,6 +232,14 @@ export async function runResumeParserProcess(input: {
     });
     child.stdin.end(input.buffer);
   });
+}
+
+export async function runResumeParserProcess(input: Parameters<typeof runResumeParserResult>[0]): Promise<string|undefined> {
+  return (await runResumeParserResult(input)).text;
+}
+/** Structure is validated by the native importer before use; transport keeps old text callers unchanged. */
+export async function extractResumeStructure(input: Omit<Parameters<typeof runResumeParserResult>[0],"operation"> & {kind:"pdf"|"docx"}):Promise<unknown> {
+  return (await runResumeParserResult({...input,operation:input.kind==="pdf"?"extract-pdf-structure":"extract-docx-structure"})).structure;
 }
 
 export async function validateDocxArchive(buffer: Buffer): Promise<void> {

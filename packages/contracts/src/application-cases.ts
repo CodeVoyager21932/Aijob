@@ -320,6 +320,7 @@ export type CreateApplicationCaseJobContext = z.infer<typeof CreateApplicationCa
 export const CreateApplicationCaseWithJobContextRequestSchema = z
   .object({
     jobContext: CreateApplicationCaseJobContextSchema,
+    initialStage: z.enum(["interested","preparing"]).optional(),
   })
   .strict();
 export type CreateApplicationCaseWithJobContextRequest = z.infer<
@@ -344,9 +345,49 @@ export type TransitionApplicationCaseRequest = z.infer<
 export const RecordManualApplicationRequestSchema = z
   .object({
     expectedRevision: RevisionSchema,
+    submittedResume: z
+      .object({
+        documentId: UuidSchema,
+        contentRevisionId: UuidSchema,
+        layoutRevisionId: UuidSchema,
+        exportArtifactId: UuidSchema.optional(),
+      })
+      .strict()
+      .optional(),
+    submittedAt: TimestampSchema.optional(),
   })
   .strict();
 export type RecordManualApplicationRequest = z.infer<typeof RecordManualApplicationRequestSchema>;
+
+export const BulkCaseProgressRequestSchema = z
+  .object({
+    items: z
+      .array(z.object({ caseId: UuidSchema, expectedRevision: RevisionSchema }).strict())
+      .min(1)
+      .max(50)
+      .refine((items) => new Set(items.map((item) => item.caseId)).size === items.length),
+    action: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("manual_application") }).strict(),
+      z
+        .object({ kind: z.literal("transition"), request: TransitionApplicationCaseRequestSchema })
+        .strict(),
+    ]),
+  })
+  .strict();
+export type BulkCaseProgressRequest = z.infer<typeof BulkCaseProgressRequestSchema>;
+export const BulkCaseProgressResultSchema = z.object({
+  items: z.array(
+    z.discriminatedUnion("status", [
+      z.object({ caseId: UuidSchema, status: z.literal("succeeded"), revision: RevisionSchema }),
+      z.object({
+        caseId: UuidSchema,
+        status: z.literal("failed"),
+        code: z.string(),
+        message: z.string(),
+      }),
+    ]),
+  ),
+});
 
 export const UpgradeApplicationCaseJobVersionRequestSchema = z
   .object({
@@ -746,6 +787,8 @@ const ManualApplicationRecordedEventDataSchema = z
     fromStage: CaseStageSchema,
     toStage: z.literal("applied"),
     reasonCode: ReasonCodeSchema.nullable(),
+    submittedMaterialId: UuidSchema.optional(),
+    submittedAt: TimestampSchema.optional(),
   })
   .strict()
   .refine((value) => value.fromStage !== "applied", {

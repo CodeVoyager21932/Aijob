@@ -58,11 +58,25 @@ function assertLocalEnvironment(appEnv: AppEnvironment): void {
   if (appEnv !== "local") throw new Error("SOURCE_REFRESH_LOCAL_ONLY");
 }
 
+function operatorScopeAllowed(
+  config: Awaited<ReturnType<typeof loadSourceConfig>>,
+  includePublic = false,
+) {
+  return (
+    config.runtimeScope === "local" ||
+    (includePublic &&
+      ["alpha", "production"].includes(config.runtimeScope) &&
+      config.policy.status === "approved")
+  );
+}
+
 export async function enableLocalSourceRefresh(input: {
   db: Kysely<Database>;
   appEnv: AppEnvironment;
   workspaceRoot: string;
   staggerHours?: number;
+  sourceKeys?: readonly string[];
+  includePublicSources?: boolean;
   now?: Date;
   dependencies?: Partial<SourceRefreshOperationDependencies>;
 }) {
@@ -71,6 +85,8 @@ export async function enableLocalSourceRefresh(input: {
   assertSourceRefreshStaggerHours(staggerHours);
   const deps = dependencies(input.dependencies);
   const controlTime = input.now;
+  const sourceKeys = input.sourceKeys ?? deps.readLocalRefreshControl(input.workspaceRoot).sourceKeys;
+  if (sourceKeys?.length === 0) throw new Error("NO_SOURCE_REFRESH_CONFIGURED");
   deps.writeLocalRefreshControl({
     rootDirectory: input.workspaceRoot,
     enabled: false,
@@ -78,15 +94,18 @@ export async function enableLocalSourceRefresh(input: {
   });
   await deps.waitForCollectorIdle(input.db);
   const configs = await Promise.all(
-    (await deps.listSourceKeys()).map((sourceKey) => deps.loadSourceConfig(sourceKey)),
+    (sourceKeys ?? (await deps.listSourceKeys())).map((sourceKey) => deps.loadSourceConfig(sourceKey)),
   );
   const enabledConfigs = configs.filter(
     (config) =>
       config.catalogRole === "canonical" &&
-      config.runtimeScope === "local" &&
+      operatorScopeAllowed(config, input.includePublicSources) &&
       config.policy.crawlInterval.enabled,
   );
   if (enabledConfigs.length === 0) throw new Error("NO_SOURCE_REFRESH_CONFIGURED");
+  if (sourceKeys && enabledConfigs.length !== configs.length) {
+    throw new Error("SOURCE_SCHEDULED_REFRESH_NOT_AUTHORIZED");
+  }
 
   const registeredSources = [];
   for (const config of enabledConfigs) {
@@ -117,6 +136,7 @@ export async function enableLocalSourceRefresh(input: {
   const control = deps.writeLocalRefreshControl({
     rootDirectory: input.workspaceRoot,
     enabled: true,
+    ...(sourceKeys ? { sourceKeys } : {}),
     ...(controlTime ? { now: controlTime } : {}),
   });
   return { control, registeredSources, staggerHours, staggeredSources };
@@ -165,20 +185,25 @@ export async function requestLocalSourceRefresh(input: {
   appEnv: AppEnvironment;
   workspaceRoot: string;
   sourceKey?: string;
+  includePublicSources?: boolean;
   now?: Date;
   dependencies?: Partial<SourceRefreshOperationDependencies>;
 }) {
   assertLocalEnvironment(input.appEnv);
   const deps = dependencies(input.dependencies);
-  if (!deps.readLocalRefreshControl(input.workspaceRoot).enabled) {
+  const control = deps.readLocalRefreshControl(input.workspaceRoot);
+  if (!control.enabled) {
     throw new Error("SOURCE_REFRESH_DISABLED");
+  }
+  if (input.sourceKey && control.sourceKeys && !control.sourceKeys.includes(input.sourceKey)) {
+    throw new Error("SOURCE_REFRESH_OUTSIDE_ENABLED_SCOPE");
   }
 
   if (input.sourceKey) {
     const config = await deps.loadSourceConfig(input.sourceKey);
     if (
       config.catalogRole !== "canonical" ||
-      config.runtimeScope !== "local" ||
+      !operatorScopeAllowed(config, input.includePublicSources) ||
       !config.policy.crawlInterval.enabled
     ) {
       throw new Error("SOURCE_SCHEDULED_REFRESH_NOT_AUTHORIZED");
@@ -189,13 +214,13 @@ export async function requestLocalSourceRefresh(input: {
     ? [input.sourceKey]
     : (
         await Promise.all(
-          (await deps.listSourceKeys()).map((sourceKey) => deps.loadSourceConfig(sourceKey)),
+          (control.sourceKeys ?? (await deps.listSourceKeys())).map((sourceKey) => deps.loadSourceConfig(sourceKey)),
         )
       )
         .filter(
           (config) =>
             config.catalogRole === "canonical" &&
-            config.runtimeScope === "local" &&
+            operatorScopeAllowed(config, input.includePublicSources) &&
             config.policy.crawlInterval.enabled,
         )
         .map((config) => config.sourceKey);
@@ -207,6 +232,9 @@ export async function requestLocalSourceRefresh(input: {
         await deps.requestImmediateSourceRefresh({
           db: input.db,
           sourceKey,
+          ...(input.includePublicSources
+            ? { allowedRuntimeScopes: ["local", "alpha", "production"] }
+            : {}),
           ...(input.now ? { now: input.now } : {}),
         }),
       );
@@ -248,8 +276,11 @@ export async function runLocalSourceRefreshOnce(input: {
     throw new Error("SOURCE_REFRESH_REQUIRES_MANUAL_SNAPSHOT");
   }
 
-  await deps.registerSourceConfig(input.db, config);
   const previousControl = deps.readLocalRefreshControl(input.workspaceRoot);
+  if (previousControl.enabled && previousControl.sourceKeys && !previousControl.sourceKeys.includes(input.sourceKey)) {
+    throw new Error("SOURCE_REFRESH_OUTSIDE_ENABLED_SCOPE");
+  }
+  await deps.registerSourceConfig(input.db, config);
   if (!previousControl.enabled) {
     deps.writeLocalRefreshControl({
       rootDirectory: input.workspaceRoot,
@@ -269,6 +300,7 @@ export async function runLocalSourceRefreshOnce(input: {
       deps.writeLocalRefreshControl({
         rootDirectory: input.workspaceRoot,
         enabled: true,
+        sourceKeys: [input.sourceKey],
         ...(input.now ? { now: input.now } : {}),
       });
     }
@@ -283,6 +315,7 @@ export async function runLocalSourceRefreshOnce(input: {
       deps.writeLocalRefreshControl({
         rootDirectory: input.workspaceRoot,
         enabled: false,
+        sourceKeys: previousControl.sourceKeys ?? null,
         ...(input.now ? { now: input.now } : {}),
       });
       await deps.waitForCollectorIdle(input.db);

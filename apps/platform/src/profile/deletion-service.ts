@@ -327,6 +327,43 @@ export async function processOwnerDeletion(input: {
         .deleteFrom("matching.resume_exports")
         .where("owner_id", "=", input.ownerId)
         .execute();
+      for (const table of [
+        "resume_export_receipts",
+        "resume_export_artifacts",
+        "resume_template_preferences",
+        "resume_template_receipts",
+        "resume_photos",
+      ]) {
+        await sql`DELETE FROM ${sql.id("profile", table)} WHERE owner_id=${input.ownerId}`.execute(
+          transaction,
+        );
+      }
+      await transaction
+        .deleteFrom("application.planner_items")
+        .where("owner_id", "=", input.ownerId)
+        .execute();
+      await transaction
+        .deleteFrom("application.submitted_materials")
+        .where("owner_id", "=", input.ownerId)
+        .execute();
+      await sql`DELETE FROM application.case_recruitment_plans WHERE owner_id=${input.ownerId}::uuid`.execute(
+        transaction,
+      );
+      await sql`DELETE FROM application.interview_continuity WHERE owner_id=${input.ownerId}::uuid`.execute(
+        transaction,
+      );
+      await transaction
+        .deleteFrom("profile.material_snippets")
+        .where("owner_id", "=", input.ownerId)
+        .execute();
+      await transaction
+        .deleteFrom("application.saved_searches")
+        .where("owner_id", "=", input.ownerId)
+        .execute();
+      await transaction
+        .deleteFrom("application.planner_mutation_receipts")
+        .where("owner_id", "=", input.ownerId)
+        .execute();
       await transaction
         .deleteFrom("matching.recommendation_items")
         .where("owner_id", "=", input.ownerId)
@@ -403,6 +440,40 @@ export async function processOwnerDeletion(input: {
         .deleteFrom("profile.resume_documents")
         .where("owner_id", "=", input.ownerId)
         .execute();
+      await sql`DELETE FROM profile.assistant_sessions WHERE owner_id=${input.ownerId}`.execute(
+        transaction,
+      );
+      await sql`DELETE FROM profile.ai_connections WHERE owner_id=${input.ownerId}`.execute(
+        transaction,
+      );
+      await sql`DELETE FROM profile.discovery_cache WHERE owner_id=${input.ownerId}`.execute(
+        transaction,
+      );
+      await sql`DELETE FROM profile.discovery_usage WHERE owner_id=${input.ownerId}`.execute(
+        transaction,
+      );
+      await sql`DELETE FROM profile.discovery_schedule WHERE owner_id=${input.ownerId}`.execute(
+        transaction,
+      );
+      await sql`DELETE FROM profile.discovery_legacy_bindings WHERE owner_id=${input.ownerId}`.execute(
+        transaction,
+      );
+      await sql`DELETE FROM profile.discovery_settings WHERE owner_id=${input.ownerId}`.execute(
+        transaction,
+      );
+      await sql`DELETE FROM identity.device_bindings WHERE owner_id=${input.ownerId}`.execute(
+        transaction,
+      );
+      await sql`DELETE FROM profile.ai_usage WHERE owner_id=${input.ownerId}`.execute(transaction);
+      await sql`DELETE FROM application.job_bookmarks WHERE owner_id=${input.ownerId}`.execute(
+        transaction,
+      );
+      await sql`DELETE FROM application.bookmark_receipts WHERE owner_id=${input.ownerId}`.execute(
+        transaction,
+      );
+      await sql`DELETE FROM profile.experiences WHERE owner_id=${input.ownerId}`.execute(
+        transaction,
+      );
       await transaction
         .deleteFrom("application.case_requirement_evidence_links")
         .where("owner_id", "=", input.ownerId)

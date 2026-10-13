@@ -13,7 +13,11 @@ import {
   requireOwnerContext,
   SESSION_COOKIE_NAME,
 } from "./fastify.js";
-import { hashOpaqueToken } from "./session-repository.js";
+import {
+  hashOpaqueToken,
+  createAnonymousSession,
+  findActiveSession,
+} from "./session-repository.js";
 
 const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
@@ -61,6 +65,47 @@ describeWithDatabase("anonymous owner Fastify boundary", () => {
     await db.destroy();
   });
 
+  it("coalesces activity timestamps while checking revocation on every request", async () => {
+    const now = new Date(),
+      session = await createAnonymousSession({ db, now });
+    ownerIds.push(session.context.ownerId);
+    const read = async () =>
+      (
+        await db
+          .selectFrom("identity.owner_sessions")
+          .select("last_seen_at")
+          .where("id", "=", session.context.sessionId)
+          .executeTakeFirstOrThrow()
+      ).last_seen_at;
+    expect(
+      await findActiveSession({
+        db,
+        sessionToken: session.sessionToken,
+        now: new Date(now.valueOf() + 30000),
+      }),
+    ).not.toBeNull();
+    expect(new Date(await read()).valueOf()).toBe(now.valueOf());
+    expect(
+      await findActiveSession({
+        db,
+        sessionToken: session.sessionToken,
+        now: new Date(now.valueOf() + 61000),
+      }),
+    ).not.toBeNull();
+    expect(new Date(await read()).valueOf()).toBe(now.valueOf() + 61000);
+    await db
+      .updateTable("identity.owner_sessions")
+      .set({ revoked_at: now })
+      .where("id", "=", session.context.sessionId)
+      .execute();
+    expect(
+      await findActiveSession({
+        db,
+        sessionToken: session.sessionToken,
+        now: new Date(now.valueOf() + 62000),
+      }),
+    ).toBeNull();
+  });
   it("bootstraps a localhost owner, stores only hashes and enforces Origin plus CSRF", async () => {
     const runId = randomUUID();
     const delivery = new FixtureEmailVerificationDelivery();
@@ -187,10 +232,7 @@ describeWithDatabase("anonymous owner Fastify boundary", () => {
         secondBootstrap.headers["set-cookie"],
         SESSION_COOKIE_NAME,
       );
-      const secondCsrfToken = cookieValue(
-        secondBootstrap.headers["set-cookie"],
-        CSRF_COOKIE_NAME,
-      );
+      const secondCsrfToken = cookieValue(secondBootstrap.headers["set-cookie"], CSRF_COOKIE_NAME);
       const secondOwnerChallenge = await app.inject({
         method: "POST",
         url: "/v1/email-verification-challenges",

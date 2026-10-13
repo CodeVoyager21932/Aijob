@@ -5,13 +5,18 @@ import {
   ResumeSemanticContentSchema,
   type ResumeTemplateKey,
   ResumeTemplateKeySchema,
+  ResumeLayoutSettingsSchema,
+  ResumeStudioContentSchema,
+  ResumeStudioLayoutSchema,
 } from "@aijob/contracts";
 import type { Database, JsonValue } from "@aijob/database";
-import type { Kysely } from "kysely";
+import type { Kysely, Transaction } from "kysely";
 import { z } from "zod";
-import type { OwnerScope } from "../identity/session-repository.js";
+import { assertActiveOwnerEpoch, type OwnerScope } from "../identity/session-repository.js";
 import { ServiceError } from "../lib/service-error.js";
 import { type AtsResumeDocumentInput, createAtsResumeDocx } from "../resume/export-docx.js";
+import { createStudioDocx } from "./studio-docx.js";
+import { readResumePhoto } from './template-library.js';
 
 const DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const SectionOrderSchema = z.array(z.string().uuid()).min(1).max(100);
@@ -25,7 +30,7 @@ function parseJsonValue(value: JsonValue): unknown {
   }
 }
 
-function semanticContent(schemaVersion: string, sections: JsonValue): ResumeSemanticContent {
+export function semanticContent(schemaVersion: string, sections: JsonValue): ResumeSemanticContent {
   const parsedSections = parseJsonValue(sections);
   if (schemaVersion === "resume-content-v1") {
     return ResumeSemanticContentSchema.parse({
@@ -97,22 +102,24 @@ export function buildResumeDocumentDocxInput(input: {
   };
 }
 
-function safeFileName(title: string): string {
+export function safeResumeFileName(title: string, extension = "docx"): string {
   const normalized = title
     .normalize("NFKC")
     .replace(/[<>:"/\\|?*]|\p{Cc}/gu, " ")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 60);
-  return `Aijob-${normalized || "简历"}.docx`;
+  return `Aijob-${normalized || "简历"}.${extension}`;
 }
 
-export async function exportResumeDocumentDocx(input: {
-  db: Kysely<Database>;
+export async function loadResumeExportSnapshot(input: {
+  db: Kysely<Database> | Transaction<Database>;
   owner: OwnerScope;
   documentId: string;
   query: ResumeDocumentDocxExportQuery;
-}): Promise<{ buffer: Buffer; fileName: string; mediaType: string }> {
+  allowHistorical?: boolean;
+  encryptionKey?: string | undefined;
+}) {
   const document = await input.db
     .selectFrom("profile.resume_documents")
     .select(["id", "title", "current_content_revision_id", "current_layout_revision_id"])
@@ -129,8 +136,9 @@ export async function exportResumeDocumentDocx(input: {
     );
   }
   if (
-    document.current_content_revision_id !== input.query.contentRevisionId ||
-    document.current_layout_revision_id !== input.query.layoutRevisionId
+    !input.allowHistorical &&
+    (document.current_content_revision_id !== input.query.contentRevisionId ||
+      document.current_layout_revision_id !== input.query.layoutRevisionId)
   ) {
     throw new ServiceError(
       409,
@@ -142,7 +150,7 @@ export async function exportResumeDocumentDocx(input: {
   const [contentRow, layoutRow] = await Promise.all([
     input.db
       .selectFrom("profile.resume_document_revisions")
-      .select(["schema_version", "sections"])
+      .select(["schema_version", "sections", "studio_content", "result_document_revision"])
       .where("id", "=", input.query.contentRevisionId)
       .where("document_id", "=", document.id)
       .where("owner_id", "=", input.owner.ownerId)
@@ -150,7 +158,7 @@ export async function exportResumeDocumentDocx(input: {
       .executeTakeFirst(),
     input.db
       .selectFrom("profile.resume_layout_revisions")
-      .select(["template_key", "section_order"])
+      .select(["template_key", "section_order", "settings", "studio_layout", "result_document_revision"])
       .where("id", "=", input.query.layoutRevisionId)
       .where("document_id", "=", document.id)
       .where("owner_id", "=", input.owner.ownerId)
@@ -165,17 +173,53 @@ export async function exportResumeDocumentDocx(input: {
     );
   }
   const content = semanticContent(contentRow.schema_version, contentRow.sections);
+  if(contentRow.studio_content && (!layoutRow.studio_layout || contentRow.result_document_revision!==layoutRow.result_document_revision)) throw new ServiceError(409,"RESUME_VERSION_PAIR_MISMATCH","正文与版式必须来自同一个保存版本。");
   const templateKey = ResumeTemplateKeySchema.parse(layoutRow.template_key);
   const sectionOrder = SectionOrderSchema.parse(parseJsonValue(layoutRow.section_order));
-  const docxInput = buildResumeDocumentDocxInput({
+  buildResumeDocumentDocxInput({
     title: document.title,
     content,
     templateKey,
     sectionOrder,
   });
+  const parsedSettings = ResumeLayoutSettingsSchema.safeParse(layoutRow.settings);
+  const studioContent = contentRow.studio_content ? ResumeStudioContentSchema.parse(contentRow.studio_content) : null;
+  const photo = studioContent?.basics.photoId && input.encryptionKey ? await readResumePhoto(input.db,input.owner,studioContent.basics.photoId,input.encryptionKey) : null;
+  if(studioContent?.basics.photoId && layoutRow.studio_layout && ResumeStudioLayoutSchema.parse(layoutRow.studio_layout).photoVisible !== false && !photo) throw new ServiceError(422,'RESUME_PHOTO_UNAVAILABLE','这份稿件引用的照片已删除或无法读取。请重新选择照片或关闭照片显示后导出；已保存的导出文件仍可下载。');
   return {
-    buffer: await createAtsResumeDocx(docxInput),
-    fileName: safeFileName(document.title),
+    title: document.title,
+    ...(studioContent && layoutRow.studio_layout ? {studio:{content:studioContent,layout:ResumeStudioLayoutSchema.parse(layoutRow.studio_layout),resources:photo?{photoDataUrl:`data:${photo.mediaType};base64,${photo.buffer.toString('base64')}`}:{}}} : {}),
+    content,
+    templateKey,
+    sectionOrder,
+    settings: parsedSettings.success
+      ? parsedSettings.data
+      : ResumeLayoutSettingsSchema.parse({
+          schemaVersion: "resume-layout-settings-v1",
+          fontSizeToken: "standard",
+          lineSpacingToken: "standard",
+          sectionSpacingToken: "standard",
+          colorToken: "charcoal",
+          pageBreakPolicy: "keep_sections",
+        }),
+  };
+}
+
+export async function exportResumeDocumentDocx(input: {
+  db: Kysely<Database>;
+  owner: OwnerScope;
+  documentId: string;
+  query: ResumeDocumentDocxExportQuery;
+  encryptionKey?: string | undefined;
+  allowHistorical?: boolean;
+}) {
+  const snapshot = await input.db.transaction().execute(async (tx) => {
+    await assertActiveOwnerEpoch(tx, input.owner.ownerId, input.owner.ownerEpoch);
+    return loadResumeExportSnapshot({ ...input, db: tx });
+  });
+  return {
+    buffer: snapshot.studio ? await createStudioDocx(snapshot.studio.content,snapshot.studio.layout,snapshot.studio.resources) : await createAtsResumeDocx(buildResumeDocumentDocxInput(snapshot)),
+    fileName: safeResumeFileName(snapshot.title),
     mediaType: DOCX_MEDIA_TYPE,
   };
 }

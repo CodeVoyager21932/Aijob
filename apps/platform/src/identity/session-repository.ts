@@ -115,6 +115,7 @@ export function isActiveOwnerEpochState(
     return false;
   }
   if (owner.retention_mode === "account_managed") return true;
+  if (owner.retention_mode === "persistent_guest") return owner.retention_expires_at === null;
   if (owner.retention_mode !== "anonymous_ttl" || owner.retention_expires_at === null) {
     return false;
   }
@@ -125,6 +126,8 @@ export async function createAnonymousSession(input: {
   db: Kysely<Database>;
   now?: Date;
   ttlMs?: number;
+  /** Explicit legacy mode is for retention compatibility/imports; browser sessions use persistent_guest. */
+  retentionMode?: "persistent_guest" | "anonymous_ttl";
 }): Promise<CreatedAnonymousSession> {
   const now = input.now ?? new Date();
   const expiresAt = new Date(now.getTime() + (input.ttlMs ?? ANONYMOUS_SESSION_TTL_MS));
@@ -142,7 +145,8 @@ export async function createAnonymousSession(input: {
         id: ownerId,
         status: "active",
         epoch: 1,
-        retention_expires_at: expiresAt,
+        retention_mode: input.retentionMode ?? "persistent_guest",
+        retention_expires_at: input.retentionMode === "anonymous_ttl" ? expiresAt : null,
         last_seen_at: now,
         deleted_at: null,
       })
@@ -248,6 +252,8 @@ export async function findActiveSession(input: {
       "session.owner_epoch",
       "session.csrf_token_hash",
       "session.expires_at",
+      "session.last_seen_at as session_last_seen_at",
+      "owner.last_seen_at as owner_last_seen_at",
       "owner.epoch as current_owner_epoch",
       "owner.status as owner_status",
       "owner.retention_mode as owner_retention_mode",
@@ -274,19 +280,28 @@ export async function findActiveSession(input: {
     return null;
   }
 
+  // Activity timestamps are operational metadata, not authorization state. Always check
+  // revocation/epoch above; coalesce repeated activity writes within a minute.
+  const touchBefore = new Date(now.valueOf() - 60000);
   await Promise.all([
-    input.db
-      .updateTable("identity.owner_sessions")
-      .set({ last_seen_at: now })
-      .where("id", "=", row.session_id)
-      .execute(),
-    input.db
-      .updateTable("identity.owners")
-      .set({ last_seen_at: now })
-      .where("id", "=", row.owner_id)
-      .where("epoch", "=", Number(row.owner_epoch))
-      .where("status", "=", "active")
-      .execute(),
+    new Date(row.session_last_seen_at).valueOf() <= touchBefore.valueOf()
+      ? input.db
+          .updateTable("identity.owner_sessions")
+          .set({ last_seen_at: now })
+          .where("id", "=", row.session_id)
+          .where("last_seen_at", "<=", touchBefore)
+          .execute()
+      : undefined,
+    new Date(row.owner_last_seen_at).valueOf() <= touchBefore.valueOf()
+      ? input.db
+          .updateTable("identity.owners")
+          .set({ last_seen_at: now })
+          .where("id", "=", row.owner_id)
+          .where("epoch", "=", Number(row.owner_epoch))
+          .where("status", "=", "active")
+          .where("last_seen_at", "<=", touchBefore)
+          .execute()
+      : undefined,
   ]);
 
   return {
@@ -326,4 +341,21 @@ export async function assertActiveOwnerEpoch(
   if (!isActiveOwnerEpochState(owner, ownerEpoch, now)) {
     throw new Error("OWNER_EPOCH_STALE");
   }
+}
+
+/** Call only in a transaction that saves user-created material; reading or bootstrapping an old owner does not change retention. */
+export async function retainOwnerAssetsAfterMaterialSave(
+  db: IdentityDb,
+  owner: OwnerScope,
+  now = new Date(),
+): Promise<void> {
+  await assertActiveOwnerEpoch(db, owner.ownerId, owner.ownerEpoch, now);
+  await db
+    .updateTable("identity.owners")
+    .set({ retention_mode: "persistent_guest", retention_expires_at: null })
+    .where("id", "=", owner.ownerId)
+    .where("epoch", "=", owner.ownerEpoch)
+    .where("retention_mode", "=", "anonymous_ttl")
+    .where("retention_expires_at", ">", now)
+    .execute();
 }

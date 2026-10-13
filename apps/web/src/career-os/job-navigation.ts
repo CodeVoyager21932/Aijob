@@ -50,6 +50,7 @@ function listValue(params: URLSearchParams, key: (typeof listKeys)[number]): str
 export function jobFiltersFromSearchParams(params: URLSearchParams): JobFilters {
   return {
     keyword: params.get("keyword")?.trim() ?? "",
+    ...(params.get("sort")==="company_asc"?{sort:"company_asc" as const}:{}),
     companies: listValue(params, "companies"),
     cities: listValue(params, "cities"),
     jobFamilies: listValue(params, "jobFamilies"),
@@ -80,6 +81,7 @@ export function jobFiltersToSearchParams(
   options: { includeCursor?: boolean } = {},
 ): URLSearchParams {
   const params = new URLSearchParams();
+  if(filters.sort) params.set("sort",filters.sort);
   if (filters.keyword.trim()) params.set("keyword", filters.keyword.trim());
   for (const key of listKeys) setList(params, key, filters[key]);
   if (filters.availableWeeklyAttendanceDays) {

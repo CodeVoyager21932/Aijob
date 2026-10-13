@@ -27,13 +27,13 @@ import { hashCanonicalJson } from "../lib/canonical-json.js";
 import { ServiceError } from "../lib/service-error.js";
 import { inferCapabilities, isSpecificToolTerm } from "../matching/capabilities.js";
 
-export const JOB_INSIGHT_ALGORITHM_VERSION = "job-market-insight-v1" as const;
+export const JOB_INSIGHT_ALGORITHM_VERSION = "job-market-insight-v2" as const;
 
 const MIN_JOBS = 20;
 const MIN_COMPANIES = 5;
 const MIN_REQUIREMENT_COVERAGE = 0.7;
-const MIN_ITEM_JOBS = 3;
-const MIN_ITEM_COMPANIES = 2;
+const MIN_ITEM_JOBS = 1;
+const MIN_ITEM_COMPANIES = 1;
 
 export interface InsightJobRecord {
   jobId: string;
@@ -263,6 +263,7 @@ export function buildJobInsightResult(
   records: InsightJobRecord[],
   resumeEvidence: ResumeEvidence[] | null,
 ): JobInsightResult {
+  records = [...new Map(records.map((record) => [record.jobId, record])).values()];
   const companies = new Set(records.map(({ companyId }) => companyId));
   const companiesWithKnownScale = new Set(
     records
@@ -285,16 +286,18 @@ export function buildJobInsightResult(
     hard: new Map<string, Aggregate>(),
     capability: new Map<string, Aggregate>(),
     preferred: new Map<string, Aggregate>(),
+    mentioned: new Map<string, Aggregate>(),
   };
   for (const record of records) {
     for (const requirement of record.requirements) {
-      if (requirement.necessity === "unknown") continue;
       const section =
-        requirement.necessity === "preferred" || requirement.necessity === "optional"
-          ? "preferred"
-          : requirement.kind === "skill" || requirement.kind === "experience"
-            ? "capability"
-            : "hard";
+        requirement.necessity === "unknown"
+          ? "mentioned"
+          : requirement.necessity === "preferred" || requirement.necessity === "optional"
+            ? "preferred"
+            : requirement.kind === "skill" || requirement.kind === "experience"
+              ? "capability"
+              : "hard";
       for (const atom of requirementAtoms(requirement)) {
         const aggregateKey = `${section}:${atom.key}`;
         let aggregate = groups[section].get(aggregateKey);
@@ -348,10 +351,12 @@ export function buildJobInsightResult(
       structuredRequirementJobCount,
       requirementCoverage,
       lastVerifiedAt: verifiedTimes[0]?.toISOString() ?? null,
+      firstVerifiedAt: verifiedTimes.at(-1)?.toISOString() ?? null,
     },
-    commonHardRequirements: dataSufficient ? rankedItems(groups.hard.values(), evidence) : [],
-    frequentCapabilities: dataSufficient ? rankedItems(groups.capability.values(), evidence) : [],
-    preferredRequirements: dataSufficient ? rankedItems(groups.preferred.values(), evidence) : [],
+    commonHardRequirements: rankedItems(groups.hard.values(), evidence),
+    frequentCapabilities: rankedItems(groups.capability.values(), evidence),
+    preferredRequirements: rankedItems(groups.preferred.values(), evidence),
+    mentionedRequirements: rankedItems(groups.mentioned.values(), evidence),
   });
 }
 

@@ -3,7 +3,7 @@ export function shouldEnableInternalSurfaces(input: { isDev: boolean; mode: stri
 }
 
 export function shouldEnableProductSurfaces(input: { isDev: boolean; mode: string }): boolean {
-  return shouldEnableInternalSurfaces(input) || input.mode === "alpha";
+  return shouldEnableInternalSurfaces(input) || input.mode === "alpha" || input.mode === "desktop";
 }
 
 export function shouldRequireAlphaAccess(input: { isDev: boolean; mode: string }): boolean {

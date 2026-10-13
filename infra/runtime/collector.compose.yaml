@@ -1,0 +1,30 @@
+name: aijob-supply
+services:
+  collector-worker:
+    image: ${AIJOB_PLATFORM_IMAGE:?Set the tested platform image digest}
+    command: [node, apps/platform/dist/collector-worker.js]
+    env_file: ${AIJOB_COLLECTOR_ENV:?Set the collector-only environment file}
+    environment:
+      COLLECTOR_ISOLATION: container
+      COLLECTOR_BROWSER_EXECUTABLE: /usr/bin/chromium
+      SNAPSHOT_DIR: /opt/aijob/.data/snapshots
+    read_only: true
+    init: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./chromium-seccomp.json
+    pids_limit: 256
+    mem_limit: 2g
+    cpus: 2
+    shm_size: 256m
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=256m
+    volumes:
+      - ${AIJOB_SOURCE_CONFIG_DIR:?Set the reviewed source configuration directory}:/opt/aijob/config/sources:ro
+      - ${AIJOB_COLLECTOR_DATA_DIR:?Set the collector data directory}:/opt/aijob/.data
+    restart: unless-stopped
+    stop_grace_period: 45s
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}

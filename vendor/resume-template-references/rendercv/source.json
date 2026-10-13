@@ -1,0 +1,37 @@
+{
+  "repository": "rendercv/rendercv",
+  "commit": "1d4b87bc427e4cf61c0ef49623c971b0e2224708",
+  "license": "MIT",
+  "files": [
+    {
+      "path": "LICENSE",
+      "local": "LICENSE",
+      "sha256": "9b7a082e203987b6df516af8b055e8ccaacbdf5522724e5e82a62f07ccc0b812"
+    },
+    {
+      "path": "src/rendercv/renderer/rendercv_typst/examples/classic.typ",
+      "local": "classic.typ",
+      "sha256": "64a6e1d5b7822a9e22d2e40892b9a3d3a6597b7cbda1a059da903927b1a1aac6"
+    },
+    {
+      "path": "src/rendercv/renderer/rendercv_typst/examples/engineeringresumes.typ",
+      "local": "engineeringresumes.typ",
+      "sha256": "efdd23faa4ec9605b097f8dfb3a98b88e6be02bf24983c4c5a79954870d88d52"
+    },
+    {
+      "path": "src/rendercv/schema/models/design/other_themes/engineeringresumes.yaml",
+      "local": "engineeringresumes.yaml",
+      "sha256": "d2eabec789837a65eec7a0882212069662ef3a460c3f4981ad5c5b40ee51b3d5"
+    },
+    {
+      "path": "examples/John_Doe_ClassicTheme_CV.yaml",
+      "local": "John_Doe_ClassicTheme_CV.yaml",
+      "sha256": "c452246c63e573a6087e62d5a66aeeed06c983e00ceed6cfa725078cb9b6e848"
+    },
+    {
+      "path": "examples/John_Doe_EngineeringresumesTheme_CV.yaml",
+      "local": "John_Doe_EngineeringresumesTheme_CV.yaml",
+      "sha256": "fa115bb594a5b86ba79a4fc230c32f80a15088ca7210ab8bed69905121b28040"
+    }
+  ]
+}

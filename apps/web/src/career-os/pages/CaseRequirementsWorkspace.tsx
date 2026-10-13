@@ -397,7 +397,7 @@ export function CaseRequirementsWorkspace({
           <div>
             <p>真实岗位要求</p>
             <h2>逐项理解岗位要求</h2>
-            <span>岗位原文、用户状态、已确认证据和未知项始终分开保存。</span>
+            <span>看看哪些已有经历能用上，哪些值得继续准备；不需要逐项完成才能写简历或投递。</span>
           </div>
           <fieldset className="career-workspace-heading__legend">
             <legend className="sr-only">证据状态图例</legend>
@@ -409,8 +409,8 @@ export function CaseRequirementsWorkspace({
 
         {evidenceQuery.isError ? (
           <div className="career-inline-error" role="alert">
-            <strong>已确认证据暂时无法读取</strong>
-            <span>你仍可保存要求三态和备注。</span>
+            <strong>以前关联的材料暂时无法读取</strong>
+            <span>你仍可整理经历、添加准备事项和保存备注。</span>
           </div>
         ) : null}
 

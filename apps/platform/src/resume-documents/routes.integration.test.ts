@@ -33,6 +33,7 @@ import { createDatabase, type Database, migrateToLatest } from "@aijob/database"
 import type { FastifyInstance } from "fastify";
 import type { Kysely } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { saveUserAiSettings } from "../ai/user-ai-service.js";
 import { buildApp } from "../app.js";
 import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME, SESSION_COOKIE_NAME } from "../identity/fastify.js";
 import {
@@ -42,7 +43,7 @@ import {
 } from "../identity/session-repository.js";
 import { deleteRequirementFixtures } from "../lib/immutable-fixture-cleanup.js";
 import { DELETION_RECEIPT_COOKIE_NAME } from "../profile/routes.js";
-import { runOneOwnerTask } from "../workers/owner-task-worker.js";
+import { runOneOwnerTask as runScopedOwnerTask } from "../workers/owner-task-worker.js";
 
 const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
@@ -57,6 +58,7 @@ function config(): AppConfig {
     host: "127.0.0.1",
     port: 3000,
     probeRequestIntervalMs: 750,
+    ownerTaskInteractiveConcurrency: 8,
     logLevel: "silent",
     enableInternalPreview: true,
     enableSourceProbe: false,
@@ -230,6 +232,15 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
   let mainSession: Awaited<ReturnType<typeof createAnonymousSession>>;
   let otherSession: Awaited<ReturnType<typeof createAnonymousSession>>;
   let noEvidenceSession: Awaited<ReturnType<typeof createAnonymousSession>>;
+  const runOneOwnerTask = (input: Parameters<typeof runScopedOwnerTask>[0]) =>
+    runScopedOwnerTask({
+      ...input,
+      ownerIds: [
+        mainSession.context.ownerId,
+        otherSession.context.ownerId,
+        noEvidenceSession.context.ownerId,
+      ],
+    });
 
   const organizationId = randomUUID();
   const sourceId = randomUUID();
@@ -1059,11 +1070,17 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
         caseId: noEvidenceCaseId,
         baseDocumentRevisionId: noEvidenceResume.baseContentRevisionId,
         expectedCaseRevision: 1,
-        title: "没有已确认证据时不得创建",
+        title: "没有旧证据也可创建岗位简历",
       },
     });
-    expect(noEvidence.statusCode).toBe(409);
-    expect(noEvidence.json()).toMatchObject({ code: "RESUME_EVIDENCE_REQUIRED" });
+    expect(noEvidence.statusCode).toBe(201);
+    expect(
+      CreateResumeDocumentResponseSchema.parse(noEvidence.json()).resumeDocument,
+    ).toMatchObject({
+      kind: "case_derived",
+      caseId: noEvidenceCaseId,
+      evidenceRevisionId: null,
+    });
 
     const publicRequests = [randomUUID(), randomUUID()].map((idempotencyKey) =>
       app.inject({
@@ -1965,6 +1982,7 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
         enabled: true,
         baseUrl: "https://127.0.0.1/v1",
         model: "synthetic-review-model",
+        budget: { dailyCalls: 1000, dailyTokens: 10000000, concurrency: 2, maxOutputTokens: 2048 },
         apiKey: "synthetic-offline-key",
         requestTimeoutMs: 5_000,
       },
@@ -1994,11 +2012,28 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
         ).json(),
       );
 
+    const byokSettings = {
+      baseUrl: "https://fixture-user-ai.example/v1",
+      model: "synthetic-review-model",
+      apiKey: "owner-synthetic-offline-key",
+      requestTimeoutMs: 5000,
+      dailyCalls: 1000,
+      dailyTokens: 10000000,
+      concurrency: 2,
+      maxOutputTokens: 2048,
+    };
+    await saveUserAiSettings(db, mainSession.context, aiConfig, {
+      ...byokSettings,
+      expectedRevision: 0,
+    });
     const successfulRun = await createControlledAiReview("controlled-ai-success");
     let providerCalls = 0;
     const successfulFetch: typeof fetch = async (url, init) => {
       providerCalls += 1;
-      expect(new URL(String(url)).hostname).toBe("127.0.0.1");
+      expect(new URL(String(url)).hostname).toBe("fixture-user-ai.example");
+      expect(new Headers(init?.headers).get("authorization")).toBe(
+        "Bearer owner-synthetic-offline-key",
+      );
       expect(init?.redirect).toBe("error");
       const requestBody = String(init?.body);
       expect(requestBody).toContain(publicRequirementItemV1Id);
@@ -2109,6 +2144,11 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
         .execute(),
     ).rejects.toThrow("RESUME_REVIEW_REQUIREMENT_REFERENCE_INVALID");
 
+    await saveUserAiSettings(db, mainSession.context, aiConfig, {
+      ...byokSettings,
+      expectedRevision: 1,
+      enabled: false,
+    });
     const disabledFallbackRun = await createControlledAiReview("controlled-ai-disabled-fallback");
     expect(await runOneOwnerTask({ db, config: config(), workerId: "review-v2-ai-disabled" })).toBe(
       true,
@@ -2119,9 +2159,14 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       providerAdapter: null,
       model: null,
       usedTemplateFallback: true,
-      fallbackReasonCode: "AI_DISABLED",
+      fallbackReasonCode: "AI_NOT_READY",
     });
 
+    await saveUserAiSettings(db, mainSession.context, aiConfig, {
+      ...byokSettings,
+      expectedRevision: 2,
+      enabled: true,
+    });
     const schemaFallbackRun = await createControlledAiReview("controlled-ai-schema-fallback");
     const invalidSchemaFetch: typeof fetch = async () =>
       new Response(
@@ -2184,6 +2229,11 @@ describeWithDatabase("Resume Document aggregate owner-protected API", () => {
       fallbackReasonCode: "AI_REQUIREMENT_REFERENCE_INVALID",
     });
 
+    await saveUserAiSettings(db, mainSession.context, aiConfig, {
+      ...byokSettings,
+      expectedRevision: 3,
+      enabled: false,
+    });
     // Completing an older queued run after a newer one was created must not make it current.
     const olderQueued = await createControlledAiReview("older-queued-review");
     const newerQueued = await createControlledAiReview("newer-queued-review");

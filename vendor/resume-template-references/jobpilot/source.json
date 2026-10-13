@@ -1,0 +1,83 @@
+{
+  "repository": "jlifeng/JobPilot",
+  "commit": "69e6692cedacaacd3d923908f622d967e97e96c8",
+  "license": "Apache-2.0",
+  "files": [
+    {
+      "path": "LICENSE",
+      "local": "LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "path": "NOTICE",
+      "local": "NOTICE",
+      "sha256": "45a51124231ff6097f8eab8cadad4c2ec8089eb3de516822fbb24f38890eaada"
+    },
+    {
+      "path": "src/components/preview/templates/engineer.tsx",
+      "local": "engineer.tsx",
+      "sha256": "bc2f9bafd6118c05ede3f13847b985705c87ec1e40f17753b0aeaa0b1e0acd20"
+    },
+    {
+      "path": "src/components/preview/templates/swiss.tsx",
+      "local": "swiss.tsx",
+      "sha256": "a98997c0aa98e76b5a617d721d98519fbad6d0932a1b07c36258cd24229a8243"
+    },
+    {
+      "path": "src/components/preview/templates/modern.tsx",
+      "local": "modern.tsx",
+      "sha256": "e5dbd862775c26c142ba93085631099fdef3d8d6c1def191ec606e400b977b80"
+    },
+    {
+      "path": "src/components/preview/templates/euro.tsx",
+      "local": "euro.tsx",
+      "sha256": "ebbc7d4d4edc58dfb2f4625cd701f6a9900fb2b7875ec51f0f0543e1ce91c577"
+    },
+    {
+      "path": "src/components/preview/templates/academic.tsx",
+      "local": "academic.tsx",
+      "sha256": "32094854a80e30d609e7997da55e018658354d71b81cdfbde94b4e6a84a87fdc"
+    },
+    {
+      "path": "src/components/preview/templates/ats.tsx",
+      "local": "ats.tsx",
+      "sha256": "375a58306bb96815707546de6c960498f1c833140952b3530af5142ed49f9ed5"
+    },
+    {
+      "path": "src/components/preview/templates/berlin.tsx",
+      "local": "berlin.tsx",
+      "sha256": "80d9002997425bc7541f95c12b105941f3edacb6f30a074e68bce517575ef51d"
+    },
+    {
+      "path": "src/components/preview/templates/blocks.tsx",
+      "local": "blocks.tsx",
+      "sha256": "bea091c107e30845834b0e529038e900b4cb97c1cde133cbdc1ceffc09777462"
+    },
+    {
+      "path": "src/components/preview/templates/classic.tsx",
+      "local": "classic.tsx",
+      "sha256": "ec71014c807ece05e0945c1853255eacb7256fcf765a1e71a871e17799d19cbf"
+    },
+    {
+      "path": "src/components/preview/templates/designer.tsx",
+      "local": "designer.tsx",
+      "sha256": "06e3ec99e9ad861fdd8eb708b14bab4d7ab304e4f07ce48f33d1cb65750535a5"
+    },
+    {
+      "path": "src/components/preview/templates/ribbon.tsx",
+      "local": "ribbon.tsx",
+      "sha256": "39956f5fe3b60e32e52ada892d45a9803b7f3b4e365d54bff7a2bd913df6ab62"
+    },
+    {
+      "path": "src/components/preview/templates/scientist.tsx",
+      "local": "scientist.tsx",
+      "sha256": "e8807b972e30981207cbf36ef6e30384030dac8aa1932962e8e87c5a2fd8ec7f"
+    },
+    {
+      "path": "src/lib/template-renderer/templates/modern-minimal.tsx",
+      "local": "modern-minimal.tsx",
+      "sha256": "75a452bf08090d70176d4b4f4d9e7cec5c1643b984d44306ed9a56a55ff71e63"
+    }
+  ],
+  "purpose": "Unmodified source reference for native Chinese adaptation; not runtime code"
+}

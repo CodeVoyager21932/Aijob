@@ -1,5 +1,9 @@
 import type { AccessPolicyEvidence } from "../sources/source-config.js";
-import { evaluateRobotsForSource, type RobotsFetchOutcome, type RobotsTargetCheck } from "./robots-policy.js";
+import {
+  evaluateRobotsForSource,
+  type RobotsFetchOutcome,
+  type RobotsTargetCheck,
+} from "./robots-policy.js";
 
 /**
  * ADR-0033 附随义务第五条：`robots.txt` 与服务条款会变。每次调度刷新须复核，
@@ -10,6 +14,7 @@ import { evaluateRobotsForSource, type RobotsFetchOutcome, type RobotsTargetChec
 
 export type AccessPolicyRecheckAction =
   | { action: "continue"; robotsChanged: boolean; crawlDelaySeconds: number | undefined }
+  | { action: "retry"; code: "ROBOTS_TEMPORARY_FAILURE"; detail: string }
   | { action: "pause"; code: AccessPolicyPauseCode; detail: string };
 
 export type AccessPolicyPauseCode =
@@ -55,6 +60,12 @@ export function decideAccessPolicyRecheck(
 
   const verdict = evaluateRobotsForSource(input.robots, input.fetchTargets);
   if (!verdict.allowed) {
+    if (
+      input.robots.status === "unavailable" &&
+      ["rate_limited", "server_error", "timeout", "network_error"].includes(input.robots.reason)
+    ) {
+      return { action: "retry", code: "ROBOTS_TEMPORARY_FAILURE", detail: input.robots.reason };
+    }
     if (verdict.code === "ROBOTS_UNAVAILABLE") {
       return {
         action: "pause",

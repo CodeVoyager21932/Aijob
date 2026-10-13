@@ -54,7 +54,7 @@ function normalizeLabel(value: string): string {
     .replace(/[\s/_-]+/g, "");
 }
 
-export function classifyOfficialJobFamily(input: {
+export function classifyOfficialJobFamilyLegacy(input: {
   title: string;
   sourceLabels?: string[];
   sourceEvidenceRef: string;
@@ -92,5 +92,56 @@ export function classifyOfficialJobFamily(input: {
   return {
     value: known(family, evidenceRefs),
     requiresManualReview: sourceFamilies.size === 0,
+  };
+}
+
+/** System interpretation; original source labels and sentences remain unchanged. */
+export function classifyOfficialJobFamily(
+  input: Parameters<typeof classifyOfficialJobFamilyLegacy>[0],
+) {
+  const sourceFamilies = [
+    ...new Set(
+      (input.sourceLabels ?? [])
+        .map((label) => exactSourceLabels[normalizeLabel(label)])
+        .filter((family): family is JobFamily => Boolean(family)),
+    ),
+  ];
+  const titleFamilies = titleRules
+    .filter((rule) => rule.pattern.test(input.title))
+    .map((rule) => rule.family);
+  const families = [...new Set([...sourceFamilies, ...titleFamilies])];
+  const specificRoles: Array<{ key: string; family: JobFamily; pattern: RegExp }> = [
+    { key: "product_operations", family: "operations", pattern: /产品运营/u },
+    {
+      key: "ai_product",
+      family: "product",
+      pattern: /(?:\bAI\b|人工智能|大模型).*产品|产品.*(?:\bAI\b|大模型)/iu,
+    },
+    { key: "data_analysis", family: "data_ai", pattern: /数据分析/u },
+    { key: "user_research", family: "research_consulting", pattern: /用户研究/u },
+    { key: "supply_quality", family: "supply_chain_manufacturing", pattern: /供应链|质量工程/u },
+    { key: "content_operations", family: "operations", pattern: /内容运营/u },
+    { key: "algorithm_research", family: "data_ai", pattern: /算法|机器学习|大模型.*研究/u },
+  ];
+  const role = specificRoles.find((rule) => rule.pattern.test(input.title));
+  const primary =
+    role?.family ??
+    sourceFamilies.find((family) => family !== "other") ??
+    titleFamilies[0] ??
+    sourceFamilies[0];
+  const evidenceRefs = [
+    ...new Set([input.sourceEvidenceRef, input.titleEvidenceRef ?? input.sourceEvidenceRef]),
+  ];
+  return {
+    value: primary ? known(primary, evidenceRefs) : unknown<JobFamily>("needs_manual_review"),
+    requiresManualReview: !primary,
+    interpretation: {
+      version: "job-role-v2" as const,
+      primaryFamily: primary ?? null,
+      families: [...new Set([...families, ...(primary ? [primary] : [])])],
+      subrole: role?.key ?? null,
+      domains: /\bAI\b|人工智能|大模型|机器学习/iu.test(input.title) ? ["ai"] : [],
+      evidenceRefs,
+    },
   };
 }

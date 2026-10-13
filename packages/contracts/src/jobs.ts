@@ -185,6 +185,8 @@ export const JobListResponseSchema = z.object({
 export type JobListResponse = z.infer<typeof JobListResponseSchema>;
 
 export const JobSearchQuerySchema = z.object({
+  jobIds: z.array(z.string().uuid()).optional(),
+  sort: z.enum(["verified_desc","company_asc"]).optional(),
   keyword: z.string().trim().max(200).optional(),
   companies: z.array(z.string().trim().min(1)).max(50).optional(),
   cities: z.array(z.string().trim().min(1)).max(50).optional(),

@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { careerOsQueryKeys, getApplicationBoard } from "../../api/career-os";
+import { careerOsQueryKeys, getApplicationBoard, listResumeDocuments } from "../../api/career-os";
 import { toApplicationCaseView } from "../application-case-view";
 import { Icon } from "../components/Icon";
+import { PlannerPanel } from "../components/PlannerPanel";
+import { OpportunityDigestPanel } from "../components/OpportunityDigestPanel";
 import { StageBadge } from "../components/StageBadge";
 import { caseStages, type CaseStage } from "../workspace-model";
 
@@ -17,6 +19,8 @@ function todayAction(stage: CaseStage): { label: string; tab: string } {
 }
 
 export function CareerOsHomePage() {
+  const resumesQuery=useQuery({queryKey:[...careerOsQueryKeys.resumeDocumentLists,"latest"],queryFn:({signal})=>listResumeDocuments({limit:1},signal)});
+  const lastResume=resumesQuery.data?.items[0];
   const casesQuery = useQuery({
     queryKey: careerOsQueryKeys.applicationBoard({ sort: "updated" }),
     queryFn: ({ signal }) => getApplicationBoard({ sort: "updated", limitPerStage: 20 }, signal),
@@ -36,7 +40,7 @@ export function CareerOsHomePage() {
       <header className="career-page-heading career-page-heading--today">
         <div>
           <h1 id="today-title">今日</h1>
-          <p>这里只展示真实求职项目，不生成站外提醒。</p>
+          <p>先处理近期安排，再继续推进申请。</p>
         </div>
         <Link className="career-button career-button--primary" to="/applications">
           查看我的求职
@@ -44,6 +48,12 @@ export function CareerOsHomePage() {
         </Link>
       </header>
 
+      <OpportunityDigestPanel />
+      <section className="career-today-tasks opportunity-resume-continue" aria-label="继续写简历">
+        <header><h2>继续写简历</h2><Link to="/resumes">查看我的简历</Link></header>
+        {lastResume?<p><Link className="career-button career-button--primary" to={`/resumes/${lastResume.id}${lastResume.kind==='case_derived'&&lastResume.caseId?`?caseId=${lastResume.caseId}`:''}`}>继续编辑：{lastResume.title}</Link></p>:resumesQuery.isPending?<p>正在读取最近编辑的简历…</p>:resumesQuery.isError?<p role="alert">最近简历暂时无法读取，请到简历库继续。</p>:<p>从已有简历导入，或选择模板开始。<Link to="/resumes">开始写简历</Link></p>}
+      </section>
+      <PlannerPanel compact />
       <section className="career-today-stage-summary" aria-label="进行中项目阶段摘要">
         {activeStages.map((stage) => {
           const count = activeColumns.find((column) => column.stage === stage.value)?.total ?? 0;
@@ -60,7 +70,9 @@ export function CareerOsHomePage() {
         <section className="career-today-tasks" aria-labelledby="today-tasks-heading">
           <header>
             <h2 id="today-tasks-heading">进行中的求职项目</h2>
-            <span>{activeTotal} 项进行中 · 显示最近 {activeCases.length} 项</span>
+            <span>
+              {activeTotal} 项进行中 · 显示最近 {activeCases.length} 项
+            </span>
           </header>
           {casesQuery.isPending ? (
             <output className="career-request-state">正在读取真实 Case…</output>
@@ -85,21 +97,21 @@ export function CareerOsHomePage() {
                 const action = todayAction(applicationCase.stage);
                 return (
                   <li key={applicationCase.id}>
-                  <Link to={`/applications/${applicationCase.id}/${action.tab}`}>
-                    <span className="career-today-task__icon">
-                      <Icon name="briefcase" />
-                    </span>
-                    <span>
-                      <strong>{applicationCase.roleTitle}</strong>
-                      <small>
-                        {applicationCase.companyName} · {applicationCase.locationLabel}
-                      </small>
-                      <small className="career-today-task__action">{action.label}</small>
-                    </span>
-                    <StageBadge stage={applicationCase.stage} />
-                    <Icon name="chevron" size={17} />
-                  </Link>
-                </li>
+                    <Link to={`/applications/${applicationCase.id}/${action.tab}`}>
+                      <span className="career-today-task__icon">
+                        <Icon name="briefcase" />
+                      </span>
+                      <span>
+                        <strong>{applicationCase.roleTitle}</strong>
+                        <small>
+                          {applicationCase.companyName} · {applicationCase.locationLabel}
+                        </small>
+                        <small className="career-today-task__action">{action.label}</small>
+                      </span>
+                      <StageBadge stage={applicationCase.stage} />
+                      <Icon name="chevron" size={17} />
+                    </Link>
+                  </li>
                 );
               })}
             </ol>

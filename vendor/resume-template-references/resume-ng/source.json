@@ -1,0 +1,24 @@
+{
+  "repository": "fky2015/resume-ng",
+  "commit": "8fb52d64342171d0e3c3ec166495e31fc25271c2",
+  "files": [
+    {
+      "path": "LICENSE",
+      "local": "LICENSE",
+      "sha256": "23c58768c86f9e0b4c5caa9936374e09da8a02210c163d1e161fe7814894b99a",
+      "url": "https://raw.githubusercontent.com/fky2015/resume-ng/8fb52d64342171d0e3c3ec166495e31fc25271c2/LICENSE"
+    },
+    {
+      "path": "resume.cls",
+      "local": "resume.cls",
+      "sha256": "3c3e4590d925af926d1fd6c9617dd7cf3508fbc0ced57fe211c99912f05ce042",
+      "url": "https://raw.githubusercontent.com/fky2015/resume-ng/8fb52d64342171d0e3c3ec166495e31fc25271c2/resume.cls"
+    },
+    {
+      "path": "main.tex",
+      "local": "main.tex",
+      "sha256": "c7cb8f61735bd87daa5bf2f8a6a92c12912594d1da97caccdcf7fbdbee473974",
+      "url": "https://raw.githubusercontent.com/fky2015/resume-ng/8fb52d64342171d0e3c3ec166495e31fc25271c2/main.tex"
+    }
+  ]
+}

@@ -136,7 +136,7 @@ export async function listJobDecisions(
     .where("owner.epoch", "=", owner.ownerEpoch)
     .where((expression) =>
       expression.or([
-        expression("owner.retention_mode", "=", "account_managed"),
+        expression("owner.retention_mode", "in", ["account_managed", "persistent_guest"]),
         expression("owner.retention_expires_at", ">", new Date()),
       ]),
     )

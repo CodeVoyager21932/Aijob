@@ -1,0 +1,173 @@
+{
+  "schemaVersion": "1.0.0",
+  "sourceKey": "hellobike-internships",
+  "sourceType": "official_ats",
+  "catalogRole": "canonical",
+  "runtimeScope": "local",
+  "organization": {
+    "slug": "hellobike",
+    "name": "上海哈啰普惠科技有限公司",
+    "officialDomain": "hello-inc.com"
+  },
+  "candidate": {
+    "name": "哈啰官方实习生招聘",
+    "entrypointUrl": "https://hellobike.zhiye.com/intern/jobs",
+    "provenanceLevel": "verified_ats_tenant",
+    "acquisitionMode": "public_api",
+    "candidateStatus": "local_probe_only",
+    "assessor": "codex-assisted-local-review",
+    "hardGates": {
+      "officialIdentity": {
+        "status": "pass",
+        "note": "2026-10-12 企业官网 https://www.hello-inc.com/contact-index.html 的加入我们链接直达 https://hellobike.zhiye.com；官网和招聘页页脚主体均为上海哈啰普惠科技有限公司。"
+      },
+      "targetSupply": {
+        "status": "pass",
+        "note": "2026-10-12 官方实习列表及实际公开接口报告42条，页面包含上海履约产品实习生与商家端产品实习生；接口首5条实际可解析。"
+      },
+      "stableIdentityAndFields": {
+        "status": "pending",
+        "note": "PortalId和稳定JobAdId已核对，仅本次实际读取；不宣称多日稳定性通过。"
+      },
+      "noAuthBypass": {
+        "status": "pass",
+        "note": "门户与列表接口无需登录、验证码、Cookie 或动态签名；只使用官方前端公开调用的 JSON 契约（厂商层 beisen-zhiye 评估，证据：docs/evidence/ingestion/beisen-zhiye-vendor-assessment.md#no-auth-bypass）"
+      },
+      "officialApplyLink": {
+        "status": "pass",
+        "note": "申请链接固定到该企业官方北森职位列表页，页面内联展示详情并提供投递（厂商层 beisen-zhiye 评估，证据：docs/evidence/ingestion/beisen-zhiye-vendor-assessment.md#official-apply-link）"
+      },
+      "accessPolicyAccepted": {
+        "status": "pass",
+        "note": "该租户robots允许已登记接口；实际阅读招聘页仅有的隐私政策未见禁止公开岗位读取或聚合的条款。仅本机使用，不构成来源公开批准。"
+      }
+    },
+    "scores": {
+      "targetSupply": {
+        "weight": 30,
+        "score": 25,
+        "status": "provisional",
+        "note": "官方实习目录包含上海产品实习，实际相关数量以本轮完整采集为准。"
+      },
+      "policyAccess": {
+        "weight": 25,
+        "score": 25,
+        "status": "verified",
+        "note": "本次租户访问政策已核对，证据可复核；仍需周期复查。"
+      },
+      "structure": {
+        "weight": 20,
+        "score": 18,
+        "status": "provisional",
+        "note": "公共 JSON 返回稳定 ID、完整职责要求、地区和时间字段。"
+      },
+      "freshnessMaintenance": {
+        "weight": 15,
+        "score": 9,
+        "status": "provisional",
+        "note": "列表提供发布时间和完整岗位正文；关闭依既有两次完整缺席规则。"
+      },
+      "diversity": {
+        "weight": 10,
+        "score": 7,
+        "status": "provisional",
+        "note": "补充上海及杭州实习，订阅仍由用户城市与方向筛选。"
+      }
+    },
+    "evidenceNotes": [
+      "官网直达北森租户；当前页面PortalId=290427f4-d052-45ba-a588-dc6ae9779d97。",
+      "2026-10-12 已读取该租户robots及隐私政策，实际无登录POST返回Count=42及5条完整候选。",
+      "coco已要求继续接入实际岗位并开启持续刷新；仅本机local_mvp，不提升公开准入。",
+      "docs/evidence/ingestion/hellobike-internships-2026-10-12.md"
+    ]
+  },
+  "policy": {
+    "version": "1",
+    "status": "pending_review",
+    "adapterKey": "beisen-zhiye-public-api",
+    "adapterVersion": "0.1.3",
+    "entrypoints": [
+      "https://hellobike.zhiye.com/intern/jobs"
+    ],
+    "crawlInterval": {
+      "enabled": true,
+      "minimumHours": 24
+    },
+    "refreshCoverage": "full_scope",
+    "absencePolicy": "close_after_two_complete_absences",
+    "reviewedAt": "2026-10-12",
+    "policyNotes": [
+      "ADR-0026 仅允许本机 collector-worker 按 24 小时间隔执行单来源低频刷新；不得用于 CI、公开或远程环境。",
+      "禁止登录、验证码绕过、Cookie、代理或浏览器自动化生产采集。",
+      "Category、PortalId、主体或字段结构变化时立即暂停。",
+      "2026-10-12 按当前授权接入哈啰公开实习列表，24小时刷新。无登录、申请或个人接口；政策异议即停。",
+      "岗位只保留职责、要求与求职必要字段及官方回链；关闭需要完整覆盖、足够间隔和两次缺席。"
+    ],
+    "accessPolicyEvidence": {
+      "robots": {
+        "status": "fetched",
+        "bodySha256": "eaeaa8d3511d1622227d89707d995b8b1f0902f5b86fdbe58882d1cef260d4d7",
+        "allowsAllFetchTargets": true,
+        "crawlDelaySeconds": null
+      },
+      "termsOfService": {
+        "documentUrl": "https://hellobike.zhiye.com/privacy",
+        "excerpt": "您可以搜索、查询职位信息",
+        "prohibitsAggregation": false
+      },
+      "verifiedAt": "2026-10-12",
+      "evidenceRef": "docs/evidence/ingestion/hellobike-internships-2026-10-12.md"
+    },
+    "fetchTargets": [
+      {
+        "method": "POST",
+        "scheme": "https",
+        "host": "hellobike.zhiye.com",
+        "port": 443,
+        "pathPrefix": "/api/Jobad/GetJobAdPageList",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ],
+    "applyTargets": [
+      {
+        "method": "GET",
+        "scheme": "https",
+        "host": "hellobike.zhiye.com",
+        "port": 443,
+        "pathPrefix": "/intern/jobs",
+        "allowRedirects": false,
+        "allowedQueryParameters": []
+      }
+    ]
+  },
+  "localProbe": {
+    "enabled": true,
+    "environment": "local",
+    "requestBudget": {
+      "maxItems": 600,
+      "maxPages": 20,
+      "maxRequests": 22,
+      "minimumIntervalMs": 2000
+    },
+    "completion": "partial",
+    "requestDefaults": {
+      "category": "3",
+      "pageIndex": 0,
+      "pageSize": 30,
+      "portalId": "290427f4-d052-45ba-a588-dc6ae9779d97",
+      "jobsPagePath": "/intern/jobs",
+      "companyDisplayName": "哈啰",
+      "categoryLabel": "实习"
+    },
+    "queryStreams": [
+      {
+        "key": "intern-jobads",
+        "label": "哈啰公开实习岗位",
+        "keyword": "",
+        "positionFamilyIds": [],
+        "targetItems": 600
+      }
+    ]
+  }
+}

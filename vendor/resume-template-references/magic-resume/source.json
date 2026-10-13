@@ -1,0 +1,72 @@
+{
+  "repository": "Magic-Resume/Magic-Resume",
+  "commit": "c7e0826a674d144435ad18e3ab4d32785bc9fcbd",
+  "license": "MIT",
+  "files": [
+    {
+      "path": "packages/resume-templates/src/templateLayout/CenteredPhotoHeader.tsx",
+      "local": "CenteredPhotoHeader.tsx",
+      "sha256": "9ea3a6fde84fd20f4473b5099887800e9911ea017b3a2126263d72bfd6fea095"
+    },
+    {
+      "path": "packages/resume-templates/src/config/clean-minimal-template.ts",
+      "local": "clean-minimal-template.ts",
+      "sha256": "7b77e5b52049c82429f8261b9d3242473c5f19cb72721d620c5e33ab02ac79cb"
+    },
+    {
+      "path": "packages/resume-templates/src/config/cn-formal-photo-template.ts",
+      "local": "cn-formal-photo-template.ts",
+      "sha256": "197ed80c81bd436a4cb4ec1e8b41eb081815e84d51956ac6207f242959b5b226"
+    },
+    {
+      "path": "packages/resume-templates/src/config/compact-cn-photo-template.ts",
+      "local": "compact-cn-photo-template.ts",
+      "sha256": "8bebee5009ccf39f703c4b58a7354b423b7d8537cd6ad067bf8f6b7bd86ab7d1"
+    },
+    {
+      "path": "packages/resume-templates/src/templateLayout/DefaultSection.tsx",
+      "local": "DefaultSection.tsx",
+      "sha256": "a660ec3e7a55272584bd7371b71d5d08880a63c227d66554704262e71e8dd0fa"
+    },
+    {
+      "path": "packages/resume-templates/src/config/executive-band-template.ts",
+      "local": "executive-band-template.ts",
+      "sha256": "cbb9c99fd28f3f0e05369bc934832f558c46f5e342c47fce041f38d77a3ee592"
+    },
+    {
+      "path": "packages/resume-templates/src/templateLayout/Header.tsx",
+      "local": "Header.tsx",
+      "sha256": "706b2e971b56517acb9488526c07d9115bfc68351850f535e9c6953bbc3066b1"
+    },
+    {
+      "path": "packages/resume-templates/src/templateLayout/InlineKeyValueSection.tsx",
+      "local": "InlineKeyValueSection.tsx",
+      "sha256": "89cf7c80a845906ffda639aaa25f13375a879c6a414ec977882eaeeb6caa1cb1"
+    },
+    {
+      "path": "LICENSE",
+      "local": "LICENSE",
+      "sha256": "b304b70e8bb05727a332390efd576cc15b9ba5d7f8a5a35a65e445c6afcd9bc3"
+    },
+    {
+      "path": "packages/resume-templates/src/config/product-ops-focus-template.ts",
+      "local": "product-ops-focus-template.ts",
+      "sha256": "0e67c2214da3024569a6bd2688f037c34c406ea206b5c069cfea307cef328e6b"
+    },
+    {
+      "path": "packages/resume-templates/src/templateLayout/ThreeColumnSection.tsx",
+      "local": "ThreeColumnSection.tsx",
+      "sha256": "b37a0b921ce2de201786fb10e22e0d35bdda74a27da45e354ee4fa71fd8cfc41"
+    },
+    {
+      "path": "packages/resume-templates/src/templateLayout/Timeline.tsx",
+      "local": "Timeline.tsx",
+      "sha256": "8644106a3b951dd16e44ac3ef52ca6a2cb4c56127815eab8070f78d44e991ac0"
+    },
+    {
+      "path": "packages/resume-templates/src/renderer/MagicResumeRenderer.tsx",
+      "local": "MagicResumeRenderer.tsx",
+      "sha256": "55f5a766dc74b87a4ddf46ed1ab5347761750c54deaaeb7ed736e3a879645ca8"
+    }
+  ]
+}

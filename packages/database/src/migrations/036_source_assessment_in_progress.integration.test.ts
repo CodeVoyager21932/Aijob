@@ -42,7 +42,7 @@ describeWithDatabase("source assessment in-progress migration", () => {
     const rollbackUrl = new URL(databaseUrl as string);
     rollbackUrl.pathname = `/${rollbackDatabaseName}`;
     rollbackDb = createDatabase(rollbackUrl.toString());
-    await migrateToLatest(rollbackDb);
+    await migrateToForTesting(rollbackDb, "036_source_assessment_in_progress");
     await db
       .insertInto("source_control.organizations")
       .values({
@@ -107,7 +107,6 @@ describeWithDatabase("source assessment in-progress migration", () => {
         evidence_notes: "offline migration fixture",
       })
       .execute();
-
 
   it("accepts assessing so a source waiting on evidence is not recorded as rejected", async () => {
     expect(await decisionConstraint(db)).toContain("assessing");
@@ -184,7 +183,7 @@ describeWithDatabase("source assessment in-progress migration", () => {
     expect(await decisionConstraint(rollbackDb)).not.toContain("assessing");
     expect(await readDecision()).toEqual({ decision: "ineligible" });
 
-    await migrateToLatest(rollbackDb);
+    await migrateToForTesting(rollbackDb, "036_source_assessment_in_progress");
     expect(await decisionConstraint(rollbackDb)).toContain("assessing");
     // 不回填历史行：归并后的 `ineligible` 是当时写下的事实，重新上行不伪造回 `assessing`。
     expect(await readDecision()).toEqual({ decision: "ineligible" });

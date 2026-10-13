@@ -344,7 +344,7 @@ describeWithDatabase("reconciled publication migration", () => {
     rollbackUrl.pathname = `/${rollbackDatabaseName}`;
     const rollbackDb = createDatabase(rollbackUrl.toString());
     try {
-      await migrateToLatest(rollbackDb);
+      await migrateToForTesting(rollbackDb, "035_reconciled_publication");
       await migrateToForTesting(rollbackDb, "034_closure_detectable_canonical_jobs");
       await assertPre035Shape(rollbackDb);
     } finally {

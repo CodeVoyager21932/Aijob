@@ -63,6 +63,7 @@ export interface SourceTable {
 }
 
 export interface SourcePolicyVersionTable {
+  access_policy_evidence: Generated<JsonValue | null>;
   source_id: string;
   version: number;
   policy_status: string;
@@ -150,6 +151,7 @@ export interface TaskTable {
 export type CrawlTaskTable = TaskTable;
 
 export interface CrawlRunTable {
+  access_observations: Generated<JsonValue>;
   id: string;
   task_id: string;
   source_id: string;
@@ -352,6 +354,7 @@ export interface PublishedJobVersionRevisionLinkTable {
 }
 
 export interface JobRequirementSetTable {
+  extraction_version: Generated<string>;
   id: string;
   published_job_version_id: string;
   schema_version: string;
@@ -476,7 +479,85 @@ export interface ResumeEvidenceRevisionTable {
   document_revision_id: Generated<string | null>;
 }
 
+export interface PlannerItemTable {
+  id: string;
+  owner_id: string;
+  owner_epoch: number;
+  case_id: string | null;
+  kind: string;
+  title: string;
+  note: string;
+  status: string;
+  due_at: Timestamp | null;
+  timezone: string;
+  artifact: string;
+  evidence_revision_id: string | null;
+  evidence_ids: JsonValue;
+  source_experience_ids: Generated<JsonValue>;
+  source: JsonValue | null;
+  revision: Generated<number>;
+  completed_at: Timestamp | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
+export interface SavedSearchTable {
+  id: string;
+  owner_id: string;
+  owner_epoch: number;
+  label: string;
+  scope: JsonValue;
+  scope_hash: string;
+  revision: Generated<number>;
+  discovery_enabled: Generated<boolean>;
+  digest_enabled: Generated<boolean>;
+  digest_time: Generated<string>;
+  timezone: Generated<string>;
+  next_digest_at: Generated<Timestamp | null>;
+  discovery_query_hash: Generated<string | null>;
+  created_at: Generated<Timestamp>;
+}
+export interface PlannerMutationReceiptTable {
+  owner_id: string;
+  owner_epoch: number;
+  request_key: string;
+  request_hash: string;
+  result: JsonValue;
+  created_at: Generated<Timestamp>;
+}
+
+export interface SubmittedMaterialTable {
+  id: string;
+  owner_id: string;
+  owner_epoch: number;
+  case_id: string;
+  case_revision: number;
+  document_id: string;
+  content_revision_id: string;
+  layout_revision_id: string;
+  title: string;
+  content: JsonValue;
+  layout: JsonValue;
+  content_hash: string;
+  submitted_at: Timestamp;
+  created_at: Generated<Timestamp>;
+}
+export interface MaterialSnippetTable {
+  source_experience_ids: Generated<JsonValue>;
+  id: string;
+  owner_id: string;
+  owner_epoch: number;
+  kind: string;
+  title: string;
+  body: string;
+  source_document_id: string | null;
+  source_content_revision_id: string | null;
+  source_block_ids: JsonValue;
+  revision: Generated<number>;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
 export interface ResumeDocumentRevisionTable {
+  studio_content: Generated<JsonValue | null>;
   id: string;
   owner_id: string;
   owner_epoch: number;
@@ -770,6 +851,9 @@ export interface PrivateJobSnapshotRevisionTable {
 }
 
 export interface ResumeDocumentTable {
+  direction_scope: Generated<JsonValue | null>;
+  copied_from_revision_id: Generated<string | null>;
+  studio_creation_hash: Generated<string | null>;
   id: Generated<string>;
   owner_id: string;
   owner_epoch: number;
@@ -798,6 +882,7 @@ export interface ResumeDocumentTable {
 }
 
 export interface ResumeLayoutRevisionTable {
+  studio_layout: Generated<JsonValue | null>;
   id: Generated<string>;
   owner_id: string;
   owner_epoch: number;
@@ -1264,6 +1349,11 @@ export interface Database {
   "decision.job_decisions": JobDecisionTable;
   "decision.owner_deletions": OwnerDeletionTable;
   "application.application_cases": ApplicationCaseTable;
+  "application.planner_items": PlannerItemTable;
+  "application.submitted_materials": SubmittedMaterialTable;
+  "profile.material_snippets": MaterialSnippetTable;
+  "application.saved_searches": SavedSearchTable;
+  "application.planner_mutation_receipts": PlannerMutationReceiptTable;
   "application.case_events": CaseEventTable;
   "application.private_job_snapshots": PrivateJobSnapshotTable;
   "application.private_job_snapshot_revisions": PrivateJobSnapshotRevisionTable;

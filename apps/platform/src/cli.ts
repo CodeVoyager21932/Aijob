@@ -1,10 +1,8 @@
 import { createInterface } from "node:readline/promises";
+import { buildOperationsConsole } from "./sources/operations-console.js";
+import { getSourceInventory } from "./sources/source-inventory.js";
 import { type AppConfig, DEFAULT_WORKSPACE_ROOT, loadAppConfig } from "@aijob/config";
-import {
-  assertDatabaseRoleMembership,
-  createDatabase,
-  DatabaseRuntimeRole,
-} from "@aijob/database";
+import { assertDatabaseRoleMembership, createDatabase, DatabaseRuntimeRole } from "@aijob/database";
 import { Command } from "commander";
 import {
   AiProviderApiKeySchema,
@@ -394,12 +392,13 @@ program
 program
   .command("source-refresh-enable")
   .description("Enable explicitly configured local source refresh schedules")
+  .option("--source-keys <keys>", "Enable only these comma-separated source keys; omission preserves the current scope")
   .option(
     "--stagger-hours <hours>",
     "Spread currently due deterministic sources across a stable 1-24 hour window",
     "0",
   )
-  .action(async (options: { staggerHours: string }) => {
+  .action(async (options: { staggerHours: string; sourceKeys?: string }) => {
     const appConfig = loadAppConfig();
     const db = await createOperationsDatabase(appConfig);
     try {
@@ -410,6 +409,7 @@ program
             appEnv: appConfig.appEnv,
             workspaceRoot: appConfig.workspaceRoot,
             staggerHours: Number(options.staggerHours),
+            ...(options.sourceKeys ? { sourceKeys: [...new Set(options.sourceKeys.split(",").map(key => key.trim()).filter(Boolean))] } : {}),
           }),
           null,
           2,
@@ -468,10 +468,7 @@ program
   .option("--wait", "Run exactly this source through one collector cycle before returning")
   .option("--confirm-live", "Confirm that --wait may access the configured official source")
   .action(
-    async (
-      sourceKey: string | undefined,
-      options: { wait?: boolean; confirmLive?: boolean },
-    ) => {
+    async (sourceKey: string | undefined, options: { wait?: boolean; confirmLive?: boolean }) => {
       const appConfig = loadAppConfig();
       const db = await createOperationsDatabase(appConfig);
       try {
@@ -488,6 +485,9 @@ program
               enableSourceProbe: appConfig.enableSourceProbe,
               snapshotDir: appConfig.snapshotDirectory,
               probeRequestIntervalMs: appConfig.probeRequestIntervalMs,
+              ...(appConfig.browserExecutablePath
+                ? { browserExecutablePath: appConfig.browserExecutablePath }
+                : {}),
               workspaceRoot: appConfig.workspaceRoot,
             },
           });
@@ -523,49 +523,51 @@ program
   .argument("[source-key]", "来源配置键；省略时依次探测 config/sources 中的全部来源")
   .option("--limit <number>", "最多处理岗位数（不得超过来源配置预算）")
   .option("--confirm-live", "确认本次会访问已授权的真实官方来源")
-  .action(async (
-    sourceKey: string | undefined,
-    options: { limit?: string; confirmLive?: boolean },
-  ) => {
-    const appConfig = loadAppConfig();
-    const requestedLimit = options.limit === undefined ? undefined : Number(options.limit);
-    if (requestedLimit !== undefined && !Number.isInteger(requestedLimit)) {
-      throw new Error("PROBE_LIMIT_MUST_BE_INTEGER");
-    }
-    const db = await createOperationsDatabase(appConfig);
-    try {
-      const results = [];
-      for (const selectedSourceKey of await selectedProbeSourceKeys(sourceKey)) {
-        try {
-          const selectedConfig = await loadSourceConfig(selectedSourceKey);
-          const result = await runSourceProbe({
-            db,
-            runtime: {
-              appEnv: appConfig.appEnv,
-              enableSourceProbe: appConfig.enableSourceProbe,
-              snapshotDir: appConfig.snapshotDirectory,
-              probeRequestIntervalMs: appConfig.probeRequestIntervalMs,
-            },
-            sourceKey: selectedSourceKey,
-            limit: requestedLimit ?? selectedConfig.localProbe.requestBudget.maxItems,
-            liveProbeApproved: options.confirmLive === true,
-          });
-          results.push({ sourceKey: selectedSourceKey, ...result });
-          if (result.completion === "failed") process.exitCode = 1;
-        } catch (error) {
-          process.exitCode = 1;
-          results.push({
-            sourceKey: selectedSourceKey,
-            completion: "failed" as const,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
+  .action(
+    async (sourceKey: string | undefined, options: { limit?: string; confirmLive?: boolean }) => {
+      const appConfig = loadAppConfig();
+      const requestedLimit = options.limit === undefined ? undefined : Number(options.limit);
+      if (requestedLimit !== undefined && !Number.isInteger(requestedLimit)) {
+        throw new Error("PROBE_LIMIT_MUST_BE_INTEGER");
       }
-      console.info(JSON.stringify(sourceKey ? results[0] : { sources: results }, null, 2));
-    } finally {
-      await db.destroy();
-    }
-  });
+      const db = await createOperationsDatabase(appConfig);
+      try {
+        const results = [];
+        for (const selectedSourceKey of await selectedProbeSourceKeys(sourceKey)) {
+          try {
+            const selectedConfig = await loadSourceConfig(selectedSourceKey);
+            const result = await runSourceProbe({
+              db,
+              runtime: {
+                appEnv: appConfig.appEnv,
+                enableSourceProbe: appConfig.enableSourceProbe,
+                snapshotDir: appConfig.snapshotDirectory,
+                probeRequestIntervalMs: appConfig.probeRequestIntervalMs,
+                ...(appConfig.browserExecutablePath
+                  ? { browserExecutablePath: appConfig.browserExecutablePath }
+                  : {}),
+              },
+              sourceKey: selectedSourceKey,
+              limit: requestedLimit ?? selectedConfig.localProbe.requestBudget.maxItems,
+              liveProbeApproved: options.confirmLive === true,
+            });
+            results.push({ sourceKey: selectedSourceKey, ...result });
+            if (result.completion === "failed") process.exitCode = 1;
+          } catch (error) {
+            process.exitCode = 1;
+            results.push({
+              sourceKey: selectedSourceKey,
+              completion: "failed" as const,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+        console.info(JSON.stringify(sourceKey ? results[0] : { sources: results }, null, 2));
+      } finally {
+        await db.destroy();
+      }
+    },
+  );
 
 program
   .command("source-access-policy-probe")
@@ -619,6 +621,9 @@ program
           enableSourceProbe: appConfig.enableSourceProbe,
           snapshotDir: appConfig.snapshotDirectory,
           probeRequestIntervalMs: appConfig.probeRequestIntervalMs,
+          ...(appConfig.browserExecutablePath
+            ? { browserExecutablePath: appConfig.browserExecutablePath }
+            : {}),
         },
         enableLocalMvp: appConfig.enableLocalMvp,
         sourceKeys,
@@ -636,8 +641,7 @@ program
     } finally {
       await db.destroy();
     }
-    },
-  );
+  });
 
 program
   .command("ai-configure")
@@ -694,4 +698,39 @@ program
     );
   });
 
+program
+  .command("source-inventory")
+  .description("只读盘点来源配置与接入依据，不访问招聘站")
+  .action(async () => {
+    console.info(JSON.stringify(await getSourceInventory(), null, 2));
+  });
+program
+  .command("source-console")
+  .description("启动仅监听127.0.0.1的内部供给台")
+  .option("--port <number>", "内部端口", "8091")
+  .action(async (options: { port: string }) => {
+    const port = Number(options.port);
+    if (!Number.isInteger(port) || port < 1024 || port > 65535)
+      throw new Error("INVALID_OPERATIONS_PORT");
+    const config = loadAppConfig();
+    const db = await createOperationsDatabase(config);
+    const app = buildOperationsConsole({ db, config, port });
+    app.addHook("onClose", async () => db.destroy());
+    await app.listen({ host: "127.0.0.1", port });
+    console.info(`Aijob 供给工作台：http://127.0.0.1:${port}`);
+    process.once("SIGINT", () => {
+      void app.close();
+    });
+    process.once("SIGTERM", () => {
+      void app.close();
+    });
+  });
+program.command("graph-reindex-v2").description("分批构建当前岗位图谱 v2，不访问来源或改写历史")
+  .option("--batch-size <number>", "每批岗位数", "200")
+  .action(async (options: { batchSize: string }) => {
+    const db = await createOperationsDatabase(loadAppConfig());
+    try { console.info(JSON.stringify(await reindexGraphV2(db, Number(options.batchSize)), null, 2)); }
+    finally { await db.destroy(); }
+  });
 await program.parseAsync(process.argv);
+import { reindexGraphV2 } from "./catalog/job-semantics-v2-store.js";

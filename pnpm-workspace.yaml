@@ -1,6 +1,8 @@
 packages:
   - "apps/*"
   - "packages/*"
+  - "vendor/reactive-resume/*"
+  - "vendor/reactive-resume-v6"
 
 overrides:
   "fast-uri@3": "3.1.6"
@@ -14,3 +16,6 @@ overrides:
 
 allowBuilds:
   esbuild: true
+
+patchedDependencies:
+  '@react-pdf/layout@5.2.0': patches/@react-pdf__layout@5.2.0.patch

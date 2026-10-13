@@ -1,4 +1,13 @@
 import { randomUUID } from "node:crypto";
+import { mayExecuteSourceNetwork, controlledCollectorEnabled } from "./automation-runtime.js";
+import { checkScheduledAccess } from "./scheduled-policy-check.js";
+import { reconcilePublication } from "../catalog/publication-reconciliation.js";
+import { renderControlledPage } from "./controlled-browser.js";
+import {
+  ConfiguredWebOptionsSchema,
+  parseConfiguredList,
+  normalizeConfiguredDetail,
+} from "../sources/configured-web-adapter.js";
 import type { Database } from "@aijob/database";
 import { type Kysely, sql, type Transaction } from "kysely";
 import { ZodError, z } from "zod";
@@ -103,6 +112,7 @@ import {
   NetworkPolicyError,
   type SafeHttpResult,
   type SafeRequestOptions,
+  type SafeHtmlHttpResult,
   safeRequestHtml,
   safeRequestJson,
   validateNavigationUrl,
@@ -111,8 +121,11 @@ import {
 import { storeSnapshot } from "./snapshot-store.js";
 
 export interface ProbeRuntimeConfig {
+  browserExecutablePath?: string;
   appEnv: "local" | "test" | "alpha" | "production";
   enableSourceProbe: boolean;
+  controlledAutomation?: boolean;
+  collectorIsolation?: "container";
   snapshotDir: string;
   probeRequestIntervalMs: number;
 }
@@ -203,6 +216,7 @@ const retryableProbeErrorCodes = new Set([
   "ENOTFOUND",
   "ETIMEDOUT",
   "UPSTREAM_TIMEOUT",
+  "ROBOTS_TEMPORARY_FAILURE",
 ]);
 
 export function isRetryableProbeErrorCode(code: string): boolean {
@@ -377,7 +391,9 @@ export async function reconcileAcceptedScheduledCatalog(input: {
   materializeCatalog?: typeof materializeLocalCatalog;
 }): Promise<void> {
   try {
-    await (input.materializeCatalog ?? materializeLocalCatalog)(input.db);
+    await (input.materializeCatalog ?? materializeLocalCatalog)(input.db, {
+      sourceId: input.sourceId,
+    });
   } catch (error) {
     await input.db
       .updateTable("source_control.source_runtime_states")
@@ -407,6 +423,31 @@ export async function reconcileAcceptedScheduledCatalog(input: {
     .where("source_id", "=", input.sourceId)
     .where("policy_version", "=", input.policyVersion)
     .execute();
+  // Only a successfully revalidated, explicitly resumed source can reach here.
+  await sql`
+    WITH changed AS (
+      UPDATE catalog.published_jobs SET publication_suppressed_at = NULL, publication_suppressed_reason = NULL
+      WHERE publication_suppressed_reason = ${`SOURCE_ACCESS_PAUSE:${input.sourceId}`} RETURNING id
+    ) INSERT INTO catalog.publication_events(id, published_job_id, action, actor, reason_code, blocking_reasons, occurred_at)
+      SELECT gen_random_uuid(), id, 'unsuppressed', 'reconciliation', 'SOURCE_ACCESS_REVALIDATED', '[]'::jsonb, now() FROM changed
+  `.execute(input.db);
+  const sourceJobs = await input.db
+    .selectFrom("catalog.published_jobs as job")
+    .innerJoin("catalog.published_job_versions as version", "version.id", "job.current_version_id")
+    .innerJoin(
+      "ingestion.source_job_revisions as revision",
+      "revision.id",
+      "version.source_job_revision_id",
+    )
+    .innerJoin(
+      "ingestion.source_job_records as record",
+      "record.id",
+      "revision.source_job_record_id",
+    )
+    .select("job.id")
+    .where("record.source_id", "=", input.sourceId)
+    .execute();
+  await reconcilePublication({ db: input.db, publishedJobIds: sourceJobs.map((job) => job.id) });
 }
 
 async function createOrClaimProbeTask(input: {
@@ -823,6 +864,8 @@ interface AdapterProbeOutput {
   reportedTotals: Record<string, number>;
   failureErrorCodes: string[];
   scopeExhausted: boolean;
+  /** Explicit empty marker from every visited list, never an empty parser result. */
+  verifiedEmptyScope?: boolean;
   directClosures?: Array<{ recordIds: string[]; reason: DirectClosureReason }>;
 }
 
@@ -1668,7 +1711,126 @@ async function runTencentAdapterProbe(input: AdapterProbeInput): Promise<Adapter
   };
 }
 
+async function runConfiguredWebProbe(input: AdapterProbeInput): Promise<AdapterProbeOutput> {
+  const options = ConfiguredWebOptionsSchema.parse(input.sourceConfig.policy.adapterOptions);
+  if (options.render !== (input.sourceConfig.policy.adapterKey === "configured-official-browser"))
+    throw new Error("CONFIGURED_WEB_RENDER_MODE_MISMATCH");
+  async function fetchPage(url: string, kind: "page" | "detail") {
+    const requestOptions = probeRequestOptions(
+      {
+        sourceConfig: input.sourceConfig,
+        budgetUsage: input.budgetUsage,
+        minimumIntervalMs: requestInterval(input),
+      },
+      kind,
+    );
+    let response: SafeHtmlHttpResult;
+    if (options.render) {
+      if (!input.runtime.browserExecutablePath) throw new Error("COLLECTOR_BROWSER_NOT_CONFIGURED");
+      const rendered = await renderControlledPage({
+        url,
+        executablePath: input.runtime.browserExecutablePath,
+        targets: input.sourceConfig.policy.fetchTargets,
+        readySelector:
+          kind === "detail"
+            ? options.detail.title
+            : `${options.list.row},${options.list.terminalMarker}`,
+        requestOptions,
+      });
+      const navigation = rendered.responses.find((item) => item.requestUrl === url);
+      if (!navigation) throw new Error("BROWSER_NAVIGATION_EVIDENCE_MISSING");
+      for (const item of rendered.responses)
+        await persistHttpResponse({ ...input, response: item, lease: probeLease(input) });
+      response = {
+        ...navigation,
+        contentType: "text/html; charset=utf-8",
+        text: rendered.html,
+        body: Buffer.from(rendered.html),
+        requestFingerprint: hashCanonicalJson({
+          renderedUrl: url,
+          configurationVersion: options.configurationVersion,
+        }),
+      };
+    } else {
+      response = await safeRequestHtml(
+        { method: "GET", url },
+        input.sourceConfig.policy.fetchTargets,
+        requestOptions,
+      );
+    }
+    const fetchId = await persistHttpResponse({ ...input, response, lease: probeLease(input) });
+    return { html: response.text, fetchId };
+  }
+  const visited = new Set<string>();
+  const candidates = new Map<string, string>();
+  let exhausted = true;
+  let allListsExplicitlyEmpty = true;
+  for (const entrypoint of input.sourceConfig.policy.entrypoints) {
+    let url: string | null = entrypoint;
+    while (url) {
+      if (visited.has(url)) throw new Error("CONFIGURED_WEB_PAGINATION_LOOP");
+      visited.add(url);
+      const response = await fetchPage(url, "page");
+      const page = parseConfiguredList(response.html, url, options);
+      allListsExplicitlyEmpty = allListsExplicitlyEmpty && page.explicitEmpty && page.links.length === 0;
+      for (const link of page.links) candidates.set(link, response.fetchId);
+      if (candidates.size >= input.limit && page.nextUrl) {
+        exhausted = false;
+        break;
+      }
+      url = page.nextUrl;
+    }
+  }
+  let normalizedCount = 0;
+  let rejectedCount = 0;
+  const failureErrorCodes: string[] = [];
+  for (const [url, listFetchId] of [...candidates].slice(0, input.limit)) {
+    try {
+      const response = await fetchPage(url, "detail");
+      const normalized = normalizeConfiguredDetail({
+        html: response.html,
+        url,
+        options,
+        companyName: input.sourceConfig.organization.name,
+        evidenceRef: response.fetchId,
+      });
+      if (normalized.applyUrl)
+        validateNavigationUrl(normalized.applyUrl, "GET", input.sourceConfig.policy.applyTargets);
+      await persistNormalizedOfficialJob({
+        db: input.db,
+        sourceId: input.sourceId,
+        normalized,
+        listFetchId,
+        detailFetchId: response.fetchId,
+        observedAt: new Date(),
+        lease: probeLease(input),
+        adapterVersion: "1.0.0",
+        normalizerVersion: "1.0.0",
+        deferLastSeenUpdate: input.runMode === "scheduled",
+      });
+      normalizedCount++;
+    } catch (error) {
+      const code = errorCode(error);
+      if (code === "TASK_LEASE_LOST") throw error;
+      rejectedCount++;
+      failureErrorCodes.push(code);
+      input.errors.push({ code, message: errorMessage(error) });
+    }
+  }
+  return {
+    discoveredCount: candidates.size,
+    normalizedCount,
+    rejectedCount,
+    failureErrorCodes,
+    requestCount: input.budgetUsage.requests,
+    reportedTotals: { "list-pages": visited.size },
+    scopeExhausted: exhausted && candidates.size <= input.limit,
+    verifiedEmptyScope: exhausted && visited.size > 0 && candidates.size === 0 && allListsExplicitlyEmpty,
+  };
+}
+
 const adapterProbeHandlers = {
+  "configured-web": runConfiguredWebProbe,
   baidu: runBaiduInternshipsAdapterProbe,
   "beisen-zhiye": runBeisenZhiyeAdapterProbe,
   "fanruan-trainee": runFanruanTraineeAdapterProbe,
@@ -1687,13 +1849,26 @@ async function runSourceCrawl(input: {
   runMode: "probe" | "scheduled";
   window: string;
 }): Promise<ProbeResult> {
-  if (input.runtime.appEnv !== "local" || !input.runtime.enableSourceProbe) {
+  if (
+    !mayExecuteSourceNetwork(
+      input.runtime,
+      input.runMode,
+      process.env.CI === "true" || process.env.VITEST === "true",
+    )
+  ) {
     throw new Error("SOURCE_PROBE_LOCAL_ONLY");
   }
 
   const sourceConfig = await loadSourceConfig(input.sourceKey);
   const descriptor = getOfficialSourceAdapterDescriptor(sourceConfig.policy.adapterKey);
   const assessment = assessSource(sourceConfig);
+  if (
+    controlledCollectorEnabled(input.runtime) &&
+    (sourceConfig.runtimeScope !== input.runtime.appEnv ||
+      sourceConfig.policy.status !== "approved" ||
+      !assessment.hardGatesPassed)
+  )
+    throw new Error("CONTROLLED_SOURCE_NOT_APPROVED");
   const policyStatusAllowed = isSourcePolicyStatusAuthorizedForRun(
     sourceConfig.policy.status,
     input.runMode,
@@ -1707,7 +1882,8 @@ async function runSourceCrawl(input: {
   if (
     !policyStatusAllowed ||
     !sourceConfig.localProbe.enabled ||
-    sourceConfig.candidate.acquisitionMode === "browser_required" ||
+    (sourceConfig.candidate.acquisitionMode === "browser_required" &&
+      sourceConfig.policy.adapterKey !== "configured-official-browser") ||
     descriptor.probeHandler === null
   ) {
     throw new Error("INVALID_LOCAL_PROBE_EXCEPTION");
@@ -1812,6 +1988,7 @@ async function runSourceCrawl(input: {
       .execute();
   });
 
+  let accessObservations: Awaited<ReturnType<typeof checkScheduledAccess>>["evidence"] = [];
   const errors: ProbeResult["errors"] = [];
   const failureErrorCodes: string[] = [];
   const reportedTotals: Record<string, number> = {};
@@ -1821,6 +1998,7 @@ async function runSourceCrawl(input: {
   let requestCount = 0;
   let completion: "complete" | "partial" | "failed" = "failed";
   let scopeExhausted = false;
+  let verifiedEmptyScope = false;
   let directClosures: NonNullable<AdapterProbeOutput["directClosures"]> = [];
   const budgetUsage: ProbeBudgetUsage = { requests: 0, pages: 0 };
   const baselineRecordCount =
@@ -1837,6 +2015,29 @@ async function runSourceCrawl(input: {
       : 0;
 
   try {
+    if (input.runMode === "scheduled") {
+      const policyCheck = await checkScheduledAccess({
+        config: sourceConfig,
+        beforeRequest: probeRequestOptions(
+          {
+            sourceConfig,
+            budgetUsage,
+            minimumIntervalMs: Math.max(
+              input.runtime.probeRequestIntervalMs,
+              sourceConfig.localProbe.requestBudget.minimumIntervalMs,
+            ),
+          },
+          "detail",
+        ).beforeRequest,
+      });
+      sourceConfig.localProbe.requestBudget.minimumIntervalMs = Math.max(
+        sourceConfig.localProbe.requestBudget.minimumIntervalMs,
+        (policyCheck.crawlDelaySeconds ?? 0) * 1000,
+      );
+      // Crawl run retains a compact audit; no policy is promoted by this observation.
+      reportedTotals["robots-hosts-checked"] = policyCheck.evidence.length;
+      accessObservations = policyCheck.evidence;
+    }
     const adapterInput: AdapterProbeInput = {
       db: input.db,
       runtime: input.runtime,
@@ -1860,6 +2061,7 @@ async function runSourceCrawl(input: {
     Object.assign(reportedTotals, output.reportedTotals);
     failureErrorCodes.push(...output.failureErrorCodes);
     scopeExhausted = output.scopeExhausted;
+    verifiedEmptyScope = output.verifiedEmptyScope === true;
     directClosures = output.directClosures ?? [];
     const directClosureCount = directClosures.reduce(
       (total, closure) => total + closure.recordIds.length,
@@ -1867,7 +2069,7 @@ async function runSourceCrawl(input: {
     );
     if (directClosureCount > 0) reportedTotals["direct-closed-records"] = directClosureCount;
     completion =
-      normalizedCount + directClosureCount > 0
+      normalizedCount + directClosureCount > 0 || verifiedEmptyScope
         ? input.runMode === "scheduled" &&
           sourceConfig.policy.refreshCoverage === "full_scope" &&
           scopeExhausted &&
@@ -1903,10 +2105,10 @@ async function runSourceCrawl(input: {
       normalizedCount +
       directClosures.reduce((total, closure) => total + closure.recordIds.length, 0);
     const emptySuccessfulResponse =
-      currentComparableCount === 0 && requestCount > 0 && failureErrorCodes.length === 0;
+      currentComparableCount === 0 && requestCount > 0 && failureErrorCodes.length === 0 && !verifiedEmptyScope;
     if (
       emptySuccessfulResponse ||
-      (failureErrorCodes.length === 0 &&
+      (!verifiedEmptyScope && failureErrorCodes.length === 0 &&
         isRefreshCountAnomaly(previousComparableCount, currentComparableCount))
     ) {
       hardConflictCodes.push("UPSTREAM_COUNT_ANOMALY");
@@ -1979,6 +2181,7 @@ async function runSourceCrawl(input: {
         normalized_count: normalizedCount,
         rejected_count: rejectedCount,
         error_summary: canonicalJson(errors),
+        access_observations: canonicalJson(accessObservations),
         automation_acceptance:
           input.runMode === "scheduled"
             ? transactionAutomationAccepted

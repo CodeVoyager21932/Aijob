@@ -1,0 +1,26 @@
+[
+  {
+    "family": "Sans",
+    "source": "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "sourceSha256": "b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a",
+    "output": "AijobCJK.otf",
+    "sha256": "3a0e2fda8c80000a0439ff8423f50a0a45884bb539bb61422cf1c388ac4534fb",
+    "removedRedundantAliases": 321,
+    "disabledOptionalLigatures": [
+      "dlig",
+      "liga"
+    ]
+  },
+  {
+    "family": "Serif",
+    "source": "/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc",
+    "sourceSha256": "a04178ec485dffdff7cc0c0c20e1fce9202d7e2160d805e8e44a4c8841c58481",
+    "output": "AijobSerifCJK.otf",
+    "sha256": "0910940412c3dae677cf4ab2a7c5846153c47058d23f943bbb4a866a3d518140",
+    "removedRedundantAliases": 335,
+    "disabledOptionalLigatures": [
+      "dlig",
+      "liga"
+    ]
+  }
+]

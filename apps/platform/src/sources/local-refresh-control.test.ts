@@ -13,6 +13,7 @@ describe("local source refresh control", () => {
       const enabled = writeLocalRefreshControl({
         rootDirectory,
         enabled: true,
+        sourceKeys: ["reviewed-source"],
         now: new Date("2026-08-01T00:00:00.000Z"),
       });
       expect(readLocalRefreshControl(rootDirectory)).toEqual(enabled);
@@ -23,6 +24,9 @@ describe("local source refresh control", () => {
         now: new Date("2026-08-01T01:00:00.000Z"),
       });
       expect(readLocalRefreshControl(rootDirectory)).toEqual(disabled);
+      expect(disabled.sourceKeys).toEqual(["reviewed-source"]);
+      const resumed = writeLocalRefreshControl({ rootDirectory, enabled: true });
+      expect(resumed.sourceKeys).toEqual(["reviewed-source"]);
     } finally {
       rmSync(rootDirectory, { recursive: true, force: true });
     }

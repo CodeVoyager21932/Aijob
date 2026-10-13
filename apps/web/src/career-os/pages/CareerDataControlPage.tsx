@@ -8,10 +8,7 @@ import {
   deleteInterviewSession,
   getCareerDataScope,
 } from "../../api/career-os";
-import {
-  ProductApiError,
-  suppressSessionBootstrapAfterOwnerDeletion,
-} from "../../api/client";
+import { ProductApiError, suppressSessionBootstrapAfterOwnerDeletion } from "../../api/client";
 import { deleteProfile } from "../../api/product";
 import { clearDeletedOwnerCache } from "../../product/privacy-cache";
 import { clearJourneyState } from "../../product/session-state";
@@ -48,8 +45,11 @@ function DataPageHeading() {
     <header className="career-page-heading career-data-page__heading">
       <div>
         <p>数据与设置</p>
-        <h1 id="career-data-title">由你决定保留什么</h1>
-        <span>查看真实保存范围、处理脱离项目的资产，或主动删除全部个人数据。</span>
+        <h1 id="career-data-title">账户与资料</h1>
+        <span>管理账户、已保存的材料和数据。</span>
+        <Link className="career-button" to="/settings/ai">
+          配置我的 AI 接口
+        </Link>
       </div>
     </header>
   );
@@ -154,6 +154,7 @@ export function CareerDataControlPage() {
   const scope = scopeQuery.data;
   const counts = scope.counts;
   const accountManaged = scope.owner.retentionMode === "account_managed";
+  const persistentGuest = scope.owner.retentionMode === "persistent_guest";
   const legacyCount =
     counts.legacyJobDecisions +
     counts.legacyMatchRuns +
@@ -179,9 +180,15 @@ export function CareerDataControlPage() {
         </div>
         <div>
           <p>当前保留模式</p>
-          <h2 id="retention-mode-title">{accountManaged ? "长期账号管理" : "本机匿名兼容模式"}</h2>
+          <h2 id="retention-mode-title">
+            {accountManaged ? "账号资料" : persistentGuest ? "当前浏览器的资料" : "旧版临时资料"}
+          </h2>
           {accountManaged ? (
-            <span>职业资产没有固定自动到期日；你可以随时单项删除或删除全部数据。</span>
+            <span>资料与上传原件保留至你主动删除，可以随时删除单项或全部资料。</span>
+          ) : persistentGuest ? (
+            <span>
+              资料与上传原件保留至你主动删除。当前浏览器可继续使用；绑定邮箱后可跨设备找回。清除浏览器凭据或会话到期不会删除资料，但未绑定邮箱时无法恢复访问。
+            </span>
           ) : (
             <span>
               当前本机身份将于{" "}

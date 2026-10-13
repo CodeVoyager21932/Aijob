@@ -91,7 +91,7 @@ function tokenHashMatches(token: string, expectedHash: string): boolean {
 }
 
 function shouldHandleIdentity(request: FastifyRequest): boolean {
-  return request.url === "/v1" || request.url.startsWith("/v1/");
+  return /^\/v[12](?:\/|$)/u.test(request.url);
 }
 
 function isDeletionReceiptStatusRequest(request: FastifyRequest): boolean {

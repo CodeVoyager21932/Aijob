@@ -1,65 +1,24 @@
 # Aijob 计划索引
 
-本目录严格区分“当前执行计划”“后续验收 Gate”和“历史归档”。新任务只能从路线图、当前交接与当前执行计划共同指向的唯一切片开始。
+> 最新执行范围（2026-10-13）：按 coco 要求，先在现有网页开发版完善产品；安装包同步、构建、安装测试与资料迁入暂停，待终版明确确认后恢复。已有桌面实现与候选保留，后续功能迭代无需同步安装版。此决定覆盖下列计划中的当前打包安排。
 
-## 当前执行
+> 当前交付依据：[2026-10-13 本机产品化升级](local-opportunity-productization-2026-10-13.md)、ADR-0043。连接选择、来源接入、独立运行与两条页面旅程通过，Windows 当前用户安装及最终启动壳增量检查通过，未签名本机候选已生成；实际范围读取[交付记录](../evidence/local-productization-2026-10-13.md)。2026-10-12 简历与机会链路作为兼容基础保留。
 
-**最新状态（2026-09-06）：** coco明确产品主体尚不满意，先改需求理解、体验、供给自动化和共性要求分析，后续仍面向本硕博及1000人以内首批尝试者。[产品主体研究](../reviews/product-core-research-2026-09-05/report.md)已完成，下一开发入口见[实施顺序切片A](../reviews/product-core-research-2026-09-05/implementation-plan.md)：理解规则与方向比较最小旅程。当前只有研究、代码复现与虚构交互示意，业务功能尚未实施。上一轮优先补账号部署的建议被取代；不重做OS-7/纠偏/恢复，也不以2/6人研究为前置路线。
+> 当前交付：[2026-10-12 系统升级计划](system-upgrade-2026-10-12.md)，依据ADR-0042；实现与有限检查见[交付记录](../evidence/system-upgrade-2026-10-12.md)，真实连接和部署条件分开报告。下列计划保留为历史和兼容基础。
 
-- [产品主体改进实施顺序](../reviews/product-core-research-2026-09-05/implementation-plan.md)：**当前接手建议**；五个切片按依赖展开，先完成一个有用旅程，不把全部候选功能都变为发布条件。涉及边界调整的建议尚未生效。
+> 2026-09-13：K4 已完成40套原生中文版式与120组输出；K5 已完成本机主入口接管、业务库066/067升级和新建→编辑→换模板→下载→重开链路，形成本机候选。真实BYOK、独立导入盲测、实体设备和正式部署条件单列，不能等同于已发布。
 
-- [岗位事实纠偏与独立工作区接手](job-fact-fidelity-handoff.md)：**四步已完成**；关闭依据为[验收证据](../evidence/product/job-fact-fidelity-acceptance-2026-09-05.md)。
-- [供给准入扩容轨道（SA Track）](supply-admission-scaleup-track.md)：Phase A、公司上限取消与业务恢复已完成；后续准入证据项保留，按本轮首发目标重新安排必要工作。40/70/100为报告检查点，触网边界仍服从AGENTS与已有授权。
-- [主工作区与旧目录处置](../runbooks/workspace-takeover.md)：只在独立主目录继续开发；原目录和私有业务材料的保存、恢复边界。
-- [Career OS 前后端同步改进计划](career-os-current-delivery-plan.md)：**已收敛完成**；UX-0 与 OS-1–OS-7 五项 Gate 全部关闭。保留为实施契约与历史依据，不再提供当前任务。
-- [Career OS 端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)：OS-1–OS-7 必须遵守的系统归属、Contracts/Platform/DB/Web、路由、状态、视觉、响应式、焦点和夹具规则；不提供新的任务顺序。
-- [UX-0 页面—系统—证据追踪矩阵](career-os-ux-0-end-to-end-traceability-matrix.md)：逐用例记录规范路由、Contracts、Platform/DB、权限/并发/删除语义、Web 状态、真实测试和 `R / A / E / M / X` 处置；OS-1–OS-6 关闭注记不改写 UX-0 审计时点事实，未决行关闭前不得实现对应页面。
-- [MVP 路线与当前决策面板](../06-mvp-roadmap.md)：当前阶段、真实分母、Gate 和下一决定的最高动态事实源。
-- [当前项目交接](../handoffs/current.md)：当前分支、工程基线、当前切片、代码入口和安全边界。
-- [OS-7 系统总 Gate 验收](../evidence/product/career-os-v2/os-7-system-gate-acceptance-2026-08-28.md)：OS-7 的结论证据，五项状态全部通过；同时记录一处预先存在的 OS-6 typecheck 缺口和复现浏览器 Gate 的环境条件。
-- [OS-7 系统总 Gate 暂停检查点](../evidence/product/career-os-v2/os-7-system-gate-checkpoint-2026-08-28.md)：过程记录，已被上面的验收取代，不代表当前状态。
+已实施：[原生核心替换计划](resume-cn-studio-production-plan-2026-09-11.md)，当前交付见[原生K4/K5记录](../evidence/resume-native-k4-k5-2026-09-13.md)。40套是新版原生模板结果，不是旧S0–S4登记数。
 
-## 后续验收 Gate
+2026-09-11：当前依据为[简历质量重建 S0–S4](resume-studio-quality-rebuild-2026-09-10.md)和[ADR-0040](../decisions/0040-resume-studio-quality-and-export-artifacts.md)。40套模板、内容校验、编辑与导出已形成本地候选；[验收及真实环境限制](../evidence/resume-studio-quality-2026-09-10/README.md)。下一项任务读取路线图和当前交接，不重启S0。
 
-- [Private Alpha 与上线就绪 Gate](private-alpha-readiness-gates.md)：只回答进入真实参与者测试和推广上线前不能遗漏什么；不得从中生成当前任务。
+历史基础：[方向图谱与简历工作室 R1–R5](direction-insights-and-resume-studio-rework-2026-09-09.md)、[ADR-0039](../decisions/0039-direction-graph-and-template-studio.md)。图谱及业务基础保留，其30套输出不代替本轮40套验收；旧冷查询/混合负载缺口仍保留。
 
-## 历史归档
+2026-09-10 用户实际反馈触发[模板体验复审与修复](../reviews/resume-template-ux-2026-09-10.md)：优先解决模板选择、空稿填写和一页排版，再按实际填写任务继续评审。已有图谱及业务基础保留。冷查询/混合负载性能、真实 BYOK、部署和来源准入继续单列；不把输出样稿成功当作全部体验或生产验收。
 
-所有已完成、被取代或只用于解释既有实现的计划统一列在[历史计划归档](archive/README.md)。其中包括：
+- [U0–U6 需求对齐修正版](product-experience-system-upgrade-2026-09-07.md)：直接导入、原件留存、完整经历、用户 API、统一助手与工作区的既有基础。
+- [产品主体执行记录](product-core-execution.md)：此前六阶段供给、材料、申请、面试等基础，不从阶段 1 重启。
+- [首发条件](private-alpha-readiness-gates.md)：来源、身份、运行条件的清单；不提供当前开发任务，不恢复供给数量硬门槛。
+- [固定版本竞品研究](../reviews/direction-studio-research-2026-09-09/README.md)：本次设计来源，研究时点状态不代表当前进度。
 
-- M0–M4 与 PA-1 已完成交付计划
-- M2/M3/M4 集成设计与差距审计
-- Phase 2/2R/2A 契约与迁移设计
-- R2 UI/UX 旧视觉方向
-- G2 收束和旧 G4-first 严格总计划
-
-归档正文中的“当前”“下一步”“授权”“时间盒”和历史分母只描述当时时点，不得覆盖现行路线。
-
-旧路径 [career-os-v2-upgrade-plan-2026-08-04.md](career-os-v2-upgrade-plan-2026-08-04.md) 仅为兼容历史链接的废止路标。
-
-### 旧切片名称映射
-
-旧 `UX-1–UX-7` 已停止作为现行任务名。归档正文保留原名以维护历史证据，阅读时只按下表理解其现行归属，不得沿旧顺序继续：
-
-| 历史名称 | 现行名称 |
-|---|---|
-| UX-1 | OS-1 系统外壳与运行契约 |
-| UX-5 | OS-2 资料准备与可信岗位入口 |
-| UX-2 | OS-3 申请看板与 Case 命令 |
-| UX-3 | OS-4 单 Case 决策与固定版本匹配 |
-| UX-4 | OS-5 Resume Studio 与唯一 Review 写入 |
-| UX-6 | OS-6 投递、面试、复盘与数据控制 |
-| UX-7 | OS-7 系统总 Gate |
-
-`UX-0` 保留为已完成的端到端契约审计名称及后续实现基线。支持契约、追踪矩阵、证据、未来 Gate、兼容路标和归档都不是独立活动计划，也不得把已关闭审计重新生成成当前任务。
-
-## 事实源与冲突处理
-
-1. 当前阶段、目标和下一决定：`docs/06-mvp-roadmap.md`。
-2. 当前分支、工程基线和执行入口：`docs/handoffs/current.md`。
-3. 当前开发入口与实施建议：`docs/reviews/product-core-research-2026-09-05/implementation-plan.md`；SA Track只提供供给依赖与已有证据。
-4. 不可静默改变的架构与产品决定：ADR。
-5. Private Alpha 完整条件：`private-alpha-readiness-gates.md`，只守门。
-6. 历史设计、验收与归档：只作证据和上下文。
-
-若活动文档与 Git、运行状态或彼此冲突，先记录并复核；不得静默选择，也不得回到历史计划继续执行。
+OS-7、事实纠偏、公司上限取消和业务恢复已经关闭。旧计划、摘要及归档中的“下一步”不能覆盖当前路线图。用户后续明确需求优先，保留已认可的 V2 视觉及业务约束。

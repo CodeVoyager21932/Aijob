@@ -8,6 +8,7 @@ export const LOCAL_REFRESH_CONTROL_RELATIVE_PATH = ".data/source-refresh.local.j
 const LocalRefreshControlSchema = z.object({
   version: z.literal(1),
   enabled: z.boolean(),
+  sourceKeys: z.array(z.string().regex(/^[a-z0-9-]+$/)).min(1).optional(),
   updatedAt: z.string().datetime(),
 });
 
@@ -32,11 +33,17 @@ export function readLocalRefreshControl(rootDirectory: string): LocalRefreshCont
 export function writeLocalRefreshControl(input: {
   rootDirectory: string;
   enabled: boolean;
+  /** Omitted preserves the selected scope; null explicitly restores the legacy all-source scope. */
+  sourceKeys?: readonly string[] | null;
   now?: Date;
 }): LocalRefreshControl {
+  const sourceKeys = input.sourceKeys === undefined
+    ? readLocalRefreshControl(input.rootDirectory).sourceKeys
+    : input.sourceKeys;
   const control = LocalRefreshControlSchema.parse({
     version: 1,
     enabled: input.enabled,
+    ...(sourceKeys ? { sourceKeys: [...new Set(sourceKeys)] } : {}),
     updatedAt: (input.now ?? new Date()).toISOString(),
   });
   const path = controlPath(input.rootDirectory);

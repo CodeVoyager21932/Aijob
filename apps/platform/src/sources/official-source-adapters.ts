@@ -1,4 +1,5 @@
 import type { AcquisitionMode } from "@aijob/contracts";
+import { ConfiguredWebOptionsSchema } from "./configured-web-adapter.js";
 import { z } from "zod";
 import {
   BAIDU_INTERNSHIPS_ADAPTER_VERSION,
@@ -30,10 +31,7 @@ import {
   OFFICIAL_ACCOUNT_MANUAL_ADAPTER_VERSION,
   OFFICIAL_ACCOUNT_MANUAL_NORMALIZER_VERSION,
 } from "./official-account-manual-adapter.js";
-import {
-  TENCENT_ADAPTER_VERSION,
-  TENCENT_NORMALIZER_VERSION,
-} from "./tencent-campus-adapter.js";
+import { TENCENT_ADAPTER_VERSION, TENCENT_NORMALIZER_VERSION } from "./tencent-campus-adapter.js";
 import {
   UniversityEmploymentAdapterOptionsSchema,
   SUSTECH_BYSJY_ADAPTER_VERSION,
@@ -43,6 +41,7 @@ import {
 } from "./university-employment-adapter.js";
 
 export type ProbeHandlerKey =
+  | "configured-web"
   | "baidu"
   | "beisen-zhiye"
   | "fanruan-trainee"
@@ -85,6 +84,26 @@ const networkPipelineVersion = "1";
 const manualPipelineVersion = "2";
 
 export const officialSourceAdapterDescriptors = {
+  "configured-official-html": {
+    adapterKey: "configured-official-html",
+    adapterVersion: "1.0.0",
+    normalizerVersion: "1.0.0",
+    pipelineVersion: "1",
+    acquisitionMode: "deterministic_html",
+    optionsSchema: ConfiguredWebOptionsSchema,
+    probeHandler: "configured-web",
+    manualHandler: null,
+  },
+  "configured-official-browser": {
+    adapterKey: "configured-official-browser",
+    adapterVersion: "1.0.0",
+    normalizerVersion: "1.0.0",
+    pipelineVersion: "1",
+    acquisitionMode: "browser_required",
+    optionsSchema: ConfiguredWebOptionsSchema,
+    probeHandler: "configured-web",
+    manualHandler: null,
+  },
   "baidu-ssr-deterministic-html": {
     adapterKey: "baidu-ssr-deterministic-html",
     adapterVersion: BAIDU_INTERNSHIPS_ADAPTER_VERSION,

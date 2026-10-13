@@ -86,16 +86,16 @@ describe("deterministic job market insight", () => {
     );
   });
 
-  it("does not publish rankings below the sample thresholds", () => {
+  it("shows descriptive facts below the sample thresholds", () => {
     const result = buildJobInsightResult(records(19), null);
     expect(result.dataSufficient).toBe(false);
     expect(result.insufficiencyReasons).toContain("too_few_jobs");
-    expect(result.commonHardRequirements).toEqual([]);
-    expect(result.frequentCapabilities).toEqual([]);
-    expect(result.preferredRequirements).toEqual([]);
+    expect(result.commonHardRequirements.length).toBeGreaterThan(0);
+    expect(result.frequentCapabilities.length).toBeGreaterThan(0);
+    expect(result.preferredRequirements.length).toBeGreaterThan(0);
   });
 
-  it("counts jobs without atomic requirements in coverage and excludes unknown necessity", () => {
+  it("counts jobs without atomic requirements in coverage and separately shows unspecified necessity", () => {
     const sample = records().map((record, index) => ({
       ...record,
       requirementSetId: index < 7 ? null : record.requirementSetId,
@@ -120,9 +120,9 @@ describe("deterministic job market insight", () => {
       requirementCoverage: 0.65,
     });
     expect(result.insufficiencyReasons).toContain("low_requirement_coverage");
-    expect(result.commonHardRequirements).toEqual([]);
-    expect(result.frequentCapabilities).toEqual([]);
-    expect(result.preferredRequirements).toEqual([]);
+    expect(result.commonHardRequirements.length).toBeGreaterThan(0);
+    expect(result.frequentCapabilities.length).toBeGreaterThan(0);
+    expect(result.preferredRequirements.length).toBeGreaterThan(0);
   });
 
   it("compares only confirmed resume evidence and keeps profile facts as needs confirmation", () => {

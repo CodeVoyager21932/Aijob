@@ -13,6 +13,7 @@ describe("local-only web surfaces", () => {
     { input: { isDev: false, mode: "test" }, expected: true },
     { input: { isDev: false, mode: "alpha" }, expected: false },
     { input: { isDev: false, mode: "production" }, expected: false },
+    { input: { isDev: false, mode: "desktop" }, expected: false },
   ])("returns $expected for $input", ({ input, expected }) => {
     expect(shouldEnableInternalSurfaces(input)).toBe(expected);
   });
@@ -26,6 +27,7 @@ describe("local-only web surfaces", () => {
     { input: { isDev: false, mode: "test" }, product: true, invite: false },
     { input: { isDev: false, mode: "alpha" }, product: true, invite: true },
     { input: { isDev: false, mode: "production" }, product: false, invite: false },
+    { input: { isDev: false, mode: "desktop" }, product: true, invite: false },
   ])("separates product access from internal surfaces for $input", ({ input, product, invite }) => {
     expect(shouldEnableProductSurfaces(input)).toBe(product);
     expect(shouldRequireAlphaAccess(input)).toBe(invite);

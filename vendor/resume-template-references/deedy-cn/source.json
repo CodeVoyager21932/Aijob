@@ -1,0 +1,24 @@
+{
+  "repository": "dyweb/Deedy-Resume-for-Chinese",
+  "commit": "3fe0e55a52ad3a96958b1bcd3c8e4674fc72f5ce",
+  "files": [
+    {
+      "path": "LICENSE",
+      "local": "LICENSE",
+      "sha256": "a8ad31b1c3f40dca5a84119351b8fa8ddc868edd77fad8a8ebf6d8f2d16fa4ae",
+      "url": "https://raw.githubusercontent.com/dyweb/Deedy-Resume-for-Chinese/3fe0e55a52ad3a96958b1bcd3c8e4674fc72f5ce/LICENSE"
+    },
+    {
+      "path": "OpenFonts.Chinese/deedy-resume-openfont.cls",
+      "local": "deedy-resume-openfont.cls",
+      "sha256": "08ae5e75321ca9ecba77f5c80e1b824f8606b95b0db7de71db83b8304992d544",
+      "url": "https://raw.githubusercontent.com/dyweb/Deedy-Resume-for-Chinese/3fe0e55a52ad3a96958b1bcd3c8e4674fc72f5ce/OpenFonts.Chinese/deedy-resume-openfont.cls"
+    },
+    {
+      "path": "OpenFonts.Chinese/resume.tex",
+      "local": "resume.tex",
+      "sha256": "4a6eac205a41635af77ea3b37664e5465d4af0419db81143b30851a6a718e36e",
+      "url": "https://raw.githubusercontent.com/dyweb/Deedy-Resume-for-Chinese/3fe0e55a52ad3a96958b1bcd3c8e4674fc72f5ce/OpenFonts.Chinese/resume.tex"
+    }
+  ]
+}

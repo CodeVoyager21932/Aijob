@@ -6,7 +6,7 @@ export const OwnerSchema = z.object({
   id: IdentifierSchema,
   status: OwnerStatusSchema,
   epoch: z.number().int().positive(),
-  retentionExpiresAt: TimestampSchema,
+  retentionExpiresAt: TimestampSchema.nullable(),
   createdAt: TimestampSchema,
   lastSeenAt: TimestampSchema,
   deletedAt: TimestampSchema.nullable(),
@@ -28,7 +28,11 @@ export const SessionBootstrapResponseSchema = z.object({
 });
 export type SessionBootstrapResponse = z.infer<typeof SessionBootstrapResponseSchema>;
 
-export const OwnerRetentionModeSchema = z.enum(["anonymous_ttl", "account_managed"]);
+export const OwnerRetentionModeSchema = z.enum([
+  "anonymous_ttl",
+  "persistent_guest",
+  "account_managed",
+]);
 export type OwnerRetentionMode = z.infer<typeof OwnerRetentionModeSchema>;
 
 const CareerOwnerBaseSchema = z
@@ -46,6 +50,11 @@ export const CareerOwnerSchema = z.discriminatedUnion("retentionMode", [
   CareerOwnerBaseSchema.extend({
     retentionMode: z.literal("anonymous_ttl"),
     retentionExpiresAt: TimestampSchema,
+    accountId: z.null(),
+  }).strict(),
+  CareerOwnerBaseSchema.extend({
+    retentionMode: z.literal("persistent_guest"),
+    retentionExpiresAt: z.null(),
     accountId: z.null(),
   }).strict(),
   CareerOwnerBaseSchema.extend({

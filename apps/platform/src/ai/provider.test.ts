@@ -116,4 +116,57 @@ describe("OpenAI-compatible provider boundary", () => {
     );
     expect(fetchSignal?.aborted).toBe(true);
   });
+
+  it("supports fenced JSON only in prompt compatibility mode and keeps configured completion paths", async () => {
+    const observed: string[] = [];
+    const provider = new OpenAiCompatibleProvider(
+      {
+        enabled: true,
+        baseUrl: "https://provider.example/custom/chat/completions",
+        model: "fixture",
+        apiKey: "fixture",
+        requestTimeoutMs: 1000,
+        jsonMode: "prompt",
+      },
+      async (url, init) => {
+        observed.push(String(url));
+        expect(JSON.parse(String(init?.body))).not.toHaveProperty("response_format");
+        return new Response(
+          JSON.stringify({ choices: [{ message: { content: '```json\n{"value":"ok"}\n```' } }] }),
+        );
+      },
+    );
+    await expect(
+      provider.completeStructured({
+        systemInstruction: "Return JSON",
+        untrustedPayload: {},
+        schema: outputSchema,
+      }),
+    ).resolves.toEqual({ value: "ok" });
+    expect(observed).toEqual(["https://provider.example/custom/chat/completions"]);
+  });
+  it.each([
+    [401, "AI_AUTHENTICATION_FAILED"],
+    [403, "AI_AUTHENTICATION_FAILED"],
+    [429, "AI_RATE_LIMITED"],
+    [404, "AI_MODEL_UNAVAILABLE"],
+  ])("maps HTTP %s without exposing the response body", async (status, code) => {
+    const provider = new OpenAiCompatibleProvider(
+      {
+        enabled: true,
+        baseUrl: "https://provider.example/v1",
+        model: "fixture",
+        apiKey: "fixture",
+        requestTimeoutMs: 1000,
+      },
+      async () => new Response("private upstream message", { status: Number(status) }),
+    );
+    await expect(
+      provider.completeStructured({
+        systemInstruction: "Return JSON",
+        untrustedPayload: {},
+        schema: outputSchema,
+      }),
+    ).rejects.toMatchObject({ code });
+  });
 });

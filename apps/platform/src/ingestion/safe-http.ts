@@ -297,7 +297,7 @@ function safeHeaders(headers: IncomingHttpHeaders): Record<string, string> {
 async function requestOnce(
   spec: RequestSpec,
   targets: SourceTarget[],
-  responseKind: "json" | "html" | "text",
+  responseKind: "json" | "html" | "text" | "resource",
   options: SafeRequestOptions,
   redirectCount = 0,
 ): Promise<SafeHttpResult> {
@@ -440,7 +440,7 @@ async function requestOnce(
         ? normalizedContentType.includes("application/json")
         : normalizedContentType.includes("text/html") ||
           normalizedContentType.includes("application/xhtml+xml");
-  if (!expectedContentType) {
+  if (!expectedContentType && responseKind !== "resource") {
     throw new NetworkPolicyError(
       "UNEXPECTED_CONTENT_TYPE",
       `Expected ${responseKind.toUpperCase()} but received ${contentType || "unknown"}`,
@@ -469,6 +469,22 @@ async function requestOnce(
     ),
     body: response.body,
   };
+}
+
+/** Browser resources use the same DNS pinning, exact target and body-size policy. */
+export async function safeRequestResource(
+  spec: RequestSpec,
+  targets: SourceTarget[],
+  options: SafeRequestOptions = {},
+): Promise<SafeHttpResult> {
+  const result = await requestOnce(spec, targets, "resource", options);
+  if (result.status < 200 || result.status >= 300)
+    throw new NetworkPolicyError(
+      `UPSTREAM_HTTP_${result.status}`,
+      `Upstream returned HTTP ${result.status}`,
+      result,
+    );
+  return result;
 }
 
 function retryDelayMs(headers: Record<string, string>, attempt: number): number {

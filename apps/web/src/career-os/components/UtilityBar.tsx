@@ -5,6 +5,7 @@ import { getSessionStatus } from "../../api/client";
 import {
   getWorkspaceBreadcrumbs,
   isDeletionReceiptRoute,
+  workspaceAuxiliaryNavigation,
   workspaceNavigation,
 } from "../navigation";
 import { Icon } from "./Icon";
@@ -20,7 +21,7 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
   const deletionReceiptOnly = isDeletionReceiptRoute(location.pathname);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [utilityPopover, setUtilityPopover] = useState<"notifications" | "account" | null>(null);
+  const [utilityPopover, setUtilityPopover] = useState<"account" | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const sessionQuery = useQuery({
     queryKey: ["identity", "session"],
@@ -56,31 +57,36 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
 
   const normalizedQuery = query.trim().toLowerCase();
   const navigationResults = useMemo(
-    () => workspaceNavigation.filter((item) => item.label.toLowerCase().includes(normalizedQuery)),
+    () =>
+      [...workspaceNavigation, ...workspaceAuxiliaryNavigation].filter((item) =>
+        item.label.toLowerCase().includes(normalizedQuery),
+      ),
     [normalizedQuery],
   );
   const sessionLabel = deletionReceiptOnly
     ? "删除回执"
     : sessionQuery.isPending
-    ? "会话检查中"
-    : sessionQuery.isError
-      ? "状态未知"
-      : !sessionQuery.data.authenticated
-        ? "需要验证"
-        : sessionQuery.data.owner.retentionMode === "account_managed"
-          ? "长期账号"
-          : "本机会话";
+      ? "会话检查中"
+      : sessionQuery.isError
+        ? "状态未知"
+        : !sessionQuery.data.authenticated
+          ? "需要验证"
+          : sessionQuery.data.owner.retentionMode === "account_managed"
+            ? "长期账号"
+            : "本机会话";
   const sessionDescription = deletionReceiptOnly
     ? "当前只读取删除回执，不会建立新的 owner 会话。"
     : sessionQuery.isPending
-    ? "正在读取当前访问与数据保留状态。"
-    : sessionQuery.isError
-      ? "当前无法确认会话状态，请刷新后重试。"
-      : !sessionQuery.data.authenticated
-        ? "当前没有建立可访问的用户会话。"
-        : sessionQuery.data.owner.retentionMode === "account_managed"
-          ? "职业资产由已验证账号长期管理。"
-          : "匿名职业资产按本机保留期限管理。";
+      ? "正在读取当前访问与数据保留状态。"
+      : sessionQuery.isError
+        ? "当前无法确认会话状态，请刷新后重试。"
+        : !sessionQuery.data.authenticated
+          ? "当前没有建立可访问的用户会话。"
+          : sessionQuery.data.owner.retentionMode === "account_managed"
+            ? "职业资产由已验证账号长期管理。"
+            : sessionQuery.data.owner.retentionMode === "persistent_guest"
+              ? "资料保留至你主动删除，绑定邮箱后可跨设备找回。"
+              : "旧版临时资料仍按原有期限管理。";
 
   return (
     <>
@@ -120,27 +126,14 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
             <span>搜索工作区页面</span>
             <kbd>Ctrl K</kbd>
           </button>
-          <div className="career-utility-popover-anchor">
-            <button
-              className="career-icon-button"
-              type="button"
-              aria-label="查看通知"
-              aria-expanded={utilityPopover === "notifications"}
-              onClick={() =>
-                setUtilityPopover((current) =>
-                  current === "notifications" ? null : "notifications",
-                )
-              }
-            >
-              <Icon name="bell" />
-            </button>
-            {utilityPopover === "notifications" ? (
-              <output className="career-utility-popover">
-                <strong>今天没有新的系统提醒</strong>
-                <span>下一步任务请在“今日”中查看。</span>
-              </output>
-            ) : null}
-          </div>
+          <Link
+            className="career-icon-button"
+            to="/applications/planner"
+            aria-label="查看准备与日程"
+            title="准备与日程"
+          >
+            <Icon name="calendar" />
+          </Link>
           <div className="career-utility-popover-anchor">
             <button
               className="career-account-button"
@@ -183,33 +176,33 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
           <h2 className="sr-only" id="career-command-title">
             全局搜索
           </h2>
-            <label>
-              <Icon name="search" />
-              <input
-                ref={inputRef}
-                type="search"
-                value={query}
-                placeholder="搜索工作区页面"
-                onChange={(event) => setQuery(event.target.value)}
-              />
-              <kbd>Esc</kbd>
-            </label>
-            <div className="career-command-menu__results">
-              {navigationResults.length > 0 ? (
-                <div>
-                  <p>页面</p>
-                  {navigationResults.map((item) => (
-                    <Link key={item.to} to={item.to} onClick={closeSearch}>
-                      <Icon name={item.icon} />
-                      <span>{item.label}</span>
-                    </Link>
-                  ))}
-                </div>
-              ) : null}
-              {navigationResults.length === 0 ? (
-                <p className="career-command-menu__empty">没有找到对应页面。</p>
-              ) : null}
-            </div>
+          <label>
+            <Icon name="search" />
+            <input
+              ref={inputRef}
+              type="search"
+              value={query}
+              placeholder="搜索工作区页面"
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            <kbd>Esc</kbd>
+          </label>
+          <div className="career-command-menu__results">
+            {navigationResults.length > 0 ? (
+              <div>
+                <p>页面</p>
+                {navigationResults.map((item) => (
+                  <Link key={item.to} to={item.to} onClick={closeSearch}>
+                    <Icon name={item.icon} />
+                    <span>{item.label}</span>
+                  </Link>
+                ))}
+              </div>
+            ) : null}
+            {navigationResults.length === 0 ? (
+              <p className="career-command-menu__empty">没有找到对应页面。</p>
+            ) : null}
+          </div>
         </ModalSurface>
       ) : null}
     </>

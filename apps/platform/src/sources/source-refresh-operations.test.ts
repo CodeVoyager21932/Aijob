@@ -1,6 +1,7 @@
 import type { Database } from "@aijob/database";
 import type { Kysely } from "kysely";
 import { describe, expect, it, vi } from "vitest";
+import { loadSourceConfig } from "./source-config.js";
 import {
   disableLocalSourceRefresh,
   enableLocalSourceRefresh,
@@ -138,7 +139,7 @@ describe("local source refresh operations", () => {
         {
           sourceId: "shining3d-internships-source",
           sourceKey: "shining3d-internships",
-          policyVersion: 3,
+          policyVersion: (await loadSourceConfig("shining3d-internships")).policy.version,
           refreshCoverage: "full_scope",
         },
         {
@@ -157,6 +158,32 @@ describe("local source refresh operations", () => {
       staggerHours: 24,
       staggeredSources: [{ sourceKey: "shining3d-internships" }],
     });
+  });
+
+  it("registers and schedules only the explicitly selected sources and preserves scope on resume", async () => {
+    const selected = ["shining3d-internships"];
+    const register = vi.fn(async (_db, config) => ({
+      organizationId: "organization", sourceCandidateId: "candidate", sourceId: "source", policyVersion: config.policy.version,
+    }));
+    const write = vi.fn((input) => ({ version: 1 as const, enabled: input.enabled, sourceKeys: selected, updatedAt: "2026-10-12T12:00:00.000Z" }));
+    const stagger = vi.fn(async () => []);
+    const dependencies = {
+      readLocalRefreshControl: () => ({ version: 1 as const, enabled: false, sourceKeys: selected, updatedAt: "2026-10-12T12:00:00.000Z" }),
+      listSourceKeys: async () => { throw new Error("UNSELECTED_CONFIGS_MUST_NOT_LOAD"); },
+      registerSourceConfig: register,
+      writeLocalRefreshControl: write,
+      staggerDueSourceRefreshes: stagger,
+      waitForCollectorIdle: async () => {},
+    };
+    const result = await enableLocalSourceRefresh({ db, appEnv: "local", workspaceRoot: "C:/workspace", dependencies });
+    expect(register).toHaveBeenCalledOnce();
+    expect(result.registeredSources.map(source => source.sourceKey)).toEqual(selected);
+    expect(write).toHaveBeenLastCalledWith({ rootDirectory: "C:/workspace", enabled: true, sourceKeys: selected });
+    const request = vi.fn();
+    await expect(requestLocalSourceRefresh({ db, appEnv: "local", workspaceRoot: "C:/workspace", sourceKey: "onerobotics-internships", dependencies: {
+      readLocalRefreshControl: () => ({ ...result.control, enabled: true }), requestImmediateSourceRefresh: request,
+    } })).rejects.toThrow("SOURCE_REFRESH_OUTSIDE_ENABLED_SCOPE");
+    expect(request).not.toHaveBeenCalled();
   });
 
   it("rejects an invalid stagger window before registering sources", async () => {

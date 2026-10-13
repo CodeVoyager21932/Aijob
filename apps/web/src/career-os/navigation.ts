@@ -7,12 +7,46 @@ export interface WorkspaceNavigationItem {
   icon: IconName;
 }
 
-export const workspaceNavigation: WorkspaceNavigationItem[] = [
-  { to: "/today", label: "今日", icon: "home" },
-  { to: "/jobs", label: "发现岗位", icon: "search" },
-  { to: "/applications", label: "我的求职", icon: "briefcase" },
-  { to: "/resumes", label: "简历资产", icon: "document" },
+export const workspaceNavigationGroups: { label: string; items: WorkspaceNavigationItem[] }[] = [
+  { label: "", items: [{ to: "/today", label: "今日工作台", icon: "home" }] },
+  {
+    label: "找机会",
+    items: [
+      { to: "/jobs", label: "岗位发现", icon: "search" },
+      { to: "/jobs/insights", label: "方向图谱", icon: "board" },
+    ],
+  },
+  {
+    label: "做准备",
+    items: [
+      { to: "/resumes", label: "我的简历", icon: "document" },
+      { to: "/materials", label: "经历与材料", icon: "book" },
+    ],
+  },
+  {
+    label: "跟进申请",
+    items: [
+      { to: "/applications", label: "投递管理", icon: "briefcase" },
+      { to: "/applications/planner", label: "准备与日程", icon: "calendar" },
+      { to: "/interviews", label: "面试练习", icon: "interview" },
+    ],
+  },
 ];
+export const workspaceNavigation: WorkspaceNavigationItem[] = workspaceNavigationGroups.flatMap(
+  (group) => group.items,
+);
+export const workspaceAuxiliaryNavigation: WorkspaceNavigationItem[] = [
+  { to: "/guides", label: "求职指南", icon: "book" },
+  { to: "/settings/data", label: "资料与设置", icon: "settings" },
+  { to: "/settings/ai", label: "连接与运行", icon: "settings" },
+];
+export function isWorkspaceItemActive(to: string, pathname: string) {
+  if (to === "/jobs") return pathname.startsWith("/jobs") && !pathname.startsWith("/jobs/insights");
+  if (to === "/applications")
+    return pathname.startsWith("/applications") && !pathname.startsWith("/applications/planner");
+  if (to === "/materials") return pathname.startsWith("/materials") || pathname === "/assistant";
+  return pathname === to || pathname.startsWith(to + "/");
+}
 
 export interface BreadcrumbItem {
   label: string;
@@ -28,11 +62,18 @@ export function isDeletionReceiptRoute(pathname: string): boolean {
 }
 
 const routeLabels = new Map([
-  ["/today", "今日"],
-  ["/jobs", "发现岗位"],
-  ["/applications", "我的求职"],
-  ["/resumes", "简历资产"],
-  ["/settings/data", "数据与设置"],
+  ["/today", "今日工作台"],
+  ["/jobs", "岗位发现"],
+  ["/applications", "投递管理"],
+  ["/applications/planner", "准备与日程"],
+  ["/resumes", "我的简历"],
+  ["/resumes/snippets", "自我介绍与材料"],
+  ["/settings/data", "资料与设置"],
+  ["/settings/ai", "连接与运行"],
+  ["/materials", "经历与材料"],
+  ["/assistant", "求职助手"],
+  ["/interviews", "面试练习"],
+  ["/guides", "求职指南"],
   ["/settings/data/deletion", "删除回执"],
 ]);
 
@@ -41,22 +82,22 @@ export function getWorkspaceBreadcrumbs(pathname: string): BreadcrumbItem[] {
   if (directLabel) return [{ label: directLabel }];
 
   if (pathname === "/jobs/recommended" || /^\/jobs\/recommended\/[^/]+$/.test(pathname)) {
-    return [{ label: "发现岗位", to: "/jobs" }, { label: "证据推荐" }];
+    return [{ label: "机会", to: "/jobs" }, { label: "证据推荐" }];
   }
 
   if (pathname === "/jobs/insights" || /^\/jobs\/insights\/[^/]+$/.test(pathname)) {
-    return [{ label: "发现岗位", to: "/jobs" }, { label: "岗位洞察" }];
+    return [{ label: "机会", to: "/jobs" }, { label: "方向图谱" }];
   }
 
   if (/^\/jobs\/[^/]+$/.test(pathname)) {
-    return [{ label: "发现岗位", to: "/jobs" }, { label: "岗位详情" }];
+    return [{ label: "机会", to: "/jobs" }, { label: "岗位详情" }];
   }
 
   const caseMatch = pathname.match(/^\/applications\/([^/]+)\/([^/]+)$/);
   if (caseMatch) {
     const activeTab = caseTabs.find((tab) => tab.value === caseMatch[2]);
     return [
-      { label: "我的求职", to: "/applications" },
+      { label: "申请", to: "/applications" },
       { label: "求职项目" },
       ...(activeTab ? [{ label: activeTab.label }] : []),
     ];
@@ -64,22 +105,25 @@ export function getWorkspaceBreadcrumbs(pathname: string): BreadcrumbItem[] {
 
   if (/^\/resumes\/import\/confirm\/[^/]+$/.test(pathname)) {
     return [
-      { label: "简历资产", to: "/resumes" },
+      { label: "我的简历", to: "/resumes" },
       { label: "准备简历", to: "/resumes/import" },
-      { label: "确认资料" },
+      { label: "继续旧导入" },
     ];
   }
 
   if (pathname === "/resumes/import") {
-    return [{ label: "简历资产", to: "/resumes" }, { label: "准备简历" }];
+    return [{ label: "我的简历", to: "/resumes" }, { label: "准备简历" }];
   }
 
+  if (/^\/resumes\/native\/[^/]+$/.test(pathname)) {
+    return [{ label: "我的简历", to: "/resumes" }, { label: "编辑简历" }];
+  }
   if (/^\/resumes\/[^/]+$/.test(pathname)) {
-    return [{ label: "简历资产", to: "/resumes" }, { label: "基础简历" }];
+    return [{ label: "我的简历", to: "/resumes" }, { label: "编辑简历" }];
   }
 
   if (/^\/resume-tailorings\/[^/]+$/.test(pathname)) {
-    return [{ label: "简历资产", to: "/resumes" }, { label: "旧版优化历史" }];
+    return [{ label: "我的简历", to: "/resumes" }, { label: "旧版优化历史" }];
   }
 
   const legacyLabels = new Map([["/data-control", "数据控制"]]);

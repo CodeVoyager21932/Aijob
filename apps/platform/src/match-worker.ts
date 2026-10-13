@@ -1,9 +1,5 @@
 import { toSafeConfigLog } from "@aijob/config";
-import {
-  assertDatabaseRoleMembership,
-  createDatabase,
-  DatabaseRuntimeRole,
-} from "@aijob/database";
+import { assertDatabaseRoleMembership, createDatabase, DatabaseRuntimeRole } from "@aijob/database";
 import { databaseUrlForRuntime, loadPlatformConfig } from "./config/platform-config.js";
 import { runOwnerTaskWorker } from "./workers/owner-task-worker.js";
 
@@ -18,6 +14,10 @@ async function shutdown(signal: string): Promise<void> {
 
 process.once("SIGINT", () => void shutdown("SIGINT"));
 process.once("SIGTERM", () => void shutdown("SIGTERM"));
+if (process.send)
+  process.on("message", (message: unknown) => {
+    if ((message as { type: string }).type === "shutdown") void shutdown("IPC");
+  });
 
 try {
   await assertDatabaseRoleMembership({
@@ -32,4 +32,5 @@ try {
   process.exitCode = 1;
 } finally {
   await db.destroy();
+  if (process.connected) process.disconnect?.();
 }

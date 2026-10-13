@@ -9,6 +9,33 @@ const alphaInvitedEmailHash = "ef".repeat(32);
 const parserImage = `registry.example.test/aijob/resume-parser@sha256:${"34".repeat(32)}`;
 
 describe("internal capability network boundary", () => {
+  it("requires complete SMTP configuration and excludes delivery credentials from logs", () => {
+    const base = {
+      APP_ENV: "test",
+      RESUME_ENCRYPTION_KEY: explicitTestKey,
+      IDENTITY_EMAIL_DELIVERY_MODE: "smtp",
+    };
+    expect(() => parseAppConfig(base)).toThrow();
+    const config = parseAppConfig({
+      ...base,
+      SMTP_HOST: "smtp.example.test",
+      SMTP_USER: "delivery-user",
+      SMTP_PASSWORD: "delivery-secret",
+      SMTP_FROM: "sender@example.test",
+      SMTP_PORT: "587",
+      SMTP_SECURE: "false",
+    });
+    expect(config.identity.smtp).toMatchObject({ port: 587, secure: false });
+    const logged = JSON.stringify(toSafeConfigLog(config));
+    for (const secret of [
+      "delivery-user",
+      "delivery-secret",
+      "sender@example.test",
+      "smtp.example.test",
+    ])
+      expect(logged).not.toContain(secret);
+    expect(config.ai.budget?.dailyCalls).toBe(0);
+  });
   it.each(["127.0.0.1", "127.0.0.42", "::1", "0:0:0:0:0:0:0:1"])(
     "accepts numeric loopback host %s",
     (host) => {
@@ -170,9 +197,9 @@ describe("internal capability network boundary", () => {
     expect(() => parseAppConfig(base)).toThrow(
       /IDENTITY_MASTER_KEY is required in alpha and production/,
     );
-    expect(parseAppConfig({ ...base, IDENTITY_MASTER_KEY: "ef".repeat(32) }).identity.masterKey).toBe(
-      "ef".repeat(32),
-    );
+    expect(
+      parseAppConfig({ ...base, IDENTITY_MASTER_KEY: "ef".repeat(32) }).identity.masterKey,
+    ).toBe("ef".repeat(32));
   });
 
   it("allows fixture email only in local tests and requires a six-digit fixture code", () => {
@@ -283,5 +310,33 @@ describe("internal capability network boundary", () => {
     expect(logged).not.toContain("246810");
     expect(logged).toContain("providerConfigured");
     expect(logged).toContain("invitedEmailsConfigured");
+  });
+  it("keeps the selected PDF serif font independent of the default font", () => {
+    const base = {
+      APP_ENV: "test",
+      RESUME_ENCRYPTION_KEY: explicitTestKey,
+      PDF_BROWSER_EXECUTABLE: "/usr/bin/chromium",
+      PDF_FONT_PATH: "/opt/fonts/AijobCJK.otf",
+    };
+    expect(parseAppConfig(base).pdfRuntime?.serifFontPath).toBeUndefined();
+    expect(
+      parseAppConfig({ ...base, PDF_SERIF_FONT_PATH: "/opt/fonts/AijobSerifCJK.otf" }).pdfRuntime,
+    ).toMatchObject({
+      fontPath: "/opt/fonts/AijobCJK.otf",
+      serifFontPath: "/opt/fonts/AijobSerifCJK.otf",
+    });
+  });
+});
+
+
+describe("interactive task capacity", () => {
+  const environment = { APP_ENV: "test", RESUME_ENCRYPTION_KEY: explicitTestKey };
+  it("defaults to eight lanes and supports an explicit low-resource setting", () => {
+    expect(parseAppConfig(environment).ownerTaskInteractiveConcurrency).toBe(8);
+    expect(parseAppConfig({ ...environment, OWNER_TASK_INTERACTIVE_CONCURRENCY: "2" })
+      .ownerTaskInteractiveConcurrency).toBe(2);
+  });
+  it.each(["0", "17", "2.5", "invalid", ""])("rejects invalid lane count %s", (value) => {
+    expect(() => parseAppConfig({ ...environment, OWNER_TASK_INTERACTIVE_CONCURRENCY: value })).toThrow();
   });
 });

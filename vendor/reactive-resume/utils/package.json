@@ -1,0 +1,26 @@
+{
+  "name": "@reactive-resume/utils",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    "./color": "./src/color.ts",
+    "./file": "./src/file.ts",
+    "./locale": "./src/locale.ts",
+    "./monorepo.node": "./src/monorepo.node.ts",
+    "./rate-limit": "./src/rate-limit.ts",
+    "./string": "./src/string.ts",
+    "./style": "./src/style.ts",
+    "./url": "./src/url.ts",
+    "./url-security.node": "./src/url-security.node.ts"
+  },
+  "dependencies": {
+    "@sindresorhus/slugify": "^3.0.1",
+    "@uiw/color-convert": "^2.10.3",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.6.0",
+    "unique-names-generator": "^4.7.1",
+    "uuid": "^14.0.2",
+    "zod": "^4.5.4"
+  }
+}

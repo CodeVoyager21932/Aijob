@@ -1,6 +1,9 @@
-import type { ApplicationCaseWithJobContext } from "@aijob/contracts";
+import type {
+  ApplicationCaseWithJobContext,
+  RecordManualApplicationRequest,
+} from "@aijob/contracts";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   careerOsQueryKeys,
@@ -15,6 +18,12 @@ import {
 } from "../application-event-view";
 import { ApplicationHandoffLink } from "../components/ApplicationHandoffLink";
 import { Icon } from "../components/Icon";
+import {
+  SubmittedResumePicker,
+  SubmittedMaterials,
+  type SubmissionReference,
+} from "../components/SubmissionMaterials";
+import { materialKeys } from "../../api/materials";
 
 function eventTime(value: string): string {
   return new Intl.DateTimeFormat("zh-CN", {
@@ -37,6 +46,12 @@ export function CaseApplicationWorkspace({
   applicationCase: ApplicationCaseWithJobContext;
 }) {
   const queryClient = useQueryClient();
+  const [submittedResume, setSubmittedResume] = useState<SubmissionReference>();
+  const [submissionReady, setSubmissionReady] = useState(true);
+  const selectSubmission = useCallback((reference: SubmissionReference, ready: boolean) => {
+    setSubmittedResume(reference);
+    setSubmissionReady(ready);
+  }, []);
   const [searchParams, setSearchParams] = useSearchParams();
   const confirmationRef = useRef<HTMLFieldSetElement>(null);
   const confirming = searchParams.get("confirm") === "application";
@@ -65,17 +80,18 @@ export function CaseApplicationWorkspace({
   });
   const mutation = useMutation({
     mutationFn: ({
-      expectedRevision,
+      request,
       idempotencyKey,
     }: {
-      expectedRevision: number;
+      request: RecordManualApplicationRequest;
       idempotencyKey: string;
-    }) => recordManualApplication(applicationCase.id, { expectedRevision }, idempotencyKey),
+    }) => recordManualApplication(applicationCase.id, request, idempotencyKey),
     retry: false,
     onSuccess: async () => {
       commandRef.current = null;
       setConfirming(false, true);
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: materialKeys.submissions(applicationCase.id) }),
         queryClient.invalidateQueries({
           queryKey: careerOsQueryKeys.caseDetail(applicationCase.id),
         }),
@@ -108,7 +124,7 @@ export function CaseApplicationWorkspace({
   const link = officialUrl(applicationCase);
   const canRecord = canRecordManualApplication(applicationCase.stage);
   const submit = () => {
-    const signature = `${applicationCase.id}:${applicationCase.revision}`;
+    const signature = `${applicationCase.id}:${applicationCase.revision}:${JSON.stringify(submittedResume)}`;
     if (commandRef.current?.signature !== signature) {
       commandRef.current = {
         signature,
@@ -116,7 +132,10 @@ export function CaseApplicationWorkspace({
       };
     }
     mutation.mutate({
-      expectedRevision: applicationCase.revision,
+      request: {
+        expectedRevision: applicationCase.revision,
+        ...(submittedResume ? { submittedResume } : {}),
+      },
       idempotencyKey: commandRef.current.idempotencyKey,
     });
   };
@@ -182,6 +201,7 @@ export function CaseApplicationWorkspace({
           >
             <strong>确认已经完成最终提交？</strong>
             <p>只有看到官方页面的提交成功提示后再确认。这个动作会进入求职时间线。</p>
+            <SubmittedResumePicker onChange={selectSubmission} />
             {mutation.isError ? (
               <div className="career-inline-error" role="alert">
                 <strong>{conflict ? "项目状态已经变化" : "暂时无法保存投递记录"}</strong>
@@ -198,7 +218,7 @@ export function CaseApplicationWorkspace({
               <button
                 className="career-button career-button--primary"
                 type="button"
-                disabled={mutation.isPending}
+                disabled={mutation.isPending || !submissionReady}
                 onClick={submit}
               >
                 {mutation.isPending ? "正在保存…" : "确认已投递"}
@@ -220,6 +240,7 @@ export function CaseApplicationWorkspace({
         ) : null}
       </section>
 
+      <SubmittedMaterials caseId={applicationCase.id} />
       <section className="career-application-timeline" aria-labelledby="application-timeline-title">
         <header>
           <div>

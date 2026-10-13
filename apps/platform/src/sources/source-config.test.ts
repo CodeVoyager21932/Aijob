@@ -140,6 +140,7 @@ describe("controlled local source configurations", () => {
       "galasports-internships",
       "guanggu-venture-internships",
       "hanxu-tech-internships",
+      "hellobike-internships",
       "hr-soft-internships",
       "huice-campus-internships",
       "jcquant-internships",

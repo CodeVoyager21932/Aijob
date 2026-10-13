@@ -47,3 +47,20 @@ export function scopeOfficialDutyText(value: string): string {
   // 锚定后为空说明标题下没有内容，保留原文而不是丢掉全部证据。
   return text === "" ? raw.trim() : text;
 }
+
+/** An ATS requirement field already supplies its section context; a separate duty heading is not required. */
+export function scopeOfficialRequirementsText(value: string): string {
+  const lines = (value ?? "").split(/\r?\n/);
+  const heading = lines.findIndex((line) =>
+    /^[【[（(]?\s*(任职要求|任职资格|职位要求|岗位要求|应聘要求)\s*[】\]）)]?\s*[：:]?\s*$/u.test(
+      line.normalize("NFKC").trim(),
+    ),
+  );
+  const body = heading >= 0 ? lines.slice(heading + 1) : lines;
+  const stop = body.findIndex((line) =>
+    /^[【[（(]?\s*(公司简介|企业简介|关于我们|福利待遇|薪资待遇|员工福利|我们提供|我们能提供什么|我们可以提供|你将获得|实习收获|申请方式|投递方式|联系方式)\s*[】\]）)]?\s*[：:?？]?\s*$/u.test(
+      line.normalize("NFKC").trim(),
+    ),
+  );
+  return (stop < 0 ? body : body.slice(0, stop)).join("\n").trim();
+}

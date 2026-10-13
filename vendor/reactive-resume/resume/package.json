@@ -1,0 +1,31 @@
+{
+  "name": "@reactive-resume/resume",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    "./ats-pdf/extract": "./src/ats-pdf/extract.ts",
+    "./ats-pdf/types": "./src/ats-pdf/types.ts",
+    "./cover-letter": "./src/cover-letter.ts",
+    "./ats": "./src/ats/index.ts",
+    "./ats-pdf": "./src/ats-pdf/index.ts",
+    "./export-sections": "./src/export-sections.ts",
+    "./icons": "./src/icons.ts",
+    "./markdown": "./src/markdown.ts",
+    "./patch": "./src/patch.ts",
+    "./section-availability": "./src/section-availability.ts",
+    "./section-sort": "./src/section-sort.ts",
+    "./social-meta": "./src/social-meta.ts",
+    "./stylesheet": "./src/stylesheet/index.ts",
+    "./stylesheet/registry": "./src/stylesheet/registry/index.ts",
+    "./stylesheet/types": "./src/stylesheet/semantic-types.ts"
+  },
+  "dependencies": {
+    "@bramus/specificity": "^2.4.2",
+    "@reactive-resume/schema": "workspace:*",
+    "css-tree": "^3.2.1",
+    "fast-json-patch": "^3.1.1",
+    "wink-porter2-stemmer": "2.0.1",
+    "zod": "^4.5.4"
+  }
+}

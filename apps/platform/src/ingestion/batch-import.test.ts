@@ -104,7 +104,7 @@ describe("batch source import", () => {
     });
   });
 
-  it("opens the batch circuit after three independent transport failures", async () => {
+  it("continues unrelated sources after independent transport failures", async () => {
     const attempted: string[] = [];
     const result = await runBatchImport({
       db,
@@ -120,6 +120,7 @@ describe("batch source import", () => {
       dependencies: {
         runProbe: async ({ sourceKey }) => {
           attempted.push(sourceKey);
+          if (sourceKey === "zhaopin-wuhan-internships") return probeResult();
           return probeResult({
             completion: "failed",
             normalizedCount: 0,
@@ -129,12 +130,11 @@ describe("batch source import", () => {
       },
     });
 
-    expect(attempted).toHaveLength(3);
-    expect(result.stoppedByTransportCircuit).toBe(true);
+    expect(attempted).toHaveLength(4);
+    expect(result.stoppedByTransportCircuit).toBe(false);
     expect(result.items.at(-1)).toMatchObject({
       sourceKey: "zhaopin-wuhan-internships",
-      state: "skipped",
-      reason: "GLOBAL_TRANSPORT_CIRCUIT_OPEN",
+      state: "ran",
     });
   });
 });

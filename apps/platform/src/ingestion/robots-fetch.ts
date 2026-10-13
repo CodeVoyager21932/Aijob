@@ -1,5 +1,5 @@
 import type { SourceTarget } from "../sources/source-config.js";
-import type { RobotsFetchOutcome } from "./robots-policy.js";
+import type { RobotsFetchOutcome, RobotsUnavailableReason } from "./robots-policy.js";
 import { NetworkPolicyError, safeRequestText } from "./safe-http.js";
 
 /** 内容判定与错误分类都在本模块，`robots-policy.ts` 继续只做解析与判定、不触网。 */
@@ -53,10 +53,11 @@ export interface RobotsFetchRecord {
  * 把取回失败归到 ADR-0033 的四类原因。分类的目的不是穷举错误码，而是让「取不到」这件事
  * 在证据里可复核——四类都按禁止处理，但人看得出是 404 还是超时。
  */
-export function robotsUnavailableReason(
-  errorCode: string,
-): "not_found" | "timeout" | "http_error" | "network_error" {
+export function robotsUnavailableReason(errorCode: string): RobotsUnavailableReason {
   if (errorCode === "UPSTREAM_HTTP_404" || errorCode === "UPSTREAM_HTTP_410") return "not_found";
+  if (/^UPSTREAM_HTTP_(401|403)$/.test(errorCode)) return "access_denied";
+  if (errorCode === "UPSTREAM_HTTP_429") return "rate_limited";
+  if (/^UPSTREAM_HTTP_5\d{2}$/.test(errorCode)) return "server_error";
   if (errorCode === "UPSTREAM_TIMEOUT" || errorCode === "ETIMEDOUT") return "timeout";
   if (/^UPSTREAM_HTTP_\d{3}$/.test(errorCode)) return "http_error";
   // 内容类型不是 text/plain、正文不是 UTF-8、被拒的重定向都归入 http_error：站点确实回了

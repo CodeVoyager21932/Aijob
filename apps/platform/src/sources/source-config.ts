@@ -9,15 +9,12 @@ import {
 } from "@aijob/contracts";
 import { z } from "zod";
 import { canonicalJson } from "../lib/canonical-json.js";
-// ADR-0034 第三条：两层形状的展开在独立模块，本文件只负责判别与接线。
-import {
-  expandTenantSourceConfig,
-  isTenantSourceConfigShape,
-} from "./source-tenant-config.js";
 import {
   assertConfiguredAdapterDescriptor,
   parseOfficialSourceAdapterOptions,
 } from "./official-source-adapters.js";
+// ADR-0034 第三条：两层形状的展开在独立模块，本文件只负责判别与接线。
+import { expandTenantSourceConfig, isTenantSourceConfigShape } from "./source-tenant-config.js";
 
 const unknownCompanyScale = {
   band: "unknown",
@@ -86,35 +83,62 @@ function enforceOfficialAccountBoundary(
 
 /**
  * ADR-0033：`accessPolicyAccepted` 记为 `pass` 必须有能支撑该结论的证据。
- * 证据缺失、robots 取不到、robots 禁止任一已登记 target、或条款禁止聚合时，
+ * 证据缺失、robots 尚未完成分类核验、禁止任一已登记 target、或条款禁止聚合时，
  * 该门都不得为 `pass`——判据与证据必须一致，不允许只写结论。
  */
 function enforceAccessPolicyEvidence(value: unknown, context: z.RefinementCtx): void {
-  // 归一化配置的 hardGates 是布尔，原始配置是 `{status,note}`。
-  // 只有原始配置形态需要校验证据，因此在这里做运行时收窄而不是收紧入参类型。
+  // Both normalized status strings and original {status,note} evidence need validation.
   const shape = z
     .object({
       candidate: z
         .object({
           hardGates: z
-            .object({ accessPolicyAccepted: z.object({ status: z.string() }).partial().optional() })
+            .object({
+              accessPolicyAccepted: z
+                .union([z.string(), z.object({ status: z.string() })])
+                .optional(),
+            })
             .partial()
             .optional(),
         })
         .partial()
         .optional(),
       policy: z
-        .object({ accessPolicyEvidence: z.unknown().optional() })
+        .object({
+          accessPolicyEvidence: z.unknown().optional(),
+          fetchTargets: z.array(z.object({ host: z.string() })).optional(),
+        })
         .partial()
         .optional(),
     })
     .safeParse(value);
   if (!shape.success) return;
 
-  const gate = shape.data.candidate?.hardGates?.accessPolicyAccepted?.status;
+  const rawGate = shape.data.candidate?.hardGates?.accessPolicyAccepted;
+  const gate = typeof rawGate === "string" ? rawGate : rawGate?.status;
+  const evidence = shape.data.policy?.accessPolicyEvidence as
+    | AccessPolicyEvidence
+    | null
+    | undefined;
+  if (evidence?.robots.status === "assessed") {
+    const hosts = evidence.robots.hosts.map((item) => item.host.toLowerCase());
+    const targets = [
+      ...new Set((shape.data.policy?.fetchTargets ?? []).map((item) => item.host.toLowerCase())),
+    ];
+    if (
+      new Set(hosts).size !== hosts.length ||
+      hosts.length !== targets.length ||
+      targets.some((host) => !hosts.includes(host))
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["policy", "accessPolicyEvidence", "robots", "hosts"],
+        message:
+          "assessed robots hosts must exactly cover registered fetch target hosts, without duplicates",
+      });
+    }
+  }
   if (gate !== "pass") return;
-
-  const evidence = shape.data.policy?.accessPolicyEvidence as AccessPolicyEvidence | null | undefined;
   const gatePath = ["candidate", "hardGates", "accessPolicyAccepted", "status"];
   if (!evidence) {
     context.addIssue({
@@ -124,11 +148,12 @@ function enforceAccessPolicyEvidence(value: unknown, context: z.RefinementCtx): 
     });
     return;
   }
-  if (evidence.robots.status !== "fetched") {
+  if (evidence.robots.status === "unavailable") {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: gatePath,
-      message: "accessPolicyAccepted=pass requires a retrieved robots.txt; unavailable fails closed",
+      message:
+        "accessPolicyAccepted=pass requires an assessed access scope, including missing robots evidence",
     });
     return;
   }
@@ -169,7 +194,8 @@ function enforceSourceBoundaries(
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["catalogRole"],
-      message: "canonical catalog sources require organization_owned or verified_ats_tenant provenance",
+      message:
+        "canonical catalog sources require organization_owned or verified_ats_tenant provenance",
     });
   }
   if (effectiveCatalogRole !== "canonical" && value.policy.crawlInterval.enabled) {
@@ -192,6 +218,7 @@ function enforceSourceBoundaries(
   }
   if (
     value.candidate.acquisitionMode === "browser_required" &&
+    value.policy.adapterKey !== "configured-official-browser" &&
     value.policy.refreshCoverage !== "manual_snapshot"
   ) {
     context.addIssue({
@@ -200,17 +227,18 @@ function enforceSourceBoundaries(
       message: "browser_required sources require manual_snapshot refresh coverage",
     });
   }
-  if (value.candidate.acquisitionMode === "browser_required" && value.localProbe.enabled) {
+  if (
+    value.candidate.acquisitionMode === "browser_required" &&
+    value.policy.adapterKey !== "configured-official-browser" &&
+    value.localProbe.enabled
+  ) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["localProbe", "enabled"],
       message: "browser_required sources cannot enable network probing",
     });
   }
-  if (
-    value.policy.refreshCoverage === "manual_snapshot" &&
-    value.policy.absencePolicy !== "none"
-  ) {
+  if (value.policy.refreshCoverage === "manual_snapshot" && value.policy.absencePolicy !== "none") {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["policy", "absencePolicy"],
@@ -298,6 +326,32 @@ const accessPolicyEvidenceSchema = z.object({
   /** robots.txt 的取回结果。`unavailable` 按 fail-closed 视为禁止。 */
   robots: z.discriminatedUnion("status", [
     z.object({
+      status: z.literal("assessed"),
+      allowsAllFetchTargets: z.boolean(),
+      crawlDelaySeconds: z.number().nonnegative().nullable(),
+      hosts: z
+        .array(
+          z
+            .object({
+              host: z.string().min(1),
+              status: z.enum(["fetched", "missing"]),
+              bodySha256: z
+                .string()
+                .regex(/^[0-9a-f]{64}$/)
+                .nullable(),
+            })
+            .refine(
+              (item) =>
+                item.status === "fetched" ? item.bodySha256 !== null : item.bodySha256 === null,
+              {
+                message:
+                  "fetched robots require a body hash; missing robots must not invent a body hash",
+              },
+            ),
+        )
+        .min(1),
+    }),
+    z.object({
       status: z.literal("fetched"),
       /** 快照正文的 sha256，用于检测 robots 是否变化。 */
       bodySha256: z.string().regex(/^[0-9a-f]{64}$/),
@@ -308,7 +362,15 @@ const accessPolicyEvidenceSchema = z.object({
     }),
     z.object({
       status: z.literal("unavailable"),
-      reason: z.enum(["not_found", "timeout", "http_error", "network_error"]),
+      reason: z.enum([
+        "not_found",
+        "access_denied",
+        "rate_limited",
+        "server_error",
+        "timeout",
+        "http_error",
+        "network_error",
+      ]),
     }),
   ]),
   /** 服务条款核验：摘录相关条款原文并给出是否存在禁止聚合条款的结论。 */
@@ -332,7 +394,6 @@ const refreshCoverageSchema = z.enum(["full_scope", "tracked_records", "manual_s
 const absencePolicySchema = z.enum(["none", "close_after_two_complete_absences"]);
 const catalogRoleSchema = z.enum(["canonical", "discovery_only", "disabled"]);
 const runtimeScopeSchema = z.enum(["test", "local", "alpha", "production"]);
-
 
 /** 硬门槛三态。`pending` 表示评估未完成，与 `fail`（评估过且不合格）是不同的事实。 */
 const hardGateStatusSchema = z.enum(["pass", "pending", "fail"]);
@@ -425,6 +486,7 @@ const normalizedSourceConfigSchema = z
       refreshCoverage: refreshCoverageSchema,
       absencePolicy: absencePolicySchema,
       reviewedAt: z.string().datetime().nullable(),
+      accessPolicyEvidence: accessPolicyEvidenceSchema.nullable().default(null),
       policyNotes: z.string().min(1),
       fetchTargets: z.array(targetSchema).min(1),
       applyTargets: z.array(targetSchema).min(1),
@@ -530,7 +592,8 @@ export type SourceConfig = z.infer<typeof normalizedSourceConfigSchema>;
 export type SourceTarget = z.infer<typeof targetSchema>;
 export type ProbeQueryStream = z.infer<typeof normalizedQueryStreamSchema>;
 
-const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
+const repositoryRoot =
+  process.env.AIJOB_RESOURCE_ROOT ?? fileURLToPath(new URL("../../../../", import.meta.url));
 const sourceConfigDirectory = path.join(repositoryRoot, "config", "sources");
 
 export function getRepositoryRoot(): string {
@@ -538,11 +601,30 @@ export function getRepositoryRoot(): string {
 }
 
 export async function listSourceKeys(): Promise<string[]> {
-  const entries = await readdir(sourceConfigDirectory, { withFileTypes: true });
-  return entries
-    .filter((entry) => entry.isFile() && /^[a-z0-9-]+\.json$/.test(entry.name))
-    .map((entry) => entry.name.slice(0, -".json".length))
-    .sort((left, right) => left.localeCompare(right));
+  const directories = [
+    ...new Set(
+      [sourceConfigDirectory, process.env.AIJOB_SOURCE_CONFIG_DIR].filter(
+        (item): item is string => !!item,
+      ),
+    ),
+  ];
+  const entries = (
+    await Promise.all(
+      directories.map((directory) =>
+        readdir(directory, { withFileTypes: true }).catch((error) => {
+          if (error.code === "ENOENT") return [];
+          throw error;
+        }),
+      ),
+    )
+  ).flat();
+  return [
+    ...new Set(
+      entries
+        .filter((entry) => entry.isFile() && /^[a-z0-9-]+\.json$/.test(entry.name))
+        .map((entry) => entry.name.slice(0, -".json".length)),
+    ),
+  ].sort((left, right) => left.localeCompare(right));
 }
 
 /**
@@ -631,6 +713,7 @@ export function parseSourceConfigValue(
       refreshCoverage: raw.policy.refreshCoverage,
       absencePolicy: raw.policy.absencePolicy,
       reviewedAt: `${raw.policy.reviewedAt}T00:00:00.000Z`,
+      accessPolicyEvidence: raw.policy.accessPolicyEvidence,
       policyNotes: raw.policy.policyNotes.join("\n"),
       fetchTargets: raw.policy.fetchTargets,
       applyTargets: raw.policy.applyTargets,
@@ -656,7 +739,14 @@ export async function loadSourceConfig(
   }
 
   const configPath = path.join(configDirectory, `${sourceKey}.json`);
-  const contents = await readFile(configPath, "utf8");
+  const overlay = process.env.AIJOB_SOURCE_CONFIG_DIR;
+  const contents =
+    overlay && configDirectory === sourceConfigDirectory
+      ? await readFile(path.join(overlay, `${sourceKey}.json`), "utf8").catch((error) => {
+          if (error.code === "ENOENT") return readFile(configPath, "utf8");
+          throw error;
+        })
+      : await readFile(configPath, "utf8");
   const parsed: unknown = JSON.parse(contents);
   if (!isTenantSourceConfigShape(parsed)) {
     return parseSourceConfigValue(parsed, sourceKey);

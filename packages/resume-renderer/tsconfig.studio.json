@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["src/studio-*.ts", "src/studio-*.tsx", "src/resources.ts", "src/versions.ts", "src/isolated.ts"],
+  "exclude": ["src/**/*.test.ts"]
+}

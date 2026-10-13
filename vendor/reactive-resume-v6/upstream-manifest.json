@@ -1,0 +1,43 @@
+{
+  "commit": "0c6e75eec4d743257c0f099d08037d5cc215dee0",
+  "files": [
+    {
+      "sha256": "6cb7cb1ffcd57cd0775bc68f514a0f12cfc3a759f88950225ab8446b9ad99f97",
+      "path": "packages/pdf/src/forme/reconciler.ts"
+    },
+    {
+      "sha256": "8886249a0ea413185ad28475de27b2f1348a928d2ac205cb1cd9954583a25029",
+      "path": "packages/pdf/src/forme/to-forme.tsx"
+    },
+    {
+      "sha256": "5a3f5d3057d42aaae96daafbe190d8b1232c2cb70b4fe5bb21ac06b91985d2a9",
+      "path": "packages/pdf/src/forme/style.ts"
+    },
+    {
+      "sha256": "7fc4ebeb7f6a2d75be927edb9e63b80ecad4bf141929dd399c1d73fb63ccf6e9",
+      "path": "packages/pdf/src/forme/style-types.ts"
+    },
+    {
+      "sha256": "3219789291af82597e1fa6aa5245a78576d81c86e6f6298d6af32c641b5fb4db",
+      "path": "packages/pdf/src/forme/primitives.tsx"
+    },
+    {
+      "sha256": "a476ae5a7c76d823f818fa13fbf81eb5d0e31149066d9fc3846d5ae96abdbb98",
+      "path": "packages/pdf/src/forme/images.ts"
+    },
+    {
+      "sha256": "bc924038ac46967c869e1c9b3f9408508f739f868fd9863b6c9e7e0264958ab2",
+      "path": "packages/pdf/src/forme/font-subset.ts"
+    },
+    {
+      "sha256": "621c1089d9a9cb972126955beb071b6e106b13078f255d70172465aec73b9351",
+      "path": "packages/pdf/src/page-map.ts"
+    },
+    {
+      "sha256": "c55e617d4e51420e4a10cde158d049cf2b03610952825208eb72da53b87249d2",
+      "path": "packages/pdf/src/forme/render.ts"
+    }
+  ],
+  "license": "MIT",
+  "repository": "https://github.com/reactive-resume/reactive-resume"
+}

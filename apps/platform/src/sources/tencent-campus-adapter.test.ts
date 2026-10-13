@@ -41,7 +41,7 @@ describe("Tencent campus adapter", () => {
     expect(isTencentStablePostId("-2")).toBe(false);
   });
 
-  it("surfaces recruitment and family conflicts while leaving missing facts unknown", async () => {
+  it("preserves recruitment conflicts, classifies cross-functional roles and leaves missing facts unknown", async () => {
     const search = tencentSearchResponseSchema.parse(
       await fixture("tencent-campus-search-position.synthetic.json"),
     );
@@ -64,7 +64,7 @@ describe("Tencent campus adapter", () => {
       state: "conflict",
       rawValues: ["日常实习", "应届实习"],
     });
-    expect(normalized.jobFamily.state).toBe("conflict");
+    expect(normalized.jobFamily.state).toBe("known");
     expect(normalized.structuredFields.arrivalTime).toEqual({
       state: "unknown",
       reason: "source_not_stated",

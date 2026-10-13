@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scopeOfficialDutyText } from "./official-job-body-scope.js";
+import { scopeOfficialDutyText, scopeOfficialRequirementsText } from "./official-job-body-scope.js";
 
 /** 汇测（北森租户）真实岗位「实习-CEO助理(J14675)」的职责字段结构。 */
 const huiceRealDutyField = [
@@ -18,6 +18,17 @@ const huiceRealDutyField = [
 ].join("\n");
 
 describe("official job duty scope (ADR-0033 D1)", () => {
+  it("removes an explicit benefits section in an otherwise unheaded requirement field", () => {
+    expect(
+      scopeOfficialRequirementsText(
+        "本科在校生，至少实习3个月。\n我们能提供什么：\n免费三餐和通勤补贴。\n导师指导。",
+      ),
+    ).toBe("本科在校生，至少实习3个月。");
+    expect(scopeOfficialRequirementsText("能够向团队提供需求分析结果。\n每周至少4天。")).toBe(
+      "能够向团队提供需求分析结果。\n每周至少4天。",
+    );
+    expect(scopeOfficialRequirementsText("我们能提供什么\n免费午餐")).toBe("");
+  });
   it("drops company blurb and perks marketing that the employer put in the duty field", () => {
     const scoped = scopeOfficialDutyText(huiceRealDutyField);
 

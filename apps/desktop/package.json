@@ -1,0 +1,58 @@
+{
+  "name": "@aijob/desktop",
+  "productName": "Aijob",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "main": "src/main.mjs",
+  "description": "Aijob 本地求职工作区",
+  "author": "Aijob contributors",
+  "scripts": {
+    "dev": "electron .",
+    "build": "node scripts/check.mjs",
+    "package": "electron-builder --win --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "44.7.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "cn.aijob.desktop",
+    "asar": true,
+    "afterPack": "scripts/check-package.cjs",
+    "files": [
+      "src/**",
+      "package.json"
+    ],
+    "directories": {
+      "output": "../../.data/releases/aijob-desktop"
+    },
+    "extraResources": [
+      {
+        "from": "../../.data/desktop-bundle-20261013",
+        "to": "runtime",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "../../.data/desktop-bundle-20261013/node_modules",
+        "to": "runtime/node_modules",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": false,
+      "artifactName": "Aijob-Setup-${version}-${arch}.${ext}"
+    }
+  }
+}

@@ -8,7 +8,7 @@ const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
 
 /**
- * ADR-0035 第一条的数据库侧验证。
+ * ADR-0035 视图结构与 ADR-0037 本硕博范围的当前数据库侧验证。
  *
  * 这里只验 SQL 函数自身的分支与视图形状。TypeScript 与 SQL 两份判定的**逐分支对账**放在
  * `apps/platform/src/sources/job-reachability-sql-parity.integration.test.ts`——`@aijob/database`
@@ -37,10 +37,10 @@ describeWithDatabase("student applicable supply migration", () => {
     expect(await verdict("大专及以上即可")).toBe("reachable");
     expect(await verdict("学历不限，欢迎在校生")).toBe("reachable");
     expect(await verdict("本科或硕士均可")).toBe("reachable");
-    expect(await verdict("硕士及以上学历")).toBe("not_reachable_postgrad_only");
-    expect(await verdict("博士在读优先")).toBe("not_reachable_postgrad_only");
-    expect(await verdict("985/211 院校本科及以上")).toBe("not_reachable_school_restricted");
-    expect(await verdict("双一流高校优先")).toBe("not_reachable_school_restricted");
+    expect(await verdict("硕士及以上学历")).toBe("reachable");
+    expect(await verdict("博士在读优先")).toBe("reachable");
+    expect(await verdict("985/211 院校本科及以上")).toBe("reachable");
+    expect(await verdict("双一流高校优先")).toBe("unknown");
     // 没有任何学历信号时归入 unknown，不猜测。
     expect(await verdict("负责数据看板搭建，熟悉 SQL")).toBe("unknown");
     expect(await verdict("每周到岗 4 天，实习 3 个月以上")).toBe("unknown");
@@ -65,8 +65,10 @@ describeWithDatabase("student applicable supply migration", () => {
   // `job_version_eligibility`。只改一个会让同一条政策在两处给出不同答案。
   const eligibilityViews = ["current_job_eligibility", "job_version_eligibility"] as const;
 
-  it.each(eligibilityViews)("exposes the verdict and the alpha-only reasons on %s", async (view) => {
-    const { rows } = await sql<{ column_name: string }>`
+  it.each(eligibilityViews)(
+    "exposes the verdict and the alpha-only reasons on %s",
+    async (view) => {
+      const { rows } = await sql<{ column_name: string }>`
       SELECT column_name
       FROM information_schema.columns
       WHERE table_schema = 'catalog'
@@ -79,27 +81,28 @@ describeWithDatabase("student applicable supply migration", () => {
         )
       ORDER BY column_name
     `.execute(db);
-    expect(rows.map((row) => row.column_name)).toEqual([
-      "alpha_blocking_reasons",
-      "blocking_reasons",
-      "reachability_verdict",
-      "student_applicable",
-    ]);
+      expect(rows.map((row) => row.column_name)).toEqual([
+        "alpha_blocking_reasons",
+        "blocking_reasons",
+        "reachability_verdict",
+        "student_applicable",
+      ]);
 
-    const { rows: definition } = await sql<{ definition: string }>`
+      const { rows: definition } = await sql<{ definition: string }>`
       SELECT pg_get_viewdef(${`catalog.${view}`}::regclass, true) AS definition
     `.execute(db);
-    const viewSql = definition[0]?.definition ?? "";
+      const viewSql = definition[0]?.definition ?? "";
 
-    // ADR-0035 第八条：两项皆缺才算缺，因此旧的两个分项原因码应当彻底消失。
-    for (const removed of ["RESPONSIBILITIES_MISSING", "REQUIREMENTS_MISSING"]) {
-      expect(viewSql, `${removed} 应已并入 JOB_BODY_MISSING`).not.toContain(removed);
-    }
-    expect(viewSql).toContain("JOB_BODY_MISSING");
-    // 只约束对外可见的四项必须**具名存在**——第一版把它们内联成布尔条件，导致公开指针撤回
-    // 时说不出原因。逐项是否落在正确的数组里由 019 的行为用例断言。
-    for (const alphaOnly of ALPHA_ONLY_REASON_CODES) {
-      expect(viewSql, `${alphaOnly} 必须作为原因码存在`).toContain(alphaOnly);
-    }
-  });
+      // ADR-0035 第八条：两项皆缺才算缺，因此旧的两个分项原因码应当彻底消失。
+      for (const removed of ["RESPONSIBILITIES_MISSING", "REQUIREMENTS_MISSING"]) {
+        expect(viewSql, `${removed} 应已并入 JOB_BODY_MISSING`).not.toContain(removed);
+      }
+      expect(viewSql).toContain("JOB_BODY_MISSING");
+      // 只约束对外可见的四项必须**具名存在**——第一版把它们内联成布尔条件，导致公开指针撤回
+      // 时说不出原因。逐项是否落在正确的数组里由 019 的行为用例断言。
+      for (const alphaOnly of ALPHA_ONLY_REASON_CODES) {
+        expect(viewSql, `${alphaOnly} 必须作为原因码存在`).toContain(alphaOnly);
+      }
+    },
+  );
 });

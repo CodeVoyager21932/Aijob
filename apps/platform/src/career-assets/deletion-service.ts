@@ -13,9 +13,11 @@ import {
   DeleteResumeDocumentResponseSchema,
 } from "@aijob/contracts";
 import type { Database } from "@aijob/database";
+import { erasePlannerReceipts } from "../planner/service.js";
 import { type Kysely, sql, type Transaction } from "kysely";
 import { assertActiveOwnerEpoch, type OwnerScope } from "../identity/session-repository.js";
 import { ServiceError } from "../lib/service-error.js";
+import { disposeCaseAssistantSessions } from "../ai/assistant-case-lifecycle.js";
 
 interface CaseDeletionRow {
   id: string;
@@ -175,7 +177,10 @@ async function projectCaseRelatedAssets(
     .execute();
   return {
     resumeDocuments: classifyCaseAssets(resumeDocuments),
-    interviewSessions: classifyCaseAssets(interviewSessions),
+    interviewSessions: classifyCaseAssets([...interviewSessions, ...(await sql<CaseAssetProjectionRow>`
+      SELECT id,detached_from_case_id,deleted_at FROM profile.assistant_sessions
+      WHERE owner_id=${owner.ownerId} AND owner_epoch=${owner.ownerEpoch}
+        AND (case_id=${caseId} OR detached_from_case_id=${caseId})`.execute(transaction)).rows]),
     debriefs: classifyCaseAssets(debriefs),
   };
 }
@@ -228,6 +233,9 @@ async function deleteResumeDocumentsForCase(
 ): Promise<void> {
   if (documentIds.length === 0) return;
   await deleteResumeReviewRuns(transaction, owner, documentIds, now);
+  for (const table of ["resume_export_receipts", "resume_export_artifacts", "assistant_sessions", "resume_document_drafts", "resume_draft_receipts", "resume_originals", "resume_experience_links"]) {
+    await sql`DELETE FROM ${sql.id("profile", table)} WHERE owner_id=${owner.ownerId} AND owner_epoch=${owner.ownerEpoch} AND document_id = ANY(${documentIds}::uuid[])`.execute(transaction);
+  }
   await transaction
     .updateTable("profile.resume_documents")
     .set({
@@ -411,6 +419,21 @@ export async function deleteApplicationCase(input: {
       .forUpdate()
       .execute();
     const resumeDocumentIds = resumeDocuments.map((row) => row.id);
+    await transaction
+      .deleteFrom("application.planner_items")
+      .where("owner_id", "=", input.owner.ownerId)
+      .where("case_id", "=", input.caseId)
+      .execute();
+    await transaction
+      .deleteFrom("application.submitted_materials")
+      .where("owner_id", "=", input.owner.ownerId)
+      .where("case_id", "=", input.caseId)
+      .execute();
+    await sql`DELETE FROM application.case_recruitment_plans WHERE owner_id=${input.owner.ownerId}::uuid AND case_id=${input.caseId}::uuid`.execute(
+      transaction,
+    );
+    await erasePlannerReceipts(transaction, input.owner.ownerId, "caseId", input.caseId);
+    await disposeCaseAssistantSessions(transaction, input.owner, input.caseId, input.request.interviewSessions, now);
     if (input.request.resumeDocuments === "delete") {
       await deleteResumeDocumentsForCase(transaction, input.owner, resumeDocumentIds, now);
     } else {
@@ -602,9 +625,9 @@ export async function deleteResumeDocument(input: {
     const deletedDocument = await transaction
       .updateTable("profile.resume_documents")
       .set({
-        deleted_at: now,
+        deleted_at: sql<Date>`GREATEST(${now}, created_at, updated_at)`,
         revision: input.request.expectedRevision + 1,
-        updated_at: now,
+        updated_at: sql<Date>`GREATEST(${now}, created_at, updated_at)`,
       })
       .where("id", "=", input.documentId)
       .where("owner_id", "=", input.owner.ownerId)
@@ -614,6 +637,9 @@ export async function deleteResumeDocument(input: {
       .returning(["revision", "deleted_at"])
       .executeTakeFirst();
     if (!deletedDocument?.deleted_at) throw resumeDocumentRevisionConflict();
+    for (const table of ["resume_export_receipts","resume_export_artifacts","assistant_sessions","resume_document_drafts","resume_draft_receipts","resume_originals","resume_experience_links"]) {
+      await sql`DELETE FROM ${sql.id("profile",table)} WHERE owner_id=${input.owner.ownerId} AND document_id=${input.documentId}`.execute(transaction);
+    }
     await updatePrivateSnapshotRetention(
       transaction,
       input.owner,
@@ -677,6 +703,9 @@ export async function deleteInterviewSession(input: {
       .returning(["revision", "deleted_at"])
       .executeTakeFirst();
     if (!deletedSession?.deleted_at) throw interviewSessionRevisionConflict();
+    await sql`DELETE FROM application.interview_continuity WHERE owner_id=${input.owner.ownerId}::uuid AND session_id=${input.sessionId}::uuid`.execute(
+      transaction,
+    );
     await updatePrivateSnapshotRetention(
       transaction,
       input.owner,

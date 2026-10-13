@@ -217,7 +217,7 @@ export function CaseDeletionDialog({
           />
           <CaseAssetChoice
             name="case-interview-disposition"
-            title="面试练习"
+            title="面试与助手练习"
             value={choices.interviewSessions}
             onChange={(interviewSessions) =>
               setChoices((current) => ({ ...current, interviewSessions }))

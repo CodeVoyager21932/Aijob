@@ -11,7 +11,14 @@ const fetched = (body: string): RobotsFetchOutcome => ({ status: "fetched", body
 
 describe("robots fail-closed behaviour (ADR-0033)", () => {
   it("denies when robots.txt cannot be retrieved", () => {
-    for (const reason of ["not_found", "timeout", "http_error", "network_error"] as const) {
+    for (const reason of [
+      "access_denied",
+      "rate_limited",
+      "server_error",
+      "timeout",
+      "http_error",
+      "network_error",
+    ] as const) {
       const decision = evaluateRobotsPath({ status: "unavailable", reason }, "/jobs");
       expect(decision.allowed, reason).toBe(false);
       if (decision.allowed) throw new Error("UNREACHABLE");
@@ -20,10 +27,7 @@ describe("robots fail-closed behaviour (ADR-0033)", () => {
   });
 
   it("allows when robots.txt exists but sets no rule for us or for the wildcard agent", () => {
-    const decision = evaluateRobotsPath(
-      fetched("User-agent: Googlebot\nDisallow: /jobs"),
-      "/jobs",
-    );
+    const decision = evaluateRobotsPath(fetched("User-agent: Googlebot\nDisallow: /jobs"), "/jobs");
     expect(decision.allowed).toBe(true);
   });
 
@@ -118,7 +122,10 @@ describe("crawl delay becomes the interval floor", () => {
 
   it("leaves the configured interval untouched when robots states no delay", () => {
     expect(
-      effectiveMinimumIntervalMs({ configuredMinimumIntervalMs: 2000, crawlDelaySeconds: undefined }),
+      effectiveMinimumIntervalMs({
+        configuredMinimumIntervalMs: 2000,
+        crawlDelaySeconds: undefined,
+      }),
     ).toBe(2000);
   });
 });
@@ -130,10 +137,7 @@ describe("per-source robots verdict", () => {
   ];
 
   it("allows a source only when every registered target is permitted", () => {
-    const verdict = evaluateRobotsForSource(
-      fetched("User-agent: *\nDisallow: /admin"),
-      targets,
-    );
+    const verdict = evaluateRobotsForSource(fetched("User-agent: *\nDisallow: /admin"), targets);
     expect(verdict.allowed).toBe(true);
     expect(verdict.code).toBeNull();
   });
@@ -150,10 +154,7 @@ describe("per-source robots verdict", () => {
   });
 
   it("fails the whole source when robots is unavailable", () => {
-    const verdict = evaluateRobotsForSource(
-      { status: "unavailable", reason: "timeout" },
-      targets,
-    );
+    const verdict = evaluateRobotsForSource({ status: "unavailable", reason: "timeout" }, targets);
     expect(verdict.allowed).toBe(false);
     expect(verdict.code).toBe("ROBOTS_UNAVAILABLE");
   });

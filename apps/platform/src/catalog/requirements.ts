@@ -335,7 +335,14 @@ function kindIsNegated(clause: string, kind: RequirementKind): boolean {
   if (/(?:不限专业|专业不限)/.test(clause) && kind === "major") return true;
   if (/(?:不限学历|学历不限)/.test(clause) && kind === "education") return true;
   if (
-    /(?:经验不限|无经验要求|无需[^，,；;。]{0,8}(?:经验|经历))/.test(clause) &&
+    kind === "education" &&
+    /(?:不要求|无需|不限制|非必须|不是必须)[^，,；;。]{0,12}(?:学历|本科|硕士|博士)|(?:硕士|博士)[^，,；;。]{0,8}(?:非必须|不是必须|不作要求)/.test(
+      clause,
+    )
+  )
+    return true;
+  if (
+    /(?:经验不限|无经验要求|(?:无需|不要求|不需要)[^，,；;。]{0,12}(?:经验|经历))/.test(clause) &&
     kind === "experience"
   ) {
     return true;
@@ -567,9 +574,17 @@ export function decomposeTextualJobRequirements(
     );
     const seen = new Map<string, JobRequirementV5>();
     for (const atomText of splitAssertionAtoms(clause.text)) {
-      const necessity = atomNecessity(atomText, clause.necessity);
-      for (const kind of textualKinds(atomText)) {
-        const expectation = textualExpectation(atomText, kind);
+      const kinds = textualKinds(atomText);
+      // A cross-kind OR must not become two independent hard requirements. Keep the
+      // original clause for human checking until the alternative group can be represented.
+      const crossKindAlternative = /或者|或|二者之一|任一/.test(atomText) && kinds.length > 1;
+      const necessity = crossKindAlternative
+        ? "unknown"
+        : atomNecessity(atomText, clause.necessity);
+      for (const kind of kinds) {
+        const expectation = crossKindAlternative
+          ? { operator: "unknown", expectedValue: [] }
+          : textualExpectation(atomText, kind);
         const requirement = JobRequirementV5Schema.parse({
           id: stableRequirementId(
             input.publishedJobVersionId,

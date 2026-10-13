@@ -21,6 +21,7 @@ export interface CatalogSearchRecord {
 
 const CursorSchema = z.object({
   version: z.literal(1),
+  companyName: z.string().optional(),
   query: z.string().regex(/^[a-f0-9]{16}$/),
   rank: z.union([z.literal(0), z.literal(1)]),
   verifiedAt: z.string().datetime({ offset: true }),
@@ -44,7 +45,7 @@ function includesNormalized(haystack: string, needle: string): boolean {
   return normalized(haystack).includes(normalized(needle));
 }
 
-function asSummary(detail: JobDetail): JobSummary {
+export function asSummary(detail: JobDetail): JobSummary {
   return {
     id: detail.id,
     publishedJobVersionId: detail.publishedJobVersionId,
@@ -99,7 +100,7 @@ function stringListIntersects(values: string[], selected: string[]): boolean {
   return values.some((value) => normalizedSelected.has(normalized(value)));
 }
 
-const canonicalCityNames = [
+export const canonicalCityNames = [
   "北京",
   "上海",
   "天津",
@@ -256,8 +257,9 @@ interface RankedRecord {
   rank: 0 | 1;
 }
 
-function compareRanked(left: RankedRecord, right: RankedRecord): number {
+function compareRanked(left: RankedRecord, right: RankedRecord, sort?:string): number {
   if (left.rank !== right.rank) return left.rank - right.rank;
+  if(sort==="company_asc") { const c=Buffer.compare(Buffer.from(left.record.detail.companyName),Buffer.from(right.record.detail.companyName));return c||left.record.detail.id.localeCompare(right.record.detail.id); }
   const verified = right.record.detail.source.lastVerifiedAt.localeCompare(
     left.record.detail.source.lastVerifiedAt,
   );
@@ -265,10 +267,11 @@ function compareRanked(left: RankedRecord, right: RankedRecord): number {
   return left.record.detail.id.localeCompare(right.record.detail.id);
 }
 
-function canonicalQuery(query: JobSearchQuery): string {
+export function canonicalQuery(query: JobSearchQuery): string {
   const stable = {
     ...query,
     cursor: undefined,
+    jobIds: query.jobIds?.slice().sort(),
     companies: query.companies?.map(normalized).sort(),
     cities: query.cities?.map(normalized).sort(),
     jobFamilies: query.jobFamilies?.slice().sort(),
@@ -284,18 +287,19 @@ function canonicalQuery(query: JobSearchQuery): string {
   return createHash("sha256").update(JSON.stringify(stable)).digest("hex").slice(0, 16);
 }
 
-function encodeCursor(record: RankedRecord, queryHash: string): string {
+function encodeCursor(record: RankedRecord, queryHash: string, sort?:string): string {
   const cursor: CatalogCursor = {
     version: 1,
     query: queryHash,
     rank: record.rank,
     verifiedAt: record.record.detail.source.lastVerifiedAt,
     id: record.record.detail.id,
+    ...(sort==="company_asc"?{companyName:record.record.detail.companyName}:{}),
   };
   return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
 }
 
-function decodeCursor(value: string, queryHash: string): CatalogCursor {
+export function decodeCursor(value: string, queryHash: string): CatalogCursor {
   try {
     const parsed = CursorSchema.parse(JSON.parse(Buffer.from(value, "base64url").toString("utf8")));
     if (parsed.query !== queryHash) throw new InvalidCatalogCursorError();
@@ -306,8 +310,9 @@ function decodeCursor(value: string, queryHash: string): CatalogCursor {
   }
 }
 
-function isAfterCursor(record: RankedRecord, cursor: CatalogCursor): boolean {
+function isAfterCursor(record: RankedRecord, cursor: CatalogCursor, sort?:string): boolean {
   if (record.rank !== cursor.rank) return record.rank > cursor.rank;
+  if(sort==="company_asc"){if(cursor.companyName===undefined)throw new InvalidCatalogCursorError();const c=Buffer.compare(Buffer.from(record.record.detail.companyName),Buffer.from(cursor.companyName));return c!==0?c>0:record.record.detail.id.localeCompare(cursor.id)>0;}
   const verifiedComparison = record.record.detail.source.lastVerifiedAt.localeCompare(
     cursor.verifiedAt,
   );
@@ -519,6 +524,7 @@ export function searchCatalogRecords(
 ): JobSearchResponse {
   const candidates: RankedRecord[] = [];
   for (const record of records) {
+    if(query.jobIds!==undefined&&!query.jobIds.includes(record.detail.id))continue;
     const match = classifyCatalogRecord(record, query);
     if (match === "mismatch") continue;
     candidates.push({
@@ -530,11 +536,11 @@ export function searchCatalogRecords(
   const ranked = query.includeUnknownHardConditions
     ? candidates
     : candidates.filter(({ match }) => match === "explicit_match");
-  ranked.sort(compareRanked);
+  ranked.sort((a,b)=>compareRanked(a,b,query.sort));
 
   const queryHash = canonicalQuery(query);
   const cursor = query.cursor ? decodeCursor(query.cursor, queryHash) : null;
-  const afterCursor = cursor ? ranked.filter((record) => isAfterCursor(record, cursor)) : ranked;
+  const afterCursor = cursor ? ranked.filter((record) => isAfterCursor(record, cursor, query.sort)) : ranked;
   const page = afterCursor.slice(0, query.limit);
   const hasMore = afterCursor.length > page.length;
   const lastPageItem = page.at(-1);
@@ -544,7 +550,7 @@ export function searchCatalogRecords(
       ...asSummary(record.detail),
       conditionState: match,
     })),
-    nextCursor: hasMore && lastPageItem ? encodeCursor(lastPageItem, queryHash) : null,
+    nextCursor: hasMore && lastPageItem ? encodeCursor(lastPageItem, queryHash, query.sort) : null,
     facets: buildCatalogFacets(ranked.map(({ record }) => record)),
     totalKnown: candidates.filter(({ match }) => match === "explicit_match").length,
     totalUnknown: candidates.filter(({ match }) => match === "information_unknown").length,

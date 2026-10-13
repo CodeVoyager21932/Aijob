@@ -7,10 +7,10 @@ import {
   semanticRevisionValue,
   unknown,
 } from "./normalized-official-job.js";
-import { scopeOfficialDutyText } from "./official-job-body-scope.js";
+import { scopeOfficialDutyText, scopeOfficialRequirementsText } from "./official-job-body-scope.js";
 
 export const BEISEN_ZHIYE_ADAPTER_VERSION = "0.1.3";
-export const BEISEN_ZHIYE_NORMALIZER_VERSION = "0.1.3";
+export const BEISEN_ZHIYE_NORMALIZER_VERSION = "0.1.4";
 
 /**
  * 北森智业（zhiye.com）招聘门户共享适配器。
@@ -297,7 +297,7 @@ export function normalizeBeisenZhiyeJobAd(input: {
     titleEvidenceRef: pageEvidenceRef,
   });
   const locations = [...new Set(job.LocNames.map(normalizeBeisenLocation).filter(Boolean))];
-  const requirementText = job.Require.trim();
+  const requirementText = scopeOfficialRequirementsText(job.Require);
   const publishedAt = beisenDateOnly(job.PostDate);
   const durationMonths = captureMinimum(requirementText, [
     /(?:至少|不少于|连续实习)\s*(\d+)\s*个?月/u,

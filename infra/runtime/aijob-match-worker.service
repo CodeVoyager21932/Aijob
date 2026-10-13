@@ -1,0 +1,26 @@
+[Unit]
+Description=Aijob owner task worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=aijob-match
+Group=aijob-match
+WorkingDirectory=/opt/aijob
+EnvironmentFile=/etc/aijob/match-worker.env
+ExecStart=/usr/local/bin/pnpm --filter @aijob/platform exec tsx dist/match-worker.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=45
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/aijob/.data /run/user
+MemoryMax=2G
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

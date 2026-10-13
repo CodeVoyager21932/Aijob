@@ -21,6 +21,7 @@ function config(): AppConfig {
     host: "127.0.0.1",
     port: 3000,
     probeRequestIntervalMs: 750,
+    ownerTaskInteractiveConcurrency: 8,
     logLevel: "silent",
     enableInternalPreview: true,
     enableSourceProbe: false,

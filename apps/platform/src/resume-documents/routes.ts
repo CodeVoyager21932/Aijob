@@ -21,7 +21,11 @@ import { requireOwnerContext } from "../identity/fastify.js";
 import { ApiProblem, sendApiProblem } from "../identity/http.js";
 import { ServiceError } from "../lib/service-error.js";
 import { deleteResumeDocument } from "../career-assets/deletion-service.js";
-import { exportResumeDocumentDocx } from "./export-service.js";
+import { randomUUID } from 'node:crypto';
+import { exportResumeDocumentDocx, loadResumeExportSnapshot } from "./export-service.js";
+import { createResumeExport, downloadResumeExport } from './export-artifacts.js';
+import type { OwnerScope } from '../identity/session-repository.js';
+import { exportResumeDocumentPdf, type PdfRuntimeConfig } from "./pdf-service.js";
 import {
   createResumeReview,
   decideResumeReviewSuggestion,
@@ -94,8 +98,21 @@ function handleError(
 
 export function registerResumeDocumentRoutes(
   app: FastifyInstance,
-  options: { db: Kysely<Database>; reviewV2WriteEnabled?: AppConfig["resumeReviewV2WriteEnabled"] },
+  options: {
+    db: Kysely<Database>;
+    reviewV2WriteEnabled?: AppConfig["resumeReviewV2WriteEnabled"];
+    pdfRuntime?: PdfRuntimeConfig;
+    encryptionKey?: string | undefined;
+  },
 ): void {
+  async function retainedExport(format:'pdf'|'docx',owner:OwnerScope,documentId:string,query:ReturnType<typeof ResumeDocumentDocxExportQuerySchema.parse>,allowHistorical=false){
+    const input={db:options.db,owner,documentId,query,encryptionKey:options.encryptionKey,allowHistorical};
+    if(!options.encryptionKey)return format==='pdf'?exportResumeDocumentPdf({...input,...(options.pdfRuntime?{runtime:options.pdfRuntime}:{})}):exportResumeDocumentDocx(input);
+    await loadResumeExportSnapshot(input);
+    const artifact=await createResumeExport({db:options.db,owner,documentId,request:{format,...query},idempotencyKey:`compat:${randomUUID()}`,encryptionKey:options.encryptionKey,...(options.pdfRuntime?{runtime:options.pdfRuntime}:{})});
+    if(artifact.state!=='ready')throw new ServiceError(409,'RESUME_EXPORT_NOT_READY','文件正在生成，请稍后到版本与导出记录下载。');
+    return downloadResumeExport(options.db,owner,artifact.id,options.encryptionKey);
+  }
   app.get("/v1/resume-documents", async (request, reply) => {
     try {
       const owner = requireOwnerContext(request);
@@ -239,12 +256,7 @@ export function registerResumeDocumentRoutes(
       const owner = requireOwnerContext(request);
       const { documentId } = ResumeDocumentIdSchema.parse(request.params);
       const query = ResumeDocumentDocxExportQuerySchema.parse(request.query);
-      const result = await exportResumeDocumentDocx({
-        db: options.db,
-        owner,
-        documentId,
-        query,
-      });
+      const result = await retainedExport('docx',owner,documentId,query);
       return reply
         .header("Content-Type", result.mediaType)
         .header(
@@ -257,6 +269,35 @@ export function registerResumeDocumentRoutes(
       return handleError(error, request, reply);
     }
   });
+  app.get("/v1/resume-documents/:documentId/pdf", async (request, reply) => {
+    try {
+      const owner = requireOwnerContext(request);
+      const { documentId } = ResumeDocumentIdSchema.parse(request.params);
+      const query = ResumeDocumentDocxExportQuerySchema.parse(request.query);
+      const result = await retainedExport('pdf',owner,documentId,query);
+      return reply
+        .header("Content-Type", result.mediaType)
+        .header(
+          "Content-Disposition",
+          `attachment; filename*=UTF-8''${encodeURIComponent(result.fileName)}`,
+        )
+        .header("Content-Length", result.buffer.byteLength)
+        .send(result.buffer);
+    } catch (error) {
+      return handleError(error, request, reply);
+    }
+  });
+
+  for (const format of ['pdf', 'docx'] as const) {
+    app.get(`/v1/resume-documents/:documentId/history/${format}`, async (request, reply) => {
+      try {
+        const owner = requireOwnerContext(request);
+        const { documentId } = ResumeDocumentIdSchema.parse(request.params);
+        const result = await retainedExport(format,owner,documentId,ResumeDocumentDocxExportQuerySchema.parse(request.query),true);
+        return reply.header('Cache-Control', 'no-store').header('Content-Type', result.mediaType).header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(result.fileName)}`).send(result.buffer);
+      } catch (error) { return handleError(error, request, reply); }
+    });
+  }
 
   app.post("/v1/resume-documents/:documentId/reviews", async (request, reply) => {
     try {

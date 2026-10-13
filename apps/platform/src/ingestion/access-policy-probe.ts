@@ -1,7 +1,12 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { sha256 } from "../lib/canonical-json.js";
-import { listSourceKeys, loadSourceConfig, type SourceConfig } from "../sources/source-config.js";
+import {
+  listSourceKeys,
+  loadSourceConfig,
+  type SourceConfig,
+  type AccessPolicyEvidence,
+} from "../sources/source-config.js";
 import { fetchRobotsTxt, type RobotsFetchRecord } from "./robots-fetch.js";
 import { evaluateRobotsForSource } from "./robots-policy.js";
 import { shanghaiDateKey } from "../catalog/effective-activity.js";
@@ -31,14 +36,7 @@ export interface AccessPolicyProbeRuntime {
 }
 
 /** 与 `AccessPolicyEvidence["robots"]` 同形，供人工直接粘贴进配置。 */
-export type RobotsEvidenceDraft =
-  | {
-      status: "fetched";
-      bodySha256: string;
-      allowsAllFetchTargets: boolean;
-      crawlDelaySeconds: number | null;
-    }
-  | { status: "unavailable"; reason: "not_found" | "timeout" | "http_error" | "network_error" };
+export type RobotsEvidenceDraft = AccessPolicyEvidence["robots"];
 
 export interface AccessPolicySourceReport {
   sourceKey: string;
@@ -96,7 +94,7 @@ function hostsOf(config: SourceConfig): string[] {
  * `evaluateRobotsForSource` 对多 target 的处理同构——判定对象是「已登记的访问范围」整体）。
  * 因此这里按主机逐个判定后取最严的那一个作为该来源的结论。
  */
-function reportForSource(
+export function reportForSource(
   config: SourceConfig,
   records: ReadonlyMap<string, RobotsFetchRecord>,
 ): AccessPolicySourceReport {
@@ -116,6 +114,11 @@ function reportForSource(
 
   let strictestDelay: number | null = null;
   const fetchedShas: string[] = [];
+  const assessedHosts: Array<{
+    host: string;
+    status: "fetched" | "missing";
+    bodySha256: string | null;
+  }> = [];
   for (const host of hosts) {
     const record = records.get(host);
     if (!record) {
@@ -129,6 +132,10 @@ function reportForSource(
       };
     }
     if (record.outcome.status === "unavailable") {
+      if (record.outcome.reason === "not_found") {
+        assessedHosts.push({ host, status: "missing", bodySha256: null });
+        continue;
+      }
       return {
         ...base,
         robots: { status: "unavailable", reason: record.outcome.reason },
@@ -162,19 +169,27 @@ function reportForSource(
       strictestDelay = Math.max(strictestDelay ?? 0, verdict.crawlDelaySeconds);
     }
     fetchedShas.push(sha256(record.outcome.body));
+    assessedHosts.push({ host, status: "fetched", bodySha256: sha256(record.outcome.body) });
   }
 
   const singleHost = hosts.length === 1;
   return {
     ...base,
-    robots: {
-      status: "fetched",
-      // 单主机来源直接留该主机 robots 的哈希；多主机来源留各主机哈希拼接后的哈希，
-      // 任一主机 robots 变化都会改变它，与 `decideAccessPolicyRecheck` 的变化检测一致。
-      bodySha256: singleHost ? (fetchedShas[0] as string) : sha256(fetchedShas.join("\n")),
-      allowsAllFetchTargets: true,
-      crawlDelaySeconds: strictestDelay,
-    },
+    robots: assessedHosts.some((item) => item.status === "missing")
+      ? {
+          status: "assessed",
+          hosts: assessedHosts,
+          allowsAllFetchTargets: hosts.length > 0,
+          crawlDelaySeconds: strictestDelay,
+        }
+      : {
+          status: "fetched",
+          // 单主机来源直接留该主机 robots 的哈希；多主机来源留各主机哈希拼接后的哈希，
+          // 任一主机 robots 变化都会改变它，与 `decideAccessPolicyRecheck` 的变化检测一致。
+          bodySha256: singleHost ? (fetchedShas[0] as string) : sha256(fetchedShas.join("\n")),
+          allowsAllFetchTargets: true,
+          crawlDelaySeconds: strictestDelay,
+        },
     denyCode: null,
     blockedHost: null,
     blockedPathPrefix: null,

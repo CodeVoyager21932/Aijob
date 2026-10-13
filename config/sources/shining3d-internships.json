@@ -64,11 +64,29 @@
     ]
   },
   "policy": {
-    "version": "3",
+    "version": "5",
     "status": "pending_review",
-    "reviewedAt": "2026-08-01",
+    "reviewedAt": "2026-10-12",
     "crawlIntervalEnabled": true,
-    "policyNotes": []
+    "policyNotes": [
+      "2026-10-12 按 coco 的既有来源真实刷新请求复核。v4 对齐采集器 0.1.3 后发现缺少访问政策记录；v5 补齐本次实际取证，请求主机、路径、参数和周期不变。",
+      "招聘页页脚仅提供隐私政策；已阅读全文，未见禁止公开职位读取或聚合的条款。该结论限本机原范围刷新，不构成对外发布准入。"
+    ],
+    "accessPolicyEvidence": {
+      "robots": {
+        "status": "fetched",
+        "bodySha256": "eaeaa8d3511d1622227d89707d995b8b1f0902f5b86fdbe58882d1cef260d4d7",
+        "allowsAllFetchTargets": true,
+        "crawlDelaySeconds": null
+      },
+      "termsOfService": {
+        "documentUrl": "https://shining3d.zhiye.com/privacy",
+        "excerpt": "您可以搜索、查询职位信息",
+        "prohibitsAggregation": false
+      },
+      "verifiedAt": "2026-10-12",
+      "evidenceRef": "docs/evidence/system-upgrade-2026-10-12.md#同日真实连接推进"
+    }
   },
   "queryStreams": [
     {
