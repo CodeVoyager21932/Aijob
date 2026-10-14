@@ -1,22 +1,33 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes, useParams } from "react-router-dom";
-import { AlphaAccessGate } from "./components/AlphaAccessGate";
 import { AppShell } from "./components/AppShell";
-import { ProductShell } from "./components/ProductShell";
 import {
-  shouldEnableCareerOsV2,
   shouldEnableInternalSurfaces,
   shouldEnableProductSurfaces,
   shouldRequireAlphaAccess,
 } from "./environment";
 import { ResearchShell } from "./research/ResearchShell";
 
-const GuidesPage = lazy(() => import("./career-os/studio/GuidesPage").then((m) => ({default:m.GuidesPage})));
-const MaterialsWorkspace = lazy(() => import("./career-os/studio/MaterialsWorkspace").then((m) => ({default:m.MaterialsWorkspace})));
-const AiSettingsPage = lazy(() => import("./career-os/studio/AiSettingsPage").then((m) => ({default:m.AiSettingsPage})));
-const LegacyResumeRecoveryPage = lazy(() => import("./career-os/studio/LegacyResumeRecoveryPage").then(m => ({default:m.LegacyResumeRecoveryPage})));
-const NativeStudioPage = lazy(() => import("./career-os/native/NativeStudioPage").then(m => ({default:m.NativeStudioPage})));
-const AssistantWorkspace = lazy(() => import("./career-os/studio/AssistantWorkspace").then((m) => ({ default: m.AssistantWorkspace })));
+const GuidesPage = lazy(() =>
+  import("./career-os/studio/GuidesPage").then((m) => ({ default: m.GuidesPage })),
+);
+const MaterialsWorkspace = lazy(() =>
+  import("./career-os/studio/MaterialsWorkspace").then((m) => ({ default: m.MaterialsWorkspace })),
+);
+const AiSettingsPage = lazy(() =>
+  import("./career-os/studio/AiSettingsPage").then((m) => ({ default: m.AiSettingsPage })),
+);
+const LegacyResumeRecoveryPage = lazy(() =>
+  import("./career-os/studio/LegacyResumeRecoveryPage").then((m) => ({
+    default: m.LegacyResumeRecoveryPage,
+  })),
+);
+const NativeStudioPage = lazy(() =>
+  import("./career-os/native/NativeStudioPage").then((m) => ({ default: m.NativeStudioPage })),
+);
+const AssistantWorkspace = lazy(() =>
+  import("./career-os/studio/AssistantWorkspace").then((m) => ({ default: m.AssistantWorkspace })),
+);
 
 const WorkspaceShell = lazy(() =>
   import("./career-os/WorkspaceShell").then((module) => ({ default: module.WorkspaceShell })),
@@ -87,14 +98,6 @@ const WorkspaceNotFoundPage = lazy(() =>
   })),
 );
 
-const DataControlPage = lazy(() =>
-  import("./pages/DataControlPage").then((module) => ({ default: module.DataControlPage })),
-);
-const DeletionStatusPage = lazy(() =>
-  import("./pages/DeletionStatusPage").then((module) => ({
-    default: module.DeletionStatusPage,
-  })),
-);
 const InternalPreviewJobDetailPage = lazy(() =>
   import("./pages/InternalPreviewJobDetailPage").then((module) => ({
     default: module.InternalPreviewJobDetailPage,
@@ -105,35 +108,10 @@ const InternalPreviewJobListPage = lazy(() =>
     default: module.InternalPreviewJobListPage,
   })),
 );
-const JobDetailPage = lazy(() =>
-  import("./pages/JobDetailPage").then((module) => ({ default: module.JobDetailPage })),
-);
-const JobInsightsPage = lazy(() =>
-  import("./pages/JobInsightsPage").then((module) => ({ default: module.JobInsightsPage })),
-);
-const JobListPage = lazy(() =>
-  import("./pages/JobListPage").then((module) => ({ default: module.JobListPage })),
-);
-const NotFoundPage = lazy(() =>
-  import("./pages/NotFoundPage").then((module) => ({ default: module.NotFoundPage })),
-);
 const ProductUnavailablePage = lazy(() =>
   import("./pages/ProductUnavailablePage").then((module) => ({
     default: module.ProductUnavailablePage,
   })),
-);
-const RecommendationsPage = lazy(() =>
-  import("./pages/RecommendationsPage").then((module) => ({
-    default: module.RecommendationsPage,
-  })),
-);
-const ResumeConfirmPage = lazy(() =>
-  import("./pages/ResumeConfirmPage").then((module) => ({
-    default: module.ResumeConfirmPage,
-  })),
-);
-const ResumePage = lazy(() =>
-  import("./pages/ResumePage").then((module) => ({ default: module.ResumePage })),
 );
 const ResumeTailoringPage = lazy(() =>
   import("./pages/ResumeTailoringPage").then((module) => ({
@@ -164,9 +142,6 @@ export function App() {
   const productSurfacesEnabled = shouldEnableProductSurfaces(environment);
   const internalSurfacesEnabled = shouldEnableInternalSurfaces(environment);
   const alphaAccessRequired = shouldRequireAlphaAccess(environment);
-  const careerOsV2Enabled = shouldEnableCareerOsV2({
-    flag: import.meta.env.VITE_CAREER_OS_V2,
-  });
 
   if (!productSurfacesEnabled) {
     return (
@@ -181,83 +156,57 @@ export function App() {
   return (
     <Suspense fallback={<div className="route-loading">正在打开求职工作台…</div>}>
       <Routes>
-        <Route
-          path="/"
-          element={<Navigate to={careerOsV2Enabled ? "/today" : "/jobs"} replace />}
-        />
-        <Route
-          element={
-            careerOsV2Enabled ? (
-              <WorkspaceShell accessRequired={alphaAccessRequired} />
-            ) : (
-              <AlphaAccessGate enabled={alphaAccessRequired}>
-                <ProductShell />
-              </AlphaAccessGate>
-            )
-          }
-        >
-          {careerOsV2Enabled ? (
-            <>
-              <Route path="/today" element={<CareerOsHomePage />} />
-              <Route path="/jobs" element={<JobDiscoveryPage />} />
-              <Route path="/jobs/recommended" element={<JobRecommendationsPage />} />
-              <Route path="/jobs/recommended/:runId" element={<JobRecommendationsPage />} />
-              <Route path="/jobs/insights" element={<CurrentJobGraphPage />} />
-              <Route path="/jobs/insights/:runId" element={<JobInsightsWorkspacePage />} />
-              <Route path="/jobs/:jobId" element={<JobWorkspacePage />} />
-              <Route path="/applications" element={<ApplicationsPage />} />
-              <Route path="/applications/planner" element={<PlannerWorkspacePage />} />
-              <Route path="/applications/:caseId" element={<Navigate to="overview" replace />} />
-              <Route path="/applications/:caseId/:tab" element={<CaseWorkspacePage />} />
-              <Route path="/resumes/import" element={<Navigate to="/resumes?start=import" replace />} />
-              <Route path="/resumes/import/confirm/:analysisId" element={<LegacyResumeRecoveryPage />} />
-              <Route path="/resumes" element={<ResumeAssetsPage />} />
-              <Route path="/resumes/native" element={<Navigate to="/resumes" replace />} />
-              <Route path="/resumes/native/:documentId" element={<NativeStudioPage />} />
-              <Route path="/assistant" element={<AssistantWorkspace />} />
-              <Route path="/interviews" element={<AssistantWorkspace defaultTask="interview" />} />
-              <Route path="/materials" element={<MaterialsWorkspace />} />
-              <Route path="/guides" element={<GuidesPage />} />
-              <Route path="/resumes/snippets" element={<Navigate to="/materials?view=expressions" replace />} />
-              <Route path="/experiences" element={<Navigate to="/materials" replace />} />
-              <Route path="/resumes/:documentId" element={<NativeStudioPage />} />
-              <Route path="/settings/ai" element={<AiSettingsPage />} />
-              <Route path="/settings/data" element={<CareerDataControlPage />} />
-              <Route path="/settings/data/deletion" element={<CareerDeletionStatusPage />} />
-              <Route
-                path="/recommendations/*"
-                element={<Navigate to="/jobs/recommended" replace />}
-              />
-              <Route path="/insights/*" element={<Navigate to="/jobs/insights" replace />} />
-              <Route path="/resume" element={<Navigate to="/resumes/import" replace />} />
-              <Route path="/resume/confirm/:analysisId" element={<LegacyResumeConfirmRedirect />} />
-              <Route path="/resume/*" element={<Navigate to="/resumes/import" replace />} />
-              <Route path="/resume-tailorings/:runId" element={<ResumeTailoringPage readOnly />} />
-              <Route path="/data-control" element={<Navigate to="/settings/data" replace />} />
-              <Route
-                path="/data-control/deletion"
-                element={<Navigate to="/settings/data/deletion" replace />}
-              />
-              <Route
-                path="/data-control/deletion/*"
-                element={<Navigate to="/settings/data/deletion" replace />}
-              />
-              <Route path="/data-control/*" element={<Navigate to="/settings/data" replace />} />
-              <Route path="*" element={<WorkspaceNotFoundPage />} />
-            </>
-          ) : (
-            <>
-              <Route path="/jobs" element={<JobListPage />} />
-              <Route path="/jobs/:jobId" element={<JobDetailPage />} />
-              <Route path="/insights" element={<JobInsightsPage />} />
-              <Route path="/resume" element={<ResumePage />} />
-              <Route path="/resume/confirm/:analysisId" element={<ResumeConfirmPage />} />
-              <Route path="/recommendations" element={<RecommendationsPage />} />
-              <Route path="/resume-tailorings/:runId" element={<ResumeTailoringPage />} />
-              <Route path="/data-control" element={<DataControlPage />} />
-              <Route path="/data-control/deletion" element={<DeletionStatusPage />} />
-            </>
-          )}
+        <Route path="/" element={<Navigate to="/today" replace />} />
+        <Route element={<WorkspaceShell accessRequired={alphaAccessRequired} />}>
+          <Route path="/today" element={<CareerOsHomePage />} />
+          <Route path="/jobs" element={<JobDiscoveryPage />} />
+          <Route path="/jobs/recommended" element={<JobRecommendationsPage />} />
+          <Route path="/jobs/recommended/:runId" element={<JobRecommendationsPage />} />
+          <Route path="/jobs/insights" element={<CurrentJobGraphPage />} />
+          <Route path="/jobs/insights/:runId" element={<JobInsightsWorkspacePage />} />
+          <Route path="/jobs/:jobId" element={<JobWorkspacePage />} />
+          <Route path="/applications" element={<ApplicationsPage />} />
+          <Route path="/applications/planner" element={<PlannerWorkspacePage />} />
+          <Route path="/applications/:caseId" element={<Navigate to="overview" replace />} />
+          <Route path="/applications/:caseId/:tab" element={<CaseWorkspacePage />} />
+          <Route path="/resumes/import" element={<Navigate to="/resumes?start=import" replace />} />
+          <Route
+            path="/resumes/import/confirm/:analysisId"
+            element={<LegacyResumeRecoveryPage />}
+          />
+          <Route path="/resumes" element={<ResumeAssetsPage />} />
+          <Route path="/resumes/native" element={<Navigate to="/resumes" replace />} />
+          <Route path="/resumes/native/:documentId" element={<NativeStudioPage />} />
+          <Route path="/assistant" element={<AssistantWorkspace />} />
+          <Route path="/interviews" element={<AssistantWorkspace defaultTask="interview" />} />
+          <Route path="/materials" element={<MaterialsWorkspace />} />
+          <Route path="/guides" element={<GuidesPage />} />
+          <Route
+            path="/resumes/snippets"
+            element={<Navigate to="/materials?view=expressions" replace />}
+          />
+          <Route path="/experiences" element={<Navigate to="/materials" replace />} />
+          <Route path="/resumes/:documentId" element={<NativeStudioPage />} />
+          <Route path="/settings/ai" element={<AiSettingsPage />} />
+          <Route path="/settings/data" element={<CareerDataControlPage />} />
+          <Route path="/settings/data/deletion" element={<CareerDeletionStatusPage />} />
+          <Route path="/recommendations/*" element={<Navigate to="/jobs/recommended" replace />} />
+          <Route path="/insights/*" element={<Navigate to="/jobs/insights" replace />} />
+          <Route path="/resume" element={<Navigate to="/resumes/import" replace />} />
+          <Route path="/resume/confirm/:analysisId" element={<LegacyResumeConfirmRedirect />} />
+          <Route path="/resume/*" element={<Navigate to="/resumes/import" replace />} />
+          <Route path="/resume-tailorings/:runId" element={<ResumeTailoringPage readOnly />} />
+          <Route path="/data-control" element={<Navigate to="/settings/data" replace />} />
+          <Route
+            path="/data-control/deletion"
+            element={<Navigate to="/settings/data/deletion" replace />}
+          />
+          <Route
+            path="/data-control/deletion/*"
+            element={<Navigate to="/settings/data/deletion" replace />}
+          />
+          <Route path="/data-control/*" element={<Navigate to="/settings/data" replace />} />
+          <Route path="*" element={<WorkspaceNotFoundPage />} />
         </Route>
         {internalSurfacesEnabled ? (
           <Route path="/research" element={<ResearchShell />}>
@@ -286,16 +235,6 @@ export function App() {
             }
           />
         ) : null}
-        <Route
-          path="*"
-          element={
-            <AlphaAccessGate enabled={alphaAccessRequired}>
-              <ProductShell>
-                <NotFoundPage />
-              </ProductShell>
-            </AlphaAccessGate>
-          }
-        />
       </Routes>
     </Suspense>
   );

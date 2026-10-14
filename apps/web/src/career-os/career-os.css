@@ -108,7 +108,7 @@
 /* Legacy `styles.css` encodes meta labels between 9.76px and 11.84px. Those pages
    are reachable inside Career OS (resume import, read-only Tailoring), so they are
    lifted to the 12px floor here rather than in `styles.css`, which keeps the
-   VITE_CAREER_OS_V2=false ProductShell visually unchanged. The doubled
+   internal preview surfaces visually unchanged. The doubled
    `.product-app.career-os` prefix outranks the legacy `.product-app` rules. */
 .product-app.career-os .brand small,
 .product-app.career-os .environment-pill,
