@@ -6,7 +6,7 @@
 - 产品证据：仍为 `E0`
 - 四选一决定：**继续**到 `Phase 2B-4C Interview/Debrief/Knowledge Service Boundary`
 
-> 历史后续状态（2026-08-09）：上述决定准确记录本验收完成时的旧计划语境，后来曾由 M1–M4 路线取代；M1–M4 现已完成并归档。当前任务只看[现行交付计划](../../../plans/career-os-current-delivery-plan.md)和[当前交接](../../../handoffs/current.md)，不得从本历史验收启动 Phase 2B-4C 或任何“下一步”。
+> 历史后续状态（2026-08-09）：上述决定准确记录本验收完成时的旧计划语境，后来曾由 M1–M4 路线取代；M1–M4 现已完成并归档。当前任务只看[历史交付计划](https://github.com/CodeVoyager21932/Aijob/blob/d6df922deb8542d9ff82b81f60ea9be0d61e93da/docs/plans/career-os-current-delivery-plan.md)和[当前交接](../../../handoffs/current.md)，不得从本历史验收启动 Phase 2B-4C 或任何“下一步”。
 
 ## 1. 目标与范围
 

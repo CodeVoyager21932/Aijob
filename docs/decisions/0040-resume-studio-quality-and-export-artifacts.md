@@ -6,4 +6,4 @@
 
 正文v2保留；布局显式记录v3参数和字体集。渲染前/分页后/最终文件完整性分层验证，不能把文件生成成功当成正文完整。真实失败样本未查清之前不得宣称修复。
 
-来源与模板名单、交互和验收见[批准计划](../plans/resume-studio-quality-rebuild-2026-09-10.md)。模板样稿不进入用户资料；AI继续BYOK，不增加脱敏确认或事实审批。
+来源与模板名单、交互和验收见[批准计划](https://github.com/CodeVoyager21932/Aijob/blob/d6df922deb8542d9ff82b81f60ea9be0d61e93da/docs/plans/resume-studio-quality-rebuild-2026-09-10.md)。模板样稿不进入用户资料；AI继续BYOK，不增加脱敏确认或事实审批。

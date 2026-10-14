@@ -1,6 +1,6 @@
 # 方向图谱与简历工作室研究记录
 
-日期：2026-09-09。对应[改进提案](../../plans/direction-insights-and-resume-studio-rework-2026-09-09.md)。这是只读研究和方案记录，不是改造完成证据。
+日期：2026-09-09。对应[改进提案](https://github.com/CodeVoyager21932/Aijob/blob/d6df922deb8542d9ff82b81f60ea9be0d61e93da/docs/plans/direction-insights-and-resume-studio-rework-2026-09-09.md)。这是只读研究和方案记录，不是改造完成证据。
 
 ## 调查范围
 

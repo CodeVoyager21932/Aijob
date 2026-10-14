@@ -9,8 +9,8 @@
 | S0 | 空 PDF 与保存快照分层核实 | 同模板、8 秒前 checkpoint 的 4 条经历均为空；旧版本重放一致 | 去掉纸张上的假正文引导 | [S0](S0.md)；无法追溯未保存输入，未臆断用户没有填写 |
 | S1 | 内容 v2 + 布局 v3、字段清单、字体与模板版本 | 前后端共享分页，最终 PDF 文本/链接及页面位置校验；真实普通/加粗字体 | A4 实际内容预览，缩放不改变字号 | 三套基准及全部矩阵；[适配说明](S1-template-adaptations.md) |
 | S2 | 成对修订、导出产物与历史接口 | 迁移065、加密字节、幂等/租约/删除隔离；后台导入保留当前布局 | 连续字段、固定预览、独立图库滚动、原件、即时下载/恢复 | browser/journey.json、import.json、input-recovery.json；21项专属PG |
-| S3 | 40个固定版本模板，配色不重复计数 | 120组短中长PDF/DOCX，40份图库封面 | 样稿与个人预览隔离、模板应用可撤销 | [逐套源码与版式对照](template-comparison.html)、[机器清单](template-catalog.json) |
-| S4 | 版本兼容及明确运行条件 | Windows/WPS、离线Linux边界输出、构建/类型/lint与性能 | 320/360/800px、原生200%缩放、保存失败/冲突 | 本记录及[运行/回退说明](../../runbooks/resume-studio-quality-candidate.md)；候选需另行构建部署 |
+| S3 | 40个固定版本模板，配色不重复计数 | 120组短中长PDF/DOCX，40份图库封面 | 样稿与个人预览隔离、模板应用可撤销 | [逐套源码与版式对照（历史包）](../../plans/archive/README.md#本机历史材料)（包内 `docs/evidence/resume-studio-quality-2026-09-10/template-comparison.html`）、[机器清单（历史包）](../../plans/archive/README.md#本机历史材料)（包内 `docs/evidence/resume-studio-quality-2026-09-10/template-catalog.json`） |
+| S4 | 版本兼容及明确运行条件 | Windows/WPS、离线Linux边界输出、构建/类型/lint与性能 | 320/360/800px、原生200%缩放、保存失败/冲突 | 本记录及[运行/回退说明](https://github.com/CodeVoyager21932/Aijob/blob/d6df922deb8542d9ff82b81f60ea9be0d61e93da/docs/runbooks/resume-studio-quality-candidate.md)；候选需另行构建部署 |
 
 ## 输出与逐页检查
 
@@ -63,6 +63,6 @@ BYOK未配置，真实模型质量未联调；手工流程独立通过。此前�
 ## 候选包与记录
 
 - 本地交付目录：`.data/releases/resume-quality-20260911-s4/`。源码候选需安装锁定依赖并构建；独立证据包包含此目录全部合成输出及上游对照。
-- [工程检查记录](engineering-checks.json)分别列出全仓、后续合同层和专属PG结果，避免重复累加测试数。
-- [视觉复核记录](visual-review.json)关联40套PDF与WPS全部页面联系表及文件哈希；[对照页检查](catalog-browser.json)确认40套、80张图片和搜索正常。
-- 可直接打开[40套真实版式对照](template-comparison.html)，再从每套下方下载短、中、长稿检查。模板是否符合个人审美仍欢迎实际使用反馈。
+- [工程检查记录（历史包）](../../plans/archive/README.md#本机历史材料)（包内 `docs/evidence/resume-studio-quality-2026-09-10/engineering-checks.json`）分别列出全仓、后续合同层和专属PG结果，避免重复累加测试数。
+- [视觉复核记录（历史包）](../../plans/archive/README.md#本机历史材料)（包内 `docs/evidence/resume-studio-quality-2026-09-10/visual-review.json`）关联40套PDF与WPS全部页面联系表及文件哈希；[对照页检查（历史包）](../../plans/archive/README.md#本机历史材料)（包内 `docs/evidence/resume-studio-quality-2026-09-10/catalog-browser.json`）确认40套、80张图片和搜索正常。
+- 可直接打开[40套真实版式对照（历史包）](../../plans/archive/README.md#本机历史材料)（包内 `docs/evidence/resume-studio-quality-2026-09-10/template-comparison.html`），再从每套下方下载短、中、长稿检查。模板是否符合个人审美仍欢迎实际使用反馈。

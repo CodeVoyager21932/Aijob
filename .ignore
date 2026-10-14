@@ -1,0 +1,13 @@
+# Historical attachments remain available locally and in the private archive.
+# Keep current summaries searchable; use rg --no-ignore for explicit historical research.
+/docs/evidence/resume-studio-quality-2026-09-10/*
+!/docs/evidence/resume-studio-quality-2026-09-10/README.md
+!/docs/evidence/resume-studio-quality-2026-09-10/S0.md
+!/docs/evidence/resume-studio-quality-2026-09-10/S1-template-adaptations.md
+/docs/evidence/direction-studio-upgrade-2026-09-09/*
+!/docs/evidence/direction-studio-upgrade-2026-09-09/README.md
+!/docs/evidence/direction-studio-upgrade-2026-09-09/performance.md
+!/docs/evidence/direction-studio-upgrade-2026-09-09/template-catalog.md
+/docs/reviews/resume-system-research-2026-09-10/*
+!/docs/reviews/resume-system-research-2026-09-10/README.md
+!/docs/reviews/resume-system-research-2026-09-10/catalog.json

@@ -55,4 +55,4 @@ OS-7、岗位事实纠偏、公司上限取消、业务恢复保持关闭。旧�
 
 ## 候选交付物
 
-源码候选包位于 `.data/releases/aijob-product-core-source.tar.gz`，逐文件SHA256清单位于同目录 `candidate-manifest.json`。这是一份需要按手册构建的源码包；不含真实环境、密钥、业务数据库或二进制图片/PDF证据。完整视觉证据保留在当前工作区本目录。Linux镜像版本见verification.json；[运行手册](../../../infra/runtime/README.md)和[本机启动](../../runbooks/recovered-local-workspace.md)分别描述候选部署与当前开发用法。
+源码候选包位于 `.data/releases/aijob-product-core-source.tar.gz`，逐文件SHA256清单位于同目录 `candidate-manifest.json`。这是一份需要按手册构建的源码包；不含真实环境、密钥、业务数据库或二进制图片/PDF证据。完整视觉证据保留在当前工作区本目录。Linux镜像版本见verification.json；[运行手册](../../../infra/runtime/README.md)和[本机启动](https://github.com/CodeVoyager21932/Aijob/blob/d6df922deb8542d9ff82b81f60ea9be0d61e93da/docs/runbooks/recovered-local-workspace.md)分别描述候选部署与当前开发用法。

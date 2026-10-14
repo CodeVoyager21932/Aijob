@@ -1,6 +1,6 @@
 # 岗位事实纠偏与工作区接手验收
 
-日期：2026-09-05。输入为 `d11b328` + 桌面 job 的 37 个未提交文件；执行计划见[四步接手计划](../../plans/job-fact-fidelity-handoff.md)。
+日期：2026-09-05。输入为 `d11b328` + 桌面 job 的 37 个未提交文件；执行计划见[四步接手计划](https://github.com/CodeVoyager21932/Aijob/blob/d6df922deb8542d9ff82b81f60ea9be0d61e93da/docs/plans/job-fact-fidelity-handoff.md)。
 
 状态：四步全部完成。Contract、Database/Platform、Web、Integrated Gate、Evidence均已关闭；接续SA准入准备，外部与用户价值Gate不变。
 
@@ -77,4 +77,4 @@ Node 22.16.0、pnpm 11.9.0、Windows、独立 PostgreSQL 16-alpine。数据库�
 
 最终交叉检查还确认SA遗留的“文档/执行不一致”：ADR-0035 §五规定单家统一30条，`applyCompanyQuotaSelections` 却仍按SME30/非SME10，materialize集成测试明确断言该旧行为。已同步登记到路线图、交接和SA计划，作为恢复真实分母前的首项修复；本轮没有修改该旧SA配额算法，也不把既有测试通过写成该产品口径已通过。
 
-目录处理见[工作区手册](../../runbooks/workspace-takeover.md)。纠偏验收完成后，下一目标是恢复业务数据准备和 SA 准入证据核验；不能把工程通过视为获准公开或真实 Alpha 已完成。
+目录处理见[工作区手册](https://github.com/CodeVoyager21932/Aijob/blob/d6df922deb8542d9ff82b81f60ea9be0d61e93da/docs/runbooks/workspace-takeover.md)。纠偏验收完成后，下一目标是恢复业务数据准备和 SA 准入证据核验；不能把工程通过视为获准公开或真实 Alpha 已完成。

@@ -1,55 +1,43 @@
 # 当前网页版本机运行说明
 
-更新：2026-10-13。本文件是 C 盘现有网页版的日常启动与配置入口。功能及真实联调边界见 [10 月 13 日交付记录](../evidence/local-productization-2026-10-13.md)，前一阶段见 [10 月 12 日交付记录](../evidence/system-upgrade-2026-10-12.md)。旧恢复、方向工作室、S0–S4、K4/K5 手册保留版本历史，不再提供当前启动指令；不重做业务恢复或 OS-7。
+更新：2026-10-14。本文件是 C 盘现有网页版的日常启动与配置入口。功能及真实联调边界见 [10 月 13 日交付记录](../evidence/local-productization-2026-10-13.md)，前一阶段见 [10 月 12 日交付记录](../evidence/system-upgrade-2026-10-12.md)。旧恢复、方向工作室、S0–S4、K4/K5 手册保留版本历史，不再提供当前启动指令；不重做业务恢复或 OS-7。
 
 桌面专属适配、同步、构建、安装验收和业务资料迁入已暂停，待 coco 确认终版后恢复；[安装版手册](local-desktop-productization.md)只供查阅已有候选。
 
-## 启动
+## 启动与停止
 
-使用 `C:/Users/72998/Projects/Aijob`、原 `.env` 和原加密密钥。先检查 `http://127.0.0.1:3000/health/ready`、5173 监听及 worker 进程，正常服务直接复用。业务库是 `aijob-recovered-postgres` / `127.0.0.1:55439/aijob`；55443 是隔离测试环境，不能替代业务库。不要执行 bootstrap、业务恢复或旧 5432 Compose 启动指令。
-
-运行状态是时点信息：10 月 13 日真实联调时服务运行；同日后续审计发现 8 个 Docker 容器全部停止，且未见 3000/5173/8091/55439 等相关监听。接手时重新检查，不把任一记录当作当前进程状态。本次文档归一没有启动服务或查询业务数据。
-
-入口 `http://127.0.0.1:5173/`：今日查看变化/继续准备；岗位发现顶部「自动找岗位」设置方向、城市、关键词及启停；我的简历导入、纠错和编辑；投递管理选择实际使用文件。简历编辑器保留导入、更换模板、助手和PDF下载；历史版本、DOCX及排版在右上「•••」，自动保存状态在标题下方。
-
-当前工作区已有构建；仅在依赖、相关源码或构建产物发生变化时重建。数据库停止时，先启动既有 Docker Desktop，再启动既有业务容器；数据库已运行则跳过：
+在 `C:\Users\72998\Projects\Aijob` 终端使用原配置。正常操作只需：
 
 ```powershell
-docker start aijob-recovered-postgres
+pnpm local:status
+pnpm local:start
 ```
 
-前后端和两个 worker **均已停止**时，在原工作区终端执行：
+先打开 Docker Desktop。`local:start` 只复用已有 `aijob-recovered-postgres`（55439/aijob）、`.env` 和密钥；容器停止时启动该容器，应用部分已运行时只补缺项，不叠加 worker，不初始化、恢复或迁移数据库。当前 Web 默认进入 `/today`，无需设置 V2 开关。
+
+入口为 [当前工作区](http://127.0.0.1:5173/)，模型/搜索统一在[连接与运行](http://127.0.0.1:5173/settings/ai)。进程状态、API/Web 就绪状态与日志位置由 `local:status` 显示；worker 的进程存在不等于具体任务执行成功，任务结果仍以页面运行记录为准。
+
+保存编辑后停止本入口启动的服务：
 
 ```powershell
-Set-Location C:\Users\72998\Projects\Aijob
-$env:VITE_CAREER_OS_V2='1'
-$env:WEB_API_ORIGIN='http://127.0.0.1:3000'
-pnpm dev
+pnpm local:stop
 ```
 
-根 `pnpm dev` 并行启动 Web 与平台；平台 `src/dev.ts` 已包含 API、match-worker、collector-worker，不要再叠加启动第二份 worker。match-worker 处理导入、个人搜索及摘要，collector-worker 处理已启用官网刷新及旧全局搜索。停止开发进程前应保存编辑；停止这些进程不会删除数据库。全部应用进程退出后，如需停止数据库，可执行 `docker stop aijob-recovered-postgres`，持久卷保留。
+只停止本入口记录且身份仍一致的进程及子进程；复用的外部服务和数据库不停止。需要关闭数据库时，确认应用已停止后手动 `docker stop aijob-recovered-postgres`；卷保持原样。日志与自管 PID 在 `.data/local-workspace/`，不提交 Git。
 
-如果只有部分进程停止，仅在独立终端补启缺少的进程，不同时执行上面的 `pnpm dev`：
+| 情况 | 处理 |
+|---|---|
+| Docker/登记容器不可用 | 打开 Docker Desktop，核对既有容器；不运行空库 bootstrap 或旧 5432 Compose |
+| 端口被其他程序占用 | 先核对端口所属进程，启动器不会强占或停止其他程序 |
+| 缺运行构建 | 执行 `pnpm build:runtime`；相关源码变动再构建受影响包，不每日全仓重建 |
+| 进程存在但 API/Web 未就绪 | 查看对应 `.data/local-workspace/<role>.log`，修正实际错误；不再启动另一套服务 |
+| 当前配置指向其他库/端口 | 核对工作区和原配置，启动器不会改写或切库 |
 
-```powershell
-Set-Location C:\Users\72998\Projects\Aijob
-pnpm --filter @aijob/platform exec tsx src/server.ts
-pnpm --filter @aijob/platform exec tsx src/match-worker.ts
-pnpm --filter @aijob/platform exec tsx src/collector-worker.ts
-```
+底层 `pnpm dev` 仍供开发调试，已包含 API、match、collector 和 Web，不能与启动器重复使用。独立服务命令仅供明确故障定位；旧 `infra:up`、`local:bootstrap` 用于新环境/灾备，不是本工作区的正常启动路径。
 
-以上三条后端命令分别运行，不在同一阻塞终端依次粘贴。Web 缺少时另开终端：
+仅维护者需要时运行 `pnpm --filter @aijob/platform cli source-console`（本机 8091）；旧 `/discovery-setup` 为兼容维护入口，普通用户不需要。首次来源启用、范围扩大和恢复暂停仍需明确操作，普通 Web 不因此获得管理权限。
 
-```powershell
-Set-Location C:\Users\72998\Projects\Aijob
-$env:VITE_CAREER_OS_V2='1'
-$env:WEB_API_ORIGIN='http://127.0.0.1:3000'
-pnpm --filter @aijob/web dev --host 127.0.0.1 --port 5173
-```
-
-仅维护者需要管理来源或旧全局配置时，才另开终端执行 `pnpm --filter @aijob/platform cli source-console`，默认本机 8091；旧 `/discovery-setup` 保留兼容用途。普通用户在 Web「连接与运行」配置个人搜索，不需要打开维护台，Web 不因此取得来源管理写权限。
-
-Windows 后台启动使用隐藏窗口并保留 PID/日志。本网页版不是开机自启服务；关机暂停，重启后按预算处理到期任务并合并变化。Cookie 不按端口隔离，隔离测试使用独立浏览器上下文，不能在同一配置混用业务 5173 与测试 5194，也不要修改稿件 owner。
+本机不提供开机自启，关机暂停后台，重启按队列和预算处理。测试使用独立数据库和浏览器上下文，不同 localhost 端口不隔离 Cookie；不要修改业务稿件 owner 来迁就测试。
 
 ## 搜索、来源与个人 AI
 
@@ -76,11 +64,11 @@ Windows 后台启动使用隐藏窗口并保留 PID/日志。本网页版不是�
 | `ENABLE_NATIVE_STUDIO_TEMPLATES` | 默认true；false使新建稿回到旧默认，不改已有稿。 |
 | `VITE_ENABLE_STUDIO_TEMPLATES` | 默认启用；false隐藏四类新模板入口，需要重启Web dev或重建Web；已有新模板稿仍能渲染。 |
 
-### 已有本机配置的最后联调记录
+### 当前范围与历史运行证据
 
-2026-10-13 已显式沿用 Tavily，完成「产品实习 · 上海 / 杭州」真实搜索、哈啰计划刷新和当日摘要；用户中转的普通生成此前通过，但本次 Responses 搜索检查未观察到工具证据，不能推论整个 DeepSeek 服务都不支持搜索。已启用来源范围为先临三维、哈啰，各自 24 小时；摘要北京时间 09:00。哈啰当次 42 条中仅 2 条为已确认上海产品实习，杭州本次未新增；福利段混入要求的问题已修复。以上是带日期联调记录，不是实时运行保证；当前状态由页面、健康检查及刷新状态读取。
+已启用来源范围和最近真实连接结果只在[当前交接](../handoffs/current.md)记录，完整证据见 10/13 交付。不要把历史计划时间或一次联调当作永久运行保证。页面与 `pnpm source:refresh-status` 读取当前状态；本轮整理不重复真实搜索/AI 请求。
 
-维护者核验来源后可用 `pnpm source:refresh-enable --source-keys shining3d-internships,hellobike-internships` 指定完整刷新范围（多个标识用逗号分隔），无此参数时保留已保存范围。范围保存在既有 `.data/source-refresh.local.json` 的可选 `sourceKeys`，旧文件无此字段仍保持原语义。维护台的旧配置页同时开启本机网络开关；CLI 沿用原运行环境的网络配置。关机或停止 worker 会暂停执行，重启进程后读取原配置；网页版未配置 Windows 开机自启。
+维护者使用 `source:refresh-enable --source-keys` 明确指定完整来源范围，无参数保留已保存范围；旧配置的网络开关和个人搜索任务角色继续保持原语义。
 
 ## 文件与兼容
 

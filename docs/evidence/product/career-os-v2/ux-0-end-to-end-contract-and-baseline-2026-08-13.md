@@ -10,7 +10,7 @@
 
 稳定实施契约见 [Career OS 端到端体验与系统契约](../../../14-career-os-end-to-end-experience-contract.md)。
 
-逐用例工作底稿见 [UX-0 页面—系统—证据追踪矩阵](../../../plans/career-os-ux-0-end-to-end-traceability-matrix.md)。
+逐用例工作底稿见 [UX-0 页面—系统—证据追踪矩阵](https://github.com/CodeVoyager21932/Aijob/blob/d6df922deb8542d9ff82b81f60ea9be0d61e93da/docs/plans/career-os-ux-0-end-to-end-traceability-matrix.md)。
 
 ## 1. 本轮范围
 
@@ -149,7 +149,7 @@ UX-0 只建立后续实现必须遵守的可复核基线，没有重做页面、
 | Tailoring / Review | Resume V2 Review 是模板与受控 AI 的唯一新写入；template/AI 都读取固定 Requirements，旧 Tailoring 历史只读；v2 使用同一队列的新任务类型，使旧 Worker 不领取 | **需要最小 expand migration**：Run v2 provenance/failure/fallback；Finding/Suggestion v2 requirement IDs；versioned task type；legacy v1 不回填臆造 provenance |
 | Web response | parser-aware `apiRequest`，触达端点使用共享 schema | 不需要 |
 
-选择依据来自 ADR-0030 的“单 Case 共同上下文”、ADR-0031 的“applications/Case 为新业务真源、旧路由只作兼容/历史”、ADR-0013 的受控 AI 降级/审计边界和现有代码可表达性。字段级 schema、Problem、回退与核心断言已经写入[追踪矩阵](../../../plans/career-os-ux-0-end-to-end-traceability-matrix.md)。UX-0 已完成对“为什么需要这些处置”的代码反证，但尚未实现任何新 Contract/API/migration，因此它们是后续实施约束，不是功能完成声明。
+选择依据来自 ADR-0030 的“单 Case 共同上下文”、ADR-0031 的“applications/Case 为新业务真源、旧路由只作兼容/历史”、ADR-0013 的受控 AI 降级/审计边界和现有代码可表达性。字段级 schema、Problem、回退与核心断言已经写入[追踪矩阵](https://github.com/CodeVoyager21932/Aijob/blob/d6df922deb8542d9ff82b81f60ea9be0d61e93da/docs/plans/career-os-ux-0-end-to-end-traceability-matrix.md)。UX-0 已完成对“为什么需要这些处置”的代码反证，但尚未实现任何新 Contract/API/migration，因此它们是后续实施约束，不是功能完成声明。
 
 ### 5.5 代码与 migration 兼容反证结果
 
@@ -280,7 +280,7 @@ focused 反证结果：Contracts 79/79、Web 142/142、Platform applications/mat
 
 夹具必须输出 schema 校验过的 machine-readable manifest，使用 `.example.test` 和“合成·…”命名，并在结束后按精确库名清理。它不得进入 `apps/web/src` 或形成产品演示模式。
 
-完整 manifest 与安全规则见[稳定契约第 11 节](../../../14-career-os-end-to-end-experience-contract.md#11-隔离验收夹具契约)。夹具本轮只设计、未实现；它还必须覆盖 matching、recommendation、insights 和历史 Tailoring 的规范归属，不能只 seed 一岗一简历后声明全系统融合。
+当时的完整 manifest 与安全规则见[历史契约第 11 节](https://github.com/CodeVoyager21932/Aijob/blob/d6df922deb8542d9ff82b81f60ea9be0d61e93da/docs/14-career-os-end-to-end-experience-contract.md#11-隔离验收夹具契约)。夹具在该轮只设计、未实现；此处记录当时条件，不生成新的全系统验收任务。
 
 ## 10. UX-0 Gate 判定
 

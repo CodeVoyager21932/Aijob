@@ -2,7 +2,7 @@
 
 本目录只包含研究成果，没有修改 Aijob 应用代码或业务数据。
 
-- [浏览原始样张图库](../../../.data/resume-cn-research-20260911/index.html)
+- [浏览原始样张图库（历史包）](../../plans/archive/README.md#本机历史材料)（包内 `.data/resume-cn-research-20260911/index.html`）
 - [研究结论与方案修订](研究结论与方案修订.md)
 - [20 个重点开源/源码候选](开源候选.csv)
 - [56 张商业产品公开样张及出处](商业样张.csv)

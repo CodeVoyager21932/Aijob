@@ -2,7 +2,7 @@
 
 执行目录 `C:\Users\72998\Projects\Aijob`，基线 `codex/job-fact-fidelity-handoff` / `a4ff514`。保留已有未提交改动，不以这次交付覆盖 coco 的其他工作。本轮 R1–R4 已实现并完成对应本地验证，R5 已完成下列联合检查和候选整理；性能缺口及真实运行条件仍未全部通过，不能称为已完成生产验收。
 
-[查看 30 套模板和三份样稿](index.html) · [逐模板目录](template-catalog.md) · [文件与来源散列](delivery-manifest.json) · [运行、迁移与回退](../../runbooks/direction-studio-candidate.md)
+[查看 30 套模板和三份样稿（历史包）](../../plans/archive/README.md#本机历史材料)（包内 `docs/evidence/direction-studio-upgrade-2026-09-09/index.html`） · [逐模板目录](template-catalog.md) · [文件与来源散列（历史包）](../../plans/archive/README.md#本机历史材料)（包内 `docs/evidence/direction-studio-upgrade-2026-09-09/delivery-manifest.json`） · [运行、迁移与回退](https://github.com/CodeVoyager21932/Aijob/blob/d6df922deb8542d9ff82b81f60ea9be0d61e93da/docs/runbooks/direction-studio-candidate.md)
 
 | 阶段 | Contract | Database / Platform | Web | Integrated Gate | Evidence |
 |---|---|---|---|---|---|
@@ -39,6 +39,6 @@
 2. **真实运行**：没有用户 BYOK 凭据，因此真实动态模型质量、供应商等待与预算联调未验；新 30 套输出本轮以 Windows Chromium/WPS 验证，部署主机/Linux、HTTPS、SMTP、实际来源持续刷新仍需单列验收。现有公开准入 0，不可直接推广为开放岗位服务。
 3. **体验补充**：实体手机键盘、实体中文输入法、原生打印与更长编辑会话待验；这些不被浏览器模拟冒充已完成。
 
-下一工程优先处理 `catalog/eligibility-query.ts`、`insights/graph-scope.ts`、`catalog/projection-cache.ts` 的冷范围构建和发布代次失效后的重复工作，再用相同负载复测。不得用延长缓存而展示撤回来源。真实 BYOK 由用户配置，平台不购买模型。旧 OS-7、纠偏、业务恢复和公司上限取消不重做。
+上述性能缺口属于当时证据；后续是否处理及如何复现只由当前路线图和实际失败决定，不按本报告的旧顺序开工。
 
 最终清单复核：2026-09-10。交付图库 30 卡片、搜索、360px 无溢出及 360 个文件散列检查通过；浏览器图库不是正式应用的替代实现。源码与证据包在 `.data/releases/direction-studio-20260909-r5/`，归档校验见该目录 candidate-verification.json。

@@ -6,7 +6,7 @@
 
 **后续研究补充：** [简历编辑器与导航复核](resume-editor-and-navigation-review.md)对照 4 个商业产品参考与 3 个 GitHub 开源项目，提出编辑器能力补齐、收藏/常用筛选归位和经历/表达合并入口的建议。此补充尚未实施，不能把 V2 或正式应用描述成已经具备这些能力。
 
-**系统方案汇总：** [经历、简历、AI 与工作区系统升级方案](../../plans/product-experience-system-upgrade-2026-09-07.md)整合本轮全部反馈，明确拟实施的完整编辑器、8 个主要目的地、真实 AI、数据迁移与 U0–U6 验收。它是待实施方案；本页及 V2 继续记录已经交付的设计与原型，不表示原型已同步完成这些新增能力。
+**系统方案汇总：** [经历、简历、AI 与工作区系统升级方案](https://github.com/CodeVoyager21932/Aijob/blob/d6df922deb8542d9ff82b81f60ea9be0d61e93da/docs/plans/product-experience-system-upgrade-2026-09-07.md)整合本轮全部反馈，明确拟实施的完整编辑器、8 个主要目的地、真实 AI、数据迁移与 U0–U6 验收。它是待实施方案；本页及 V2 继续记录已经交付的设计与原型，不表示原型已同步完成这些新增能力。
 
 当前入口：[工作区 V2](http://127.0.0.1:5188/prototype-v2/#today) · [V2 修订与组件覆盖](workspace-v2.md) · [V2 源文件](prototype-v2/index.html) · [研究依据](research.md)
 

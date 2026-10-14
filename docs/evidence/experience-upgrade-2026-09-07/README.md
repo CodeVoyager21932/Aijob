@@ -1,6 +1,6 @@
 # 经历、简历、AI 与工作区升级执行记录
 
-更新：2026-09-08。范围以[修正版 U0–U6](../../plans/product-experience-system-upgrade-2026-09-07.md)、[ADR-0038](../../decisions/0038-resume-workspace-and-direct-import.md)和“平台不提供模型、用户自带 API”的补充要求为准。正式应用已经实施；整体发布验收尚未完成，不能沿用旧“仅方案”状态，也不能将夹具计为真实模型效果。
+更新：2026-09-08。范围以[修正版 U0–U6](https://github.com/CodeVoyager21932/Aijob/blob/d6df922deb8542d9ff82b81f60ea9be0d61e93da/docs/plans/product-experience-system-upgrade-2026-09-07.md)、[ADR-0038](../../decisions/0038-resume-workspace-and-direct-import.md)和“平台不提供模型、用户自带 API”的补充要求为准。正式应用已经实施；整体发布验收尚未完成，不能沿用旧“仅方案”状态，也不能将夹具计为真实模型效果。
 
 后续进展见[2026-09-08运行继续验收](../runtime-continuation-2026-09-08/README.md)：新增任务并发修复、更新的1万/50性能、60次助手/8次解析短时负载、Linux全版式字体修复与候选镜像。以下表格和计数保留本批次历史结果，不能把其中“Linux待验/持续队列未测”当作最新状态；数小时负载、真实部署及真实模型质量仍未验。
 

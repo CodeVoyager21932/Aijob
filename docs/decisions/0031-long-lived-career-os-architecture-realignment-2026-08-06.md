@@ -4,7 +4,7 @@
 - 日期：2026-08-06
 - 决策者：coco
 - 上位决策：[ADR-0030](0030-adopt-job-centric-career-os-and-interaction-first-integration.md)
-- 影响计划：[Career OS 2.0 严格开发总计划](../plans/career-os-v2-upgrade-plan-2026-08-04.md)
+- 影响计划：[Career OS 2.0 严格开发总计划](https://github.com/CodeVoyager21932/Aijob/blob/d6df922deb8542d9ff82b81f60ea9be0d61e93da/docs/plans/career-os-v2-upgrade-plan-2026-08-04.md)
 
 ## 背景
 

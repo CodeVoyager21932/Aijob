@@ -4,7 +4,7 @@
 - 日期：2026-08-04
 - 决策者：coco
 - 关联：[ADR-0001](0001-own-core-domain.md)、[ADR-0006](0006-modular-monolith-runtime-boundaries.md)、[ADR-0013](0013-local-ai-recommendation-and-resume-tailoring.md)、[ADR-0027](0027-establish-private-alpha-supply-gate.md)、[ADR-0028](0028-capacity-first-private-alpha-supply.md)、[ADR-0029](0029-official-source-catalog-trust-boundary.md)
-- 计划：[Aijob 求职 OS 2.0 升级计划](../plans/career-os-v2-upgrade-plan-2026-08-04.md)
+- 计划：[Aijob 求职 OS 2.0 升级计划](https://github.com/CodeVoyager21932/Aijob/blob/d6df922deb8542d9ff82b81f60ea9be0d61e93da/docs/plans/career-os-v2-upgrade-plan-2026-08-04.md)
 
 ## 背景
 

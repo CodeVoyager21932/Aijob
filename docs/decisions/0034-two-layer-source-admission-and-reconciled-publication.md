@@ -136,7 +136,7 @@
 
 原文未预见的结构：`sourceType`、`provenanceLevel`、`refreshCoverage`、`absencePolicy` 与结构评分**共变**，构成两种准入画像（企业自有站点 / 已核验 ATS 租户），而不是四五个独立字段。因此厂商层提供具名画像、租户选其一，既省字段也从结构上排除不自洽组合。
 
-Moka 族适配器暂不可写：其匿名岗位列表契约从未被观察，`source-candidates.json` 记为 `anonymous_job_contract_unverified`，仓库内无任何响应夹具。已验证的只有申请页形状。解除条件与口径修正见 [SA Track 计划](../plans/supply-admission-scaleup-track.md)。
+Moka 族适配器暂不可写：其匿名岗位列表契约从未被观察，`source-candidates.json` 记为 `anonymous_job_contract_unverified`，仓库内无任何响应夹具。已验证的只有申请页形状。解除条件与口径修正见 [SA Track 计划](https://github.com/CodeVoyager21932/Aijob/blob/d6df922deb8542d9ff82b81f60ea9be0d61e93da/docs/plans/supply-admission-scaleup-track.md)。
 
 ### 落地时同步的既有文档（已完成）
 

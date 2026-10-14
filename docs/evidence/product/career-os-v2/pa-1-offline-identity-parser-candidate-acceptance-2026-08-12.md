@@ -1,6 +1,6 @@
 # PA-1 离线身份与解析隔离候选验收（2026-08-12）
 
-> 后续状态：PA-1 已完成并归档；本文的“等待下一项 Private Alpha 准备工作”准确记录当时决定，但已被 coco 后续批准的[Career OS 前后端同步改进计划](../../../plans/career-os-current-delivery-plan.md)取代。当前不得从本验收生成邮件、服务器、解析镜像或其他 PA 任务。
+> 后续状态：PA-1 已完成并归档；本文的“等待下一项 Private Alpha 准备工作”准确记录当时决定，但已被 coco 后续批准的[Career OS 前后端同步改进计划](https://github.com/CodeVoyager21932/Aijob/blob/d6df922deb8542d9ff82b81f60ea9be0d61e93da/docs/plans/career-os-current-delivery-plan.md)取代。当前不得从本验收生成邮件、服务器、解析镜像或其他 PA 任务。
 
 ## 1. 当时决定
 

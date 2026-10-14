@@ -6,16 +6,16 @@
 >
 > 历史验收状态（2026-08-28）：UX-0 与 OS-1–OS-7 已关闭。见 [OS-7 验收证据](evidence/product/career-os-v2/os-7-system-gate-acceptance-2026-08-28.md)与 [OS-6 证据](evidence/product/career-os-v2/os-6-application-interview-debrief-data-control-acceptance-2026-08-28.md)。该结论不代表后来简历质量、真实连接或当前运行均已通过。
 >
-> 动态任务只看 [MVP 路线](06-mvp-roadmap.md)与[当前交接](handoffs/current.md)。[OS 交付计划](plans/career-os-current-delivery-plan.md)是已关闭记录，不生成新任务。
+> 动态任务只看 [MVP 路线](06-mvp-roadmap.md)与[当前交接](handoffs/current.md)。[OS 交付计划](https://github.com/CodeVoyager21932/Aijob/blob/d6df922deb8542d9ff82b81f60ea9be0d61e93da/docs/plans/career-os-current-delivery-plan.md)是已关闭记录，不生成新任务。
 
 ## 1. 目的与适用边界
 
-本文把 coco 提供的三张 Career OS 概念图、现有 Web、Contracts、Platform、PostgreSQL 能力和“UX-0 审计 → OS-1–OS-7 同步实现”路线，收敛为可实现、可测试、不会随页面开发漂移的端到端契约。
+本文把 coco 提供的三张 Career OS 概念图、现有 Web、Contracts、Platform、PostgreSQL 能力，收敛为可实现、可测试、不会随页面开发漂移的端到端契约。
 
 它约束整个 V2 用户旅程：
 
 - 今日、岗位目录、岗位详情、我的求职、Case 六个工作区。
-- 简历资产、简历导入与确认、岗位简历工作室。
+- 简历资产、导入直接编辑、岗位简历工作室及旧稿兼容。
 - 投递、面试、复盘、数据与设置、访问、错误和删除状态。
 - 统一 Shell、检查器、抽屉、对话框、焦点、响应式和性能边界。
 - 每个用户动作对应的请求/响应 schema、领域所有权、PostgreSQL 事实、owner/并发/删除语义和端到端证据。
@@ -54,27 +54,7 @@ flowchart LR
 | `M — 最小迁移` | 现有表无法持久表达必要语义 | 当前切片明确证明、评审、迁移测试和回退后才允许 |
 | `X — 排除` | 不属于当前用户结果或违反固定边界 | 必须写明替代入口，不能以兼容说明冒充融合 |
 
-任何核心行仍是“待决定”时，UX-0 不通过。不得先画页面，再用临时静态数据、成功响应 mock 或客户端 join 填空。
-
-### 2.3 OS 阶段端到端差距矩阵（历史）
-
-| 用户能力 | 当前系统事实 | 当前判定 | 负责切片 |
-|---|---|---|---|
-| session / owner / CSRF / 不重放 | OS-1 已统一 Shell/session boundary；OS-2 已关闭首次页面并发 session 创建多个 owner 的风险，mutation 仍不重放 | `R/A` 触达范围已关闭 | OS-1、OS-2；OS-7 总验 |
-| 岗位检索、facet、详情 | OS-2 已接入规范工作台、筛选 URL、刷新/深链/历史恢复、unknown 与失败重试 | `R/A/E` 触达范围已关闭 | OS-2 已关闭 |
-| Case 创建、固定版本、删除 | OS-3/OS-4 已接入 transition、diff/upgrade、owner/409 与显式删除语义 | `R/A` 已关闭 | OS-3、OS-4 已关闭 |
-| 看板列表、筛选、计数 | OS-3 已实现 Case list + board read model、完整集合、query-bound cursor，无语义 migration | `E` 已关闭 | OS-3 已关闭 |
-| Requirements / Evidence / Questions | 三证据状态、revision、owner、深链与长文本语义已由 OS-4 关闭 | `R/A` 已关闭 | OS-4 已关闭 |
-| 三轴匹配 | OS-4 已实现 Case-scoped adapter + `case_pinned` 任务上下文，按固定版本、requirement set 与资料修订查回，不加 Case 外键 | `E` 已关闭 | OS-4 已关闭 |
-| 推荐 | OS-2 已在现有 RecommendationRun 下实现服务器按搜索创建与固定岗位投影 view，事务内冻结候选/要求/新鲜度/资料 | `E` 已关闭：规范入口归入 `/jobs/recommended*`，无第二种 Run 或 migration | OS-2 已关闭 |
-| JD 市场洞察 | scope 聚合继续与单 Case Requirements 分离；规范表单与持久 Run 深链已接入 | `A` 已关闭：归入 `/jobs/insights*`，明确排除 Case JD 面板 | OS-2 已关闭 |
-| 简历导入/确认 | 后端主体已由规范 `/resumes/import*` 承接，资料当前态与一次性确认响应使用共享 runtime schema | `R/A` 已关闭 | OS-2 已关闭 |
-| Resume V2 / Review / DOCX | OS-5 已完成固定 Requirements 进入 template/controlled AI 生成链、持久 requirement 引用、v1/v2 provenance/failure/fallback、草稿与响应式 | `E + M` 已关闭；migration 033 expand-only | OS-5 已关闭 |
-| 旧 Tailoring / 受控 AI | OS-5 已将新写入统一归 Resume Review，双读/双 handler；旧 Tailoring 只读，受控 AI 逐次同意且公开/远程默认关闭 | `E + M` 已关闭；不复活旧写入 | OS-5 已关闭 |
-| 投递 / 面试 / 复盘 / 删除 | OS-6 已统一显式投递、模板 Session、回答/反馈、复盘逐项决定、确认后回流、选择性/全部删除与删除回执；旧 Tailoring 只读 | `R/A` 触达范围已关闭；无新 migration | OS-6 已关闭 |
-| 完整浏览器夹具 | OS-1–OS-6 已有真实 API、隔离 PostgreSQL 与四视口 runner；后续由 OS-7 总验 | `E`（测试基础设施）触达范围已关闭 | UX-0、OS-1–OS-6；OS-7 总验 |
-
-详细代码证据和当前判定见 [UX-0 端到端审计](evidence/product/career-os-v2/ux-0-end-to-end-contract-and-baseline-2026-08-13.md)，字段级请求、响应、Problem 与断言见 [UX-0 页面—系统—证据追踪矩阵](plans/career-os-ux-0-end-to-end-traceability-matrix.md)。
+涉及共享契约时，先确认现有职责和必要增量。不得先画页面，再用临时静态数据、成功响应 mock 或客户端 join 填空。
 
 ## 3. 设计方向
 
@@ -153,10 +133,10 @@ Career OS 是一个**高密度、克制、可信的专业求职驾驶舱**：像
 
 采用：
 
-- 左侧结构、证据和版本，中间 A4 文稿，右侧要求、证据和审阅建议。
+- 连续模块编辑与 PDF 纸张并排；结构、版本、来源和写作建议按需打开，不固定三栏。
 - 基础简历与岗位简历复用同一编辑框架，但明确标出不同事实上下文。
 - 文稿可打印、可导出 DOCX；建议只允许接受、编辑后采用或拒绝。
-- 移动端使用“结构 / 文稿 / 建议”模式切换，不压缩三栏。
+- 窄屏切换编辑与预览；辅助面板按需打开，不挤压正文。
 
 拒绝或替换：
 
@@ -168,36 +148,38 @@ Career OS 是一个**高密度、克制、可信的专业求职驾驶舱**：像
 
 ### 5.1 唯一 Shell
 
-`VITE_CAREER_OS_V2=true` 时，所有用户路由必须运行在 `WorkspaceShell` 中；未知路由、访问错误和懒加载错误也不得退回 `ProductShell`。`VITE_CAREER_OS_V2=false` 时旧 `ProductShell` 和旧 URL 保持完整回退能力。
+当前用户工作区统一使用 `WorkspaceShell`；未知路由、访问错误和懒加载错误也在该壳内处理。旧 `VITE_CAREER_OS_V2` 不再选择产品壳，`ProductShell` 已退出；旧 URL 通过下表的跳转或只读兼容承接。开发/测试、Alpha 访问与内部页面的权限边界保持独立。
 
 ### 5.2 路由处置矩阵
 
-| 路由或能力 | V2 最终处置 | 主要 URL 状态 | 负责切片 |
-|---|---|---|---|
-| `/` | 重定向 `/today` | 无 | OS-1 |
-| `/today` | 保留并统一为任务概览 | 可恢复的局部筛选若后续出现 | OS-6 |
-| `/jobs` | 保留 URL，旧岗位目录自然嵌入 WorkspaceShell | 查询、城市、职能、排序、页游标 | OS-2 |
-| `/jobs/:jobId` | 保留 URL，岗位事实、三轴核对入口与加入 Case 动作统一 | `jobId`、来源上下文、可选当前 match run | OS-2、OS-4 |
-| `/jobs/recommended` | 推荐准备页；由 Platform 从规范岗位筛选冻结候选集 | 筛选、资料准备状态 | OS-2 |
-| `/jobs/recommended/:runId` | 持久化 RecommendationRun 与岗位投影 | `runId` | OS-2 |
-| `/jobs/insights` | 市场 JD 洞察条件页；不与单 Case Requirements 混用 | family、city、scale、是否对照证据 | OS-2 |
-| `/jobs/insights/:runId` | 持久化市场洞察报告 | `runId` | OS-2 |
-| `/applications` | 主申请看板/列表 | `view`、`stage`、`city`、`sort`、`peek` | OS-3 |
-| `/applications/:caseId` | 兼容重定向 `overview` | `caseId` | OS-4 |
-| `/applications/:caseId/:tab` | Case 六标签唯一工作区 | `tab`；各页只增加必要选中项 | OS-4、OS-5、OS-6 |
-| `/resumes` | 简历资产首页 | 来源提示、当前选择 | OS-5 |
-| `/resumes/:documentId` | 基础或派生简历工作室 | `documentId`、`block`、工作模式 | OS-5 |
-| `/resumes/import` | **规范前台路由已接入**，承接现有 `/resume` 能力 | 输入模式，不把原文放 URL | OS-2 已关闭 |
-| `/resumes/import/confirm/:analysisId` | 历史确认路由记录；ADR-0038 的当前导入直接进入编辑器，不恢复逐句确认页 | 仅兼容历史参数 | OS-2 历史 |
-| `/resume`、`/resume/confirm/:analysisId` | 兼容入口，重定向或委托规范路由；旗标关闭时保持旧行为 | 保留旧参数 | OS-2 |
-| `/recommendations` | V2 兼容重定向 `/jobs/recommended`；V2=false 保留旧页 | 无 | OS-2、OS-6 |
-| `/insights` | V2 兼容重定向 `/jobs/insights`；V2=false 保留旧页 | 无 | OS-2、OS-6 |
-| `/resume-tailorings/:runId` | 历史只读；新模板/受控 AI 写入统一归 Resume V2 Review | `runId` | OS-5、OS-6 |
-| `/settings/data` | 数据与设置唯一入口 | 必要的结果提示 | OS-6 |
-| `/settings/data/deletion` | 全量删除状态与回执 | 无敏感内容 | OS-6 |
-| `/data-control*` | 兼容重定向 `/settings/data*` | 保留旧入口可达 | OS-6 |
-| 未知用户路由 | WorkspaceShell 内统一 404 | 原路径可见 | OS-1 |
-| `/research/*`、`/internal-preview/*` | 排除用户前台，不共享本轮视觉完成声明 | 不适用 | 不在本计划 |
+| 路由或能力 | 当前处置 | 主要 URL 状态 |
+|---|---|---|
+| `/` | 重定向 `/today` | 无 |
+| `/today` | 任务概览 | 可恢复的局部筛选若后续出现 |
+| `/jobs` | 发现机会、方向与岗位目录 | 查询、城市、职能、排序、页游标 |
+| `/jobs/:jobId` | 岗位事实、三轴核对入口与加入 Case | `jobId`、来源上下文、可选当前 match run |
+| `/jobs/recommended` | 推荐准备页；由 Platform 从规范岗位筛选冻结候选集 | 筛选、资料准备状态 |
+| `/jobs/recommended/:runId` | 持久化 RecommendationRun 与岗位投影 | `runId` |
+| `/jobs/insights` | 市场 JD 洞察；不与单 Case Requirements 混用 | family、city、scale、是否对照证据 |
+| `/jobs/insights/:runId` | 持久化市场洞察报告 | `runId` |
+| `/applications` | 主申请看板/列表 | `view`、`stage`、`city`、`sort`、`peek` |
+| `/applications/:caseId` | 兼容重定向 `overview` | `caseId` |
+| `/applications/:caseId/:tab` | Case 六标签唯一工作区 | `tab`；各页只增加必要选中项 |
+| `/resumes` | 简历资产首页 | 来源提示、当前选择 |
+| `/resumes/:documentId`、`/resumes/native/:documentId` | 同一编辑器，按文档身份读取当前稿或兼容旧稿 | `documentId`、`block`、工作模式 |
+| `/resumes/import`、`/resume` | 重定向 `/resumes?start=import`；当前导入直接编辑 | 不把原文放 URL |
+| `/resumes/import/confirm/:analysisId` | 历史导入恢复；不恢复逐句确认页 | 仅兼容历史参数 |
+| `/resume/confirm/:analysisId` | 重定向历史导入恢复入口 | 保留旧参数 |
+| `/recommendations/*`、`/insights/*` | 分别重定向 `/jobs/recommended`、`/jobs/insights` | 不恢复旧页 |
+| `/resume-tailorings/:runId` | 历史只读；新写作任务使用现行简历助手与编辑器 | `runId` |
+| `/materials` | 经历与材料 | 选择和视图 |
+| `/experiences`、`/resumes/snippets` | 重定向材料或其表达视图 | `view=expressions` |
+| `/settings/ai` | 个人模型、搜索选择与运行状态 | 不在 URL 放 Key |
+| `/settings/data` | 数据与删除操作 | 必要的结果提示 |
+| `/settings/data/deletion` | 全量删除状态与回执 | 无敏感内容 |
+| `/data-control*` | 兼容重定向 `/settings/data*` | 保留旧入口可达 |
+| 未知用户路由 | WorkspaceShell 内统一 404 | 原路径可见 |
+| `/research/*`、`/internal-preview/*` | 独立内部页面，不进入普通用户前台 | 不适用 |
 
 ### 5.3 懒加载契约
 
@@ -241,24 +223,9 @@ Career OS 是一个**高密度、克制、可信的专业求职驾驶舱**：像
 | 刷新和深链 | 恢复同一路由和已承诺的 URL 状态，不依赖内存对象 |
 | 前进 / 后退 | 恢复页面选择；有未保存草稿时先保护草稿，不静默丢失 |
 
-### 6.2 OS 阶段差距归属（历史，已关闭）
-
-| 已知差距 | 不得在 UX-0 顺手修复 | 负责切片 |
-|---|---|---|
-| V2 404 回到 ProductShell、没有路由级 Error Boundary | 是 | OS-1 已关闭 |
-| Overlay 缺少统一焦点约束、Esc、背景 inert 和可靠返焦 | 是 | OS-1 已关闭 |
-| Case list 只支持 stage/cursor，Web 对已加载子集做 city/sort；Peek 404 静默关闭、五列与 Peek 尺寸冲突 | 是 | OS-3 已关闭 |
-| transition、job-version diff/upgrade 已在 Platform 但未完整接入 Web；Requirement 桌面检查器不能真实收起 | 是 | OS-3、OS-4 已关闭 |
-| 三轴 matching run 没有 V2 Case 可恢复入口，现有 Worker 又拒绝 Case 固定旧版本 | 是 | Case-scoped adapter + `case_pinned` 任务上下文已由 OS-4 关闭 |
-| Resume Studio 草稿可能丢失；Review 未读取固定 Requirements、无 requirement 引用，controlled_ai 与 provenance 也未实现 | 是 | Review 唯一新写入 + v1/v2 expand migration 033 已由 OS-5 关闭 |
-| recommendation / insights 在 V2 仅兼容说明；`/resumes/import*` 缺失、岗位筛选不进 URL | 是 | OS-2 已关闭：规范 `/jobs*` 与 `/resumes/import*` 已接入 |
-| 今日、岗位详情、设置、旧只读页的错误语义不一致 | 是 | 岗位详情触达范围由 OS-2 关闭；今日、设置、删除回执和旧 Tailoring 只读由 OS-6 关闭 |
-| 通用 `apiRequest<T>` 对多数业务响应不做运行时 schema 解析 | 是 | 随 OS-1–OS-6 触达端点修正；OS-7 总验 |
-| 刷新部署、全路由键盘、性能和回退总验证 | 是 | OS-7 |
-
 ## 7. 视觉 token
 
-OS-1 开始必须把 token 从页面字面量中抽离。旧 `ProductShell` 可以保留自己的回退 token，但不得继续污染 `.career-os`。
+视觉 token 集中维护，页面样式限制在所属范围，不用旧产品壳样式覆盖 `.career-os`。
 
 ### 7.1 字体与排版
 
@@ -395,25 +362,11 @@ OS-1 开始必须把 token 从页面字面量中抽离。旧 `ProductShell` 可�
 - 移动端要求列表和 inspector 分步；打开 inspector 后成为全屏 dialog。
 - Case tabs 和阶段进度可在移动端局部横滚，但必须有可见当前位置和首尾可达性。
 
-### 8.4 Resume Studio 历史三栏布局（已局部替代）
+### 8.4 Resume Studio 布局
 
-以下尺寸保留 OS 阶段设计来源，不再要求新编辑器恢复三栏。ADR-0039–0042 已采用连续模块编辑与常驻 PDF 纸张，窄屏切换编辑/预览；预览、下载复用服务端产物。正文完整、缩放不裁切、键盘与响应式要求仍有效。
-
-- 宽屏三栏：结构 220–260px / 文稿 `minmax(520px, 1fr)` / 建议 320–380px。
-- 标准桌面：结构可收起，文稿 + overlay inspector；不能硬保留三栏后用 `overflow:hidden` 裁掉。
-- 320 CSS px 与 200%：使用“结构 / 文稿 / 建议”三模式切换，一次只显示一个主要区域。
+- ADR-0039–0042 的连续模块编辑与常驻 PDF 纸张并排，预览与下载复用服务端产物。
+- 空间不足或缩放时切换编辑/预览，辅助面板按需打开；正文与控件不得遮挡或裁切。
 - A4 预览可以在自身容器内缩放，不得制造页面级横向滚动。
-
-### 8.5 OS 阶段固定验收视口（历史矩阵）
-
-该矩阵说明当时覆盖，后续只验证实际受影响的响应式行为；不因阅读本表重跑四视口或恢复旧三栏要求。
-
-| 视口 | 必须证明 |
-|---|---|
-| 1536 CSS px | 概念图结构、五列 + 默认 Peek、JD 主表 + inspector、Resume 三栏 |
-| 1280 CSS px | 完整桌面主路径、rail、overlay 策略与唯一局部横滚 |
-| 320 CSS px | 页面级 `scrollWidth === clientWidth`，文本重排，导航/Peek/dialog 全屏行为 |
-| 200% 等效视口 | 以 640 CSS px 和 768 CSS px 边界都验证；768 不得落入会裁剪内容的旧 tablet 缝隙 |
 
 ## 9. Overlay、焦点与键盘契约
 
@@ -465,76 +418,14 @@ Desktop 非模态 inspector 不强制焦点圈闭；关闭按钮存在时必须�
 - 不使用“认证”“验证通过”暗示平台担保；来源按发布路径、主体关系、域名和最后核验时间拆开。
 - 错误说明对象、影响和下一动作，不把技术 code 直接暴露给普通用户。
 
-## 11. 隔离验收夹具契约
-
-### 11.1 两套数据库，不设产品演示模式
-
-每次浏览器验收创建两个全新数据库：
-
-- `aijob_ux_full_test_<uuid>`：只含明确标识的合成满态。
-- `aijob_ux_empty_test_<uuid>`：只完成 migration 和本地匿名 owner bootstrap，不 seed 岗位、Case、简历或证据。
-
-两者都必须：
-
-- 只允许 loopback PostgreSQL。
-- 数据库名匹配 `^aijob_.+_test(?:_|$)`，否则 fail closed。
-- 使用测试密钥、fixture 身份交付模式和 `.example.test` 链接。
-- 结束后按精确名称删除；不操作其他数据库。
-- 临时 manifest、日志和浏览器 profile 写入系统临时目录，结束后精确清理。
-- 不读取或写入 `.data/`，不生成或提交截图、下载产物、真实简历或本地业务数据。
-
-### 11.2 满态最小 manifest
-
-满态 fixture 至少包含：
-
-- owner A：五个 Case，每个阶段一个；其中四个公共合成岗位、一个私有合成 JD。
-- owner B：一个跨 owner Case，只用于 404/不可枚举验证。
-- 一个基础简历、一个关联 Case 岗位简历、一个已脱离岗位简历。
-- 三组 Requirement，覆盖三种证据状态、未知字段、长中文、连续长 token 和缺少截止时间。
-- 两个绑定公共 Case 固定岗位版本和明确资料修订的三轴 matching run：一个仍是目录 current，一个 Case 固定版本已 stale；两者都只保留资格、经历证据和偏好三轴，不生成总分。
-- 一组可由真实 matching/insights 服务重复形成的推荐与市场洞察条件，用于验证规范入口和单岗/聚合语义不串线。
-- Resume Review 中同时包含固定 requirement/evidence 引用、生成 provenance，以及接受、编辑后采用、拒绝和未决定建议；legacy v1 Review 仍可读。
-- 一份历史 Tailoring 只读资产和一份 Resume V2 可写资产，用于证明新写入唯一入口与历史可追溯。
-- 一个显式投递事件、一个进行中面试、一个已完成面试、反馈、未确认复盘与已确认复盘。
-- 可选择删除的 Case/Resume/Interview/Debrief 组合，以及删除后不可读断言。
-
-所有公司和人名使用“合成·…”前缀；任何链接使用 `.example.test`。manifest 输出稳定 ID 与预期路由，但不在产品运行时代码中导入静态 Case。
-
-### 11.3 状态注入
-
-- 正常满态、空态、404、409、session 和删除语义通过真实 Platform API 与真实隔离 PostgreSQL 形成。
-- matching、recommendation、insights、Review、Tailoring 和 debrief 的成功结果通过真实本地确定性服务/既有 worker 形成或由同一 schema 校验过的安全 seed 建立；必须记录哪一种，不能由前端成功 mock 代替。
-- 临时延迟、500 或断网只允许在浏览器测试层拦截 loopback API，且只用于展示 Loading / Error / Retry；不能模拟成功业务响应。
-- mutation 请求计数必须证明 session 恢复、重试和浏览器前进/后退不会自动重放写入。
-- 浏览器请求 allowlist 只接受 `127.0.0.1`、`localhost` 和 `::1`；发现其他 origin 立即失败。
-
-### 11.4 真实空态
-
-真实空态使用未 seed 的隔离库，不用 `page.route` 返回空数组，也不引用 `career-os/domain.ts` 的历史静态原型。它必须分别验证：
-
-- 今日没有进行中 Case。
-- 我的求职没有 Case。
-- 简历资产为空。
-- 岗位公共目录按当前公开指针为空。
-- 数据与设置只显示真实存在的 owner 级状态。
-
 ## 12. 性能、网络与证据
 
-- 主包当前基线为 OS-6 实测的 401.31 kB（gzip 117.03 kB），OS-7 上限为 411.31 kB。PA-1 的 566.69 kB 只是历史时点记录，已不再是守门上限；不得以“仍低于 566.69 kB”为理由通过。上限按“相对上一已关闭切片实测值 +10 kB”滚动收紧，V2 中应继续把旧 eager 页面拆出主包。
+- 核心编辑器和较重页面保持独立 lazy load；性能修改按相同环境比较相关构建/运行结果，不沿用已关闭 OS 阶段的逐轮 +10 kB 门槛。
 - Resume Editor、Interview、数据设置继续独立 lazy load。
 - 首屏不得出现真实招聘来源、真实 AI、邮件或非 loopback 请求。
 - 控制台不得新增 warning/error；已知历史告警必须单独列出，不能静默忽略。
 - 视觉验收采用实时浏览器和 DOM/布局度量；不把合成满态、截图或工程通过计为用户价值证据。
 - 产品证据在目标用户行为可复核前继续为 E0。
 
-## 13. 实施纪律
 
-以下是已关闭 OS 切片当时的交付协议，不安排后续工作，也不要求每次文档/局部改动重跑全套矩阵。当前检查按实际改动和路线图确定；保留历史步骤供查证：
-
-1. 先为本切片每个用户动作记录 `R / A / E / M / X`、规范路由、Contracts、领域所有者、事实源、错误/并发/删除语义和验收夹具。
-2. 需要 Platform/Contracts/持久语义变化时先完成并验证，再让 Web 消费；不得由 React 临时补齐跨领域事实。
-3. 只修该切片已归属的差距，先运行 Contracts/Platform/Web focused tests，再做真实隔离库的纵向浏览器验收。
-4. 同时验证 1536、1280、320、200%、满态与真实空态、键盘、焦点、URL 恢复、console、network、N+1 和 lazy loading。
-5. 同步维护 `Contract / Database/Platform / Web / Integrated Gate / Evidence` 五项状态；拆分提交不改变联合完成判定。
-6. 更新独立证据、路线图和当前交接。
-7. 只作“继续、修改、回退、停止”之一；不能以全站最终验收为理由跳过当前 Gate。
+旧差距矩阵、固定视口和阶段验收已退出当前契约，原文见[固定历史版本](https://github.com/CodeVoyager21932/Aijob/blob/d6df922deb8542d9ff82b81f60ea9be0d61e93da/docs/14-career-os-end-to-end-experience-contract.md)。日常检查按[验证规范](12-validation-and-quality-strategy.md#日常改动如何验证)选择。

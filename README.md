@@ -45,4 +45,4 @@ Aijob 面向中国大陆本科、硕士、博士在校生，把发现机会、�
 | [产品定义](docs/00-product-definition.md) / [体验规范](docs/13-experience-design.md) | 产品对象、连续流程及交互规范 |
 | [发布条件](docs/plans/private-alpha-readiness-gates.md) | 外部试用和公开上线的条件，不提供当前开发任务 |
 
-旧 S0–S4、K0–K5、OS-7、业务恢复及阶段矩阵保留为历史或兼容证据，不再自动成为下一任务。原文、首次失败和许可继续保留；当前有限验证按实际改动选取，详见交接。[第三方模板与字体许可](THIRD_PARTY_RESUME_TEMPLATES.md)不因阶段结束而失效。
+历史阶段不提供当前任务；有效结论归现行规范，旧全文从[历史索引](docs/plans/archive/README.md)找回。检查按[质量策略](docs/12-validation-and-quality-strategy.md#日常改动如何验证)选择。[模板与字体许可](THIRD_PARTY_RESUME_TEMPLATES.md)随实际使用资产保留。

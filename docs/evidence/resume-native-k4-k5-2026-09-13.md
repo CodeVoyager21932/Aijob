@@ -51,6 +51,6 @@ DOCX 独立验收：`office24/readback.json` 72 份与 `office-new-output/readba
 
 ## 交付
 
-运行与回退：[原生工作室运行手册](../runbooks/resume-native-candidate.md)。本机源码候选位于 `.data/releases/resume-native-20260913-k5/`，包含清单与源码包；需要锁定依赖安装和构建，不是部署镜像。独立合成输出证据包保留最终 120 组、来源哈希与页面联系图，不包含个人资料、原件、数据库备份或密钥。
+运行与回退：[原生工作室运行手册](https://github.com/CodeVoyager21932/Aijob/blob/d6df922deb8542d9ff82b81f60ea9be0d61e93da/docs/runbooks/resume-native-candidate.md)。本机源码候选位于 `.data/releases/resume-native-20260913-k5/`，包含清单与源码包；需要锁定依赖安装和构建，不是部署镜像。独立合成输出证据包保留最终 120 组、来源哈希与页面联系图，不包含个人资料、原件、数据库备份或密钥。
 
 当前下一步是使用这一版收集具体编辑/导入反馈，以及配置上述真实运行条件；不从 K0 重选底座，不重做 OS-7、纠偏、业务恢复或已废止的脱敏确认流程。
