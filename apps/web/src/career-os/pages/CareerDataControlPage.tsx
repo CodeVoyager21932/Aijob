@@ -321,10 +321,10 @@ export function CareerDataControlPage() {
             </span>
           </li>
           <li>
-            <strong>简历原文件与解析原文</strong>
+            <strong>原件、正文与临时解析内容</strong>
             <span>
-              原文确认后立即清除，任何情况下不超过 24 小时。当前有{" "}
-              {counts.resumeAnalysisContentPendingDeletion} 份内容等待确认/清除，并保留{" "}
+              上传原件和已保存的简历正文保留至你主动删除；24 小时清理仅适用于临时解析副本。当前有{" "}
+              {counts.resumeAnalysisContentPendingDeletion} 份旧版临时解析内容等待确认/清除，并保留{" "}
               {counts.resumeAnalysisMetadata} 条不含原文的解析元数据。
             </span>
           </li>

@@ -34,7 +34,7 @@ pnpm local:stop
 | 进程存在但 API/Web 未就绪 | 查看对应 `.data/local-workspace/<role>.log`，修正实际错误；不再启动另一套服务 |
 | 当前配置指向其他库/端口 | 核对工作区和原配置，启动器不会改写或切库 |
 
-底层 `pnpm dev` 仍供开发调试，已包含 API、match、collector 和 Web，不能与启动器重复使用。独立服务命令仅供明确故障定位；旧 `infra:up`、`local:bootstrap` 用于新环境/灾备，不是本工作区的正常启动路径。
+`local:start` 直接管理 API、match 和 collector 的实际服务进程，不使用后台文件监听父进程；修改这些服务的源码后用 `local:stop`、`local:start` 重启，Web 继续使用 Vite 热更新。底层 `pnpm dev` 仍供需要文件监听的开发调试，已包含 API、match、collector 和 Web，不能与启动器重复使用。独立服务命令仅供明确故障定位；旧 `infra:up`、`local:bootstrap` 用于新环境/灾备，不是本工作区的正常启动路径。
 
 仅维护者需要时运行 `pnpm --filter @aijob/platform cli source-console`（本机 8091）；旧 `/discovery-setup` 为兼容维护入口，普通用户不需要。首次来源启用、范围扩大和恢复暂停仍需明确操作，普通 Web 不因此获得管理权限。
 

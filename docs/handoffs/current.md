@@ -14,11 +14,12 @@
 | 对象 | 最近证据与使用含义 |
 |---|---|
 | 业务库 | `aijob-recovered-postgres` / `127.0.0.1:55439/aijob`；卷 `aijob_recovered_20260905_data`。10/13 已前向迁移至 078；10/14 启动核验只经应用读取，未执行迁移 |
-| Web/API/worker | 日常端口 5173/3000，统一 `local:status/start/stop`。10/14 实际启动、重复启动复用、停止及重启通过；四服务运行，API/Web 就绪。首次 API 冷启动约 57 秒，等待窗口已修正 |
+| Web/API/worker | 日常端口 5173/3000，统一 `local:status/start/stop`。10/14 修复冷启动等待窗口后，Chrome 实看又发现后台 watcher 存活而服务子进程已退出；启动器改为直接管理服务进程，重启后 API/Web 就绪，API 监听 PID 与登记 PID 一致 |
 | Docker | 10/14 本轮已启动 Docker Desktop 和原业务容器；停止应用时容器继续运行。未新建库、容器或卷 |
 | 连接 | 10/13 上海/杭州产品实习使用 Tavily；个人模型普通生成已连通，中转 Responses 未观察到真实搜索工具。复用配置，不要求重填 Key |
 | 后台 | `shining3d-internships,hellobike-internships` 各 24 小时；10/14 启动后各完成一次计划刷新。摘要仍为北京时间 09:00，本轮未手动触发新摘要或搜索 |
 | 维护台 | 8091 仅供维护者按需使用；普通用户的模型与搜索统一在 `/settings/ai` |
+| Chrome 页面与会话 | 10/14 已读取正常 HTTP 标签，今日、岗位发现、简历首页与连接设置通过有限实看；岗位筛选、详情与方向弹窗可用。当前 Chrome 为无简历/订阅/个人 AI 配置的本机会话，未跨会话恢复或迁移，不能算已有稿件及其导出已验收 |
 
 能力与限制以[路线图](../06-mvp-roadmap.md)为准，运行历史证据见[10/13 交付](../evidence/local-productization-2026-10-13.md)。
 

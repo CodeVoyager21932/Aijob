@@ -11,7 +11,7 @@ import {
 } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = resolve(import.meta.dirname, "..");
 const stateDirectory = resolve(root, ".data/local-workspace");
@@ -179,6 +179,7 @@ function launch(role) {
   const requirePlatform = createRequire(resolve(root, "apps/platform/package.json"));
   const requireWeb = createRequire(resolve(root, "apps/web/package.json"));
   const script = { api: "server", match: "match-worker", collector: "collector-worker" }[role];
+  // Own the service itself: a detached watcher can survive after its worker has exited.
   const args =
     role === "web"
       ? [
@@ -188,7 +189,7 @@ function launch(role) {
           "--port",
           "5173",
         ]
-      : [requirePlatform.resolve("tsx/cli"), "watch", `src/${script}.ts`];
+      : ["--import", pathToFileURL(requirePlatform.resolve("tsx")).href, `src/${script}.ts`];
   mkdirSync(stateDirectory, { recursive: true });
   const output = openSync(resolve(stateDirectory, `${role}.log`), "a");
   try {
