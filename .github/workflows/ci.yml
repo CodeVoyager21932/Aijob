@@ -65,6 +65,9 @@ jobs:
       - name: Audit applicable dependencies
         run: pnpm audit:ci
 
+      - name: Build web workspace and runtime dependencies
+        run: pnpm build:web
+
       - name: Prepare integration test database
         run: |
           test -n "$AIJOB_TEST_DATABASE_URL"
@@ -73,5 +76,5 @@ jobs:
       - name: Lint, type-check, and test
         run: pnpm check
 
-      - name: Build
-        run: pnpm build
+      - name: Verify local launcher decisions
+        run: pnpm test:local
