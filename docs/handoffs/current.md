@@ -13,11 +13,11 @@
 
 | 对象 | 最近证据与使用含义 |
 |---|---|
-| 业务库 | `aijob-recovered-postgres` / `127.0.0.1:55439/aijob`；卷 `aijob_recovered_20260905_data`。10/13 已前向迁移至 078；本轮不查询或迁移业务库 |
-| Web/API/worker | 日常端口 5173/3000，统一 `local:status/start/stop`。10/14 本轮只读探针显示四服务停止；真实业务启停未执行，启动决策与代表路由已检查 |
-| Docker | 10/14 第三批结束时保留 3 个停止容器、3 个卷、6 个镜像；业务库未启动。该快照不是当前探针 |
+| 业务库 | `aijob-recovered-postgres` / `127.0.0.1:55439/aijob`；卷 `aijob_recovered_20260905_data`。10/13 已前向迁移至 078；10/14 启动核验只经应用读取，未执行迁移 |
+| Web/API/worker | 日常端口 5173/3000，统一 `local:status/start/stop`。10/14 实际启动、重复启动复用、停止及重启通过；四服务运行，API/Web 就绪。首次 API 冷启动约 57 秒，等待窗口已修正 |
+| Docker | 10/14 本轮已启动 Docker Desktop 和原业务容器；停止应用时容器继续运行。未新建库、容器或卷 |
 | 连接 | 10/13 上海/杭州产品实习使用 Tavily；个人模型普通生成已连通，中转 Responses 未观察到真实搜索工具。复用配置，不要求重填 Key |
-| 后台 | 已启用 `shining3d-internships,hellobike-internships`，各 24 小时；摘要北京时间 09:00。服务关闭时暂停，启动后按队列和预算处理 |
+| 后台 | `shining3d-internships,hellobike-internships` 各 24 小时；10/14 启动后各完成一次计划刷新。摘要仍为北京时间 09:00，本轮未手动触发新摘要或搜索 |
 | 维护台 | 8091 仅供维护者按需使用；普通用户的模型与搜索统一在 `/settings/ai` |
 
 能力与限制以[路线图](../06-mvp-roadmap.md)为准，运行历史证据见[10/13 交付](../evidence/local-productization-2026-10-13.md)。

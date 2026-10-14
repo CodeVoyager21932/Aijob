@@ -290,7 +290,11 @@ async function main(action) {
     probe("http://127.0.0.1:3000/health/ready"),
     probe("http://127.0.0.1:5173/"),
   ]);
-  for (let attempt = 0; action === "start" && !healthy.every(Boolean) && attempt < 10; attempt++) {
+  // A cold Windows/tsx startup can take about a minute before the API starts listening.
+  const readinessDeadline = Date.now() + 60_000;
+  if (action === "start" && !healthy.every(Boolean))
+    console.log("正在等待 API/Web 就绪，最多再等待 60 秒；无需重复启动。");
+  while (action === "start" && !healthy.every(Boolean) && Date.now() < readinessDeadline) {
     await wait(1000);
     healthy = await Promise.all([
       probe("http://127.0.0.1:3000/health/ready"),
