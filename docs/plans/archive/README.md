@@ -2,9 +2,9 @@
 
 本目录只保存已完成、被新决策取代或仅用于解释既有实现的计划。归档文件中的“当前”“下一步”“授权”“时间盒”和历史分母只描述当时时点，不得提供当前任务。
 
-当前活动计划见[Career OS 前后端同步改进计划](../career-os-current-delivery-plan.md)，当前事实见[MVP 路线](../../06-mvp-roadmap.md)和[当前交接](../../handoffs/current.md)。
+现有能力依据与计划状态见 [计划索引](../README.md)，当前任务和事实见 [MVP 路线](../../06-mvp-roadmap.md) 与 [当前交接](../../handoffs/current.md)。Career OS、OS-7、M0–M4/PA-1 均为历史关闭记录，不再是活动计划。
 
-历史正文中的旧 `UX-1–UX-7` 名称不再提供任务。现行映射为：`UX-1 → OS-1`、`UX-5 → OS-2`、`UX-2 → OS-3`、`UX-3 → OS-4`、`UX-4 → OS-5`、`UX-6 → OS-6`、`UX-7 → OS-7`；执行顺序只看当前计划，不按旧编号排序。
+历史正文中的旧 `UX-1–UX-7` 名称不再提供任务。当时映射为：`UX-1 → OS-1`、`UX-5 → OS-2`、`UX-2 → OS-3`、`UX-3 → OS-4`、`UX-4 → OS-5`、`UX-6 → OS-6`、`UX-7 → OS-7`；这些阶段均已关闭，不按旧编号排序重新执行。
 
 ## 已归档计划
 
@@ -18,5 +18,6 @@
 - [R2 UI/UX 旧视觉参考与设计方向](r2-ui-ux-reference-direction-2026-07-29.md)
 - [G2 收束执行计划](g2-closeout-plan-2026-07-26.md)
 - [旧 Career OS 2.0 → Private Alpha 严格开发总计划](career-os-v2-upgrade-plan-2026-08-04.md)
+- [需求对齐前的经历、简历与工作区草案](product-experience-system-upgrade-before-alignment-2026-09-07.md)：由 U0–U6 修正版及 ADR-0038 取代。
 
 历史验收证据继续保留在 `docs/evidence/`，不因计划归档而删除。

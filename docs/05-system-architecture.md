@@ -10,13 +10,13 @@ collector-worker
 match-worker
 ```
 
-运营动作通过同一代码库中的 `internal ops CLI` 完成，不部署公共管理端。PostgreSQL 是唯一查询、任务和元数据真源，承担业务数据、任务表、版本、审计和 MVP 查询；独立岗位快照 Bucket 只保存原始公开岗位响应正文，绝不保存用户简历或其他用户数据。不部署 Redis/Celery、独立搜索、向量库、Playwright 或其他对象存储用途。PDF/DOCX 只按 ADR-0012 应用层加密暂存在 PostgreSQL 并由 `match-worker` 隔离解析。
+运营动作使用同一代码库中的 `internal ops CLI` 及复用其服务层的受限内部台，不部署公共管理端。PostgreSQL 是唯一查询、任务和元数据真源，承担业务数据、任务表、版本、审计和 MVP 查询；独立岗位快照 Bucket 只保存原始公开岗位响应正文，绝不保存用户简历或其他用户数据。不部署 Redis/Celery、独立搜索或向量库。按 ADR-0037，浏览器采集在 collector-worker 内隔离运行并遵守精确网络范围；PDF/DOCX 按 ADR-0012 隔离解析，保留原件与临时副本按 ADR-0038 分开。
 
 这一形态兼顾两点：领域模块在代码和数据上保持边界，高风险采集与用户匹配在运行时使用不同身份和权限；同时不为尚未出现的规模问题引入微服务和分布式一致性成本。
 
-> 2026-07-29 R1 实现状态：上述内容仍是已接受的目标架构，不等于全部运行时边界已经落地。当前已有独立 `web-api` 与 `match-worker` 入口，采集仍主要由受控 CLI 执行；数据库角色、受限任务函数、独立 collector 身份和 OpenAPI artifact 尚未完成。收口方案见 [R1 架构审视](evidence/r1/architecture-review-2026-07-29.md)与 [ADR-0023 提案](decisions/0023-enforce-runtime-and-database-role-boundaries.md)。
+> 历史快照（2026-07-29）：当时独立数据库角色、collector 身份及相关权限尚未完成，原始问题见 [R1 架构审视](evidence/r1/architecture-review-2026-07-29.md)。这不是当前未完成清单；后续边界决定见 [ADR-0023](decisions/0023-enforce-runtime-and-database-role-boundaries.md)，最新工程状态只看[当前交接](handoffs/current.md)。
 
-> 2026-08-02 后续实现状态：按 [ADR-0026](decisions/0026-local-automatic-source-refresh.md) 已落地独立 `collector-worker` 入口、本机总开关、PostgreSQL 到期调度与 `scheduled` 运行；只有本机配置显式启用且未暂停的确定性来源可以定时刷新。ADR-0023 的数据库角色拆分、独立数据库身份与受限函数，以及 OpenAPI artifact 仍未实施，不能把进程入口落地写成最小权限边界已经完成。
+> 历史快照（2026-08-02）：[ADR-0026](decisions/0026-local-automatic-source-refresh.md) 的 collector 入口和本机定时刷新已落地。数据库角色/RLS 后续已实施，并有 2026-10-13 的独立角色定向验证与修复记录；不得再把“角色尚未实施”当当前事实，也不得仅凭文档声称当前运行全部达标。OpenAPI 等具体产物存在性另据当前代码确认。
 
 ## 2. 系统上下文
 
@@ -42,7 +42,7 @@ flowchart LR
 
 ### 3.1 来源控制 `source-control`
 
-拥有 `SourcePolicy`、来源证明、精确采集/申请目标、适配器版本、审核状态和暂停机制。只有 `internal ops CLI` 能批准或改变政策状态。
+拥有 `SourcePolicy`、来源证明、精确采集/申请目标、适配器版本、审核状态和暂停机制。只有维护者通过 `internal ops CLI` 或复用同一服务的受限内部台能批准或改变政策状态，普通 Web 与个人搜索任务没有该权限。
 
 ### 3.2 采集 `ingestion`
 
@@ -78,24 +78,24 @@ MVP 使用一个 PostgreSQL 16 实例（本地由 Docker Desktop 运行，后续
 | `profile` | 简历解析、事实、偏好、证据和简历修订 | web-api、match | owner 作用域的 web-api/match |
 | `matching` | 匹配运行、推荐运行、简历优化和导出结果 | match | owner 作用域的 web-api/match |
 | `decision` | 旧五态岗位决定与 owner 删除墓碑 | owner 作用域的 web-api、match 删除流程 | owner 作用域的 web-api/match |
-| `application` | Phase 2 计划新增的 Case、要求状态、面试、复盘与引用式知识 | Phase 2 迁移完成后由 owner 作用域 web-api/match 写入 | owner 作用域的 web-api/match；collector 无权限 |
+| `application` | Case、要求状态、面试、复盘、保存搜索与相关用户对象 | owner 作用域 web-api/match；以当前迁移权限为准 | owner 作用域的 web-api/match；collector 无个人对象权限 |
 | `decision_feedback_audit` | 无正文安全、删除和最小产品审计 | 各受控主体 | ops CLI/受限审计角色 |
 
 数据库约束承担核心一致性：
 
 - 来源岗位、快照哈希、版本内容哈希和任务幂等键使用唯一约束。
-- `task_queue.task_type` 当前只允许 `crawl/resume_analysis/match_run/recommendation_run/resume_tailoring/resume_export/owner_deletion`；迁移 021 通过数据库角色与 RLS 保证 collector 只能访问 `crawl`，web/match 只能访问 owner 任务。新增任务类型时必须同步 CHECK、RLS、worker allowlist、payload schema 和权限测试。
-- `crawl` 任务必须含 `source_id` 且禁止含 `owner_id/owner_epoch`；所有用户任务必须含 `owner_id + owner_epoch` 且禁止含 `source_id`。数据库 CHECK 与不可变上下文触发器共同执行该互斥约束。
+- 迁移 021 的任务枚举是历史基线，完整枚举以当前迁移和 contracts 为准。按 ADR-0042/0043，`source_discovery` 为兼容的无 owner 发现任务，`user_source_discovery` 是 owner/epoch 任务，由 match-worker 执行；`opportunity_digest` 也使用既有 PG 队列。角色按明确任务类型列表授权，不使用“非 crawl 即个人任务”的兜底规则。新增类型同步 CHECK、RLS、worker allowlist、payload schema 与相关权限验证。
+- `crawl` 固定来源上下文；个人任务固定 `owner_id + owner_epoch`，不得访问其他 owner。各任务按自身 schema 校验必需/禁止字段，不能将早期所有任务的 source/owner 二分写法套用于后来新增类型。
 - 外键固定 `PublishedJobVersion -> JobRequirementSet -> MatchRun -> RecommendationRun/ResumeTailoringRun` 版本链。`MatchRun` 必须引用事实/偏好/证据修订、规则、词典和模板；AI 实际参与时固定提示词和模型版本。`JobDecision` 只关联稳定岗位 ID 和自己的修订号，不属于系统匹配输出。
 - 用户表均含 `owner_id`，查询通过服务端会话派生 owner，不接受客户端指定。
-- 邀请交换固定 `owner_expires_at`；所有 owner 数据、任务载荷和正常会话的过期时间不得晚于它，新修订不能续期。
+- 会话期限与材料留存独立。新访客材料长期保留；旧匿名 owner 仅在仍活动且主动保存材料的事务中转换，已过期或删除的 owner 不恢复（ADR-0038）；历史未转换 owner 继续遵守自身有效期限。
 - 用户任务固定领取时的 `owner_epoch`；任何结果写入都在同一事务确认 owner 未删除、未到期且 epoch 未变化。删除事务递增 epoch 并取消待处理用户任务，使已领取旧任务的迟到写入失效。
 - 活动版本用受约束指针切换；历史版本不可修改。
 - 过期时间和删除墓碑是数据模型的一部分，不依赖临时脚本记忆。
 
 岗位快照 Bucket 不是查询真源：PostgreSQL 中的 `RawJobSnapshot` 只保存 `object_key`、`content_hash`、`byte_size`、`content_type` 等元数据。`collector-worker` 依据来源 ID 与内容哈希生成确定性对象键，只能读写其专用前缀；`web-api` 和 `match-worker` 没有 Bucket 凭据或读取权限。
 
-采集进程先校验响应大小/类型并将正文上传 Bucket，通过哈希和大小校验后，才在 PostgreSQL 事务中提交快照元数据、来源修订和候选版本。上传成功但事务未提交的无引用对象在满 24 小时后清理；对象缺失、不可读或哈希不一致时禁止发布对应岗位版本。用户 PDF/DOCX/文本只在 PostgreSQL 中应用层加密暂存，由无网络、有限资源的解析子进程处理；经历证据确认后立即删除，未完成或异常时也最长不超过 24 小时，绝不进入岗位快照 Bucket。
+采集进程先校验响应大小/类型并将正文上传 Bucket，通过哈希和大小校验后，才在 PostgreSQL 事务中提交快照元数据、来源修订和候选版本。上传成功但事务未提交的无引用对象在满 24 小时后清理；对象缺失、不可读或哈希不一致时禁止发布对应岗位版本。用户 PDF/DOCX/文本绝不进入岗位快照 Bucket；原件私有加密保留至用户删除，解析由无网络、有限资源的子进程处理，最长 24 小时仅适用于临时解析副本，不再执行“确认即删除原件”。
 
 ## 5. 运行主体与能力
 
@@ -113,7 +113,7 @@ MVP 使用一个 PostgreSQL 16 实例（本地由 Docker Desktop 运行，后续
 - 从 PostgreSQL 领取 `CrawlTask`，读取与本机配置版本一致、显式启用且未暂停的 `SourcePolicy`；计划刷新授权不等于来源获准公开。
 - 只向精确允许的采集目标出站。
 - 只用 collector 专用身份和前缀读写岗位快照 Bucket；先上传并校验正文，再写入运行、快照元数据、来源修订和待发布岗位版本。
-- 无 `profile`、`matching` 和模型权限；不能修改来源审批。
+- 无个人 `profile`、`matching` 或个人模型/搜索凭据权限；不能修改来源审批。兼容 ownerless 发现使用专用运行配置，不读取个人连接。
 
 ### 5.3 `match-worker`
 
@@ -122,14 +122,15 @@ MVP 使用一个 PostgreSQL 16 实例（本地由 Docker Desktop 运行，后续
 - 写入新的 `MatchRun`、`RecommendationRun`、`ResumeTailoringRun` 和导出结果，不覆盖历史；不能代替用户更新 `JobDecision`。
 - 领取已持久化墓碑的 owner 删除任务，在短事务中校验任务 owner、墓碑、owner epoch、租约和 fencing token，再按明确依赖顺序清理 `profile`、`matching`、owner 决策/事件、任务载荷与持久派生数据；没有有效墓碑时拒绝执行。MVP 不建立跨请求 owner 缓存。
 - 定时入口通过 `FOR UPDATE SKIP LOCKED` 选择已经到达 `owner_expires_at` 的 owner；同一事务写到期墓碑、递增 `owner_epoch`、取消旧任务并入队 `owner_deletion`，不把个人正文复制到任务或日志。
-- 同一定时入口清理达到 `raw_resume_expires_at` 的原文并取消关联解析任务；解析结果提交同时校验原文未删除/未到期与 `owner_epoch` 未变化，Worker 不持久化本地正文缓冲。
-- 本地 AI 仅在环境允许且用户逐次显式选择后向精确批准的模型端点出站并使用独立密钥；公开环境默认关闭。
+- 同一定时入口仅清理达到 `raw_resume_expires_at` 的旧临时输入/解析副本并取消关联任务，不覆盖 ADR-0038 的保留原件、正文或经历；提交结果校验该输入未删除/未到期与 `owner_epoch` 未变化，Worker 不持久化本地正文缓冲。
+- 个人 AI 只读取任务 owner 的自配连接，按配置修订、预算与精确端点运行，不回退运营方模型。用户启动写作任务即选择使用其材料；个人搜索使用另行选择且验证过能力的连接（ADR-0038/0043）。
+- `user_source_discovery` 的私有缓存、预算、能力及结果绑定 owner/epoch；match-worker 只能经受限函数提交公开规范 URL 线索，不能安装、启用或准入来源。公开线索去重不共享个人搜索结果正文。
 - 无采集目标、原始网页或岗位快照 Bucket 权限，也无来源管理权限。
 
 ### 5.4 `internal ops CLI`
 
 - 通过维护者身份登记、批准、暂停来源和处理岗位复核队列。
-- CLI 保留受控结构化人工导入作为采集失败回退；G2 主目录必须达到 100 家企业、1000 条可信活动实习岗位及 ADR-0027 的结构指标。人工记录必须保存来源 URL、最后核验时间、复核人和字段级证据，经过与自动采集相同的字段、投递方式、不可变版本和发布复核，并受企业 ≤20%、岗位 ≤10% 上限约束。300–500 条只作为 G2 通过后的 G1 冻结研究子集。
+- CLI 保留受控结构化人工导入作为实际采集失败后的回退。人工记录保存来源 URL、最后核验时间、复核人和字段级证据，遵守同一字段、投递方式、不可变版本及发布复核。100 家/1000 岗、人工企业 20%/岗位 10% 按 ADR-0035 为报告项，SME、职能和城市为观察项，不设公司岗位上限；300–500 岗只是历史研究方案，不限制本次样本量。
 - 查看脱敏运行质量、删除状态和审计记录。
 - 所有写操作记录原因、操作者、时间及前后值。
 - 默认无简历原文读取权限，不在公网监听端口。
@@ -141,7 +142,7 @@ MVP 使用一个 PostgreSQL 16 实例（本地由 Docker Desktop 运行，后续
 调度不是额外服务：`collector-worker` 的定时/命令入口（或受控 CLI）依据 `SourceRuntimeState.next_due_at` 入队 `crawl`；`match-worker` 的定时入口按 owner 锁与 retention 契约入队到期的 `owner_deletion`。两者都使用同一任务表与各自数据库角色。
 
 1. API/调度器在短事务内以唯一 `idempotency_key` 插入任务；数据库 CHECK、不可变上下文触发器和角色/RLS 限定可写任务类型。
-2. Worker 在其数据库角色和 RLS 范围内使用行锁与 `FOR UPDATE SKIP LOCKED` 领取可用任务，写入租约、心跳和 fencing token；当前规模不额外维护函数层，若新增外部写入方或更细任务路由则按 ADR-0023 复审。
+2. Worker 在其数据库角色、RLS 和受限函数范围内使用行锁与 `FOR UPDATE SKIP LOCKED` 领取可用任务，写入租约、心跳和 fencing token；不得沿用早期“无函数层”的实现快照扩大角色权限。
 3. 外部调用在数据库事务外执行，结果通过输入哈希、唯一约束和版本键幂等落库。
 4. 租约过期后其他 Worker 可以接管；旧 Worker 的过期写入通过租约版本/fencing token 拒绝。
 5. 仅网络超时、限流和临时上游错误重试；Schema、权限和政策错误直接进入人工处理。
@@ -168,7 +169,7 @@ MVP 使用一个 PostgreSQL 16 实例（本地由 Docker Desktop 运行，后续
 - `PUT /v1/profile/preferences`：确认或替换当前 owner 的求职偏好修订，携带期望修订版本。
 - `POST /v1/resume-analyses`：使用 `multipart/form-data` 提交一个 PDF/DOCX，或使用 JSON 提交文本；异步返回 `202 Accepted`、`analysis_id` 和结果查询地址。
 - `GET /v1/resume-analyses/{analysis_id}`：查询解析状态、稳定错误码和当前 owner 的事实/证据候选，不返回已删除原文。
-- `PUT /v1/profile/evidence`：确认或替换当前 owner 的经历证据修订，携带期望修订版本；当 `confirmation_complete=true` 时，证据修订与原文删除/墓碑在同一事务提交，成功响应后原文不可再读取。
+- `PUT /v1/profile/evidence`：早期证据接口，保留兼容语义；旧 `confirmation_complete=true` 删除临时输入的行为不适用于 ADR-0038 的保留原件和当前直接编辑入口。当前正文/来源关联原子保存，删除原件为单独用户动作。
 - `GET /v1/profile/document`：读取当前 owner 确认后保留的最新有序 `ResumeDocumentRevision`；不恢复已删除的原文件、临时原文或旧版 v1 内容。
 - `PUT /v1/profile/evidence-selection`：只接受当前文档修订中的 `sourceBlockId` 集合，由服务端派生并写入新的不可变 `ResumeEvidence v2` 修订，用于跨日复用或调整证据。
 - `POST /v1/match-runs`：固定岗位版本、要求集、事实/偏好/证据修订、规则、词典和 `template_version`，异步返回 `202 Accepted`；仅在 AI 实际参与时固定提示词和模型版本。
@@ -269,7 +270,7 @@ ADR-0015 阶段不购买服务器、数据库或域名，固定云成本为 0。
 - 部分采集运行不会关闭或清空历史岗位，来源失败不扩散。
 - owner 对象授权、CSRF、邀请重放、会话撤销和删除任务通过测试。
 - `MatchRun`、`RecommendationRun` 和 `ResumeTailoringRun` 可以用固定版本复查；修改任一输入会生成新运行并把旧结果标记过期。
-- PDF/DOCX 结构、资源和隔离测试通过；文件/原文不进入 Bucket、普通日志或模型请求。
+- PDF/DOCX 结构、资源和隔离测试通过；文件/原文不进入岗位 Bucket 或普通日志。AI 任务可按用户选择使用提供的完整材料，不要求强制脱敏或前置事实审批。
 - AI 关闭时岗位、三轴和推荐链路完整；模型不可用时简历优化使用模板结果。
 - 日志无简历正文、令牌和敏感 URL；队列、来源、成本和删除告警可触发。
 - PostgreSQL 备份恢复、岗位快照引用完整性、应用回滚和 `RPO 24h/RTO 8h` 流程已经演练。

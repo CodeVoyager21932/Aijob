@@ -1,5 +1,7 @@
 # 方向图谱与简历工作室 R1–R5 执行方案
 
+> 历史实施与兼容依据。方向语义、历史版本和 V2 工作区保留；下文 30 套数量、HTML 排版路线与模板矩阵已由 [ADR-0040–0042](../decisions/README.md) 更新，不作为当前交付或必跑检查。历史性能/真实运行限制保留记录，当前待办只看 [路线图](../06-mvp-roadmap.md) 和 [当前交接](../handoffs/current.md)。
+
 状态：coco 已明确授权实施本方案。R1–R4 已实现；R5 本地联验和候选整理完成，性能/真实运行未全部通过。[逐阶段实际结果](../evidence/direction-studio-upgrade-2026-09-09/README.md)与[路线图](../06-mvp-roadmap.md)为动态事实源。此前研究提案原文已归档于本轮 evidence/prior-status，不再把“尚未实施”作为当前状态。
 
 ## 已批准范围

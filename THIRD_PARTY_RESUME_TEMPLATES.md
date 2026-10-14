@@ -1,6 +1,10 @@
 # Resume template references and attribution
 
-Aijob adapts 40 layout structures from these fixed source versions. The per-template source files, hashes, reference images, structural differences and Chinese adaptation notes are recorded in `docs/evidence/resume-studio-quality-2026-09-10/template-catalog.json`. Its HTML comparison is `template-comparison.html` in the same directory. The former 30-template ledger is historical evidence. Shared HTML/Chromium rendering, Chinese typography, pagination, editable DOCX and editor integration are modified for Aijob; LaTeX, Typst and React-PDF engines are not shipped as additional production renderers. Upstream names identify references, not endorsements.
+This ledger preserves attribution for each rendering generation; it is not a current renderer inventory. The HTML/Chromium generation below is historical compatibility work. Native RR5 and RR6/Forme PDF capabilities are covered separately below and in the vendored source manifests; do not use the old HTML-only description to remove their licenses or source notices. Upstream names identify references, not endorsements.
+
+## Historical HTML/Chromium generation (2026-09-10)
+
+Aijob adapted 40 layout structures from these fixed source versions. The per-template source files, hashes, reference images, structural differences and Chinese adaptation notes are recorded in `docs/evidence/resume-studio-quality-2026-09-10/template-catalog.json`. Its HTML comparison is `template-comparison.html` in the same directory. The former 30-template ledger is historical evidence. Shared HTML/Chromium rendering, Chinese typography, pagination, editable DOCX and editor integration were modified for Aijob; LaTeX, Typst and React-PDF were not additional production renderers in this historical generation. Some comparison artifacts remain local evidence and are not included in the source checkpoint.
 
 - [jlifeng/JobPilot](https://github.com/jlifeng/JobPilot/tree/69e6692cedacaacd3d923908f622d967e97e96c8): Apache-2.0. Original license and NOTICE retained in `docs/licenses/resume-templates/jobpilot/`.
 - [Magic-Resume/Magic-Resume](https://github.com/Magic-Resume/Magic-Resume/tree/c7e0826a674d144435ad18e3ab4d32785bc9fcbd): MIT. Original license retained in `docs/licenses/resume-templates/magic/`.
@@ -15,11 +19,23 @@ Template source code and public upstream sample images are preserved only as att
 
 OpenResume and the user-provided BOSS screenshots are interaction references only; no proprietary assets or AGPL implementation are included.
 
-## Native continuation references (2026-09-13)
+## Native RR5 generation and compatible templates (2026-09-13)
 
-The older HTML/Chromium ledger above is historical. Current native candidates and hashes are in `docs/evidence/resume-native-template-catalog.json`.
+The older HTML/Chromium ledger above is historical. This native generation and hashes are recorded in `docs/evidence/resume-native-template-catalog.json`; later rendering changes follow ADR-0042. Preserve the pinned source manifests, licenses and font notices in `vendor/reactive-resume/`, `vendor/reactive-resume-v6/` and `apps/web/public/fonts/` alongside the per-template references below.
+
+- Reactive Resume native core: pinned `86a72bef138ae51771ea3bdeda9b2871a3a838c8`, MIT. The exact imported files and hashes are in [the RR5 manifest](vendor/reactive-resume/upstream-manifest.json); the [original license](vendor/reactive-resume/LICENSE) is retained. This generation uses React-PDF and remains available for existing documents and the 40 compatible templates. It is not covered by the historical HTML-only renderer statement above.
 
 - JobPilot Swiss: pinned `69e6692cedacaacd3d923908f622d967e97e96c8`, Apache-2.0; source, license and NOTICE in `vendor/resume-template-references/jobpilot/`.
 - visiky/resume Template1: pinned `2eb87e51ccdb63f0565d3d6935bd1b92fa2dbc00`, MIT, copyright (c) 2017 Kasmine; complete notice and source in `vendor/resume-template-references/visiky/`. Native page/pagination primitives remain from the pinned Reactive Resume MIT core.
 
 - Magic Compact CN Photo and Executive Band: pinned `c7e0826a674d144435ad18e3ab4d32785bc9fcbd`, MIT, copyright (c) 2025 林陌青川. Unmodified configs, native adaptation component references and license hashes are in `vendor/resume-template-references/magic-resume/source.json`. This is Magic-Resume/Magic-Resume, not JOYCEQL/magic-resume.
+
+## RR6 / Forme studio generation (2026-10-12)
+
+The four Aijob studio layouts use a read-only rendering adapter and an isolated server PDF package. They preserve Aijob's document contract and do not replace existing RR5 documents or upgrade the Web application's React runtime. Preview and download consume the same server artifact; see [ADR-0042](docs/decisions/0042-opportunity-and-resume-system-upgrade.md).
+
+- Reactive Resume v6 PDF capability: pinned `0c6e75eec4d743257c0f099d08037d5cc215dee0`, MIT. Imported file hashes and the repository are recorded in [the RR6 manifest](vendor/reactive-resume-v6/upstream-manifest.json). Preserve [LICENSE](vendor/reactive-resume-v6/LICENSE) and the separate [style-types notice](vendor/reactive-resume-v6/LICENSE-style-types); neither replaces the RR5 or per-template notices above.
+- `@formepdf/core` and `@formepdf/react` are pinned to `0.28.0`; `harfbuzzjs` is pinned to `1.6.2`. Their installed package metadata declares MIT. The dependency versions remain in [the rendering package](vendor/reactive-resume-v6/package.json) and `pnpm-lock.yaml`; retain their distributed notices with runtime dependencies.
+- Noto Sans SC / Serif SC variable fonts are pinned to Noto CJK commit `f8d157532fbfaeda587e826d4cd5b21a49186f7c`, OFL-1.1. Exact local TTF files, hashes and license filenames are recorded in [font-set-studio-v1.json](apps/web/public/fonts/font-set-studio-v1.json). Existing v3 fonts and notices remain for older renderers.
+
+This is an attribution and version-scope update, not a new license audit or permission to remove old licenses, reference sources, fonts or local evidence.

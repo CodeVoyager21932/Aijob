@@ -10,7 +10,7 @@
 - [功能规格](feature-spec.md)：把已经验证的问题转成可验收范围，并明确三轴、五态、AI 降级与删除路径。
 - [ADR](adr.md)：记录跨模块、敏感或难以逆转的重要决定。
 
-固定顺序是先完成 G2 本地完整 MVP，再做 2 人校准和 6 人正式实验；实时进度只在决策面板更新。本地 AI 简历优化由用户显式启用并保留模板降级，远程/公开启用仍需受控对照。
+2 人校准、6 人实验和 300–500 岗冻结样本是早期研究协议，可按具体研究目的复用，不是当前开发或发布的固定人数前置门。反馈随交付收集，工程通过不提升用户价值证据。当前外部测试条件见 [Private Alpha Gate](../plans/private-alpha-readiness-gates.md)。个人 AI 使用用户自配连接，启动任务即可使用已提供材料；保留模板降级、事实引用和局部采用/撤销，不恢复脱敏或事实审批流程。
 
 ## 来源登记表
 
@@ -22,10 +22,10 @@
 
 - `provenance_level`：`organization_owned / verified_ats_tenant / university_published / official_account_link / unverified`。
 - `policy_status`：`pending_review / approved / paused / blocked / retired`。
-- `acquisition_mode`：`public_api / json_ld / deterministic_html / browser_required`；MVP 不启用 `browser_required`。
+- `acquisition_mode`：`public_api / json_ld / deterministic_html / browser_required`；按 ADR-0037，浏览器采集可在 collector-worker 内隔离运行，所有页面及子请求受精确网络范围、预算和失败隔离保护。
 - `freshness_state`：`fresh / due / stale / unknown`，只表达来源复查状态，不证明单条岗位仍有效。
 
-`fetch_target_*` 和 `apply_target_*` 都必须精确记录协议、主机、端口和路径前缀。共享 ATS 必须限定到已核验企业租户；申请目标是独立展示边界，不能继承采集权限。只有 `policy_status=approved`、无需登录 / 验证码且不依赖浏览器自动化的来源才可进入 MVP 自动化切片。
+`fetch_target_*` 和 `apply_target_*` 都必须精确记录协议、主机、端口、路径前缀和查询参数白名单。共享 ATS 必须限定到已核验企业租户；申请目标是独立展示边界，不能继承采集权限。维护者完成实际试采并明确启用后，获准范围内的 HTTP 或受控浏览器可普通刷新；安装/本机预览与公开准入分别判断，`pending_review` 不得公开。不得绕过登录、验证码或访问政策。
 
 `absence_min_complete_runs` 和 `absence_min_observation_hours` 共同定义“连续未见”门槛；无论配置值如何，首个完整运行未见只能进入 `uncertain` 待复查，后续另一完整运行或人工官方证据才允许关闭。`partial/failed` 不累计。
 
@@ -33,7 +33,7 @@
 
 ## 岗位样本表
 
-使用 [job-samples.csv](job-samples.csv) 记录或复核从已通过 G2 的 1000 岗目录中冻结的 300–500 条 G1 代表性研究子集。供给总 Gate 以 100 家/1000 岗和结构指标为准；每条样本至少保留企业规模证据、来源、原始链接、官方 URL 或企业域名邮箱、最后核验时间和当前活动状态。
+使用 [job-samples.csv](job-samples.csv) 记录或复核有明确范围的代表性岗位样本。100 家/1000 岗及人工来源企业 20%/岗位 10% 按 ADR-0035 是必须如实报告的指标，不阻塞操作；SME、职能和城市分布为观察项，可达占比 50% 门已撤销。300–500 条是早期 G1 研究设计，不是每次验证的固定样本量。每条样本至少保留企业规模证据、来源、原始链接、官方 URL 或企业域名邮箱、最后核验时间和当前活动状态；逐来源公开准入仍须满足。
 
 人工回退填写 `import_mode=manual` 和稳定 `import_batch_id`；自动来源使用 `import_mode=collector`。人工记录的原始字段与最小职责/要求摘录构成字段级证据，不得填写或伪造 Bucket 快照键。
 

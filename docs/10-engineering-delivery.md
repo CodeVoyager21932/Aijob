@@ -207,7 +207,7 @@ ADR 使用 [决策模板](templates/adr.md)，记录 Context、Options、Decisio
 - 不要求每个小决定写 ADR。
 - 不追求 90% 以上覆盖率作为形式指标。
 - 不提前引入 Kubernetes、服务网格、事件总线和多套搜索集群。
-- 不提前引入 Redis、独立搜索、向量库、生产 Playwright 和公共管理后台。
+- 不提前引入 Redis、独立搜索、向量库和公共管理后台。原生产 Playwright 禁令由 ADR-0037 替代：允许 collector-worker 内隔离浏览器与复用 CLI 服务的受限内部台；准入、精确网络范围、首次启用授权和失败隔离继续适用。
 - PDF/DOCX 只按 ADR-0012 实现，不扩展 OCR、图片、旧版 `.doc`、压缩包或复杂版式复刻。
 - 本地只实现 OpenAI-compatible 适配层，不硬编码单一供应商；公开启用仍等待供应商、合规和用户增量 Gate。
 - 不为未来可能出现的百万级数据设计当前架构。

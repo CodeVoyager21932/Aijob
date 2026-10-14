@@ -1,9 +1,9 @@
-# Aijob Career OS 前后端同步改进当前交付计划
+# Aijob Career OS 前后端同步改进历史交付计划
 
 - 状态：**已收敛 / UX-0 与 OS-1–OS-7 五项 Gate 全部关闭**
 - 生效日期：2026-08-28
-- 当前分支：`codex/career-os-ux-convergence`
-- 当前切片：无。本计划已完成，不再提供当前任务；下一条轨道由 coco 明确授权
+- 历史分支：`codex/career-os-ux-convergence`
+- 历史切片状态：无待接续切片。本计划已完成，不再提供当前任务
 - 稳定契约：[Career OS 端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)
 - 追踪矩阵：[UX-0 页面—系统—证据追踪矩阵](career-os-ux-0-end-to-end-traceability-matrix.md)
 - 最终关闭证据：[OS-7 系统总 Gate 验收](../evidence/product/career-os-v2/os-7-system-gate-acceptance-2026-08-28.md)
@@ -16,9 +16,9 @@
 - 上一轮归档：[M0–M4 与 PA-1 交付计划](archive/career-os-m0-m4-pa1-delivery-plan-2026-08-12.md)
 - 后续守门：[Private Alpha 与上线就绪 Gate](private-alpha-readiness-gates.md)
 
-> **本计划已于 2026-08-28 收敛完成。** UX-0 与 OS-1–OS-7 全部关闭，下文保留为实施契约与历史依据，不再提供当前任务。新任务只能由 coco 明确授权的下一条轨道（供给准入扩容或服务器就绪）产生。
+> **本计划已于 2026-08-28 收敛完成。** UX-0 与 OS-1–OS-7 全部关闭，下文保留当时的实施契约与证据。原“下一轨道只能为供给或服务器”的限制已被后续授权取代；导入确认、Case 优先等旧流程按 ADR-0038/0042 更新，具体见 [ADR 索引](../decisions/README.md)。当前任务只看路线图与当前交接，不重做 OS-7。
 
-## 1. 当前目标
+## 1. 当时目标
 
 把现有岗位、三轴匹配、推荐、JD 洞察、简历解析与确认、Case、Requirements、Resume V2、Review、旧 Tailoring、投递、面试、复盘、删除和离线身份能力，收敛为一个**数据语义连续、交互自然、视觉统一、可端到端验证**的 Career OS。
 

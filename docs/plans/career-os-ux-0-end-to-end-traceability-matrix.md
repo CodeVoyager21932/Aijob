@@ -1,6 +1,6 @@
 # UX-0 页面—系统—证据追踪矩阵
 
-> 状态：Accepted baseline / UX-0 已完成代码反证、Review 兼容核验与四视口当前运行基线；OS-1–OS-6 触达行已关闭，OS-7 系统总 Gate 进行中暂停
+> 状态：历史基线。UX-0 与 OS-1–OS-7 已关闭；旧“OS-7 进行中暂停”已被下方 2026-08-28 总 Gate 关闭记录取代。矩阵保留当时用例与证据，当前任务读取 [路线图](../06-mvp-roadmap.md) 和 [当前交接](../handoffs/current.md)。
 >
 > 基线日期：2026-08-13；后续关闭更新：2026-08-28
 
@@ -8,7 +8,7 @@
 >
 > OS-7 已完成五项状态：双库浏览器 Gate 输出 `passed: true`（含历史首次执行到的空库空态与 flag-off/manifest 两步），全仓 808/808、lint 485 files、typecheck、build（主包 401.33 kB）、audit 与 diff check 通过。Gate 另修复 4 项真实 Web 缺陷，其中旧 hero 标题上限规则因特异性不足一直未生效。见 [OS-7 验收证据](../evidence/product/career-os-v2/os-7-system-gate-acceptance-2026-08-28.md)；[暂停检查点](../evidence/product/career-os-v2/os-7-system-gate-checkpoint-2026-08-28.md)已被取代。
 >
-> 本矩阵是[当前交付计划](career-os-current-delivery-plan.md)的 UX-0 工作产物，不生成新的任务顺序。稳定规则见[端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)。
+> 本矩阵是 [OS 历史交付计划](career-os-current-delivery-plan.md) 的 UX-0 工作产物，不生成新的任务顺序。稳定规则见 [端到端体验与系统契约](../14-career-os-end-to-end-experience-contract.md)，旧导入/Review 流程的更新范围见 [ADR 索引](../decisions/README.md)。
 
 ## 1. 使用方法
 

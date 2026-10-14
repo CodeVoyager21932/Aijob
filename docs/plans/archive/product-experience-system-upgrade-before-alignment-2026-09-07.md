@@ -1,5 +1,7 @@
 # Aijob 经历、简历、AI 与工作区系统升级方案
 
+> 历史对齐前草案。下文“尚未实施”“唯一后续开发”和“获准后”等属于当日讨论，不再提供任务或授权；正式依据已由 [U0–U6 修正版](../product-experience-system-upgrade-2026-09-07.md) 与 [ADR-0038](../../decisions/0038-resume-workspace-and-direct-import.md) 取代。当前任务见 [路线图](../../06-mvp-roadmap.md) 和 [当前交接](../../handoffs/current.md)。
+
 日期：2026-09-07。提出人：coco；本文根据当天从“这种证据形式是否合理”开始，到简历编辑器与导航复核的连续讨论编制。
 
 **状态：完整方案稿，尚未实施。** 本次交付是系统设计与实施计划，不代表正式前端、数据库、AI 或 V2 原型已经按本文升级。文中“新增”“改为”“必须”均描述下一轮的目标与验收要求。新的架构决定在实施阶段落入 ADR 后生效，不以本文悄悄修改既有数据政策。
@@ -70,7 +72,7 @@
 - 最近记录为 93 条本机岗位、公共目录 0、34 个来源配置、0 个获准公开来源。这是历史运行快照，不是本轮刷新后的供给能力。
 - 热目录/图谱本机性能曾达目标，冷目录约 5.8 秒，后台混合负载与 10 万岗位容量仍有明显缺口。不能在升级计划中略去。
 
-依据入口：[产品体验审视](../reviews/product-experience-audit-2026-09-07/README.md)、[UI/UX 设计](../designs/product-experience-2026-09-07/README.md)、[V2 工作区](../designs/product-experience-2026-09-07/workspace-v2.md)、[简历编辑器与导航复核](../designs/product-experience-2026-09-07/resume-editor-and-navigation-review.md)、[既有六阶段执行记录](product-core-execution.md)、[交付验收](../evidence/product-core-upgrade-2026-09-06/README.md)。
+依据入口：[产品体验审视](../../reviews/product-experience-audit-2026-09-07/README.md)、[UI/UX 设计](../../designs/product-experience-2026-09-07/README.md)、[V2 工作区](../../designs/product-experience-2026-09-07/workspace-v2.md)、[简历编辑器与导航复核](../../designs/product-experience-2026-09-07/resume-editor-and-navigation-review.md)、[既有六阶段执行记录](../product-core-execution.md)、[交付验收](../../evidence/product-core-upgrade-2026-09-06/README.md)。
 
 ### 2.1 成熟产品参考如何转成设计
 
@@ -693,7 +695,7 @@ U0 建立覆盖型评估集，起步约 40–60 个合成或获准脱敏情境�
 
 ### 15.2 对应体验审视 A01–A24
 
-编号取自既有[体验审视](../reviews/product-experience-audit-2026-09-07/README.md)，保留当时事实，不把计划写成修复结果。
+编号取自既有[体验审视](../../reviews/product-experience-audit-2026-09-07/README.md)，保留当时事实，不把计划写成修复结果。
 
 | 问题 | 对应处理 | 阶段 |
 |---|---|---|
@@ -748,4 +750,4 @@ U0 建立覆盖型评估集，起步约 40–60 个合成或获准脱敏情境�
 
 获准实施后的第一项工作是 **U0：固定完整经历、文档保存和 AI 上下文契约，建立核心错误与中文编辑夹具**；随后交付 U1 的“直接开始写”路径，再建设专业编辑器。不是先替换全站 CSS、铺模板数量或批量接入更多角色。
 
-本次仅完成方案编制。既有六阶段工程成果与运行不足继续以[路线图](../06-mvp-roadmap.md)、[当前交接](../handoffs/current.md)和[既有验收](../evidence/product-core-upgrade-2026-09-06/README.md)为准；本方案不声称新功能已完成，也不改变原目录和业务数据。
+本次仅完成方案编制。既有六阶段工程成果与运行不足继续以[路线图](../../06-mvp-roadmap.md)、[当前交接](../../handoffs/current.md)和[既有验收](../../evidence/product-core-upgrade-2026-09-06/README.md)为准；本方案不声称新功能已完成，也不改变原目录和业务数据。

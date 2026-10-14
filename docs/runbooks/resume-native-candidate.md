@@ -1,10 +1,10 @@
-# 原生简历工作室：K4 / K5 候选运行手册
+# 历史：原生简历工作室 K4 / K5 候选运行手册
 
-2026-09-13。当前路径 `C:/Users/72998/Projects/Aijob`。本文件替代旧 S0–S4 运行指南作为当前入口；旧指南仅用于历史 HTML 文档。
+2026-09-13 候选记录，工作区为 `C:/Users/72998/Projects/Aijob`。当时替代 S0–S4 的启动指令已由[当前网页版运行说明](system-upgrade-local.md)接替；本页保留 K4/K5 原步骤、旧渲染链和兼容证据，不再是日常入口。ADR-0042/0043 已更新统一服务端预览、四类新模板与机会任务，不能按此关闭当前所需 collector 或重新运行旧验收。
 
-## 启动与访问
+## 历史候选的启动与访问
 
-先检查端口及 `http://127.0.0.1:3000/health/ready`，正常进程直接复用。业务 PostgreSQL 为既有 `aijob-recovered-postgres` / 55439；55443 是隔离测试库，不能互换。本机前端 `http://127.0.0.1:5173/resumes`，API 3000，导入由 match-worker 处理。当前运行不需要启动 collector-worker。
+以下仅描述 K4/K5 简历候选：先检查端口及 `http://127.0.0.1:3000/health/ready`，正常进程直接复用。业务 PostgreSQL 为既有 `aijob-recovered-postgres` / 55439；55443 是隔离测试库，不能互换。本机前端 `http://127.0.0.1:5173/resumes`，API 3000，导入由 match-worker 处理。当时单独检查简历未启动 collector-worker；当前机会刷新需要该 worker，以现行手册为准。
 
 在已加载本机原有环境配置且端口没有同名服务时：
 

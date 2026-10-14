@@ -10,7 +10,7 @@
 2. 涉及界面或用户流程时，阅读[体验规范](docs/13-experience-design.md)。
 3. 确认改动对应的用户证据、Feature Spec、缺陷或安全要求。
 4. 大型或难以逆转的决定先提交 ADR。
-5. 新依赖必须经过 [依赖准入](docs/04-security-threat-model.md#7-第三方项目与依赖分级)。
+5. 新依赖必须经过 [依赖准入](docs/04-security-threat-model.md#10-第三方依赖准入)。
 
 ## 变更原则
 

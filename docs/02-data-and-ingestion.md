@@ -37,7 +37,7 @@
 | `public_api` | 公开 API 或稳定 JSON | 启用 |
 | `json_ld` | `schema.org/JobPosting` | 启用 |
 | `deterministic_html` | 固定 ATS 模板或来源专用 DOM 映射 | 启用 |
-| `browser_required` | 必须执行浏览器脚本才能得到数据 | 不进入生产 Worker；仅 ADR-0016/0017 明确允许的维护者人工可见快照可在本机导入 |
+| `browser_required` | 必须执行浏览器脚本才能得到数据 | ADR-0037 已替代生产浏览器禁令；在 collector-worker 内隔离执行，页面与子请求均受精确网络范围、预算及失败隔离保护；首次启用、扩大范围或恢复暂停需明确操作 |
 
 ### 2.4 新鲜度 `freshness_state`
 

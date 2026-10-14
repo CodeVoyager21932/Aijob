@@ -2,7 +2,7 @@
 
 > 状态：**Superseded / 2026-08-09 起不再是活动计划**
 >
-> 本文完整保留旧的 G4-first 横向建设顺序，用于追溯当时的架构与 Gate 假设。它不得提供当前目标、下一任务或工期基线。当前执行只看 [Career OS 前后端同步改进计划](../career-os-current-delivery-plan.md)、[MVP 路线](../../06-mvp-roadmap.md) 和 [当前交接](../../handoffs/current.md)。
+> 本文完整保留旧的 G4-first 横向建设顺序，用于追溯当时的架构与 Gate 假设。它不得提供当前目标、下一任务或工期基线。现有计划状态见 [计划索引](../README.md)，当前执行只看 [MVP 路线](../../06-mvp-roadmap.md) 和 [当前交接](../../handoffs/current.md)。
 
 - 历史状态（截至 2026-08-09）：OS 2.0 初版已完成 Phase 1A/1B；Phase 2R、Phase 2A、正式 migrations 023–030 与 Phase 2B-1/2/3/4A/4B 已完成，当时计划进入 Phase 2B-4C Interview/Debrief/Knowledge Service Boundary
 - 初版日期：2026-08-04

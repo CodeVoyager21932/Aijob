@@ -1,5 +1,7 @@
 # 简历工作室质量重建 S0–S4
 
+> 历史候选与兼容依据。下文 HTML 主路径、默认模板和 S0–S4 顺序属于当时方案，已由 [ADR-0041](../decisions/0041-native-resume-core.md) 与 [ADR-0042](../decisions/0042-opportunity-and-resume-system-upgrade.md) 更新；完整正文、私有产物和不可变历史继续保留。不重启 S0 或默认重跑 120 组矩阵，最终简历可用性也不因阶段记录而自动通过。当前任务见 [路线图](../06-mvp-roadmap.md) 和 [当前交接](../handoffs/current.md)。
+
 2026-09-10：coco 已批准实施。本计划替代此前简历模板与工作室改进部分；方向图谱、OS-7、业务恢复和 BYOK 基础保留。
 
 ## 交付契约
