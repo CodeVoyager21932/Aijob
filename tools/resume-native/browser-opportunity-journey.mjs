@@ -1,3 +1,6 @@
+import { loadRegressionInputs, runOutput } from "./regression-inputs.mjs";
+const inputs = await loadRegressionInputs();
+await inputs.verify();
 /** One complex pinned PDF, one opportunity direction, one independently retained submission. */
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -9,10 +12,7 @@ const root = resolve(import.meta.dirname, "../..");
 const require = createRequire(resolve(root, "apps/platform/package.json"));
 const { chromium } = require("playwright-core");
 const tsx = require.resolve("tsx/cli");
-const output = resolve(
-  root,
-  process.env.AIJOB_BROWSER_OUTPUT || ".data/system-upgrade-20261012/opportunity-browser",
-);
+const output = runOutput("opportunity-browser");
 await mkdir(output, { recursive: true });
 function seed(...args) {
   const result = execFileSync(
@@ -22,13 +22,8 @@ function seed(...args) {
   );
   return JSON.parse(result.trim().split(/\r?\n/).at(-1));
 }
-const source = resolve(root, ".data/resume-native-public-specimens-20260923/typst-sidebar.pdf");
-const manifest = JSON.parse(
-  await readFile(
-    resolve(root, ".data/resume-native-public-specimens-20260923/manifest.json"),
-    "utf8",
-  ),
-);
+const source = inputs.sample("typst-sidebar").file;
+const manifest = inputs.cases;
 const sha = (data) => createHash("sha256").update(data).digest("hex");
 const sourceSha = sha(await readFile(source));
 assert.equal(sourceSha, manifest.find((item) => item.id === "typst-sidebar").sha256);

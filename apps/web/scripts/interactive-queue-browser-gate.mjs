@@ -3,7 +3,7 @@ import { writeFile, mkdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 const require = createRequire(new URL("../../platform/package.json", import.meta.url));
 const { chromium } = require("playwright-core");
-const out = new URL("../../../docs/evidence/interactive-queue-2026-09-09/", import.meta.url);
+const out = new URL(`../../../.data/runs/interactive-queue/${Date.now()}/`, import.meta.url);
 await mkdir(out, { recursive: true });
 const now = new Date().toISOString();
 const session = {

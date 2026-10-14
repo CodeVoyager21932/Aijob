@@ -1,12 +1,17 @@
 from playwright.sync_api import sync_playwright, expect
 from pathlib import Path
 from urllib.request import urlopen
-import json, time, hashlib
+import json, time, hashlib, os
+from datetime import datetime
 
 root=Path(__file__).resolve().parents[2]
-output=root/'.data/resume-native-k2-20260912/browser'
+output=Path(os.environ.get('AIJOB_BROWSER_OUTPUT', root/'.data/runs/browser-import-python'/datetime.now().strftime('%Y%m%dT%H%M%S')))
 output.mkdir(parents=True,exist_ok=True)
-source=root/'.data/resume-native-k1-20260912/matrix/gengar-cn-medium.docx'
+manifest_path=Path(os.environ.get('AIJOB_RESUME_REGRESSION_MANIFEST',root/'.data/resume-regression/manifest.json'))
+manifest=json.loads(manifest_path.read_text(encoding='utf-8'))
+sample=next(row for row in manifest['cases'] if row['id']=='existing-medium-word')
+source=manifest_path.parent/sample['file']
+if hashlib.sha256(source.read_bytes()).hexdigest()!=sample['sha256']:raise RuntimeError('REGRESSION_INPUT_CHANGED')
 for _ in range(60):
     try:
         with urlopen('http://127.0.0.1:5194/v1/session',timeout=3) as response:
