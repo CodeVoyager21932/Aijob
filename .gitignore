@@ -3,9 +3,12 @@ dist/
 coverage/
 .env
 .env.*.local
+Aijob-恢复文件-*.json
 .data/
 .hatch-runs/
 *.log
 *.tsbuildinfo
 .DS_Store
 .vite/
+__pycache__/
+*.pyc
