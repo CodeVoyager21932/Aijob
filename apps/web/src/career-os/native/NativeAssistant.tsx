@@ -161,6 +161,7 @@ export function NativeAssistant({
   }
   return (
     <dialog
+      aria-label="简历助手"
       ref={dialog}
       className="native-template-dialog native-material-dialog"
       onCancel={(event) => {

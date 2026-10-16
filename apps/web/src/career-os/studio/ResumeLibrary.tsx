@@ -5,6 +5,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { deleteResumeDocument, listResumeDocuments } from "../../api/career-os";
 import { apiRequest, createIdempotencyKey } from "../../api/client";
 import { Icon } from "../components/Icon";
+import { FileDropzone } from "../ui/FileDropzone";
 import "./studio.css";
 export function ResumeLibrary() {
   return <Library />;
@@ -13,6 +14,7 @@ function Library() {
   const [params] = useSearchParams();
   const request = useRef<{ fingerprint: string; key: string } | null>(null);
   const creating = useRef(false);
+  const [showImport, setShowImport] = useState(() => params.get("start") === "import");
   const navigate = useNavigate(),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
@@ -34,22 +36,36 @@ function Library() {
       ),
     enabled: showExperiences,
   });
-  async function create(ids?: string[], tool?: "import") {
+  async function create(ids?: string[], tool?: "import", file?: File) {
     if (creating.current) return;
     creating.current = true;
     setBusy(true);
     setNotice("");
     try {
-      const body = { title: "我的简历", ...(ids ? { experienceIds: ids } : {}) };
+      const body = {
+        title: file ? file.name.replace(/\.(pdf|docx)$/i, "").slice(0, 200) : "我的简历",
+        ...(ids ? { experienceIds: ids } : {}),
+      };
       const fingerprint = JSON.stringify(body);
       if (request.current?.fingerprint !== fingerprint)
         request.current = { fingerprint, key: createIdempotencyKey() };
-      const d = await apiRequest<{ documentId: string }>("/v2/resume-documents/native", {
-        method: "POST",
-        body,
-        idempotencyKey: request.current.key,
-      });
-      navigate(`/resumes/${d.documentId}${tool ? "?tool=import" : ""}`);
+      const d = await apiRequest<{ documentId: string; revision: number }>(
+        "/v2/resume-documents/native",
+        {
+          method: "POST",
+          body,
+          idempotencyKey: request.current.key,
+        },
+      );
+      if (file) {
+        const form = new FormData();
+        form.append("file", file);
+        const imported = await apiRequest<{ originalId: string }>(
+          `/v2/resume-documents/${d.documentId}/native/imports?expectedRevision=${d.revision}`,
+          { method: "POST", body: form, idempotencyKey: createIdempotencyKey() },
+        );
+        navigate(`/resumes/${d.documentId}?tool=import&originalId=${imported.originalId}`);
+      } else navigate(`/resumes/${d.documentId}${tool ? "?tool=import" : ""}`);
     } catch (e) {
       setNotice(e instanceof Error ? e.message : "暂时无法创建，请重试。");
     } finally {
@@ -78,7 +94,8 @@ function Library() {
         <button
           type="button"
           disabled={busy}
-          onClick={() => void create(undefined, "import")}
+          onClick={() => setShowImport(!showImport)}
+          aria-expanded={showImport}
           data-entry-highlight={params.get("start") === "import"}
         >
           <span>
@@ -99,6 +116,23 @@ function Library() {
           <small>选择经历，组成一份新简历</small>
         </button>
       </div>
+      {showImport && (
+        <section className="studio-library-import" aria-label="导入已有简历">
+          <FileDropzone
+            disabled={busy}
+            onError={setNotice}
+            onFile={(file) => void create(undefined, "import", file)}
+          />
+          <div>
+            <button type="button" disabled={busy} onClick={() => void create(undefined, "import")}>
+              改用粘贴文字
+            </button>
+            <button type="button" onClick={() => setShowImport(false)}>
+              收起
+            </button>
+          </div>
+        </section>
+      )}
       {notice ? (
         <p className="studio-alert" role="alert">
           {notice}

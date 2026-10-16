@@ -1,0 +1,31 @@
+{
+  "templateId": "studio-layered-cn",
+  "templateVersion": 1,
+  "sample": "batchGallerySample",
+  "synthetic": true,
+  "hasPhoto": true,
+  "rendererVersion": "rr6-0c6e75e-forme-0.28-aijob-10-polish-final",
+  "fontSetVersion": "aijob-studio-ttf-v1",
+  "manifestVersion": "native-fields-links-v3",
+  "pdfSha256": "ea454b0431eaebc4d4f5867858757f90d230bc7515c7cdf53c17e502612154c8",
+  "fit": {
+    "level": 0,
+    "pageCount": 1,
+    "bodyFontSize": 10,
+    "overflowItemIds": []
+  },
+  "diagnostics": [],
+  "visualReview": "pending",
+  "pages": 1,
+  "sizes": [
+    [
+      0,
+      0,
+      595.28,
+      841.89
+    ]
+  ],
+  "singleA4": true,
+  "missingFragments": 0,
+  "outside": 0
+}

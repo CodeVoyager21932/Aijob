@@ -39,3 +39,27 @@ The four Aijob studio layouts use a read-only rendering adapter and an isolated 
 - Noto Sans SC / Serif SC variable fonts are pinned to Noto CJK commit `f8d157532fbfaeda587e826d4cd5b21a49186f7c`, OFL-1.1. Exact local TTF files, hashes and license filenames are recorded in [font-set-studio-v1.json](apps/web/public/fonts/font-set-studio-v1.json). Existing v3 fonts and notices remain for older renderers.
 
 This is an attribution and version-scope update, not a new license audit or permission to remove old licenses, reference sources, fonts or local evidence.
+
+## Original Chinese campus layout (2026-10-15)
+
+`studio-campus-cn` (晴空 · 应届生) is an Aijob layout implemented in `packages/resume-renderer/src/studio-campus.tsx` with the existing RR6/Forme runtime and fonts above. The public WonderCV graduate specimen (`https://www.wondercv.com/jianlimoban/d9d0ec05a0515f93.html`) was used for visual study of a curved blue header, optional centered portrait and section hierarchy. No WonderCV source code, portrait, text or preview asset is redistributed in this layout.
+
+The published specimen uses original fictional student content from `campusGallerySample` and the existing synthetic `sample-photo.png` illustration. Applying the template selects its identity and layout defaults only; neither sample text nor the illustration enters a personal draft. Its generated PDF and rendering metadata are kept beside the gallery image under `apps/web/public/native-templates/`.
+
+## Original Chinese batch of five layouts (2026-10-15)
+
+After coco approved the complete reference and structure board, Aijob independently implemented the following five layouts using the existing RR6/Forme adapter and the pinned Noto fonts above. Only BOSS and WonderCV public specimens were used for this batch's visual study. These public specimen pages are visual references, not open-source template licenses or copied implementations.
+
+| Aijob identity | Visual reference | Independently implemented structure |
+|---|---|---|
+| `studio-banner-cn` — 绯页 · 横幅分区 | [WonderCV, internship specimen](https://www.wondercv.com/jianlimoban/7035794f6173aa72.html) | Short identity banner and full-width sections |
+| `studio-index-cn` — 序章 · 模块索引 | [BOSS style gallery](https://cv.zhipin.com/style/), 专业, page 2; [reference image](https://z.zhipin.com/H5/images/resume/cv_template_vip1@2x.png) | Short dark header, section index rail and wide narrative area |
+| `studio-sidebar-cn` — 青岚 · 侧栏履历 | [BOSS style gallery](https://cv.zhipin.com/style/), 展示 | Narrow profile sidebar and a wide experience column |
+| `studio-layered-cn` — 叠影 · 名片叠层 | [BOSS style gallery](https://cv.zhipin.com/style/), 极客; [reference image](https://img.bosszhipin.com/static/file/2024/050bc25a6b5e08240XY~.png.webp) | Optional portrait crossing a short identity card, followed by one continuous body panel; no black poster background, giant portrait or HELLO heading |
+| `studio-cards-cn` — 青瓷 · 柔和卡片 | [WonderCV, general recruitment specimen](https://www.wondercv.com/jianlimoban/041f5a2d7961a92f.html) | Compact identity header and separate rounded section cards |
+
+Implementations are `studio-banner.tsx`, `studio-indexed.tsx`, `studio-sidebar.tsx`, `studio-layered.tsx` and `studio-cards.tsx` in `packages/resume-renderer/src/`. Shared entry rendering keeps original field values, rich-text links, custom sections and visibility; the five page compositions are separate.
+
+The public Aijob specimens use original fictional non-technical student material from `batchGallerySample` and the existing synthetic illustration. They are generated through the same isolated PDF renderer as personal drafts. Reference source code, portraits, brand marks, prose and preview assets are not included in the five product templates or their public specimens. Reference images remain private comparison evidence under `.data/runs/template-batch6/`; personal material is not part of the public gallery.
+
+猫步 is excluded from subsequent template research and implementation per coco's decision. Historical references, licenses and compatible layouts remain preserved; this decision does not remove their existing attribution. Progress and verification limits for this batch are recorded in [the batch evidence](docs/evidence/chinese-resume-batch6-2026-10-15.md); registering six featured templates is not proof that the longer-term thirty-template goal has been completed.

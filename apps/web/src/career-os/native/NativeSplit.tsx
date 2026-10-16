@@ -6,9 +6,9 @@ export function NativeSplit({ children }: { children: [ReactNode, ReactNode] }) 
   const [ratio, setRatio] = useState(() => {
     try {
       const value = Number(localStorage.getItem(key));
-      return value ? clamp(value) : 42;
+      return value ? clamp(value) : 46;
     } catch {
-      return 42;
+      return 46;
     }
   });
   const update = (value: number) => {
@@ -52,7 +52,7 @@ export function NativeSplit({ children }: { children: [ReactNode, ReactNode] }) 
             update(ratio + (event.key === "ArrowRight" ? 2 : -2));
           } else if (event.key === "Home") {
             event.preventDefault();
-            update(42);
+            update(46);
           }
         }}
       />

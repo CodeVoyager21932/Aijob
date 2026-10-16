@@ -1,0 +1,280 @@
+/* Shared controls for the workspace and both generations of resume screens.
+   Component files own layout; this file owns interaction and visual states. */
+.career-button,
+.native-studio button,
+.native-template-dialog button,
+.native-start button,
+.resume-studio button,
+.resume-studio .studio-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--co-border, #dce3e0);
+  border-radius: var(--co-radius-md, 8px);
+  background: var(--co-surface, #fff);
+  color: var(--co-text, #243b35);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color 140ms,
+    border-color 140ms;
+}
+:is(
+    .career-button,
+    .native-studio button,
+    .native-template-dialog button,
+    .native-start button,
+    .resume-studio button
+  ):hover:not(:disabled) {
+  background: var(--co-surface-subtle, #f2f5f3);
+  border-color: var(--co-action, #245e4d);
+}
+.career-button--primary,
+.native-studio .native-primary-action,
+.native-template-dialog .native-primary-action,
+.resume-studio .studio-primary {
+  background: var(--co-action, #245e4d);
+  border-color: var(--co-action, #245e4d);
+  color: #fff;
+}
+:is(
+    .career-button--primary,
+    .native-studio .native-primary-action,
+    .native-template-dialog .native-primary-action,
+    .resume-studio .studio-primary
+  ):hover:not(:disabled) {
+  background: var(--co-action-hover, #194839);
+  color: #fff;
+}
+:is(
+    .career-button,
+    .native-studio button,
+    .native-template-dialog button,
+    .native-start button,
+    .resume-studio button
+  ):disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.career-os :is(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--co-action);
+  outline-offset: 3px;
+}
+.career-os
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),
+    select,
+    textarea
+  ) {
+  min-width: 0;
+  min-height: 40px;
+  padding: 9px 11px;
+  border: 1px solid var(--co-border);
+  border-radius: var(--co-radius-md);
+  background: var(--co-surface);
+  color: var(--co-text);
+  font: inherit;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+.career-os :where(input[type="checkbox"], input[type="radio"]) {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--co-action);
+}
+.ui-file-dropzone {
+  display: grid;
+  position: relative;
+  justify-items: center;
+  align-content: center;
+  gap: 10px;
+  min-height: 180px;
+  padding: 24px;
+  border: 1.5px dashed var(--co-border);
+  border-radius: 12px;
+  background: var(--co-surface-subtle);
+  text-align: center;
+  cursor: pointer;
+}
+.ui-file-dropzone[data-dragging="true"],
+.ui-file-dropzone:focus-within {
+  border-color: var(--co-action);
+  background: var(--co-action-soft);
+}
+.ui-file-dropzone[data-disabled="true"] {
+  cursor: progress;
+  opacity: 0.7;
+}
+.ui-file-dropzone input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: inherit;
+}
+.ui-file-dropzone strong {
+  font-size: 17px;
+  font-weight: 600;
+}
+.ui-file-dropzone span {
+  color: var(--co-text-muted);
+  font-size: 13px;
+}
+.ui-file-dropzone svg {
+  width: 32px;
+  height: 32px;
+  color: var(--co-action);
+}
+@media (prefers-reduced-motion: reduce) {
+  .career-os * {
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+  }
+}
+
+.career-context-nav {
+  display: flex;
+  gap: 24px;
+  flex-shrink: 0;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--co-border);
+  background: var(--co-surface);
+}
+.career-context-nav a {
+  padding: 13px 0 11px;
+  border-bottom: 2px solid transparent;
+  color: var(--co-text-muted);
+  text-decoration: none;
+  font-size: 14px;
+}
+.career-context-nav a.active {
+  border-color: var(--co-action);
+  color: var(--co-action);
+  font-weight: 600;
+}
+.career-command-menu__results a[data-highlighted="true"] {
+  background: var(--co-action-soft);
+}
+.ui-sortable-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+.ui-sortable-list > li {
+  position: relative;
+  min-width: 0;
+  border-radius: 8px;
+}
+.ui-sortable-list > li[data-dragging="true"] {
+  opacity: 0.55;
+}
+.ui-sortable-list > li[data-drop-target="true"] {
+  outline: 2px dashed var(--co-action);
+  outline-offset: 3px;
+}
+.ui-sortable-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 2px 4px;
+}
+.ui-sortable-controls button {
+  min-height: 28px;
+  min-width: 28px;
+  padding: 2px 5px;
+  font-size: 14px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--co-text-muted);
+}
+.ui-sortable-controls .ui-drag-handle {
+  cursor: grab;
+  touch-action: none;
+}
+.ui-sortable-controls .ui-drag-handle:active {
+  cursor: grabbing;
+}
+.native-outline .ui-sortable-list {
+  gap: 5px;
+}
+.native-outline .ui-sortable-list > li {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-height: 44px;
+}
+.native-outline .ui-sortable-controls {
+  display: contents;
+}
+.native-outline .ui-sortable-controls button {
+  flex: 0 0 20px;
+  min-width: 20px;
+  min-height: 32px;
+  padding: 2px;
+  order: 3;
+}
+.native-outline .ui-sortable-controls .ui-drag-handle {
+  order: 1;
+}
+.native-outline button.native-outline-link {
+  order: 2;
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  padding: 7px 3px;
+  gap: 3px;
+}
+.experience-select {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+}
+.experience-body-details {
+  line-height: 1.7;
+  font-size: 14px;
+  padding-block: 12px;
+}
+.experience-body-details summary {
+  cursor: pointer;
+  color: var(--co-text-muted);
+}
+
+.experience-more {
+  position: relative;
+  margin-left: auto;
+}
+.experience-more > summary {
+  cursor: pointer;
+  padding: 10px;
+  color: var(--co-text-muted);
+}
+.experience-more > div {
+  position: absolute;
+  z-index: var(--co-layer-popover);
+  right: 0;
+  bottom: 100%;
+  width: 200px;
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  background: var(--co-surface);
+  border: 1px solid var(--co-border);
+  border-radius: var(--co-radius-md);
+  box-shadow: var(--co-shadow-mid);
+}
+.experience-more > div > * {
+  padding: 10px;
+  text-align: left;
+  text-decoration: none;
+}

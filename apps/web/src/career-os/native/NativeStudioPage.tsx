@@ -1,12 +1,11 @@
 import {
   applyNativeTemplate,
-  hasNativeResumeContent,
-  changeNativeItems,
+  hasVisibleNativeResumeContent,
   type NativeResumeDocument,
   parseNativeResumeDocument,
 } from "@aijob/resume-core";
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { NativeItemAnchor } from "@aijob/resume-renderer/browser";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getResumeDocument } from "../../api/career-os";
 import {
@@ -14,15 +13,11 @@ import {
   apiRequest,
   createIdempotencyKey,
   currentWorkspaceOwnerKey,
-  subscribeToSessionBoundary,
   ProductApiError,
+  subscribeToSessionBoundary,
 } from "../../api/client";
-import { NativeAdditionalSections } from "./NativeAdditionalSections";
 import { NativeAssistant } from "./NativeAssistant";
-import { NativeContactLinks } from "./NativeContactLinks";
-import { NativeEntry } from "./NativeEntry";
-import { NativeEntryExtras } from "./NativeEntryExtras";
-import { NativeExperienceRoles } from "./NativeExperienceRoles";
+import { NativeContentEditor } from "./NativeContentEditor";
 import { NativeExportPreview } from "./NativeExportPreview";
 import { NativeImportPanel } from "./NativeImportPanel";
 import { NativeLayoutPanel } from "./NativeLayoutPanel";
@@ -30,12 +25,12 @@ import { NativeLegacyUpgrade } from "./NativeLegacyUpgrade";
 import { NativeMaterials } from "./NativeMaterials";
 import { NativePdfPreview } from "./NativePdfPreview";
 import { NativeRecoveryContent } from "./NativeRecoveryContent";
-import { NativePhotoEditor } from "./NativePhotoEditor";
 import { NativeSplit } from "./NativeSplit";
 import { NativeTemplateGallery } from "./NativeTemplateGallery";
-import { NativeText } from "./NativeText";
+import { NativeTextLayoutPanel } from "./NativeTextLayoutPanel";
 import { NativeVersionHistory } from "./NativeVersionHistory";
 import { downloadCurrentPreview } from "./preview-download";
+import { type NativeTextSelection, nativeTextTargets } from "./preview-text-targets";
 import {
   clearNativeRecoveries,
   type NativeRecovery,
@@ -59,6 +54,13 @@ interface SavedPreview {
   artifact: { id: string; state: string };
   anchors: NativeItemAnchor[];
   blob: Blob;
+  pageCount: number;
+  fit?: {
+    level: number;
+    pageCount: number;
+    bodyFontSize: number;
+    overflowItemIds: string[];
+  } | null;
 }
 const message = (error: unknown) =>
   error instanceof Error ? error.message : "操作未完成，输入仍保留。";
@@ -67,8 +69,13 @@ const LegacyEditor = lazy(() =>
 );
 
 export function NativeStudioPage() {
-  const { documentId } = useParams(),
-    navigate = useNavigate();
+  const { documentId } = useParams();
+  // Reset loading, recovery and editor state in the route commit, before passive effects run.
+  return <NativeStudioDocumentPage key={documentId ?? "missing"} documentId={documentId} />;
+}
+
+function NativeStudioDocumentPage({ documentId }: { documentId: string | undefined }) {
+  const navigate = useNavigate();
   const [draft, setDraft] = useState<Draft | null>(null),
     [error, setError] = useState(""),
     [legacy, setLegacy] = useState(false);
@@ -85,6 +92,8 @@ export function NativeStudioPage() {
     if (documentId)
       void apiRequest<Draft>(`/v2/resume-documents/${documentId}/native`)
         .then((value) => {
+          if (value.documentId !== documentId)
+            throw new Error("简历加载结果与当前地址不一致，请重新打开。");
           parseNativeResumeDocument(value.document);
           if (active) {
             try {
@@ -151,12 +160,13 @@ export function NativeStudioPage() {
         </Suspense>
       </>
     );
-  if (draft && recovery)
+  const routeDraft = draft?.documentId === documentId ? draft : null;
+  if (routeDraft && recovery)
     return (
       <section className="native-start">
         <h1>找到了上次未同步的草稿</h1>
         <p>
-          {recovery.baseRevision === draft.revision
+          {recovery.baseRevision === routeDraft.revision
             ? "可以从中断的位置继续编辑。"
             : "服务器版本也有更新，请查看两份内容后选择；恢复本机草稿后会保存为新的修订。"}
         </p>
@@ -170,9 +180,9 @@ export function NativeStudioPage() {
           type="button"
           onClick={() => {
             setDraft({
-              ...draft,
+              ...routeDraft,
               document: recovery.document,
-              title: recovery.title ?? draft.title,
+              title: recovery.title ?? routeDraft.title,
               recovered: true,
             });
             setRecovery(null);
@@ -184,7 +194,7 @@ export function NativeStudioPage() {
           type="button"
           onClick={() => {
             try {
-              const key = nativeRecoveryKey(currentWorkspaceOwnerKey(), draft.documentId);
+              const key = nativeRecoveryKey(currentWorkspaceOwnerKey(), routeDraft.documentId);
               if (key) localStorage.removeItem(key);
             } catch {}
             setRecovery(null);
@@ -193,11 +203,13 @@ export function NativeStudioPage() {
           使用服务器版本
         </button>
         <div style={{ height: "65vh" }}>
-          <NativeRecoveryContent document={inspectLocal ? recovery.document : draft.document} />
+          <NativeRecoveryContent
+            document={inspectLocal ? recovery.document : routeDraft.document}
+          />
         </div>
       </section>
     );
-  if (draft) return <NativeEditor key={draft.documentId} initial={draft} />;
+  if (routeDraft) return <NativeEditor key={routeDraft.documentId} initial={routeDraft} />;
   return (
     <section className="native-start">
       <h1>{error ? "暂时无法打开这份简历" : "正在打开简历…"}</h1>
@@ -213,6 +225,7 @@ export function NativeStudioPage() {
 }
 
 function NativeEditor({ initial }: { initial: Draft }) {
+  const sessionDocumentId = useRef(initial.documentId).current;
   const formRef = useRef<HTMLDivElement>(null);
   const [params, setParams] = useSearchParams();
   const [moreTools, setMoreTools] = useState(false);
@@ -222,11 +235,17 @@ function NativeEditor({ initial }: { initial: Draft }) {
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [layoutOpen, setLayoutOpen] = useState(false);
+  const [textLayoutOpen, setTextLayoutOpen] = useState(false);
+  const [textSelection, setTextSelection] = useState<NativeTextSelection | null>(null);
+  const [textSelectionNotice, setTextSelectionNotice] = useState("");
+  const [focusItem, setFocusItem] = useState<{ id: string; request: number } | null>(null);
   const [importsOpen, setImportsOpen] = useState(() => params.get("tool") === "import");
+  const [initialOriginalId, setInitialOriginalId] = useState(() => params.get("originalId"));
   useEffect(() => {
     if (params.get("tool") !== "import") return;
     const next = new URLSearchParams(params);
     next.delete("tool");
+    next.delete("originalId");
     setParams(next, { replace: true });
   }, [params, setParams]);
   const [importNotice, setImportNotice] = useState("");
@@ -270,7 +289,7 @@ function NativeEditor({ initial }: { initial: Draft }) {
     savedGeneration = useRef(0),
     running = useRef(false),
     alive = useRef(true);
-  const recoveryKey = useRef(nativeRecoveryKey(currentWorkspaceOwnerKey(), initial.documentId));
+  const recoveryKey = useRef(nativeRecoveryKey(currentWorkspaceOwnerKey(), sessionDocumentId));
   const persistRecovery = useCallback(() => {
     if (!alive.current || !recoveryKey.current) return;
     try {
@@ -299,7 +318,7 @@ function NativeEditor({ initial }: { initial: Draft }) {
     title: string;
     key: string;
   } | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     alive.current = true;
     const unsubscribe = subscribeToSessionBoundary(() => {
       alive.current = false;
@@ -314,6 +333,7 @@ function NativeEditor({ initial }: { initial: Draft }) {
     };
   }, [persistRecovery]);
   function edit(key: string, change: (draft: NativeResumeDocument) => void) {
+    if (!alive.current) return;
     const next = structuredClone(current.current);
     change(next);
     if (/^(add|duplicate|insert):/.test(key)) {
@@ -344,6 +364,7 @@ function NativeEditor({ initial }: { initial: Draft }) {
     setStatus("尚未保存");
   }
   function travel(undo: boolean) {
+    if (!alive.current) return;
     const from = undo ? history.current : future.current,
       to = undo ? future.current : history.current;
     const next = from.pop();
@@ -359,6 +380,7 @@ function NativeEditor({ initial }: { initial: Draft }) {
     setStatus("尚未保存");
   }
   async function flush() {
+    if (!alive.current) return;
     if (running.current) {
       await new Promise<void>((resolve) => saveWaiters.current.push(resolve));
       return;
@@ -376,7 +398,7 @@ function NativeEditor({ initial }: { initial: Draft }) {
         };
         retry.current = job;
         setStatus("正在保存…");
-        const saved = await apiRequest<Draft>(`/v2/resume-documents/${initial.documentId}/native`, {
+        const saved = await apiRequest<Draft>(`/v2/resume-documents/${sessionDocumentId}/native`, {
           method: "PUT",
           body: {
             expectedRevision: job.expectedRevision,
@@ -444,14 +466,14 @@ function NativeEditor({ initial }: { initial: Draft }) {
         copyAfterSave.current = false;
         void (async () => {
           const pair = await apiRequest<{ contentRevisionId: string; layoutRevisionId: string }>(
-            `/v2/resume-documents/${initial.documentId}/native/checkpoint`,
+            `/v2/resume-documents/${sessionDocumentId}/native/checkpoint`,
             { method: "POST", body: { expectedRevision: revision.current } },
           );
           const fingerprint = JSON.stringify(pair);
           if (copyRequest.current?.fingerprint !== fingerprint)
             copyRequest.current = { fingerprint, key: createIdempotencyKey() };
           const copied = await apiRequest<Draft>(
-            `/v2/resume-documents/${initial.documentId}/native/copies`,
+            `/v2/resume-documents/${sessionDocumentId}/native/copies`,
             {
               method: "POST",
               body: { ...pair, title: `${currentTitle.current} · 方向稿`.slice(0, 200) },
@@ -473,7 +495,7 @@ function NativeEditor({ initial }: { initial: Draft }) {
         savedGeneration.current === generation.current
       ) {
         checkpointAfterSave.current = false;
-        void apiRequest(`/v2/resume-documents/${initial.documentId}/native/checkpoint`, {
+        void apiRequest(`/v2/resume-documents/${sessionDocumentId}/native/checkpoint`, {
           method: "POST",
           body: { expectedRevision: revision.current },
         })
@@ -516,7 +538,7 @@ function NativeEditor({ initial }: { initial: Draft }) {
       return pending.promise;
     const promise = (async () => {
       const result = await apiRequest<Omit<SavedPreview, "blob">>(
-        `/v2/resume-documents/${initial.documentId}/native/preview`,
+        `/v2/resume-documents/${sessionDocumentId}/native/preview`,
         {
           method: "POST",
           body: { expectedDraftRevision: targetRevision, requestGeneration: targetGeneration },
@@ -549,34 +571,46 @@ function NativeEditor({ initial }: { initial: Draft }) {
   }
   const ensurePreviewRef = useRef(ensurePreview);
   ensurePreviewRef.current = ensurePreview;
-  async function downloadArtifact(id: string) {
+  async function downloadArtifact(id: string, currentFileName?: string) {
+    const expectedGeneration = generation.current;
     const file = await apiDownload(`/v2/resume-exports/${id}/file`);
     if (!alive.current) return;
+    if (generation.current !== expectedGeneration) throw new Error("内容已更新，请下载当前稿。");
     const url = URL.createObjectURL(file.blob),
       link = window.document.createElement("a");
     link.href = url;
-    link.download = file.fileName ?? "Aijob-简历.pdf";
+    link.download = currentFileName ?? file.fileName ?? "Aijob-简历.pdf";
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
   async function exportSaved(savedRevision: number, format: "pdf" | "docx") {
+    const targetGeneration = savedGeneration.current;
     try {
       if (format === "pdf") {
-        const targetGeneration = savedGeneration.current;
         const result = await downloadCurrentPreview(
-          (force) => ensurePreview(savedRevision, targetGeneration, force),
+          async (force) => {
+            const result = await ensurePreview(savedRevision, targetGeneration, force);
+            if (generation.current !== targetGeneration)
+              throw new Error("内容刚刚有更新，请等保存完成后下载当前稿。");
+            if (result.pageCount !== 1)
+              throw new Error(
+                "当前排版超出一页。请调整位置、间距或撤销本次格式修改，恢复单页后再下载。内容已保留。",
+              );
+            return result;
+          },
           downloadArtifact,
+          currentTitle.current,
         );
         if (!alive.current) return;
         setLastExport({ id: result.artifact.id, revision: savedRevision, format });
         return;
       }
       const pair = await apiRequest<{ contentRevisionId: string; layoutRevisionId: string }>(
-        `/v2/resume-documents/${initial.documentId}/native/checkpoint`,
+        `/v2/resume-documents/${sessionDocumentId}/native/checkpoint`,
         { method: "POST", body: { expectedRevision: savedRevision } },
       );
       const artifact = await apiRequest<{ id: string; state: string }>(
-        `/v2/resume-documents/${initial.documentId}/native/exports`,
+        `/v2/resume-documents/${sessionDocumentId}/native/exports`,
         {
           method: "POST",
           body: { ...pair, format },
@@ -585,6 +619,7 @@ function NativeEditor({ initial }: { initial: Draft }) {
       );
       if (!alive.current) return;
       if (artifact.state !== "ready") throw new Error("文件仍在生成，请稍后重试；草稿已保存。");
+      if (generation.current !== targetGeneration) throw new Error("内容已更新，请下载当前稿。");
       setLastExport({ id: artifact.id, revision: savedRevision, format });
       await downloadArtifact(artifact.id);
     } catch (e) {
@@ -639,34 +674,6 @@ function NativeEditor({ initial }: { initial: Draft }) {
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, []);
-  const data = document.data;
-  function add(kind: "education" | "experience") {
-    edit(`add:${crypto.randomUUID()}`, (draft) => {
-      const shared = {
-        id: crypto.randomUUID(),
-        hidden: false,
-        period: "",
-        location: "",
-        website: { url: "", label: "", inlineLink: false },
-        description: "",
-      };
-      if (kind === "education")
-        draft.data.sections.education.items.push({
-          ...shared,
-          school: "",
-          degree: "",
-          area: "",
-          grade: "",
-        });
-      else
-        draft.data.sections.experience.items.push({
-          ...shared,
-          company: "",
-          position: "",
-          roles: [],
-        });
-    });
-  }
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: Delegates undo shortcuts from descendant inputs; the section itself is not a focus target.
     <section
@@ -690,7 +697,7 @@ function NativeEditor({ initial }: { initial: Draft }) {
     >
       <NativeAssistant
         open={assistantOpen}
-        documentId={initial.documentId}
+        documentId={sessionDocumentId}
         caseId={initial.caseId}
         revision={revision.current}
         document={document}
@@ -708,7 +715,7 @@ function NativeEditor({ initial }: { initial: Draft }) {
       />
       {materialsOpen && (
         <NativeMaterials
-          documentId={initial.documentId}
+          documentId={sessionDocumentId}
           document={document}
           edit={edit}
           close={() => setMaterialsOpen(false)}
@@ -716,7 +723,7 @@ function NativeEditor({ initial }: { initial: Draft }) {
       )}
       {historyOpen && (
         <NativeVersionHistory
-          documentId={initial.documentId}
+          documentId={sessionDocumentId}
           close={() => setHistoryOpen(false)}
           restore={(value) =>
             edit(`restore:${crypto.randomUUID()}`, (draft) => Object.assign(draft, value))
@@ -725,7 +732,8 @@ function NativeEditor({ initial }: { initial: Draft }) {
       )}
       {importsOpen && (
         <NativeImportPanel
-          documentId={initial.documentId}
+          documentId={sessionDocumentId}
+          initialOriginalId={initialOriginalId}
           currentDocument={document}
           applyCorrection={(value) =>
             edit(`correction:${crypto.randomUUID()}`, (draft) => Object.assign(draft, value))
@@ -736,7 +744,10 @@ function NativeEditor({ initial }: { initial: Draft }) {
             void flush();
           }}
           revision={revision.current}
-          close={() => setImportsOpen(false)}
+          close={() => {
+            setImportsOpen(false);
+            setInitialOriginalId(null);
+          }}
           apply={(value, savedRevision) => {
             if (savedRevision !== undefined) revision.current = savedRevision;
             edit(`import:${crypto.randomUUID()}`, (draft) => {
@@ -767,12 +778,16 @@ function NativeEditor({ initial }: { initial: Draft }) {
       {templatesOpen && (
         <NativeTemplateGallery
           document={document}
+          documentId={sessionDocumentId}
+          revision={revision.current}
           close={() => setTemplatesOpen(false)}
-          apply={(id) =>
+          apply={(id) => {
+            setTextSelection(null);
+            setTextSelectionNotice("");
             edit(`template:${crypto.randomUUID()}`, (draft) => {
               Object.assign(draft, applyNativeTemplate(draft, id));
-            })
-          }
+            });
+          }}
         />
       )}
       <header className="native-toolbar">
@@ -799,6 +814,7 @@ function NativeEditor({ initial }: { initial: Draft }) {
               value={title}
               maxLength={200}
               onChange={(event) => {
+                if (!alive.current) return;
                 edit("document-title", () => {});
                 currentTitle.current = event.target.value;
                 setTitle(event.target.value);
@@ -838,8 +854,37 @@ function NativeEditor({ initial }: { initial: Draft }) {
           >
             导入简历
           </button>
-          <button type="button" onClick={() => setTemplatesOpen(true)}>
-            更换模板
+          <button
+            type="button"
+            onClick={() => {
+              void flush().then(() => {
+                if (!retry.current && savedGeneration.current === generation.current)
+                  setTemplatesOpen(true);
+              });
+            }}
+          >
+            模板
+          </button>
+          <button
+            type="button"
+            aria-pressed={layoutOpen}
+            onClick={() => {
+              setLayoutOpen(!layoutOpen);
+              setTextLayoutOpen(false);
+            }}
+          >
+            排版
+          </button>
+          <button
+            type="button"
+            aria-pressed={textLayoutOpen}
+            onClick={() => {
+              setTextLayoutOpen(!textLayoutOpen);
+              setLayoutOpen(false);
+              setTab("edit");
+            }}
+          >
+            局部调整
           </button>
           <button
             type="button"
@@ -853,7 +898,7 @@ function NativeEditor({ initial }: { initial: Draft }) {
           <button
             className="native-primary-action"
             type="button"
-            disabled={exporting || !hasNativeResumeContent(document)}
+            disabled={exporting || !hasVisibleNativeResumeContent(document)}
             onClick={() => {
               setExporting(true);
               exportFormat.current = "pdf";
@@ -861,7 +906,7 @@ function NativeEditor({ initial }: { initial: Draft }) {
               void flush();
             }}
           >
-            {exporting ? "正在生成…" : "下载 PDF"}
+            {exporting ? "正在准备…" : "下载单页 PDF"}
           </button>
           <details
             className="native-overflow"
@@ -956,7 +1001,7 @@ function NativeEditor({ initial }: { initial: Draft }) {
               <span>其他格式</span>
               <button
                 type="button"
-                disabled={exporting || !hasNativeResumeContent(document)}
+                disabled={exporting || !hasVisibleNativeResumeContent(document)}
                 onClick={() => {
                   setMoreTools(false);
                   setExporting(true);
@@ -996,9 +1041,15 @@ function NativeEditor({ initial }: { initial: Draft }) {
       {error && (
         <div role="alert" className="native-error">
           {error}
-          <button type="button" onClick={() => void flush()}>
-            重试保存
-          </button>
+          {status === "保存未完成" ? (
+            <button type="button" onClick={() => void flush()}>
+              重试保存
+            </button>
+          ) : (
+            <button type="button" onClick={() => setError("")}>
+              知道了
+            </button>
+          )}
         </div>
       )}
       <nav className="native-tabs" aria-label="编辑或预览">
@@ -1009,287 +1060,63 @@ function NativeEditor({ initial }: { initial: Draft }) {
           预览
         </button>
       </nav>
-      <NativeSplit>
-        <div className="native-form" ref={formRef}>
-          <div className="native-form-nav">
-            <label>
-              定位模块
-              <select
-                aria-label="定位模块"
-                value=""
-                onChange={(event) => {
-                  const heading = [
-                    ...(formRef.current?.querySelectorAll<HTMLHeadingElement>("h2") ?? []),
-                  ].find((item) => item.textContent === event.target.value);
-                  if (heading) {
-                    heading.tabIndex = -1;
-                    heading.focus({ preventScroll: true });
-                    heading.scrollIntoView({ block: "start" });
-                  }
+      {hasVisibleNativeResumeContent(document) && (
+        <output
+          className="native-page-status"
+          data-overflow={preview?.requestGeneration === generation.current && preview.pageCount > 1}
+        >
+          {preview?.requestGeneration !== generation.current ? (
+            <span>{previewError || "正在更新单页预览…"}</span>
+          ) : preview.pageCount === 1 ? (
+            <span>
+              当前排版：1 页 A4
+              {preview.fit && preview.fit.level > 0
+                ? ` · 已自动收紧排版，正文 ${preview.fit.bodyFontSize} pt`
+                : ""}{" "}
+              · 预览与 PDF 下载一致
+            </span>
+          ) : (
+            <>
+              <span>
+                当前 {preview.pageCount} 页 · 请调整位置、间距或撤销本次格式修改；内容已保留
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const id = preview.fit?.overflowItemIds[0];
+                  if (id) setFocusItem({ id, request: Date.now() });
+                  setTab("edit");
                 }}
               >
-                <option value="">选择要编辑的内容</option>
-                {[
-                  ...new Set([
-                    "个人信息",
-                    "教育经历",
-                    "实习与工作经历",
-                    "个人简介",
-                    "科研经历",
-                    ...Object.entries(data.sections)
-                      .filter(([key]) => key !== "education" && key !== "experience")
-                      .map(([, section]) => section.title),
-                    ...data.customSections.map((section) => section.title),
-                  ]),
-                ]
-                  .filter(Boolean)
-                  .map((title) => (
-                    <option key={title} value={title}>
-                      {title}
-                    </option>
-                  ))}
-              </select>
-            </label>
-          </div>
+                定位超页内容
+              </button>
+            </>
+          )}
+        </output>
+      )}
+      <NativeSplit>
+        <div className="native-editor-pane" ref={formRef}>
           {layoutOpen && (
             <NativeLayoutPanel document={document} edit={edit} close={() => setLayoutOpen(false)} />
           )}
-          <section>
-            <header>
-              <h2>个人信息</h2>
-            </header>
-            <NativePhotoEditor document={document} edit={edit} />
-            <div className="native-fields">
-              {(
-                [
-                  ["name", "姓名"],
-                  ["headline", "求职方向"],
-                  ["email", "邮箱"],
-                  ["phone", "电话"],
-                  ["location", "所在城市"],
-                ] as const
-              ).map(([key, label]) => (
-                <Field
-                  key={key}
-                  label={label}
-                  value={data.basics[key]}
-                  change={(value) =>
-                    edit(`basics:${key}`, (draft) => {
-                      draft.data.basics[key] = value;
-                    })
-                  }
-                />
-              ))}
-            </div>
-          </section>
-          <NativeContactLinks document={document} edit={edit} />
-          <section>
-            <header>
-              <h2>教育经历</h2>
-              <button type="button" onClick={() => add("education")}>
-                添加教育
-              </button>
-            </header>
-            {data.sections.education.items.map((item, index) => (
-              <NativeEntry
-                key={item.id}
-                id={item.id}
-                title={item.school || "填写学校与专业"}
-                subtitle={[item.degree, item.area, item.period].filter(Boolean).join(" · ")}
-                hidden={item.hidden}
-                initiallyOpen={index === 0 || !item.school}
-              >
-                <div className="native-fields">
-                  {(
-                    [
-                      ["school", "学校"],
-                      ["degree", "学历"],
-                      ["area", "专业"],
-                      ["period", "就读时间"],
-                      ["location", "城市"],
-                      ["grade", "成绩（选填）"],
-                    ] as const
-                  ).map(([key, label]) => (
-                    <Field
-                      key={key}
-                      label={label}
-                      value={item[key]}
-                      change={(value) =>
-                        edit(`${item.id}:${key}`, (draft) => {
-                          const target = draft.data.sections.education.items.find(
-                            (candidate) => candidate.id === item.id,
-                          );
-                          if (target) target[key] = value;
-                        })
-                      }
-                    />
-                  ))}
-                </div>
-                <NativeEntryExtras document={document} id={item.id} edit={edit} />
-                <NativeText
-                  label="教育补充说明"
-                  value={item.description}
-                  change={(value) =>
-                    edit(`${item.id}:description`, (draft) => {
-                      const target = draft.data.sections.education.items.find(
-                        (candidate) => candidate.id === item.id,
-                      );
-                      if (target) target.description = value;
-                    })
-                  }
-                />
-                <fieldset className="native-item-actions" aria-label="教育条目操作">
-                  {(
-                    [
-                      ["up", "上移"],
-                      ["down", "下移"],
-                      ["duplicate", "复制"],
-                      ["visibility", item.hidden ? "恢复显示" : "隐藏"],
-                      ["delete", "删除"],
-                    ] as const
-                  ).map(([action, label]) => (
-                    <button
-                      key={action}
-                      type="button"
-                      disabled={
-                        action === "up"
-                          ? index === 0
-                          : action === "down"
-                            ? index === data.sections.education.items.length - 1
-                            : false
-                      }
-                      onClick={() =>
-                        edit(`${action}:${item.id}`, (draft) =>
-                          changeNativeItems(
-                            draft.data.sections.education.items,
-                            item.id,
-                            action,
-                            crypto.randomUUID(),
-                          ),
-                        )
-                      }
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </fieldset>
-              </NativeEntry>
-            ))}
-          </section>
-          <section>
-            <header>
-              <h2>实习与工作经历</h2>
-              <button type="button" onClick={() => add("experience")}>
-                添加实习
-              </button>
-            </header>
-            {data.sections.experience.items.map((item, index) => (
-              <NativeEntry
-                key={item.id}
-                id={item.id}
-                title={item.company || "填写一段实习"}
-                subtitle={[item.position, item.period].filter(Boolean).join(" · ")}
-                hidden={item.hidden}
-                initiallyOpen={index === 0 || !item.company}
-              >
-                <div className="native-fields">
-                  {(
-                    [
-                      ["company", "企业／组织"],
-                      ["position", "职位"],
-                      ["period", "起止时间"],
-                      ["location", "城市"],
-                    ] as const
-                  ).map(([key, label]) => (
-                    <Field
-                      key={key}
-                      label={label}
-                      value={item[key]}
-                      change={(value) =>
-                        edit(`${item.id}:${key}`, (draft) => {
-                          const target = draft.data.sections.experience.items.find(
-                            (candidate) => candidate.id === item.id,
-                          );
-                          if (target) target[key] = value;
-                        })
-                      }
-                    />
-                  ))}
-                </div>
-                <NativeEntryExtras document={document} id={item.id} edit={edit} />
-                <NativeText
-                  label="工作内容与成果"
-                  value={item.description}
-                  change={(value) =>
-                    edit(`${item.id}:description`, (draft) => {
-                      const target = draft.data.sections.experience.items.find(
-                        (candidate) => candidate.id === item.id,
-                      );
-                      if (target) target.description = value;
-                    })
-                  }
-                />
-                <NativeExperienceRoles
-                  roles={item.roles}
-                  change={(key, update) =>
-                    edit(`roles:${item.id}:${key}`, (draft) => {
-                      const target = draft.data.sections.experience.items.find(
-                        (entry) => entry.id === item.id,
-                      );
-                      if (target) update(target.roles);
-                    })
-                  }
-                  text={(label, value, change) => (
-                    <NativeText label={label} value={value} change={change} />
-                  )}
-                />
-                <fieldset className="native-item-actions" aria-label="实习条目操作">
-                  {(
-                    [
-                      ["up", "上移"],
-                      ["down", "下移"],
-                      ["duplicate", "复制"],
-                      ["visibility", item.hidden ? "恢复显示" : "隐藏"],
-                      ["delete", "删除"],
-                    ] as const
-                  ).map(([action, label]) => (
-                    <button
-                      key={action}
-                      type="button"
-                      disabled={
-                        action === "up"
-                          ? index === 0
-                          : action === "down"
-                            ? index === data.sections.experience.items.length - 1
-                            : false
-                      }
-                      onClick={() =>
-                        edit(`${action}:${item.id}`, (draft) =>
-                          changeNativeItems(
-                            draft.data.sections.experience.items,
-                            item.id,
-                            action,
-                            crypto.randomUUID(),
-                          ),
-                        )
-                      }
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </fieldset>
-              </NativeEntry>
-            ))}
-          </section>
-          <NativeAdditionalSections
-            document={document}
-            edit={edit}
-            text={(label, value, change) => (
-              <NativeText label={label} value={value} change={change} />
-            )}
-          />
+          {textLayoutOpen ? (
+            <NativeTextLayoutPanel
+              document={document}
+              targets={nativeTextTargets(preview?.anchors ?? [])}
+              selection={textSelection}
+              edit={edit}
+              select={(selection) => {
+                setTextSelection(selection);
+                setTextSelectionNotice("");
+              }}
+              selectionNotice={textSelectionNotice}
+              close={() => setTextLayoutOpen(false)}
+            />
+          ) : (
+            <NativeContentEditor document={document} edit={edit} focusItem={focusItem} />
+          )}
         </div>
-        {!hasNativeResumeContent(document) ? (
+        {!hasVisibleNativeResumeContent(document) ? (
           <section className="native-empty-preview" aria-label="开始准备简历">
             <div className="native-empty-preview__paper" aria-hidden="true">
               <span />
@@ -1372,39 +1199,28 @@ function NativeEditor({ initial }: { initial: Draft }) {
                 : undefined
             }
             onEditItem={(id) => {
+              setTextLayoutOpen(false);
               setTab("edit");
-              requestAnimationFrame(() => {
-                const item = window.document.querySelector<HTMLDetailsElement>(
-                  `[data-native-item="${CSS.escape(id)}"]`,
-                );
-                if (item) {
-                  item.open = true;
-                  item.scrollIntoView({ block: "center" });
-                  item
-                    .querySelector<HTMLElement>("input,[contenteditable=true]")
-                    ?.focus({ preventScroll: true });
-                }
-              });
+              setFocusItem({ id, request: Date.now() });
             }}
+            onEditText={(selection) => {
+              setTextSelection(selection);
+              setTextSelectionNotice("");
+              setTextLayoutOpen(true);
+              setLayoutOpen(false);
+              setTab("edit");
+            }}
+            onTextSelectionRejected={(notice) => {
+              setTextSelection(null);
+              setTextSelectionNotice(notice);
+              setTextLayoutOpen(true);
+              setLayoutOpen(false);
+              setTab("edit");
+            }}
+            activeTextTargetId={textLayoutOpen ? textSelection?.target.targetId : undefined}
           />
         )}
       </NativeSplit>
     </section>
-  );
-}
-function Field({
-  label,
-  value,
-  change,
-}: {
-  label: string;
-  value: string;
-  change: (value: string) => void;
-}) {
-  return (
-    <label>
-      {label}
-      <input value={value} onChange={(event) => change(event.target.value)} />
-    </label>
   );
 }

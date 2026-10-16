@@ -168,6 +168,7 @@ export function NativeMaterials({
   }
   return (
     <dialog
+      aria-label="经历与常用表达"
       ref={dialog}
       className="native-template-dialog native-material-dialog"
       onCancel={(event) => {

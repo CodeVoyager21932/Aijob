@@ -3,6 +3,17 @@ export interface NativeItemAnchor {
   id: string;
   x: number;
   y: number;
+  width?: number;
+  height?: number;
+  kind?: "field" | "text";
+  targetId?: string;
+  text?: string;
+  label?: string;
+  defaultFontSize?: number;
+  alignmentAvailable?: boolean;
+  stale?: boolean;
+  lineBoxes?: { x: number; y: number; width: number; height: number; start: number; end: number }[];
+  field?: "headline" | "email";
 }
 type LayoutNode = {
   type?: string;

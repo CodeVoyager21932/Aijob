@@ -20,6 +20,7 @@ export function NativeExportPreview({
   }, []);
   return (
     <dialog
+      aria-label="实际下载稿"
       ref={dialog}
       className="native-template-dialog native-export-dialog"
       onCancel={(event) => {

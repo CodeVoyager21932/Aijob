@@ -60,9 +60,10 @@ describe("studio read-only projection", () => {
     const document = createNativeResumeDocument();
     const before = JSON.stringify(document.data.basics);
     expect(nativeRendererVersions(applyNativeTemplate(document, "lapis-cn")).rendererVersion).toBe(
-      "native-react-pdf-cn-v11",
+      "native-react-pdf-cn-v12-single-page",
     );
     for (const id of [
+      "studio-campus-cn",
       "studio-clear-cn",
       "studio-compact-cn",
       "studio-main-cn",

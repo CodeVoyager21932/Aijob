@@ -1,86 +1,37 @@
 import type { NativeResumeDocument } from "@aijob/resume-core";
 import { Document, Image, Link, Page, Text, View } from "@aijob/resume-forme/primitives";
-import { HTMLElement, type Node as HtmlNode, parse } from "node-html-parser";
-import type { ReactNode } from "react";
+import { BannerDocument } from "./studio-banner.js";
+import { CampusDocument } from "./studio-campus.js";
+import { CardsDocument } from "./studio-cards.js";
+import { IndexedDocument } from "./studio-indexed.js";
+import { LayeredDocument } from "./studio-layered.js";
 import { type StudioEntry, type StudioSection, studioSections } from "./studio-model.js";
+import { richBlocks } from "./studio-rich-text.js";
+import { SidebarDocument } from "./studio-sidebar.js";
 
-function inline(node: HtmlNode, key: number): ReactNode {
-  if (!(node instanceof HTMLElement)) return node.textContent;
-  const tag = node.tagName.toLowerCase();
-  if (tag === "br") return "\n";
-  const children = node.childNodes.map(inline);
-  if (tag === "a") {
-    const href = node.getAttribute("href") || "";
-    return /^(https?:\/\/|mailto:|tel:)/i.test(href) ? (
-      <Link key={key} src={href} style={{ textDecoration: "underline" }}>
-        {children}
-      </Link>
-    ) : (
-      children
-    );
-  }
-  const style =
-    tag === "strong" || tag === "b"
-      ? { fontWeight: 700 }
-      : tag === "u"
-        ? { textDecoration: "underline" as const }
-        : {};
-  return (
-    <Text key={key} style={style}>
-      {children}
-    </Text>
-  );
-}
-function richBlocks(html: string): ReactNode[][] {
-  const blocks: ReactNode[][] = [];
-  const visit = (nodes: HtmlNode[], depth = 0, orderedStart?: number) => {
-    let ordinal = orderedStart;
-    let run: HtmlNode[] = [];
-    const flush = () => {
-      if (run.some((n) => n.textContent.trim())) blocks.push(run.map(inline));
-      run = [];
-    };
-    for (const node of nodes) {
-      const tag = node instanceof HTMLElement ? node.tagName.toLowerCase() : "";
-      if (["p", "div", "blockquote", "ul", "ol", "li"].includes(tag)) {
-        flush();
-        if (tag === "li") {
-          const child = node.childNodes.filter(
-            (n) => !(n instanceof HTMLElement) || !["UL", "OL"].includes(n.tagName),
-          );
-          if (child.some((n) => n.textContent.trim()))
-            blocks.push([
-              `${"  ".repeat(depth)}${ordinal === undefined ? "•" : `${ordinal++}.`} `,
-              ...child.map(inline),
-            ]);
-          const lists = node.childNodes.filter(
-            (n) => n instanceof HTMLElement && ["UL", "OL"].includes(n.tagName),
-          );
-          visit(lists, depth + 1);
-        } else
-          visit(
-            node.childNodes,
-            depth,
-            tag === "ol" ? Number((node as HTMLElement).getAttribute("start")) || 1 : undefined,
-          );
-      } else run.push(node);
-    }
-    flush();
-  };
-  visit(parse(html).childNodes);
-  return blocks;
-}
 const safeLink = (url: string) => /^(https?:\/\/|mailto:|tel:)/i.test(url);
 const nodeKey = (sectionId: string, itemId?: string) =>
   `page-1/region-main/section-${encodeURIComponent(sectionId)}${itemId ? `/section-items/item-${encodeURIComponent(itemId)}` : ""}`;
 
 export function StudioDocument({ document }: { document: NativeResumeDocument }) {
+  if (document.presentation?.id === "studio-campus-cn")
+    return <CampusDocument document={document} />;
+  if (document.presentation?.id === "studio-banner-cn")
+    return <BannerDocument document={document} />;
+  if (document.presentation?.id === "studio-sidebar-cn")
+    return <SidebarDocument document={document} />;
+  if (document.presentation?.id === "studio-index-cn")
+    return <IndexedDocument document={document} />;
+  if (document.presentation?.id === "studio-layered-cn")
+    return <LayeredDocument document={document} />;
+  if (document.presentation?.id === "studio-cards-cn") return <CardsDocument document={document} />;
   const { data, presentation } = document;
   const id = presentation?.id;
   const compact = id === "studio-compact-cn",
     twoColumns = id === "studio-main-cn";
   const research = id === "studio-research-cn";
   const body = data.metadata.typography.body;
+  const tight = (data.metadata.page.sectionGap ?? 14) <= 8;
   const contentWidth = 595.28 - data.metadata.page.marginX * 2;
   const columnGap = data.metadata.page.gapX;
   const sideWidth = ((contentWidth - columnGap) * data.metadata.layout.sidebarWidth) / 100;
@@ -120,7 +71,7 @@ export function StudioDocument({ document }: { document: NativeResumeDocument })
         )}
         {blocks.map((block, index) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: a disposable PDF render has no persistent component state.
-          <Text key={index} orphans={2} widows={2} style={{ marginTop: 2 }}>
+          <Text key={index} orphans={2} widows={2} style={{ marginTop: tight ? 1 : 2 }}>
             {block}
           </Text>
         ))}
@@ -156,7 +107,7 @@ export function StudioDocument({ document }: { document: NativeResumeDocument })
             borderBottomWidth: research ? 0.5 : 1,
             borderBottomColor: color,
             paddingBottom: 3,
-            marginBottom: compact ? 4 : 7,
+            marginBottom: tight ? 3 : compact ? 4 : 7,
           }}
         >
           {research ? `${String(number + 1).padStart(2, "0")}  ` : ""}

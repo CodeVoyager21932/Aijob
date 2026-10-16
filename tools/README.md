@@ -7,6 +7,7 @@
 | `local-workspace.mjs` | Windows 当前工作区状态/启动/停止；复用现有配置与登记容器，只补缺少的服务，不初始化/迁移库。停止只作用于本入口记录的进程 |
 | `resume-native/regression-inputs.mjs` | 读取并校验本机固定输入清单，无解析、浏览器或网络副作用 |
 | `resume-native/audit-upgrade-imports.mjs` | 八份既有材料的字段回归；需要当前 platform/resume-core 构建，私有结果写新 `.data/runs/resume-import-fields/`；不写业务库 |
+| `resume-native/coverage-fixtures.mts` / `verify-coverage.mts` | 六类显式虚构的专业/经历量材料，通过实际 renderer 生成现有六套 PDF，逐份检查 A4 一页、全文、越界及源对象不变；可用 `--fixtures` / `--templates` 限定，`--out` 指向独立运行目录，`--rasterizer` 指向已安装的 `pdftoppm` 输出整页 PNG。无数据库读写，不替代整页目视与用户评价 |
 | `resume-native/browser-system-upgrade.mjs` | DOCX 导入、编辑、预览、立即下载与重开；只用于已配置的隔离测试服务，会创建测试资料 |
 | `resume-native/browser-opportunity-journey.mjs` | 复杂 PDF、方向结果、岗位准备及实际投递稿；用配套 seed 和隔离 PG，不能指向业务服务 |
 | `resume-native/browser-import-smoke.mjs` / `browser-public-pdf-smoke.mjs` / `browser-import-check.py` | 按需缩小到 DOCX 或 PDF 导入问题，默认隔离 5194；与上面完整旅程按问题择一，不重复跑 |

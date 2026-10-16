@@ -2,10 +2,50 @@ import { describe, expect, it } from "vitest";
 import { importNativeChineseBlocks, nativeTextBlocks, parseNativeResumeDocument } from "./index.js";
 
 describe("Chinese native import draft", () => {
+  it("joins PDF sentence continuations inside a bullet while keeping source bindings and real paragraphs", () => {
+    const blocks = nativeTextBlocks(
+      "项目经历\n研究项目 2025.01—2025.03\n• 根据访谈记录梳理用户的\n需求，形成方案。\n• 汇总测试结果。\n另附方法说明。",
+    ).map((block, index) => ({
+      ...block,
+      source: {
+        kind: "pdf" as const,
+        page: 1,
+        column: 0,
+        x: 50,
+        y: 100 + index * 14,
+        width: 400,
+        height: 10,
+        fontSize: 10,
+      },
+    }));
+    const before = structuredClone(blocks);
+    const result = importNativeChineseBlocks(blocks, "continuation");
+    const item = result.document.data.sections.projects.items[0];
+    expect(item?.description).toBe(
+      "<ul><li>根据访谈记录梳理用户的需求，形成方案。</li><li>汇总测试结果。</li></ul><p>另附方法说明。</p>",
+    );
+    expect(
+      result.mappings
+        .filter((mapping) => mapping.itemId === item?.id && mapping.field === "description")
+        .map((mapping) => mapping.blockId),
+    ).toEqual(blocks.slice(2).map((block) => block.id));
+    expect(blocks).toEqual(before);
+    const text = importNativeChineseBlocks(
+      nativeTextBlocks("项目经历\n研究项目\n第一段尚未结束\n第二段独立写作"),
+      "manual-text",
+    );
+    expect(text.document.data.sections.projects.items[0]?.description).toBe(
+      "<p>第一段尚未结束</p><p>第二段独立写作</p>",
+    );
+  });
+
   it("recognizes common Chinese section aliases and keeps their entries separate", () => {
-    const result = importNativeChineseBlocks(nativeTextBlocks(
-      "周乐\n手机：13900139001 邮箱：zhoule@example.com\n教育情况\n西南大学 硕士 新闻学 2023.09—2026.06\n实习经验\n山海文化有限公司 内容运营实习生 2025.03—2025.07\n• 策划三期专题。\n项目成果\n校园读书节 2024.09—2024.12\n• 组织现场活动。\n技能清单\nExcel：整理活动反馈。",
-    ), "aliases");
+    const result = importNativeChineseBlocks(
+      nativeTextBlocks(
+        "周乐\n手机：13900139001 邮箱：zhoule@example.com\n教育情况\n西南大学 硕士 新闻学 2023.09—2026.06\n实习经验\n山海文化有限公司 内容运营实习生 2025.03—2025.07\n• 策划三期专题。\n项目成果\n校园读书节 2024.09—2024.12\n• 组织现场活动。\n技能清单\nExcel：整理活动反馈。",
+      ),
+      "aliases",
+    );
     expect(result.document.data.sections.education.items[0]?.school).toBe("西南大学");
     expect(result.document.data.sections.experience.items[0]?.company).toBe("山海文化有限公司");
     expect(result.document.data.sections.projects.items[0]?.name).toContain("校园读书节");
@@ -14,21 +54,29 @@ describe("Chinese native import draft", () => {
   });
   it("keeps an undated 项目成果 subheading with its existing experience", () => {
     for (const title of ["项目成果", "Ÿ 项目成果"]) {
-      const result = importNativeChineseBlocks(nativeTextBlocks(
-        `工作经历\n示例科技有限公司 2024.03—2024.08\n${title}\n• 交付访谈总结。`,
-      ), "outcome-subheading");
+      const result = importNativeChineseBlocks(
+        nativeTextBlocks(`工作经历\n示例科技有限公司 2024.03—2024.08\n${title}\n• 交付访谈总结。`),
+        "outcome-subheading",
+      );
       expect(result.document.data.sections.experience.items).toHaveLength(1);
-      expect(result.document.data.sections.experience.items[0]?.description).toContain("交付访谈总结");
+      expect(result.document.data.sections.experience.items[0]?.description).toContain(
+        "交付访谈总结",
+      );
       expect(result.document.data.sections.projects.items).toHaveLength(0);
     }
   });
   it("recognizes numbered section headings without mistaking a prose mention for a heading", () => {
-    const result = importNativeChineseBlocks(nativeTextBlocks(
-      "一、教育背景\n示例大学 本科 2022.09—2026.06\n二、项目经历\n访谈项目 2024.09—2024.12\n• 项目成果是访谈报告。",
-    ), "numbered");
+    const result = importNativeChineseBlocks(
+      nativeTextBlocks(
+        "一、教育背景\n示例大学 本科 2022.09—2026.06\n二、项目经历\n访谈项目 2024.09—2024.12\n• 项目成果是访谈报告。",
+      ),
+      "numbered",
+    );
     expect(result.document.data.sections.education.items).toHaveLength(1);
     expect(result.document.data.sections.projects.items).toHaveLength(1);
-    expect(result.document.data.sections.projects.items[0]?.description).toContain("项目成果是访谈报告");
+    expect(result.document.data.sections.projects.items[0]?.description).toContain(
+      "项目成果是访谈报告",
+    );
   });
   it("joins a Chinese skill soft-wrap using PDF geometry without inserting punctuation", () => {
     const blocks = nativeTextBlocks(
@@ -67,7 +115,7 @@ describe("Chinese native import draft", () => {
         "alias",
       );
       expect(parsed.document.data.basics.name).toBe(name);
-      expect(parsed.parserVersion).toBe("native-cn-v9");
+      expect(parsed.parserVersion).toBe("native-cn-v10");
     }
     for (const label of ["2026 校园招聘", "求职简历12", "作品编号123"]) {
       const parsed = importNativeChineseBlocks(
@@ -192,7 +240,8 @@ SQL：统计用户留存`);
 2023.08—2023.10 项目助理
 北辰基金会
 • 整理志愿者记录。`);
-    const entries = importNativeChineseBlocks(blocks, "noncorporate").document.data.sections.experience.items;
+    const entries = importNativeChineseBlocks(blocks, "noncorporate").document.data.sections
+      .experience.items;
     expect(entries).toHaveLength(3);
     expect(entries[0]).toMatchObject({ company: "江南律师事务所", position: "法务实习生" });
     expect(entries[0]?.description).toContain("合同条款");
@@ -207,9 +256,14 @@ SQL：统计用户留存`);
 • 编排活动日历。
 法务实习生 青木律师事务所 2024.06—2024.09
 • 整理诉讼材料。`);
-    const entries = importNativeChineseBlocks(blocks, "role-first").document.data.sections.experience.items;
+    const entries = importNativeChineseBlocks(blocks, "role-first").document.data.sections
+      .experience.items;
     expect(entries).toHaveLength(2);
-    expect(entries[0]).toMatchObject({ company: "星河科技", position: "运营实习生", location: "杭州" });
+    expect(entries[0]).toMatchObject({
+      company: "星河科技",
+      position: "运营实习生",
+      location: "杭州",
+    });
     expect(entries[0]?.description).toContain("活动日历");
     expect(entries[1]).toMatchObject({ company: "青木律师事务所", position: "法务实习生" });
     expect(entries[1]?.description).toContain("诉讼材料");

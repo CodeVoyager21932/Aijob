@@ -1,5 +1,11 @@
 /** Persist these on artifacts, never in the upstream resume content schema. */
 export const studioTemplateIds = new Set([
+  "studio-campus-cn",
+  "studio-banner-cn",
+  "studio-index-cn",
+  "studio-sidebar-cn",
+  "studio-layered-cn",
+  "studio-cards-cn",
   "studio-clear-cn",
   "studio-compact-cn",
   "studio-main-cn",
@@ -12,12 +18,12 @@ export function isStudioTemplate(input: unknown): boolean {
 export function nativeRendererVersions(input: unknown) {
   return isStudioTemplate(input)
     ? {
-        rendererVersion: "rr6-0c6e75e-forme-0.28-aijob-2",
+        rendererVersion: "rr6-0c6e75e-forme-0.28-aijob-12-text-layout",
         fontSetVersion: "aijob-studio-ttf-v1",
         manifestVersion: "native-fields-links-v3",
       }
     : {
-        rendererVersion: "native-react-pdf-cn-v11",
+        rendererVersion: "native-react-pdf-cn-v12-single-page",
         fontSetVersion: "aijob-v3-local",
         manifestVersion: "native-fields-links-v3",
       };

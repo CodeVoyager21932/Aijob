@@ -37,7 +37,13 @@ import "../product-core.css";
 import "../direction-graph.css";
 
 const pct = (n: number) => `${Math.round(n * 100)}%`;
-const recruitmentLabel: Record<string, string> = { internship: '实习', campus: '校招', new_grad: '应届', management_trainee: '管培', unknown: '未说明' };
+const recruitmentLabel: Record<string, string> = {
+  internship: "实习",
+  campus: "校招",
+  new_grad: "应届",
+  management_trainee: "管培",
+  unknown: "未说明",
+};
 function scopeFrom(value: string | null) {
   try {
     return JobGraphScopeSchema.parse(JSON.parse(value ?? "{}"));
@@ -398,11 +404,35 @@ function Comparison({
     },
     {
       name: `${label(a)}更常出现的内容`,
-      rows: rows.filter((r) => r.a?.jobCount && r.a.mentionRate > (r.b?.mentionRate ?? 0) && r.a.kind !== "qualification").sort((x,y) => ((y.a?.mentionRate ?? 0)-(y.b?.mentionRate ?? 0))-((x.a?.mentionRate ?? 0)-(x.b?.mentionRate ?? 0))),
+      rows: rows
+        .filter(
+          (r) =>
+            r.a?.jobCount &&
+            r.a.mentionRate > (r.b?.mentionRate ?? 0) &&
+            r.a.kind !== "qualification",
+        )
+        .sort(
+          (x, y) =>
+            (y.a?.mentionRate ?? 0) -
+            (y.b?.mentionRate ?? 0) -
+            ((x.a?.mentionRate ?? 0) - (x.b?.mentionRate ?? 0)),
+        ),
     },
     {
       name: `${label(b)}更常出现的内容`,
-      rows: rows.filter((r) => r.b?.jobCount && r.b.mentionRate > (r.a?.mentionRate ?? 0) && r.b.kind !== "qualification").sort((x,y) => ((y.b?.mentionRate ?? 0)-(y.a?.mentionRate ?? 0))-((x.b?.mentionRate ?? 0)-(x.a?.mentionRate ?? 0))),
+      rows: rows
+        .filter(
+          (r) =>
+            r.b?.jobCount &&
+            r.b.mentionRate > (r.a?.mentionRate ?? 0) &&
+            r.b.kind !== "qualification",
+        )
+        .sort(
+          (x, y) =>
+            (y.b?.mentionRate ?? 0) -
+            (y.a?.mentionRate ?? 0) -
+            ((x.b?.mentionRate ?? 0) - (x.a?.mentionRate ?? 0)),
+        ),
     },
     { name: "申请条件差异", rows: rows.filter((r) => (r.a ?? r.b)?.kind === "qualification") },
   ];
@@ -411,12 +441,20 @@ function Comparison({
       <div className="dg-compare-samples">
         <section>
           <h2>{label(a)}</h2>
-          <p>{a.cities.join('、') || '全部城市'} · {a.recruitmentTypes.map(t => recruitmentLabel[t] ?? t).join('、') || '全部类型'} · {a.educationLevels.join('、') || '全部学历'} · {a.batch || '全部批次'}</p>
+          <p>
+            {a.cities.join("、") || "全部城市"} ·{" "}
+            {a.recruitmentTypes.map((t) => recruitmentLabel[t] ?? t).join("、") || "全部类型"} ·{" "}
+            {a.educationLevels.join("、") || "全部学历"} · {a.batch || "全部批次"}
+          </p>
           <Sample data={left.data} />
         </section>
         <section>
           <h2>{label(b)}</h2>
-          <p>{b.cities.join('、') || '全部城市'} · {b.recruitmentTypes.map(t => recruitmentLabel[t] ?? t).join('、') || '全部类型'} · {b.educationLevels.join('、') || '全部学历'} · {b.batch || '全部批次'}</p>
+          <p>
+            {b.cities.join("、") || "全部城市"} ·{" "}
+            {b.recruitmentTypes.map((t) => recruitmentLabel[t] ?? t).join("、") || "全部类型"} ·{" "}
+            {b.educationLevels.join("、") || "全部学历"} · {b.batch || "全部批次"}
+          </p>
           <Sample data={right.data} />
         </section>
       </div>
@@ -485,8 +523,18 @@ function Evidence({
   });
   const match = useMutation({ mutationFn: () => compareExperienceV2(scope, dataset, item.key) });
   const [showLibrary, setShowLibrary] = useState(false);
-  const library = useQuery({ queryKey: ['career-os', 'experiences'], queryFn: getExperiences, enabled: showLibrary });
-  const candidates = showLibrary ? library.data?.items.map(c => ({ experienceId: c.id, title: c.title, statement: resumeRichPlain(c.entry.body) })) : match.data?.candidates;
+  const library = useQuery({
+    queryKey: ["career-os", "experiences"],
+    queryFn: getExperiences,
+    enabled: showLibrary,
+  });
+  const candidates = showLibrary
+    ? library.data?.items.map((c) => ({
+        experienceId: c.id,
+        title: c.title,
+        statement: resumeRichPlain(c.entry.body),
+      }))
+    : match.data?.candidates;
   const resume = useMutation({
     mutationFn: () => createStudio({ title: `${label(scope)} · 方向简历`, experienceIds: ids }),
     onSuccess: (draft) => {
@@ -519,15 +567,27 @@ function Evidence({
         <button
           type="button"
           className="career-button"
-          onClick={() => { setShowLibrary(false); match.mutate(); }}
+          onClick={() => {
+            setShowLibrary(false);
+            match.mutate();
+          }}
           disabled={match.isPending}
         >
           {match.isPending ? "正在查看…" : "查看我的相关经历"}
         </button>
-        <button type="button" className="career-button" onClick={() => setShowLibrary(true)}>从全部经历选择</button>
+        <button type="button" className="career-button" onClick={() => setShowLibrary(true)}>
+          从全部经历选择
+        </button>
         {showLibrary && <p>由你选择相关的完整经历，不以系统识别结果限制取用。</p>}
         {showLibrary && library.isPending && <output>正在读取经历…</output>}
-        {showLibrary && library.isError && <p role="alert">暂时无法读取经历。<button type="button" onClick={() => void library.refetch()}>重试</button></p>}
+        {showLibrary && library.isError && (
+          <p role="alert">
+            暂时无法读取经历。
+            <button type="button" onClick={() => void library.refetch()}>
+              重试
+            </button>
+          </p>
+        )}
         {match.isError && <p role="alert">暂时无法读取经历，可以稍后重试。</p>}
         {candidates?.map(
           (c) =>
@@ -755,7 +815,7 @@ export function DirectionGraphPage() {
             保存这组筛选
           </button>
         )}
-        <Link to="/planner">我的准备清单</Link>
+        <Link to="/applications/planner">我的准备清单</Link>
       </div>
       {params.get("migrated") && (
         <output>旧链接中的子方向已调整，下面显示当前可用的方向范围。</output>

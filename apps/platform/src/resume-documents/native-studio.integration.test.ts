@@ -11,8 +11,12 @@ import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { deleteResumeDocument } from "../career-assets/deletion-service.js";
 import { createAnonymousSession } from "../identity/session-repository.js";
-import { deleteResumeExport, downloadResumeExport, listResumeExports, purgeExpiredPreviewArtifacts } from "./export-artifacts.js";
-import { createNativePreview } from "./native-preview.js";
+import {
+  deleteResumeExport,
+  downloadResumeExport,
+  listResumeExports,
+  purgeExpiredPreviewArtifacts,
+} from "./export-artifacts.js";
 import { createMaterialSnippet } from "./material-snippets.js";
 import {
   checkpointNativeDraft,
@@ -26,6 +30,7 @@ import {
 } from "./native-experiences.js";
 import { createNativeExport } from "./native-export.js";
 import { resolveNativePhoto } from "./native-photo.js";
+import { createNativePreview } from "./native-preview.js";
 import {
   createNativeStudioDraft,
   getNativeStudioDraft,
@@ -53,32 +58,121 @@ const url = process.env.AIJOB_TEST_DATABASE_URL;
   beforeAll(() => migrateToLatest(db), 120000);
   afterAll(() => db.destroy());
   it("pairs the current PDF preview, retains downloaded bytes, and expires only disposable previews", async () => {
-    const owner = (await createAnonymousSession({db})).context;
-    let draft = await createNativeStudioDraft(db,owner,"当前预览夹具",randomUUID());
+    const owner = (await createAnonymousSession({ db })).context;
+    let draft = await createNativeStudioDraft(db, owner, "当前预览夹具", randomUUID());
     draft.document.data.basics.name = "预览同学";
-    draft = await saveNativeStudioDraft(db,owner,draft.documentId,{expectedRevision:draft.revision,title:draft.title,document:draft.document},randomUUID());
-    const input = {db,owner,documentId:draft.documentId,expectedDraftRevision:draft.revision,requestGeneration:4,idempotencyKey:randomUUID(),encryptionKey:"a".repeat(64)};
+    draft = await saveNativeStudioDraft(
+      db,
+      owner,
+      draft.documentId,
+      { expectedRevision: draft.revision, title: draft.title, document: draft.document },
+      randomUUID(),
+    );
+    const input = {
+      db,
+      owner,
+      documentId: draft.documentId,
+      expectedDraftRevision: draft.revision,
+      requestGeneration: 4,
+      idempotencyKey: randomUUID(),
+      encryptionKey: "a".repeat(64),
+    };
     const preview = await createNativePreview(input);
     expect(preview.artifact.state).toBe("ready");
     expect(preview.requestGeneration).toBe(4);
-    expect((await listNativeSnapshots(db,owner,draft.documentId)).items).toHaveLength(0);
-    expect((await listResumeExports(db,owner,draft.documentId)).items).toHaveLength(0);
-    const screen = await downloadResumeExport(db,owner,preview.artifact.id,input.encryptionKey,{preview:true});
-    const download = await downloadResumeExport(db,owner,preview.artifact.id,input.encryptionKey);
+    expect(preview.pageCount).toBe(1);
+    const candidate = await createNativePreview({
+      ...input,
+      templateId: "studio-compact-cn",
+      idempotencyKey: randomUUID(),
+    });
+    expect(candidate.artifact.id).not.toBe(preview.artifact.id);
+    expect(candidate.pageCount).toBe(1);
+    await expect(
+      createNativePreview({ ...input, templateId: "studio-compact-cn" }),
+    ).rejects.toMatchObject({ code: "IDEMPOTENCY_KEY_REUSED" });
+    expect((await getNativeStudioDraft(db, owner, draft.documentId)).document).toEqual(
+      draft.document,
+    );
+
+    expect((await listNativeSnapshots(db, owner, draft.documentId)).items).toHaveLength(0);
+    expect((await listResumeExports(db, owner, draft.documentId)).items).toHaveLength(0);
+    const screen = await downloadResumeExport(db, owner, preview.artifact.id, input.encryptionKey, {
+      preview: true,
+    });
+    const download = await downloadResumeExport(
+      db,
+      owner,
+      preview.artifact.id,
+      input.encryptionKey,
+    );
     expect(download.buffer.equals(screen.buffer)).toBe(true);
-    expect((await listNativeSnapshots(db,owner,draft.documentId)).items).toHaveLength(1);
-    expect((await listResumeExports(db,owner,draft.documentId)).items[0]?.id).toBe(preview.artifact.id);
+    expect((await listNativeSnapshots(db, owner, draft.documentId)).items).toHaveLength(1);
+    expect((await listResumeExports(db, owner, draft.documentId)).items[0]?.id).toBe(
+      preview.artifact.id,
+    );
     draft.document.data.basics.name = "修改后的当前正文";
-    draft = await saveNativeStudioDraft(db,owner,draft.documentId,{expectedRevision:draft.revision,title:draft.title,document:draft.document},randomUUID());
-    await expect(createNativePreview({...input,idempotencyKey:randomUUID()})).rejects.toMatchObject({code:"RESUME_DRAFT_CONFLICT"});
-    const later = await createNativePreview({...input,expectedDraftRevision:draft.revision,requestGeneration:5,idempotencyKey:randomUUID()});
+    draft = await saveNativeStudioDraft(
+      db,
+      owner,
+      draft.documentId,
+      { expectedRevision: draft.revision, title: draft.title, document: draft.document },
+      randomUUID(),
+    );
+    await expect(
+      createNativePreview({ ...input, idempotencyKey: randomUUID() }),
+    ).rejects.toMatchObject({ code: "RESUME_DRAFT_CONFLICT" });
+    const later = await createNativePreview({
+      ...input,
+      expectedDraftRevision: draft.revision,
+      requestGeneration: 5,
+      idempotencyKey: randomUUID(),
+    });
     expect(later.artifact.id).not.toBe(preview.artifact.id);
-    await sql`UPDATE profile.resume_export_artifacts SET expires_at=now()-interval '1 hour' WHERE id IN (${preview.artifact.id},${later.artifact.id})`.execute(db);
+    await sql`UPDATE profile.resume_export_artifacts SET expires_at=now()-interval '1 hour' WHERE id IN (${preview.artifact.id},${later.artifact.id})`.execute(
+      db,
+    );
     await purgeExpiredPreviewArtifacts(db);
-    await expect(downloadResumeExport(db,owner,later.artifact.id,input.encryptionKey,{preview:true})).rejects.toMatchObject({statusCode:404});
-    expect((await downloadResumeExport(db,owner,preview.artifact.id,input.encryptionKey)).sha256).toBe(download.sha256);
-    expect((await loadNativeSnapshot(db,owner,draft.documentId,later)).document.data.basics.name).toBe("修改后的当前正文");
-  },60000);
+    await expect(
+      downloadResumeExport(db, owner, later.artifact.id, input.encryptionKey, { preview: true }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    expect(
+      (await downloadResumeExport(db, owner, preview.artifact.id, input.encryptionKey)).sha256,
+    ).toBe(download.sha256);
+    expect(
+      (await loadNativeSnapshot(db, owner, draft.documentId, later)).document.data.basics.name,
+    ).toBe("修改后的当前正文");
+    draft.document.data.summary.content = Array.from(
+      { length: 100 },
+      (_, index) =>
+        `<p>第 ${index + 1} 条经历：整理校园用户访谈记录，归纳首次使用问题，完成原型验证并记录用户反馈和后续改进。</p>`,
+    ).join("");
+    draft = await saveNativeStudioDraft(
+      db,
+      owner,
+      draft.documentId,
+      { expectedRevision: draft.revision, title: draft.title, document: draft.document },
+      randomUUID(),
+    );
+    const overflow = await createNativePreview({
+      ...input,
+      expectedDraftRevision: draft.revision,
+      requestGeneration: 6,
+      idempotencyKey: randomUUID(),
+    });
+    expect(overflow.pageCount).toBeGreaterThan(1);
+    expect((overflow.fit as { bodyFontSize?: number })?.bodyFontSize).toBe(9.5);
+    expect(
+      (
+        await downloadResumeExport(db, owner, overflow.artifact.id, input.encryptionKey, {
+          preview: true,
+        })
+      ).buffer.length,
+    ).toBeGreaterThan(0);
+    await expect(
+      downloadResumeExport(db, owner, overflow.artifact.id, input.encryptionKey),
+    ).rejects.toMatchObject({ code: "NATIVE_SINGLE_PAGE_OVERFLOW" });
+  }, 60000);
   it("creates from native originals atomically and preserves idempotency and owner isolation", async () => {
     const owner = (await createAnonymousSession({ db })).context;
     let source = await createNativeStudioDraft(db, owner, "经历来源", randomUUID());
@@ -148,7 +242,9 @@ const url = process.env.AIJOB_TEST_DATABASE_URL;
       stranger = await owner();
     const draft = await createNativeStudioDraft(db, scope, "模板偏好", randomUUID());
     const initial = await nativeTemplatePreferences(db, scope);
-    expect(initial.items.find((item) => item.templateId === "studio-clear-cn")?.lastUsedAt).toBeTruthy();
+    expect(
+      initial.items.find((item) => item.templateId === "studio-campus-cn")?.lastUsedAt,
+    ).toBeTruthy();
     const key = randomUUID();
     const input = { templateId: "onyx-cn", favorite: true, expectedRevision: 0 };
     const result = await setNativeTemplatePreference(db, scope, input, key);

@@ -1,12 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getSessionStatus } from "../../api/client";
 import {
   getWorkspaceBreadcrumbs,
   isDeletionReceiptRoute,
   workspaceAuxiliaryNavigation,
   workspaceNavigation,
+  workspaceSearchAliases,
 } from "../navigation";
 import { Icon } from "./Icon";
 import { ModalSurface } from "./ModalSurface";
@@ -17,10 +18,12 @@ interface UtilityBarProps {
 
 export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const breadcrumbs = getWorkspaceBreadcrumbs(location.pathname);
   const deletionReceiptOnly = isDeletionReceiptRoute(location.pathname);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [activeResult, setActiveResult] = useState(0);
   const [utilityPopover, setUtilityPopover] = useState<"account" | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const sessionQuery = useQuery({
@@ -43,7 +46,8 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        if (!document.querySelector("#career-overlay-root [role='dialog']")) openSearch();
+        if (!document.querySelector("dialog[open], #career-overlay-root [role='dialog']"))
+          openSearch();
       }
       if (event.key === "Escape" && !searchOpen) setUtilityPopover(null);
     };
@@ -53,13 +57,16 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
 
   useEffect(() => {
     if (searchOpen) setQuery("");
+    setActiveResult(0);
   }, [searchOpen]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const navigationResults = useMemo(
     () =>
       [...workspaceNavigation, ...workspaceAuxiliaryNavigation].filter((item) =>
-        item.label.toLowerCase().includes(normalizedQuery),
+        `${item.label} ${workspaceSearchAliases[item.to] ?? ""}`
+          .toLowerCase()
+          .includes(normalizedQuery),
       ),
     [normalizedQuery],
   );
@@ -85,7 +92,7 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
           : sessionQuery.data.owner.retentionMode === "account_managed"
             ? "职业资产由已验证账号长期管理。"
             : sessionQuery.data.owner.retentionMode === "persistent_guest"
-              ? "资料保留至你主动删除，绑定邮箱后可跨设备找回。"
+              ? "资料保留至你主动删除。当前浏览器会自动续接，也可用恢复文件找回。"
               : "旧版临时资料仍按原有期限管理。";
 
   return (
@@ -119,11 +126,11 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
             data-command-search-trigger
             className="career-command-trigger"
             type="button"
-            aria-label="搜索工作区页面"
+            aria-label="快速打开页面或任务"
             onClick={openSearch}
           >
             <Icon name="search" size={18} />
-            <span>搜索工作区页面</span>
+            <span>快速打开…</span>
             <kbd>Ctrl K</kbd>
           </button>
           <Link
@@ -174,16 +181,41 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
           returnFocus={() => document.querySelector<HTMLElement>("[data-command-search-trigger]")}
         >
           <h2 className="sr-only" id="career-command-title">
-            全局搜索
+            快速打开页面或任务
           </h2>
           <label>
             <Icon name="search" />
             <input
               ref={inputRef}
               type="search"
+              aria-label="搜索页面或任务"
               value={query}
-              placeholder="搜索工作区页面"
-              onChange={(event) => setQuery(event.target.value)}
+              placeholder="找岗位、上传简历、API 配置…"
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setActiveResult(0);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                  event.preventDefault();
+                  setActiveResult((value) =>
+                    Math.max(
+                      0,
+                      Math.min(
+                        navigationResults.length - 1,
+                        value + (event.key === "ArrowDown" ? 1 : -1),
+                      ),
+                    ),
+                  );
+                } else if (event.key === "Enter") {
+                  const result = navigationResults[activeResult];
+                  if (result) {
+                    event.preventDefault();
+                    closeSearch();
+                    navigate(result.to);
+                  }
+                }
+              }}
             />
             <kbd>Esc</kbd>
           </label>
@@ -191,8 +223,13 @@ export function UtilityBar({ onOpenMobileNavigation }: UtilityBarProps) {
             {navigationResults.length > 0 ? (
               <div>
                 <p>页面</p>
-                {navigationResults.map((item) => (
-                  <Link key={item.to} to={item.to} onClick={closeSearch}>
+                {navigationResults.map((item, index) => (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    data-highlighted={index === activeResult}
+                    onClick={closeSearch}
+                  >
                     <Icon name={item.icon} />
                     <span>{item.label}</span>
                   </Link>

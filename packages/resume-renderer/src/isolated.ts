@@ -1,15 +1,41 @@
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { Worker } from "node:worker_threads";
+import type { NativeResumeDocument } from "@aijob/resume-core";
 import { isStudioTemplate } from "./versions.js";
 
 export { nativeRendererVersions } from "./versions.js";
 
 export interface NativePdfArtifact {
   bytes: Uint8Array;
-  anchors: { page: number; id: string; x: number; y: number; width?: number; height?: number }[];
+  anchors: {
+    page: number;
+    id: string;
+    x: number;
+    y: number;
+    width?: number;
+    height?: number;
+    kind?: "field" | "text";
+    targetId?: string;
+    text?: string;
+    label?: string;
+    defaultFontSize?: number;
+    alignmentAvailable?: boolean;
+    stale?: boolean;
+    lineBoxes?: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      start: number;
+      end: number;
+    }[];
+    field?: "headline" | "email";
+  }[];
   pageMap?: { pages: { width: number; height: number }[]; nodes: unknown[] };
   diagnostics: string[];
+  fit?: { level: number; pageCount: number; bodyFontSize: number; overflowItemIds: string[] };
+  fittedMetadata?: NativeResumeDocument["data"]["metadata"];
 }
 
 let active = 0;

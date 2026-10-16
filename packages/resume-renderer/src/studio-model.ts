@@ -3,6 +3,7 @@ import type { NativeResumeDocument } from "@aijob/resume-core";
 export interface StudioText {
   text: string;
   label?: string;
+  field?: string;
 }
 export interface StudioEntry {
   id: string;
@@ -59,12 +60,12 @@ function entry(item: Item): StudioEntry {
   const titleKey = titleKeys.find((key) => text(item[key]).trim());
   const details = detailKeys.flatMap((key) =>
     text(item[key]).trim()
-      ? [{ text: text(item[key]), ...(labels[key] ? { label: labels[key] } : {}) }]
+      ? [{ text: text(item[key]), field: key, ...(labels[key] ? { label: labels[key] } : {}) }]
       : [],
   );
   if (Array.isArray(item.keywords))
     for (const keyword of item.keywords)
-      if (text(keyword).trim()) details.push({ text: text(keyword) });
+      if (text(keyword).trim()) details.push({ text: text(keyword), field: "keywords" });
   const website = item.website as { url?: string; label?: string } | undefined;
   const bodies = ["recipient", "description", "content"].flatMap((key) =>
     text(item[key]).trim() ? [text(item[key])] : [],

@@ -12,29 +12,6 @@ export function NativeLayoutPanel({
 }) {
   const data = document.data,
     m = data.metadata;
-  const order = [...new Set(m.layout.pages.flatMap((page) => [...page.main, ...page.sidebar]))];
-  function section(draft: NativeResumeDocument, id: string) {
-    if (id === "summary") return draft.data.summary;
-    return (
-      Object.entries(draft.data.sections).find(([key]) => key === id)?.[1] ??
-      draft.data.customSections.find((value) => value.id === id)
-    );
-  }
-  function move(id: string, direction: number) {
-    edit(`module:${id}:${direction}`, (draft) => {
-      for (const page of draft.data.metadata.layout.pages)
-        for (const region of [page.main, page.sidebar]) {
-          const index = region.indexOf(id),
-            target = index + direction;
-          const from = region[index],
-            to = region[target];
-          if (index >= 0 && from !== undefined && to !== undefined) {
-            region[index] = to;
-            region[target] = from;
-          }
-        }
-    });
-  }
   function number(
     label: string,
     value: number,
@@ -62,35 +39,14 @@ export function NativeLayoutPanel({
     );
   }
   return (
-    <section className="native-layout-panel" aria-label="排版与模块管理">
+    <section className="native-layout-panel" aria-label="排版设置">
       <header>
-        <h2>排版与模块</h2>
+        <h2>排版设置</h2>
         <button type="button" onClick={close}>
           收起排版
         </button>
       </header>
-      <button
-        type="button"
-        onClick={() =>
-          edit(`custom:${crypto.randomUUID()}`, (draft) => {
-            const id = crypto.randomUUID();
-            draft.data.customSections.push({
-              id,
-              type: "summary",
-              title: "补充材料",
-              icon: "",
-              columns: 1,
-              hidden: false,
-              keepTogether: false,
-              startOnNewPage: false,
-              items: [{ id: crypto.randomUUID(), hidden: false, content: "" }],
-            });
-            draft.data.metadata.layout.pages[0]?.main.push(id);
-          })
-        }
-      >
-        添加自定义模块
-      </button>
+      <p>优先按以下设置排版；超页时会在可读范围内自动收紧。模块和顺序在内容大纲调整。</p>
       <div className="native-fields">
         <label>
           正文字体
@@ -107,7 +63,7 @@ export function NativeLayoutPanel({
             <option>Noto Serif SC</option>
           </select>
         </label>
-        {number("正文 pt", m.typography.body.fontSize, 8, 16, 0.5, (d, v) => {
+        {number("正文 pt", m.typography.body.fontSize, 9.5, 16, 0.5, (d, v) => {
           d.data.metadata.typography.body.fontSize = v;
         })}
         {number("标题 pt", m.typography.heading.fontSize, 10, 22, 0.5, (d, v) => {
@@ -140,69 +96,6 @@ export function NativeLayoutPanel({
             d.data.metadata.layout.sidebarWidth = v;
           })}
       </div>
-      <details>
-        <summary>模块名称、顺序和显示</summary>
-        {order.map((id) => {
-          const value = section(document, id);
-          if (!value) return null;
-          return (
-            <div className="native-module-row" key={id}>
-              <label>
-                模块名
-                <input
-                  value={value.title}
-                  onChange={(event) =>
-                    edit(`module:${id}:title`, (draft) => {
-                      const s = section(draft, id);
-                      if (s) s.title = event.target.value;
-                    })
-                  }
-                />
-              </label>
-              <button
-                type="button"
-                onClick={() => move(id, -1)}
-                aria-label={`${value.title}模块上移`}
-              >
-                ↑
-              </button>
-              <button
-                type="button"
-                onClick={() => move(id, 1)}
-                aria-label={`${value.title}模块下移`}
-              >
-                ↓
-              </button>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={!value.hidden}
-                  onChange={(event) =>
-                    edit(`module:${id}:hidden`, (draft) => {
-                      const s = section(draft, id);
-                      if (s) s.hidden = !event.target.checked;
-                    })
-                  }
-                />
-                显示
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={value.startOnNewPage}
-                  onChange={(event) =>
-                    edit(`module:${id}:page`, (draft) => {
-                      const s = section(draft, id);
-                      if (s) s.startOnNewPage = event.target.checked;
-                    })
-                  }
-                />
-                另起一页
-              </label>
-            </div>
-          );
-        })}
-      </details>
     </section>
   );
 }

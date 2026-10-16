@@ -1,0 +1,31 @@
+{
+  "templateId": "studio-cards-cn",
+  "templateVersion": 1,
+  "sample": "batchGallerySample",
+  "synthetic": true,
+  "hasPhoto": true,
+  "rendererVersion": "rr6-0c6e75e-forme-0.28-aijob-10-polish-final",
+  "fontSetVersion": "aijob-studio-ttf-v1",
+  "manifestVersion": "native-fields-links-v3",
+  "pdfSha256": "4d6e09931724042a886862b8aeb3a433dc069f0958e60d1bae03e8cf311195e5",
+  "fit": {
+    "level": 0,
+    "pageCount": 1,
+    "bodyFontSize": 10,
+    "overflowItemIds": []
+  },
+  "diagnostics": [],
+  "visualReview": "pending",
+  "pages": 1,
+  "sizes": [
+    [
+      0,
+      0,
+      595.28,
+      841.89
+    ]
+  ],
+  "singleA4": true,
+  "missingFragments": 0,
+  "outside": 0
+}

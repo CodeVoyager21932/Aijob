@@ -24,6 +24,8 @@ export async function createNativeDocx(document: NativeResumeDocument): Promise<
   const { data } = document,
     m = data.metadata;
   const bodySize = m.typography.body.fontSize * 2;
+  const tight = (m.page.sectionGap ?? 14) <= 8;
+  const paragraphGap = tight ? 20 : 40;
   const color =
     m.design.colors.primary
       .match(/[\d.]+/g)
@@ -31,7 +33,11 @@ export async function createNativeDocx(document: NativeResumeDocument): Promise<
       .map((n) => Math.round(Number(n)).toString(16).padStart(2, "0"))
       .join("") ?? "263E49";
   const line = (text: string, bold = false, keepNext = false) =>
-    new Paragraph({ children: [new TextRun({ text, bold })], keepNext, spacing: { after: 60 } });
+    new Paragraph({
+      children: [new TextRun({ text, bold })],
+      keepNext,
+      spacing: { after: tight ? 20 : 60 },
+    });
   const numbering: INumberingOptions["config"][number][] = [];
   const rich = (html: string): Paragraph[] => {
     const $ = load(html, null, false);
@@ -107,7 +113,7 @@ export async function createNativeDocx(document: NativeResumeDocument): Promise<
                   },
                 }
               : { bullet: { level: Math.min(8, Math.max(0, depth - 1)) } }),
-            spacing: { after: 40 },
+            spacing: { after: paragraphGap },
           }),
         );
         for (const child of nodes.filter((c) =>
@@ -122,7 +128,9 @@ export async function createNativeDocx(document: NativeResumeDocument): Promise<
             .text()
             .trim()
         )
-          paragraphs.push(new Paragraph({ children: runs(node), spacing: { after: 40 } }));
+          paragraphs.push(
+            new Paragraph({ children: runs(node), spacing: { after: paragraphGap } }),
+          );
         return;
       }
       for (const child of n.children ?? []) visit(child, depth);
@@ -256,7 +264,10 @@ export async function createNativeDocx(document: NativeResumeDocument): Promise<
               heading: "Heading2",
               keepNext: keepHeadingWithNext,
               border: { bottom: { style: BorderStyle.SINGLE, color, size: 4 } },
-              spacing: { before: 160, after: 80 },
+              spacing: {
+                before: Math.round((m.page.sectionGap ?? 8) * 20),
+                after: tight ? 40 : 80,
+              },
             }),
           ]),
       ...content,

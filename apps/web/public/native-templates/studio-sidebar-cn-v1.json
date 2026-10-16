@@ -1,0 +1,31 @@
+{
+  "templateId": "studio-sidebar-cn",
+  "templateVersion": 1,
+  "sample": "batchGallerySample",
+  "synthetic": true,
+  "hasPhoto": true,
+  "rendererVersion": "rr6-0c6e75e-forme-0.28-aijob-11-field-layout",
+  "fontSetVersion": "aijob-studio-ttf-v1",
+  "manifestVersion": "native-fields-links-v3",
+  "pdfSha256": "e34e7b6faec3ca026820324f19b2cdbf026da1c1d107886b6ceb0f2f81b55830",
+  "fit": {
+    "level": 0,
+    "pageCount": 1,
+    "bodyFontSize": 10,
+    "overflowItemIds": []
+  },
+  "diagnostics": [],
+  "visualReview": "reviewed-complete-page-and-header-2026-10-15",
+  "pages": 1,
+  "sizes": [
+    [
+      0,
+      0,
+      595.28,
+      841.89
+    ]
+  ],
+  "singleA4": true,
+  "missingFragments": 0,
+  "outside": 0
+}

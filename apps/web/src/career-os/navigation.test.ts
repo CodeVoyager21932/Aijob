@@ -1,13 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { getWorkspaceBreadcrumbs, isDeletionReceiptRoute, workspaceNavigation, isWorkspaceItemActive } from "./navigation";
+import {
+  getWorkspaceBreadcrumbs,
+  isDeletionReceiptRoute,
+  workspaceNavigation,
+  isWorkspaceItemActive,
+} from "./navigation";
 
 describe("Career OS workspace navigation", () => {
   it("keeps one global navigation with the approved labels", () => {
-    expect(workspaceNavigation.map((item) => item.label)).toEqual(["今日工作台", "岗位发现", "方向图谱", "我的简历", "经历与材料", "投递管理", "准备与日程", "面试练习"]);
+    expect(workspaceNavigation.map((item) => item.label)).toEqual([
+      "今日",
+      "找岗位",
+      "简历与经历",
+      "投递管理",
+      "日程",
+    ]);
   });
 
   it("keeps only the task destination active for graph and planner deep links", () => {
-    expect(isWorkspaceItemActive("/jobs", "/jobs/insights")).toBe(false);
+    expect(isWorkspaceItemActive("/jobs", "/jobs/insights")).toBe(true);
+    expect(isWorkspaceItemActive("/resumes", "/materials")).toBe(true);
+    expect(isWorkspaceItemActive("/applications", "/interviews")).toBe(true);
     expect(isWorkspaceItemActive("/jobs/insights", "/jobs/insights")).toBe(true);
     expect(isWorkspaceItemActive("/applications", "/applications/planner")).toBe(false);
     expect(isWorkspaceItemActive("/applications/planner", "/applications/planner")).toBe(true);

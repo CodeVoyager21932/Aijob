@@ -1,5 +1,10 @@
 import type { NativeImportBlock } from "./import-blocks.js";
-import { educationHeader, experienceHeader, isStandaloneOrganizationLine, projectMetadata } from "./import-cn-fields.js";
+import {
+  educationHeader,
+  experienceHeader,
+  isStandaloneOrganizationLine,
+  projectMetadata,
+} from "./import-cn-fields.js";
 import { nativeImportHeadingKind, type NativeImportKind } from "./import-headings.js";
 import { createNativeResumeDocument, type NativeResumeDocument } from "./index.js";
 import { ensureNativeResearchSection, newNativeItem } from "./items.js";
@@ -36,7 +41,17 @@ export interface NativeImportResult {
   quality: "structured" | "partial" | "unstructured";
   unclassifiedBlockIds: string[];
   reviewReasons: string[];
-  parserVersion: "native-cn-v1" | "native-cn-v2" | "native-cn-v3" | "native-cn-v4" | "native-cn-v5" | "native-cn-v6" | "native-cn-v7" | "native-cn-v8" | "native-cn-v9";
+  parserVersion:
+    | "native-cn-v1"
+    | "native-cn-v2"
+    | "native-cn-v3"
+    | "native-cn-v4"
+    | "native-cn-v5"
+    | "native-cn-v6"
+    | "native-cn-v7"
+    | "native-cn-v8"
+    | "native-cn-v9"
+    | "native-cn-v10";
 }
 
 /** Chinese classification consumes ordered blocks; the source blocks remain independently retrievable. */
@@ -45,7 +60,10 @@ export function importNativeChineseBlocks(
   namespace: string,
   corrections: NativeImportCorrections = {},
 ): NativeImportResult {
-  const { blocks, continuations } = joinNativePeriodContinuations(sourceBlocks, new Set(Object.keys(corrections)));
+  const { blocks, continuations } = joinNativePeriodContinuations(
+    sourceBlocks,
+    new Set(Object.keys(corrections)),
+  );
   const document = createNativeResumeDocument(),
     data = document.data,
     mappings: NativeImportMapping[] = [],
@@ -60,7 +78,54 @@ export function importNativeChineseBlocks(
   const map = (block: NativeImportBlock, sectionId: string, field: string, itemId?: string) => {
     mappings.push({ blockId: block.id, sectionId, field, ...(itemId ? { itemId } : {}) });
     const continuation = continuations.get(block.id);
-    if (continuation) mappings.push({ blockId: continuation, sectionId, field: field === "header" ? "period" : field, ...(itemId ? { itemId } : {}) });
+    if (continuation)
+      mappings.push({
+        blockId: continuation,
+        sectionId,
+        field: field === "header" ? "period" : field,
+        ...(itemId ? { itemId } : {}),
+      });
+  };
+  const appendDescription = (
+    value: string,
+    text: string,
+    block: NativeImportBlock,
+    index: number,
+    itemId: string,
+  ) => {
+    const previous = blocks[index - 1];
+    const a = previous?.source,
+      b = block.source;
+    const previousMapping = mappings.find(
+      (mapping) =>
+        mapping.blockId === previous?.id &&
+        mapping.itemId === itemId &&
+        mapping.field === "description",
+    );
+    const softWrap =
+      previousMapping &&
+      a?.kind === "pdf" &&
+      b.kind === "pdf" &&
+      a.page === b.page &&
+      a.column === b.column &&
+      !block.emphasis &&
+      !bullet.test(text) &&
+      Math.abs(a.x - b.x) <= Math.max(a.fontSize, b.fontSize) * 1.5 &&
+      b.y > a.y &&
+      b.y - a.y <= Math.max(a.fontSize, b.fontSize) * 1.8 &&
+      !/[。！？；.!?;]$/.test(previous?.text ?? "");
+    if (softWrap && /(<\/p>|<\/li><\/ul>)$/.test(value)) {
+      const content = html(text).slice(3, -4);
+      const space =
+        /[\p{Script=Han}]$/u.test(previous?.text ?? "") || /^[\p{Script=Han}，。；、）]/u.test(text)
+          ? ""
+          : " ";
+      return value.replace(/(<\/p>|<\/li><\/ul>)$/, `${space}${content}$1`);
+    }
+    const next = html(text);
+    return value.endsWith("</ul>") && next.startsWith("<ul>")
+      ? value.slice(0, -5) + next.slice(4)
+      : value + next;
   };
   const unknown = (block: NativeImportBlock) => {
     const id = `${namespace}:unclassified`;
@@ -303,7 +368,8 @@ export function importNativeChineseBlocks(
         if (period && !item.period) item.period = period;
         if (!item.degree) item.degree = text.match(degreePattern)?.[0] ?? "";
         const rest = educationHeader(text, item);
-        if (rest) item.description += html(rest);
+        if (rest)
+          item.description = appendDescription(item.description, rest, block, index, item.id);
         map(block, "education", dateOnly ? "period" : "description", item.id);
       }
       continue;
@@ -391,7 +457,8 @@ export function importNativeChineseBlocks(
             : kind === "projects" || kind === "research"
               ? projectMetadata(text, item as { role?: string; unit?: string; method?: string })
               : text;
-          if (rest) item.description += html(rest);
+          if (rest)
+            item.description = appendDescription(item.description, rest, block, index, item.id);
         }
         map(block, sectionId, dateOnly ? "period" : "description", item.id);
       }
@@ -545,6 +612,6 @@ export function importNativeChineseBlocks(
           : "partial",
     unclassifiedBlockIds,
     reviewReasons: [...reviewReasons],
-    parserVersion: "native-cn-v9",
+    parserVersion: "native-cn-v10",
   };
 }

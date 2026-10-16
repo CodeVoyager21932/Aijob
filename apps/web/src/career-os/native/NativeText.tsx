@@ -1,4 +1,4 @@
-import { EditorContent, useEditor } from "@tiptap/react";
+import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useEffect, useRef, useState } from "react";
 import { normalizeResumePaste } from "../studio/normalize-resume-paste";
@@ -33,6 +33,17 @@ export function NativeText({
       transformPastedHTML: normalizeResumePaste,
     },
   });
+  const marks = useEditorState({
+    editor,
+    selector: ({ editor: current }) => ({
+      bold: current?.isActive("bold") ?? false,
+      italic: current?.isActive("italic") ?? false,
+      underline: current?.isActive("underline") ?? false,
+      ordered: current?.isActive("orderedList") ?? false,
+      bullet: current?.isActive("bulletList") ?? false,
+      link: current?.isActive("link") ?? false,
+    }),
+  });
   useEffect(() => {
     if (editor && editor.getHTML() !== value)
       editor.commands.setContent(value, { emitUpdate: false });
@@ -41,20 +52,54 @@ export function NativeText({
     <div className="native-rich">
       <span>{label}</span>
       <div role="toolbar" aria-label={`${label}文字格式`}>
-        <button type="button" onClick={() => editor?.chain().focus().toggleBold().run()}>
-          加粗
-        </button>
-        <button type="button" onClick={() => editor?.chain().focus().toggleItalic().run()}>
-          斜体
-        </button>
-        <button type="button" onClick={() => editor?.chain().focus().toggleUnderline().run()}>
-          下划线
-        </button>
-        <button type="button" onClick={() => editor?.chain().focus().toggleOrderedList().run()}>
-          编号列表
+        <button
+          type="button"
+          aria-label="加粗"
+          title="加粗"
+          aria-pressed={marks?.bold ?? false}
+          onClick={() => editor?.chain().focus().toggleBold().run()}
+        >
+          <strong>B</strong>
         </button>
         <button
           type="button"
+          aria-label="斜体"
+          title="斜体"
+          aria-pressed={marks?.italic ?? false}
+          onClick={() => editor?.chain().focus().toggleItalic().run()}
+        >
+          <em>I</em>
+        </button>
+        <button
+          type="button"
+          aria-label="下划线"
+          title="下划线"
+          aria-pressed={marks?.underline ?? false}
+          onClick={() => editor?.chain().focus().toggleUnderline().run()}
+        >
+          <u>U</u>
+        </button>
+        <button
+          type="button"
+          aria-label="编号列表"
+          title="编号列表"
+          aria-pressed={marks?.ordered ?? false}
+          onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+        >
+          1. 列表
+        </button>
+        <button
+          type="button"
+          aria-label="要点列表"
+          title="要点列表"
+          aria-pressed={marks?.bullet ?? false}
+          onClick={() => editor?.chain().focus().toggleBulletList().run()}
+        >
+          • 列表
+        </button>
+        <button
+          type="button"
+          aria-pressed={marks?.link ?? false}
           onClick={() => {
             setLinkValue(String(editor?.getAttributes("link").href ?? ""));
             setLinkError("");
@@ -68,9 +113,6 @@ export function NativeText({
           onClick={() => editor?.chain().focus().unsetAllMarks().clearNodes().run()}
         >
           清除格式
-        </button>
-        <button type="button" onClick={() => editor?.chain().focus().toggleBulletList().run()}>
-          要点列表
         </button>
       </div>
       {linkOpen && (

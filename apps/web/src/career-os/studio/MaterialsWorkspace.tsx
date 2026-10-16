@@ -192,6 +192,21 @@ export function MaterialsWorkspace() {
             {nativeItems.map((item) => (
               <article className="experience-library-card" key={item.id}>
                 <header>
+                  <label className="experience-select">
+                    <input
+                      aria-label={`选择${item.title}`}
+                      type="checkbox"
+                      checked={selected.includes(item.id)}
+                      onChange={() =>
+                        setSelected((ids) =>
+                          ids.includes(item.id)
+                            ? ids.filter((id) => id !== item.id)
+                            : [...ids, item.id],
+                        )
+                      }
+                    />
+                    加入简历
+                  </label>
                   <span>{experienceKindNames[item.experience.kind]}</span>
                   <h2>{item.title}</h2>
                   <p>
@@ -204,7 +219,13 @@ export function MaterialsWorkspace() {
                       .join(" · ")}
                   </p>
                 </header>
-                <div className="experience-body">{plainNative(item)}</div>
+                <details className="experience-body-details">
+                  <summary>
+                    {plainNative(item).slice(0, 110)}
+                    {plainNative(item).length > 110 ? "… 展开全文" : ""}
+                  </summary>
+                  <div className="experience-body">{plainNative(item)}</div>
+                </details>
                 <footer>
                   <button type="button" onClick={() => setNativeEdit(item)}>
                     编辑原稿
@@ -212,16 +233,23 @@ export function MaterialsWorkspace() {
                   <button type="button" disabled={busy} onClick={() => void resumeFromNative(item)}>
                     用这段经历写简历
                   </button>
-                  <button type="button" onClick={() => setNativeExpression(item)}>
-                    整理为常用表达
-                  </button>
-                  <Link to={`/assistant?task=experience&experienceId=${item.id}`}>和助手整理</Link>
-                  <Link to={`/assistant?task=interview&experienceId=${item.id}`}>
-                    练习讲这段经历
-                  </Link>
-                  <button type="button" onClick={() => setRemove(item.id)}>
-                    删除
-                  </button>
+                  <details className="experience-more">
+                    <summary>更多操作</summary>
+                    <div>
+                      <button type="button" onClick={() => setNativeExpression(item)}>
+                        整理为常用表达
+                      </button>
+                      <Link to={`/assistant?task=experience&experienceId=${item.id}`}>
+                        和助手整理
+                      </Link>
+                      <Link to={`/assistant?task=interview&experienceId=${item.id}`}>
+                        练习讲这段经历
+                      </Link>
+                      <button type="button" onClick={() => setRemove(item.id)}>
+                        删除
+                      </button>
+                    </div>
+                  </details>
                 </footer>
                 {remove === item.id && (
                   <div className="studio-alert">

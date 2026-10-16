@@ -24,7 +24,7 @@ export function NativeVersionHistory({
     [error, setError] = useState("");
   const [selected, setSelected] = useState<Version | null>(null),
     [document, setDocument] = useState<NativeResumeDocument | null>(null);
-  const [blob,setBlob]=useState<Blob>();
+  const [blob, setBlob] = useState<Blob>();
   useEffect(() => {
     let active = true;
     const focus = window.document.activeElement;
@@ -58,18 +58,28 @@ export function NativeVersionHistory({
       );
       const parsed = parseNativeResumeDocument(value.document);
       if (request === sequence.current) setDocument(parsed);
-      const artifact=await apiRequest<{id:string;state:string}>(`/v2/resume-documents/${documentId}/native/exports`,{
-        method:"POST",body:{contentRevisionId:version.contentRevisionId,layoutRevisionId:version.layoutRevisionId,format:"pdf"},idempotencyKey:createIdempotencyKey(),
-      });
-      if(artifact.state!=="ready")throw new Error("预览正在生成");
-      const file=await apiDownload(`/v2/resume-exports/${artifact.id}/file?preview=true`);
-      if(request===sequence.current)setBlob(file.blob);
+      const artifact = await apiRequest<{ id: string; state: string }>(
+        `/v2/resume-documents/${documentId}/native/exports`,
+        {
+          method: "POST",
+          body: {
+            contentRevisionId: version.contentRevisionId,
+            layoutRevisionId: version.layoutRevisionId,
+            format: "pdf",
+          },
+          idempotencyKey: createIdempotencyKey(),
+        },
+      );
+      if (artifact.state !== "ready") throw new Error("预览正在生成");
+      const file = await apiDownload(`/v2/resume-exports/${artifact.id}/file?preview=true`);
+      if (request === sequence.current) setBlob(file.blob);
     } catch {
       if (request === sequence.current) setError("这份版本暂时无法读取，当前输入保持不变。");
     }
   }
   return (
     <dialog
+      aria-label="已保存的版本"
       ref={dialog}
       className="native-template-dialog native-export-dialog"
       onCancel={(event) => {

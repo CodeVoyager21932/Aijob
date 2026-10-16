@@ -4,8 +4,14 @@ import { parseResumeDataForWrite } from "@reactive-resume/schema/resume/write";
 import { z } from "zod";
 import { type NativeSourceBinding, nativeSourceBindingSchema } from "./source-bindings.js";
 import { applyNativeTemplate, type NativeTemplateId, nativeTemplateCatalog } from "./templates.js";
+import { nativeTextLayoutsSchema } from "./text-layout.js";
 
-export { applyNativeTemplate, type NativeTemplateId, nativeTemplateCatalog } from "./templates.js";
+export {
+  applyNativeTemplate,
+  type NativeTemplateId,
+  nativeTemplateCatalog,
+  recommendedNativeTemplateIds,
+} from "./templates.js";
 
 export const NATIVE_CORE_VERSION = "reactive-resume-5.3.0-aijob-1";
 export { type NativeImportBlock, nativePdfBlocks, nativeTextBlocks } from "./import-blocks.js";
@@ -28,13 +34,36 @@ export {
   ensureNativeResearchSection,
   newNativeItem,
 } from "./items.js";
+export { singlePageLayout, singlePageLevels } from "./single-page.js";
 export type { NativeSourceBinding } from "./source-bindings.js";
+export {
+  isNativeTextBoundary,
+  type NativeTextLayout,
+  type NativeTextRange,
+  setNativeTextRange,
+} from "./text-layout.js";
+export { hasVisibleNativeResumeContent } from "./visible-content.js";
+
+const nativeFieldLayoutSchema = z.strictObject({
+  fontSize: z.number().min(9.5).max(18).multipleOf(0.5).optional(),
+  lineMode: z.enum(["auto", "single", "manual"]).optional(),
+  breakAfter: z.number().int().positive().max(10000).optional(),
+  position: z.enum(["auto", "sidebar", "main"]).optional(),
+});
+const nativeFieldLayoutsSchema = z.strictObject({
+  headline: nativeFieldLayoutSchema.optional(),
+  email: nativeFieldLayoutSchema.optional(),
+});
+export type NativeFieldLayout = z.infer<typeof nativeFieldLayoutSchema>;
+export type NativeLayoutField = "headline" | "email";
 
 const envelopeSchema = z.strictObject({
   schemaVersion: z.literal("aijob-native-resume-v1"),
   coreVersion: z.literal(NATIVE_CORE_VERSION),
   data: z.unknown(),
   sourceBindings: z.array(nativeSourceBindingSchema).max(100000).optional(),
+  fieldLayout: nativeFieldLayoutsSchema.optional(),
+  textLayout: nativeTextLayoutsSchema.optional(),
   presentation: z
     .strictObject({
       id: z.enum(
@@ -52,6 +81,10 @@ export interface NativeResumeDocument {
   /** Provenance of imported fields, not a claim that later edits equal the source. */
   sourceBindings?: NativeSourceBinding[];
   presentation?: { id: NativeTemplateId; version: 1 };
+  /** User-authored, field-scoped presentation; stored separately from resume facts. */
+  fieldLayout?: z.infer<typeof nativeFieldLayoutsSchema>;
+  /** Text formatting is source-bound presentation, never a rewrite of resume facts. */
+  textLayout?: z.infer<typeof nativeTextLayoutsSchema>;
 }
 
 function canonical(value: unknown): string {
@@ -99,6 +132,8 @@ export function parseNativeResumeDocument(input: unknown): NativeResumeDocument 
     data,
     ...(envelope.sourceBindings ? { sourceBindings: envelope.sourceBindings } : {}),
     ...(envelope.presentation ? { presentation: envelope.presentation } : {}),
+    ...(envelope.fieldLayout ? { fieldLayout: envelope.fieldLayout } : {}),
+    ...(envelope.textLayout ? { textLayout: envelope.textLayout } : {}),
   };
 }
 
@@ -160,7 +195,7 @@ export function createNativeResumeDocument(): NativeResumeDocument {
   for (const [id, section] of Object.entries(data.sections)) section.title = titles[id] ?? id;
   return applyNativeTemplate(
     { schemaVersion: "aijob-native-resume-v1", coreVersion: NATIVE_CORE_VERSION, data },
-    "studio-clear-cn",
+    "studio-campus-cn",
   );
 }
 
@@ -198,6 +233,8 @@ export function splitNativeResumeDocument(input: unknown) {
       coreVersion: document.coreVersion,
       metadata,
       ...(document.presentation ? { presentation: document.presentation } : {}),
+      ...(document.fieldLayout ? { fieldLayout: document.fieldLayout } : {}),
+      ...(document.textLayout ? { textLayout: document.textLayout } : {}),
     },
   };
 }
@@ -217,12 +254,16 @@ export function joinNativeResumeDocument(content: unknown, layout: unknown): Nat
       coreVersion: z.literal(NATIVE_CORE_VERSION),
       metadata: z.unknown(),
       presentation: envelopeSchema.shape.presentation,
+      fieldLayout: envelopeSchema.shape.fieldLayout,
+      textLayout: envelopeSchema.shape.textLayout,
     })
     .parse(layout);
   if ("metadata" in body.data) throw new Error("NATIVE_LAYOUT_DUPLICATED_IN_CONTENT");
   return parseNativeResumeDocument({
     ...body,
     ...(style.presentation ? { presentation: style.presentation } : {}),
+    ...(style.fieldLayout ? { fieldLayout: style.fieldLayout } : {}),
+    ...(style.textLayout ? { textLayout: style.textLayout } : {}),
     data: { ...body.data, metadata: style.metadata },
   });
 }

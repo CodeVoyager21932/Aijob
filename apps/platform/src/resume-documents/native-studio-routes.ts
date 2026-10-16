@@ -1,5 +1,5 @@
 import type { Database } from "@aijob/database";
-import { parseNativeResumeDocument } from "@aijob/resume-core";
+import { parseNativeResumeDocument, nativeTemplateCatalog } from "@aijob/resume-core";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Kysely } from "kysely";
 import { z } from "zod";
@@ -243,12 +243,29 @@ export function registerNativeStudioRoutes(
   app.post(
     "/v2/resume-documents/:documentId/native/preview",
     route(async (req) => {
-      const body = z.object({
-        expectedDraftRevision: z.number().int().positive(),
-        requestGeneration: z.number().int().nonnegative(),
-      }).strict().parse(req.body);
-      return createNativePreview({ db, owner: requireOwnerContext(req), documentId: id(req),
-        ...body, idempotencyKey: `preview:${key(req)}`, encryptionKey });
+      const body = z
+        .object({
+          expectedDraftRevision: z.number().int().positive(),
+          requestGeneration: z.number().int().nonnegative(),
+          templateId: z
+            .enum(
+              nativeTemplateCatalog.map((item) => item.id) as [
+                (typeof nativeTemplateCatalog)[number]["id"],
+                ...(typeof nativeTemplateCatalog)[number]["id"][],
+              ],
+            )
+            .optional(),
+        })
+        .strict()
+        .parse(req.body);
+      return createNativePreview({
+        db,
+        owner: requireOwnerContext(req),
+        documentId: id(req),
+        ...body,
+        idempotencyKey: `preview:${key(req)}`,
+        encryptionKey,
+      });
     }),
   );
   app.post(
@@ -276,7 +293,9 @@ export function registerNativeStudioRoutes(
     "/v2/resume-exports/:artifactId/file",
     route(async (req, reply) => {
       const { artifactId } = z.object({ artifactId: z.string().uuid() }).parse(req.params);
-      const { preview } = z.object({ preview: z.enum(["true", "false"]).optional() }).parse(req.query);
+      const { preview } = z
+        .object({ preview: z.enum(["true", "false"]).optional() })
+        .parse(req.query);
       const file = await downloadResumeExport(
         db,
         requireOwnerContext(req),

@@ -2,9 +2,51 @@ import type { NativeResumeDocument } from "./index.js";
 
 export const nativeTemplateCatalog = [
   {
+    id: "studio-campus-cn",
+    name: "晴空 · 应届生",
+    description: "蓝色曲线页首、居中圆形照片与中文宋体，清楚呈现教育、实习和校园经历。",
+    base: "meowth",
+    columns: 1,
+  },
+  {
+    id: "studio-banner-cn",
+    name: "绯页 · 横幅分区",
+    description: "短横幅身份区与通栏章节，教育、实习和项目沿同一阅读轴展开。",
+    base: "meowth",
+    columns: 1,
+  },
+  {
+    id: "studio-index-cn",
+    name: "序章 · 模块索引",
+    description: "深色短页首与左侧章节索引，宽正文清楚呈现经历和成果。",
+    base: "meowth",
+    columns: 1,
+  },
+  {
+    id: "studio-sidebar-cn",
+    name: "青岚 · 侧栏履历",
+    description: "窄资料侧栏承接教育与技能，宽主栏完整展开实习和项目经历。",
+    base: "gengar",
+    columns: 2,
+  },
+  {
+    id: "studio-layered-cn",
+    name: "叠影 · 名片叠层",
+    description: "可选照片跨接短身份名片，下接连续正文面板，兼顾层次与内容空间。",
+    base: "meowth",
+    columns: 1,
+  },
+  {
+    id: "studio-cards-cn",
+    name: "青瓷 · 柔和卡片",
+    description: "紧凑页首与独立圆角模块，柔和分区帮助区分教育、实习和项目。",
+    base: "meowth",
+    columns: 1,
+  },
+  {
     id: "studio-clear-cn",
     name: "清晰单栏",
-    description: "完整正文、清楚层级和自然续页，适合作为第一套模板。",
+    description: "清楚的信息层级与轻量留白，适合单页求职简历。",
     base: "meowth",
     columns: 1,
   },
@@ -24,8 +66,8 @@ export const nativeTemplateCatalog = [
   },
   {
     id: "studio-research-cn",
-    name: "科研多页",
-    description: "衬线正文、明确作者信息和连续多页，适合论文与长经历。",
+    name: "科研单页",
+    description: "衬线正文与清楚的作者信息，精选科研成果用于单页投递。",
     base: "meowth",
     columns: 1,
   },
@@ -317,10 +359,12 @@ export const nativeTemplateCatalog = [
 ] as const;
 export type NativeTemplateId = (typeof nativeTemplateCatalog)[number]["id"];
 export const recommendedNativeTemplateIds = [
-  "studio-clear-cn",
-  "studio-compact-cn",
-  "studio-main-cn",
-  "studio-research-cn",
+  "studio-campus-cn",
+  "studio-banner-cn",
+  "studio-index-cn",
+  "studio-sidebar-cn",
+  "studio-layered-cn",
+  "studio-cards-cn",
 ] as const satisfies readonly NativeTemplateId[];
 
 /** Applying a design replaces layout defaults once; never changes content or visibility. */
@@ -564,8 +608,54 @@ export function applyNativeTemplate(
     m.typography.heading.fontFamily = m.typography.body.fontFamily;
     m.design.colors.primary = research ? "rgba(35, 44, 48, 1)" : "rgba(36, 66, 79, 1)";
   }
+  if (id === "studio-campus-cn") {
+    m.page.marginX = 28;
+    m.page.marginY = 26;
+    m.page.sectionGap = 8;
+    m.page.gapY = 4;
+    m.typography.body.fontSize = 10;
+    m.typography.body.lineHeight = 1.42;
+    m.typography.body.fontFamily = "Noto Serif SC";
+    m.typography.heading.fontFamily = "Noto Serif SC";
+    m.typography.heading.fontSize = 11;
+    m.design.colors.primary = "rgba(62, 123, 224, 1)";
+    m.design.colors.background = "rgba(251, 252, 255, 1)";
+  }
+  if (
+    id === "studio-banner-cn" ||
+    id === "studio-index-cn" ||
+    id === "studio-sidebar-cn" ||
+    id === "studio-layered-cn" ||
+    id === "studio-cards-cn"
+  ) {
+    m.page.marginX = 28;
+    m.page.marginY = 26;
+    m.page.sectionGap = 8;
+    m.page.gapY = 4;
+    m.page.gapX = 18;
+    m.typography.body.fontSize = 10;
+    m.typography.body.lineHeight = 1.4;
+    m.typography.body.fontFamily =
+      id === "studio-banner-cn" || id === "studio-cards-cn" ? "Noto Serif SC" : "Noto Sans SC";
+    m.typography.heading.fontFamily = m.typography.body.fontFamily;
+    m.typography.heading.fontSize = 11;
+    const colors = {
+      "studio-banner-cn": "rgba(164, 67, 83, 1)",
+      "studio-index-cn": "rgba(32, 59, 80, 1)",
+      "studio-sidebar-cn": "rgba(20, 108, 122, 1)",
+      "studio-layered-cn": "rgba(53, 89, 168, 1)",
+      "studio-cards-cn": "rgba(63, 124, 112, 1)",
+    };
+    m.design.colors.primary = colors[id];
+    m.design.colors.background =
+      id === "studio-cards-cn" ? "rgba(246, 249, 247, 1)" : "rgba(255, 255, 255, 1)";
+  }
   const side = new Set(["skills", "languages", "certifications", "profiles"]);
   if (id === "deedy-cn") side.add("education");
+  if (id === "studio-sidebar-cn") {
+    side.add("education");
+    side.add("awards");
+  }
   if (id === "visiky-cn") {
     for (const key of ["education", "summary", "awards", "interests"]) side.add(key);
     m.page.marginX = 18;
@@ -575,7 +665,8 @@ export function applyNativeTemplate(
     m.typography.body.lineHeight = 1.45;
   }
   m.layout = {
-    sidebarWidth: id === "deedy-cn" ? 25 : id === "visiky-cn" ? 40 : 30,
+    sidebarWidth:
+      id === "studio-sidebar-cn" ? 26 : id === "deedy-cn" ? 25 : id === "visiky-cn" ? 40 : 30,
     pages: [
       {
         fullWidth: template.columns === 1,

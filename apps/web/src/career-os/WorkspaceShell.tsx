@@ -13,7 +13,7 @@ import { ResizablePane } from "./components/ResizablePane";
 import { SessionMutationRecoveryNotice } from "./components/SessionMutationRecoveryNotice";
 import { UtilityBar } from "./components/UtilityBar";
 import { WorkspaceRouteBoundary, WorkspaceRouteLoading } from "./components/WorkspaceRouteBoundary";
-import { isDeletionReceiptRoute } from "./navigation";
+import { isDeletionReceiptRoute, workspaceContextNavigation } from "./navigation";
 import { readWorkspacePreferences, writeWorkspacePreferences } from "./ui-preferences";
 import { useMediaQuery } from "./use-media-query";
 import { useWorkspaceScroll } from "./use-workspace-scroll";
@@ -21,9 +21,6 @@ import "./career-os.css";
 
 export function WorkspaceShell({ accessRequired = false }: { accessRequired?: boolean }) {
   const location = useLocation();
-  const compactStudio =
-    useMediaQuery("(min-width: 768px) and (max-width: 1199px)") &&
-    /^\/resumes\/[0-9a-f-]{36}$/i.test(location.pathname);
   const nativeStudio = /^\/resumes\/(?:native\/)?[0-9a-f-]{36}$/i.test(location.pathname);
   const [nativeSidebarExpanded, setNativeSidebarExpanded] = useState(false);
   useEffect(() => {
@@ -47,9 +44,7 @@ export function WorkspaceShell({ accessRequired = false }: { accessRequired?: bo
   const [accessGranted, setAccessGranted] = useState(!accessRequired);
   const [inspectorMutationPending, setInspectorMutationPending] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
-  const scrollQuery = new URLSearchParams(location.search);
-  scrollQuery.delete("peek");
-  useWorkspaceScroll(mainRef, `${location.pathname}?${scrollQuery}`);
+  useWorkspaceScroll(mainRef, location.pathname);
   const inspectorCloseRef = useRef<HTMLButtonElement>(null);
   const previousPeekRef = useRef<string | null>(null);
   const deletionReceiptOnly = isDeletionReceiptRoute(location.pathname);
@@ -138,7 +133,7 @@ export function WorkspaceShell({ accessRequired = false }: { accessRequired?: bo
 
   return (
     <div
-      className={`product-app career-os${(nativeStudio ? !nativeSidebarExpanded : preferences.sidebarCollapsed || compactStudio) ? " is-sidebar-collapsed" : ""}`}
+      className={`product-app career-os${(nativeStudio ? !nativeSidebarExpanded : preferences.sidebarCollapsed) ? " is-sidebar-collapsed" : ""}`}
       data-native-studio={nativeStudio ? "true" : "false"}
       data-inspector-open={showInspector ? "true" : "false"}
       data-keyboard-open={keyboardOpen ? "true" : "false"}
@@ -147,9 +142,7 @@ export function WorkspaceShell({ accessRequired = false }: { accessRequired?: bo
         跳到主要内容
       </a>
       <GlobalSidebar
-        collapsed={
-          nativeStudio ? !nativeSidebarExpanded : preferences.sidebarCollapsed || compactStudio
-        }
+        collapsed={nativeStudio ? !nativeSidebarExpanded : preferences.sidebarCollapsed}
         mobileOpen={mobileNavigationOpen}
         onCloseMobile={() => setMobileNavigationOpen(false)}
         onToggleCollapsed={() =>
@@ -163,6 +156,15 @@ export function WorkspaceShell({ accessRequired = false }: { accessRequired?: bo
       />
       <div className="career-workspace">
         <UtilityBar onOpenMobileNavigation={() => setMobileNavigationOpen(true)} />
+        {!nativeStudio && workspaceContextNavigation(location.pathname).length > 0 && (
+          <nav className="career-context-nav" aria-label="当前任务页面">
+            {workspaceContextNavigation(location.pathname).map((item) => (
+              <NavLink key={item.to} to={item.to} end>
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+        )}
         <SessionMutationRecoveryNotice />
         <div className="career-workspace__body">
           <main ref={mainRef} className="career-main product-main" id="career-main" tabIndex={-1}>

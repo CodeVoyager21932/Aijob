@@ -1,14 +1,13 @@
 import {
-  applyNativeTemplate,
   type NativeResumeDocument,
   type NativeTemplateId,
   nativeTemplateCatalog,
+  recommendedNativeTemplateIds,
 } from "@aijob/resume-core";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiRequest, createIdempotencyKey, ProductApiError } from "../../api/client";
-import { NativePdfPreview } from "./NativePdfPreview";
-import { nativeGallerySample } from "./native-sample";
-import { StudioTemplateSchematic } from "./StudioTemplateSchematic";
+import { NativeTemplatePreview, NativeTemplateSamplePreview } from "./NativeTemplatePreview";
+import { templateSpecimens } from "./template-specimens";
 
 type Preference = {
   templateId: string;
@@ -17,27 +16,34 @@ type Preference = {
   lastUsedAt: string | null;
 };
 const studioEnabled = import.meta.env.VITE_ENABLE_STUDIO_TEMPLATES !== "false";
+const recommended = new Set<string>(recommendedNativeTemplateIds);
 const availableTemplates = nativeTemplateCatalog.filter(
   (item) => studioEnabled || !item.id.startsWith("studio-"),
 );
 
 export function NativeTemplateGallery({
   document,
+  documentId,
+  revision,
   close,
   apply,
 }: {
   document: NativeResumeDocument;
+  documentId: string;
+  revision: number;
   close: () => void;
   apply: (id: NativeTemplateId) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [selected, setSelected] = useState<NativeTemplateId>(
-    document.presentation?.id ?? "lapis-cn",
+    studioEnabled
+      ? document.presentation?.id && recommended.has(document.presentation.id)
+        ? document.presentation.id
+        : "studio-campus-cn"
+      : (document.presentation?.id ?? "lapis-cn"),
   );
+  const [contentMode, setContentMode] = useState<"sample" | "personal">("sample");
   const [query, setQuery] = useState("");
-  const [personal, setPersonal] = useState(false);
-  const [comparison, setComparison] = useState<NativeTemplateId[]>([]);
-  const [comparing, setComparing] = useState(false);
   const [mobileView, setMobileView] = useState("list");
   const [preferences, setPreferences] = useState<Preference[]>([]);
   const [view, setView] = useState(studioEnabled ? "recommended" : "all");
@@ -109,7 +115,7 @@ export function NativeTemplateGallery({
         (columns === "all" || String(item.columns) === columns) &&
         (view === "all" ||
           (view === "recommended"
-            ? item.id.startsWith("studio-")
+            ? recommended.has(item.id)
             : view === "favorites"
               ? pref?.favorite
               : pref?.lastUsedAt))
@@ -120,24 +126,8 @@ export function NativeTemplateGallery({
         ? (preferences.find((p) => p.templateId === b.id)?.lastUsedAt ?? "").localeCompare(
             preferences.find((p) => p.templateId === a.id)?.lastUsedAt ?? "",
           )
-        : Number(b.id.startsWith("studio-")) - Number(a.id.startsWith("studio-")),
+        : Number(recommended.has(b.id)) - Number(recommended.has(a.id)),
     );
-  const sample = useMemo(nativeGallerySample, []);
-  const candidate = useMemo(
-    () => applyNativeTemplate(personal ? document : sample, selected),
-    [document, selected, personal, sample],
-  );
-  const comparisons = useMemo(
-    () =>
-      comparing
-        ? comparison.map((id) => ({
-            id,
-            name: nativeTemplateCatalog.find((item) => item.id === id)?.name ?? id,
-            document: applyNativeTemplate(personal ? document : sample, id),
-          }))
-        : [],
-    [comparing, comparison, personal, document, sample],
-  );
   useEffect(() => {
     const previous = window.document.activeElement;
     dialog.current?.showModal();
@@ -149,6 +139,7 @@ export function NativeTemplateGallery({
     <dialog
       ref={dialog}
       className="native-template-dialog"
+      aria-labelledby="native-template-title"
       data-mobile-view={mobileView}
       onCancel={(event) => {
         event.preventDefault();
@@ -157,31 +148,22 @@ export function NativeTemplateGallery({
     >
       <header>
         <div>
-          <h2>选择简历版式</h2>
-          <p>应用只改变排版，可以撤销。</p>
-          <label>
-            <input
-              type="checkbox"
-              checked={personal}
-              disabled={selected.startsWith("studio-")}
-              onChange={(event) => setPersonal(event.target.checked)}
-            />
-            用我的内容预览已有模板
-          </label>
+          <h2 id="native-template-title">选择简历版式</h2>
+          <p>每套严格一页 A4。先看完整样张，再用你的内容比较；应用后可以继续编辑和撤销。</p>
           <nav className="native-gallery-mobile-tabs" aria-label="模板浏览视图">
             <button
               type="button"
               aria-pressed={mobileView === "list"}
               onClick={() => setMobileView("list")}
             >
-              浏览模板
+              模板
             </button>
             <button
               type="button"
               aria-pressed={mobileView === "preview"}
               onClick={() => setMobileView("preview")}
             >
-              查看预览
+              预览
             </button>
           </nav>
         </div>
@@ -192,181 +174,142 @@ export function NativeTemplateGallery({
       <div className="native-template-body">
         <section className="native-template-list" aria-label="模板列表">
           <div className="native-template-filters">
-            <label>
-              搜索模板
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="名称或版式"
-              />
-            </label>
+            {view !== "recommended" && (
+              <label>
+                查找模板
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="名称或版式"
+                />
+              </label>
+            )}
             <label>
               查看
               <select
-                aria-label="查看"
                 value={view}
-                onChange={(event) => setView(event.target.value)}
-              >
-                {studioEnabled && <option value="recommended">四套主推</option>}
-                <option value="all">全部模板（保留原有 40 套）</option>
-                <option value="favorites" disabled={!loaded}>
-                  我的收藏
-                </option>
-                <option value="recent" disabled={!loaded}>
-                  最近使用
-                </option>
-              </select>
-            </label>
-            <label>
-              栏位
-              <select
-                aria-label="栏位"
-                value={columns}
-                onChange={(event) => setColumns(event.target.value)}
-              >
-                <option value="all">单栏与双栏</option>
-                <option value="1">单栏</option>
-                <option value="2">双栏</option>
-              </select>
-            </label>
-            <p aria-live="polite">{filtered.length} 套版式</p>
-            <div className="native-comparison-tools">
-              <span>{comparison.length}/3 套待比较</span>
-              <button
-                type="button"
-                disabled={comparison.length < 2}
-                onClick={() => {
-                  setComparing(!comparing);
-                  setMobileView("preview");
+                onChange={(event) => {
+                  setView(event.target.value);
+                  setQuery("");
+                  setColumns("all");
                 }}
               >
-                {comparing ? "返回单套预览" : "比较所选模板"}
-              </button>
-              {comparison.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setComparison([]);
-                    setComparing(false);
-                  }}
-                >
-                  清空比较
-                </button>
-              )}
-            </div>
+                {studioEnabled && (
+                  <option value="recommended">
+                    精选单页 · {recommendedNativeTemplateIds.length} 套
+                  </option>
+                )}
+                <option value="all">全部版式（含旧版）</option>
+                <option value="favorites">我的收藏</option>
+                <option value="recent">最近使用</option>
+              </select>
+            </label>
+            {view !== "recommended" && (
+              <label>
+                结构
+                <select value={columns} onChange={(event) => setColumns(event.target.value)}>
+                  <option value="all">全部结构</option>
+                  <option value="1">单栏</option>
+                  <option value="2">双栏</option>
+                </select>
+              </label>
+            )}
           </div>
           {error && <p role="alert">{error}</p>}
-          {!filtered.length && <p>没有符合条件的模板，可调整筛选后继续浏览。</p>}
-          {filtered.map((item) => (
-            <article key={item.id}>
-              <button
-                type="button"
-                aria-pressed={selected === item.id}
-                onClick={() => {
-                  setSelected(item.id);
-                  setComparing(false);
-                  setMobileView("preview");
-                }}
-              >
-                {item.id.startsWith("studio-") ? (
-                  <StudioTemplateSchematic id={item.id} />
-                ) : (
-                  <img
-                    src={`/native-templates/${item.id}-v1.png?render=native-cn-v11`}
-                    alt={`${item.name}中文样稿，仅展示排版`}
-                    loading="lazy"
-                  />
-                )}
-                <strong>{item.name}</strong>
-                <span>{item.description}</span>
-              </button>
-              <label className="native-template-compare-select">
-                <input
-                  type="checkbox"
-                  aria-label={`比较${item.name}`}
-                  checked={comparison.includes(item.id)}
-                  disabled={!comparison.includes(item.id) && comparison.length >= 3}
-                  onChange={(event) => {
-                    const next = event.target.checked
-                      ? [...comparison, item.id]
-                      : comparison.filter((id) => id !== item.id);
-                    setComparison(next);
-                    if (next.length < 2) setComparing(false);
+          {!filtered.length && <p>没有匹配的模板，试试切换筛选。</p>}
+          <div className="native-template-cards">
+            {filtered.map((item) => (
+              <article key={item.id}>
+                <button
+                  type="button"
+                  aria-pressed={selected === item.id}
+                  onClick={() => {
+                    setSelected(item.id);
+                    setMobileView("preview");
                   }}
-                />
-                加入比较
-              </label>
+                >
+                  {templateSpecimens[item.id] || !item.id.startsWith("studio-") ? (
+                    <img
+                      src={
+                        templateSpecimens[item.id]?.image ??
+                        `/native-templates/${item.id}-v1.png?render=native-cn-v11`
+                      }
+                      alt={`${item.name}完整样张`}
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="native-template-no-image">
+                      选择后查看
+                      <br />
+                      你的内容排版
+                    </div>
+                  )}
+                  <strong>{item.name}</strong>
+                  {templateSpecimens[item.id] && (
+                    <span>{templateSpecimens[item.id]?.structure}</span>
+                  )}
+                  <span>{item.description}</span>
+                </button>
+                <button
+                  type="button"
+                  className="native-template-favorite"
+                  disabled={busy || !loaded}
+                  onClick={() => void favorite(item.id)}
+                >
+                  {preferences.find((pref) => pref.templateId === item.id)?.favorite
+                    ? "取消收藏"
+                    : "收藏"}
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
+        <div className="native-template-detail">
+          <div className="native-template-preview-controls">
+            <div>
+              <strong>{nativeTemplateCatalog.find((item) => item.id === selected)?.name}</strong>
+              <span>{document.presentation?.id === selected ? "当前使用" : "候选版式"}</span>
+            </div>
+            <nav aria-label="预览内容">
               <button
                 type="button"
-                className="native-template-favorite"
-                disabled={busy || !loaded}
-                aria-label={`${preferences.find((pref) => pref.templateId === item.id)?.favorite ? "取消收藏" : "收藏"}${item.name}`}
-                onClick={() => void favorite(item.id)}
+                aria-pressed={contentMode === "sample"}
+                onClick={() => setContentMode("sample")}
               >
-                {preferences.find((pref) => pref.templateId === item.id)?.favorite
-                  ? "★ 已收藏"
-                  : "☆ 收藏"}
+                完整样张
               </button>
-            </article>
-          ))}
-          <p>{availableTemplates.length} 套版式。换模板保留正文，长内容自动续页。</p>
-        </section>
-        <div className="native-template-detail" data-comparing={comparing}>
-          {comparing ? (
-            <section className="native-template-comparison" aria-label="模板对照">
-              {comparisons.map((item) => (
-                <section
-                  key={item.id}
-                  className="native-comparison-candidate"
-                  aria-label={item.name}
-                >
-                  <h3>{item.name}</h3>
-                  {item.id.startsWith("studio-") ? (
-                    <StudioTemplateSchematic id={item.id} />
-                  ) : (
-                    <NativePdfPreview document={item.document} />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      apply(item.id);
-                      close();
-                    }}
-                  >
-                    应用{item.name}
-                  </button>
-                </section>
-              ))}
-            </section>
-          ) : selected.startsWith("studio-") ? (
-            <StudioTemplateSchematic id={selected} />
+              <button
+                type="button"
+                aria-pressed={contentMode === "personal"}
+                onClick={() => setContentMode("personal")}
+              >
+                用我的内容
+              </button>
+            </nav>
+          </div>
+          {contentMode === "sample" ? (
+            <NativeTemplateSamplePreview document={document} templateId={selected} />
           ) : (
-            <NativePdfPreview document={candidate} />
+            <NativeTemplatePreview
+              key={selected}
+              document={document}
+              documentId={documentId}
+              revision={revision}
+              templateId={selected}
+            />
           )}
           <footer>
-            <span>
-              {selected.startsWith("studio-")
-                ? "结构示意；应用后将在编辑器生成正式预览"
-                : personal
-                  ? "当前内容预览"
-                  : "中文样稿，仅展示排版"}
-              ，不会添加样稿经历
-            </span>
-            {comparing ? (
-              <button type="button" onClick={() => setComparing(false)}>
-                返回单套预览
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  apply(selected);
-                  close();
-                }}
-              >
-                应用这套模板
-              </button>
-            )}
+            <span>只应用版式 · 样张不会写入你的简历</span>
+            <button
+              type="button"
+              className="native-primary-action"
+              onClick={() => {
+                apply(selected);
+                close();
+              }}
+            >
+              应用这套模板
+            </button>
           </footer>
         </div>
       </div>
