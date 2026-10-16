@@ -6,7 +6,7 @@ import {
   SessionStatusSchema,
 } from "@aijob/contracts";
 import type { Database } from "@aijob/database";
-import type { Kysely, Transaction } from "kysely";
+import { type Kysely, type Transaction, sql } from "kysely";
 
 export const ANONYMOUS_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
 
@@ -196,6 +196,11 @@ export async function issueOwnerSession(input: {
   const csrfTokenHash = hashOpaqueToken(csrfToken);
 
   if (input.revokeExisting ?? true) {
+    // A full session revocation must also stop local remembered browsers from signing back in.
+    await sql`UPDATE identity.device_bindings SET revoked_at=${now}
+      WHERE owner_id=${input.ownerId}::uuid AND credential_hash LIKE 'web-browser-v1:%' AND revoked_at IS NULL`.execute(
+      input.db,
+    );
     await input.db
       .updateTable("identity.owner_sessions")
       .set({ revoked_at: now })
@@ -318,6 +323,10 @@ export async function revokeOwnerSessions(input: {
   ownerId: string;
   now?: Date;
 }): Promise<void> {
+  await sql`UPDATE identity.device_bindings SET revoked_at=${input.now ?? new Date()}
+    WHERE owner_id=${input.ownerId}::uuid AND credential_hash LIKE 'web-browser-v1:%' AND revoked_at IS NULL`.execute(
+    input.db,
+  );
   await input.db
     .updateTable("identity.owner_sessions")
     .set({ revoked_at: input.now ?? new Date() })

@@ -8,6 +8,7 @@ import {
   createEmailVerificationChallenge,
   createOwnerClaimChallenge,
   getSessionStatus,
+  restoreLocalAccess,
   resumeSessionBootstrapAfterOwnerDeletion,
   subscribeToSessionBoundary,
   subscribeToSessionMutationRecovery,
@@ -45,6 +46,32 @@ describe("product API client", () => {
       "token:123",
     );
     expect(cookieValue("aijob_csrf_shadow=x", "aijob_csrf")).toBeNull();
+  });
+
+  it("restores from a local file without bootstrapping another owner and clears the old workspace boundary", async () => {
+    let notifications = 0;
+    const unsubscribe = subscribeToSessionBoundary(() => {
+      notifications += 1;
+    });
+    const fetchMock = vi.fn(
+      async () => new Response(JSON.stringify(sessionStatus), { status: 200 }),
+    );
+    vi.stubGlobal("document", { cookie: "" });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await restoreLocalAccess("fixture-recovery-credential");
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/v1/local-access/restore",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ recoveryKey: "fixture-recovery-credential" }),
+        }),
+      );
+      expect(notifications).toBe(1);
+    } finally {
+      unsubscribe();
+    }
   });
 
   it("sends same-origin credentials, CSRF and idempotency headers for mutations", async () => {
@@ -147,10 +174,10 @@ describe("product API client", () => {
     const requestedPaths: string[] = [];
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       requestedPaths.push(String(input));
-      return new Response(
-        JSON.stringify({ detail: "删除回执已过期", code: "SESSION_REQUIRED" }),
-        { status: 401, headers: { "Content-Type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ detail: "删除回执已过期", code: "SESSION_REQUIRED" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
     });
     vi.stubGlobal("document", { cookie: "" });
     vi.stubGlobal("fetch", fetchMock);
@@ -345,9 +372,7 @@ describe("product API client", () => {
     expect(captured?.credentials).toBe("same-origin");
     expect(headers.get("x-csrf-token")).toBeNull();
     expect(headers.get("Idempotency-Key")).toBe("alpha-request-1");
-    expect(captured?.body).toBe(
-      JSON.stringify({ purpose: "sign_in", email: "coco@example.test" }),
-    );
+    expect(captured?.body).toBe(JSON.stringify({ purpose: "sign_in", email: "coco@example.test" }));
 
     await expect(
       completeEmailVerification({
@@ -580,5 +605,36 @@ describe("product API client", () => {
     expect(recoveryMessages).toEqual([
       "本机会话已经更新。系统没有自动重放刚才的修改，请核对页面内容后再次提交。",
     ]);
+  });
+
+  it("keeps draft listeners intact when an expired session returns to the same owner", async () => {
+    vi.stubGlobal("document", { cookie: "aijob_csrf=expired-csrf" });
+    let notifications = 0;
+    let writes = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).endsWith("/v1/session"))
+          return new Response(JSON.stringify(sessionStatus), { status: 200 });
+        writes += 1;
+        return new Response(JSON.stringify({ code: "CSRF_REJECTED" }), { status: 403 });
+      }),
+    );
+    await getSessionStatus();
+    const unsubscribe = subscribeToSessionBoundary(() => {
+      notifications += 1;
+    });
+    try {
+      await expect(
+        apiRequest("/v1/resume-documents/current", {
+          method: "PUT",
+          body: { headline: "手动输入仍在" },
+        }),
+      ).rejects.toMatchObject({ code: "SESSION_RECOVERED_RETRY_REQUIRED" });
+      expect(writes).toBe(1);
+      expect(notifications).toBe(0);
+    } finally {
+      unsubscribe();
+    }
   });
 });

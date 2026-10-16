@@ -1,12 +1,13 @@
 import { createDatabase, type Database, migrateToLatest } from "@aijob/database";
 import Fastify from "fastify";
-import type { Kysely } from "kysely";
+import { type Kysely, sql } from "kysely";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { FixtureEmailVerificationDelivery } from "./email-delivery.js";
 import { emailLookupHash } from "./email-crypto.js";
 import {
   CSRF_COOKIE_NAME,
+  BROWSER_ACCESS_COOKIE_NAME,
   CSRF_HEADER_NAME,
   installAnonymousIdentity,
   OWNER_CONTEXT_HEADER_NAME,
@@ -17,10 +18,298 @@ import {
   hashOpaqueToken,
   createAnonymousSession,
   findActiveSession,
+  issueOwnerSession,
 } from "./session-repository.js";
+import { BROWSER_ACCESS_TTL_MS, LocalWebAccess } from "./local-web-access.js";
 
 const databaseUrl = process.env.AIJOB_TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
+
+describeWithDatabase("local web remembered access and self-service recovery", () => {
+  let db: Kysely<Database>;
+  const ownerIds: string[] = [];
+  const origin = "http://127.0.0.1:5173";
+  const initialNow = new Date("2026-10-14T12:00:00.000Z");
+
+  beforeAll(async () => {
+    db = createDatabase(databaseUrl as string);
+    await migrateToLatest(db);
+  });
+  afterAll(async () => {
+    if (ownerIds.length) {
+      await sql`DELETE FROM identity.device_bindings WHERE owner_id IN (${sql.join(ownerIds.map((id) => sql`${id}::uuid`))})`.execute(
+        db,
+      );
+      await db
+        .updateTable("identity.owners")
+        .set({ status: "deletion_pending" })
+        .where("id", "in", ownerIds)
+        .execute();
+      await db.deleteFrom("identity.owner_sessions").where("owner_id", "in", ownerIds).execute();
+      await db.deleteFrom("identity.owners").where("id", "in", ownerIds).execute();
+    }
+    await db.destroy();
+  });
+  function appAt(now: () => Date, enabled = true) {
+    const app = Fastify({ logger: false });
+    installAnonymousIdentity(app, {
+      db,
+      appEnv: "local",
+      host: "127.0.0.1",
+      acceptedOrigins: [origin],
+      now,
+      localBrowserAccess: enabled,
+    });
+    app.post("/v1/mutate", async (request) => ({ ownerId: requireOwnerContext(request).ownerId }));
+    return app;
+  }
+  async function existingOwner(
+    now = initialNow,
+    retentionMode: "persistent_guest" | "anonymous_ttl" = "persistent_guest",
+  ) {
+    const created = await createAnonymousSession({ db, now, retentionMode });
+    ownerIds.push(created.context.ownerId);
+    return created;
+  }
+  function cookies(headers: string | string[] | undefined) {
+    return [SESSION_COOKIE_NAME, CSRF_COOKIE_NAME, BROWSER_ACCESS_COOKIE_NAME]
+      .map((name) => [name, cookieValue(headers, name)])
+      .filter((entry) => entry[1])
+      .map(([name, value]) => `${name}=${value}`)
+      .join("; ");
+  }
+
+  it("attaches to an existing owner, restores after day 31, renews remembered access and permits the next save", async () => {
+    let now = initialNow;
+    const original = await existingOwner(),
+      app = appAt(() => now);
+    try {
+      const before = await app.inject({
+        method: "GET",
+        url: "/v1/session",
+        headers: { cookie: `${SESSION_COOKIE_NAME}=${original.sessionToken}` },
+      });
+      expect(before.json().owner.id).toBe(original.context.ownerId);
+      const credential =
+        cookieValue(before.headers["set-cookie"], BROWSER_ACCESS_COOKIE_NAME) ?? "";
+      expect(credential).toHaveLength(43);
+      expect(String(before.headers["set-cookie"])).toMatch(/HttpOnly.*SameSite=Strict/iu);
+      const stored = (
+        await sql<{
+          credential_hash: string;
+        }>`SELECT credential_hash FROM identity.device_bindings WHERE owner_id=${original.context.ownerId}::uuid`.execute(
+          db,
+        )
+      ).rows;
+      expect(stored[0]?.credential_hash).toMatch(/^web-browser-v1:[a-f0-9]{64}$/u);
+      expect(stored[0]?.credential_hash).not.toContain(credential);
+
+      now = new Date(initialNow.valueOf() + 31 * 86400000);
+      const restored = await app.inject({
+        method: "GET",
+        url: "/v1/session",
+        headers: { cookie: `${BROWSER_ACCESS_COOKIE_NAME}=${credential}` },
+      });
+      expect(restored.statusCode).toBe(200);
+      expect(restored.json().owner).toMatchObject({
+        id: original.context.ownerId,
+        epoch: 1,
+        retentionMode: "persistent_guest",
+      });
+      expect(restored.json().session.id).not.toBe(original.context.sessionId);
+      expect(String(restored.headers["set-cookie"])).toContain(
+        new Date(now.valueOf() + BROWSER_ACCESS_TTL_MS).toUTCString(),
+      );
+      const write = await app.inject({
+        method: "POST",
+        url: "/v1/mutate",
+        headers: {
+          origin,
+          cookie: cookies(restored.headers["set-cookie"]),
+          [CSRF_HEADER_NAME]: cookieValue(restored.headers["set-cookie"], CSRF_COOKIE_NAME) ?? "",
+        },
+      });
+      expect(write.json()).toEqual({ ownerId: original.context.ownerId });
+      // A browser without either credential cannot discover or claim this owner.
+      const stranger = await app.inject({ method: "GET", url: "/v1/session" });
+      ownerIds.push(stranger.json().owner.id);
+      expect(stranger.json().owner.id).not.toBe(original.context.ownerId);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("restores using a file without cookies, isolates credential purposes, rotates files and enforces Origin and CSRF", async () => {
+    const original = await existingOwner(),
+      other = await existingOwner();
+    const app = appAt(() => initialNow);
+    const headers = {
+      origin,
+      cookie: `${SESSION_COOKIE_NAME}=${original.sessionToken}`,
+      [CSRF_HEADER_NAME]: original.csrfToken,
+    };
+    try {
+      const denied = await app.inject({
+        method: "POST",
+        url: "/v1/local-access/recovery-file",
+        headers: { origin, cookie: headers.cookie },
+      });
+      expect(denied.statusCode).toBe(403);
+      const file = await app.inject({
+        method: "POST",
+        url: "/v1/local-access/recovery-file",
+        headers,
+      });
+      expect(file.statusCode).toBe(200);
+      expect(file.headers["cache-control"]).toBe("no-store");
+      expect(Object.keys(file.json()).sort()).toEqual([
+        "createdAt",
+        "format",
+        "recoveryKey",
+        "version",
+        "workspaceId",
+      ]);
+      const payload = { recoveryKey: file.json().recoveryKey };
+      const untrusted = await app.inject({
+        method: "POST",
+        url: "/v1/local-access/restore",
+        headers: { origin: "https://untrusted.example" },
+        payload,
+      });
+      expect(untrusted.statusCode).toBe(403);
+      const countBefore = await db
+        .selectFrom("identity.owners")
+        .select((eb) => eb.fn.countAll().as("count"))
+        .executeTakeFirstOrThrow();
+      const restored = await app.inject({
+        method: "POST",
+        url: "/v1/local-access/restore",
+        headers: { origin },
+        payload,
+      });
+      expect(restored.statusCode).toBe(200);
+      expect(restored.json().owner.id).toBe(original.context.ownerId);
+      expect(
+        await db
+          .selectFrom("identity.owners")
+          .select((eb) => eb.fn.countAll().as("count"))
+          .executeTakeFirstOrThrow(),
+      ).toEqual(countBefore);
+      const switched = await app.inject({
+        method: "POST",
+        url: "/v1/local-access/restore",
+        headers: { origin, cookie: `${SESSION_COOKIE_NAME}=${other.sessionToken}` },
+        payload,
+      });
+      expect(switched.json().owner.id).toBe(original.context.ownerId);
+      expect(
+        await findActiveSession({ db, sessionToken: other.sessionToken, now: initialNow }),
+      ).not.toBeNull();
+      const service = new LocalWebAccess(db);
+      expect(await service.restore(payload.recoveryKey, "browser", initialNow)).toBeNull();
+      const browserKey =
+        cookieValue(restored.headers["set-cookie"], BROWSER_ACCESS_COOKIE_NAME) ?? "";
+      expect(await service.restore(browserKey, "recovery", initialNow)).toBeNull();
+      const second = await app.inject({
+        method: "POST",
+        url: "/v1/local-access/recovery-file",
+        headers,
+      });
+      expect(second.json().recoveryKey).not.toBe(payload.recoveryKey);
+      const stale = await app.inject({
+        method: "POST",
+        url: "/v1/local-access/restore",
+        headers: { origin },
+        payload,
+      });
+      expect(stale.statusCode).toBe(401);
+      expect(stale.headers["set-cookie"]).toBeUndefined();
+      // A saved file remains usable independently of browser/session lifetimes.
+      expect(
+        (
+          await service.restore(
+            second.json().recoveryKey,
+            "recovery",
+            new Date(initialNow.valueOf() + 800 * 86400000),
+          )
+        )?.context.ownerId,
+      ).toBe(original.context.ownerId);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("honors logout, full session revocation, deletion, epochs and expired legacy owners", async () => {
+    const original = await existingOwner(),
+      app = appAt(() => initialNow),
+      service = new LocalWebAccess(db);
+    try {
+      const credential = await service.remember(original.context, undefined, initialNow);
+      const logout = await app.inject({
+        method: "DELETE",
+        url: "/v1/session",
+        headers: {
+          origin,
+          cookie: `${SESSION_COOKIE_NAME}=${original.sessionToken}; ${BROWSER_ACCESS_COOKIE_NAME}=${credential}`,
+          [CSRF_HEADER_NAME]: original.csrfToken,
+        },
+      });
+      expect(logout.statusCode).toBe(204);
+      expect(String(logout.headers["set-cookie"])).toContain(`${BROWSER_ACCESS_COOKIE_NAME}=;`);
+      expect(await service.restore(credential ?? "", "browser", initialNow)).toBeNull();
+      const next = await service.remember(original.context, undefined, initialNow);
+      await issueOwnerSession({ db, ...original.context, now: initialNow });
+      expect(await service.restore(next ?? "", "browser", initialNow)).toBeNull();
+      const file = await service.createRecoveryFile(original.context, initialNow);
+      await db
+        .updateTable("identity.owners")
+        .set({ epoch: 2 })
+        .where("id", "=", original.context.ownerId)
+        .execute();
+      expect(await service.restore(file.recoveryKey, "recovery", initialNow)).toBeNull();
+      await db
+        .updateTable("identity.owners")
+        .set({ epoch: 1, status: "deletion_pending" })
+        .where("id", "=", original.context.ownerId)
+        .execute();
+      expect(await service.restore(file.recoveryKey, "recovery", initialNow)).toBeNull();
+      const legacy = await existingOwner(initialNow, "anonymous_ttl");
+      const legacyFile = await service.createRecoveryFile(legacy.context, initialNow);
+      expect(
+        await service.restore(
+          legacyFile.recoveryKey,
+          "recovery",
+          new Date(initialNow.valueOf() + 31 * 86400000),
+        ),
+      ).toBeNull();
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("does not expose web recovery when the existing desktop path disables it", async () => {
+    const original = await existingOwner(),
+      app = appAt(() => initialNow, false);
+    try {
+      const status = await app.inject({
+        method: "GET",
+        url: "/v1/local-access",
+        headers: { cookie: `${SESSION_COOKIE_NAME}=${original.sessionToken}` },
+      });
+      expect(status.json()).toEqual({ enabled: false });
+      expect(status.headers["set-cookie"]).toBeUndefined();
+      const restore = await app.inject({
+        method: "POST",
+        url: "/v1/local-access/restore",
+        headers: { origin },
+        payload: { recoveryKey: "a".repeat(43) },
+      });
+      expect(restore.statusCode).toBe(404);
+    } finally {
+      await app.close();
+    }
+  });
+});
 
 function cookieValue(setCookie: string | string[] | undefined, name: string): string | undefined {
   const headers = Array.isArray(setCookie) ? setCookie : setCookie ? [setCookie] : [];

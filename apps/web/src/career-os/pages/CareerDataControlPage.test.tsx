@@ -1,4 +1,4 @@
-import type { CareerDataScopeResponse } from "@aijob/contracts";
+import type { CareerDataScopeResponse, LocalAccessStatus } from "@aijob/contracts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
@@ -88,11 +88,15 @@ function scope(retentionMode: "anonymous_ttl" | "account_managed"): CareerDataSc
   };
 }
 
-function renderScope(data: CareerDataScopeResponse): string {
+function renderScope(
+  data: CareerDataScopeResponse,
+  access: LocalAccessStatus = { enabled: false },
+): string {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } },
   });
   client.setQueryData(careerOsQueryKeys.dataScope, data);
+  client.setQueryData(["career-os", "local-access"], access);
   return renderToStaticMarkup(
     <QueryClientProvider client={client}>
       <MemoryRouter>
@@ -155,7 +159,26 @@ it("separates persistent guest data retention from browser access expiry", () =>
   const html = renderScope(data);
   expect(html).toContain("当前浏览器的资料");
   expect(html).toContain("资料与上传原件保留至你主动删除");
-  expect(html).toContain("跨设备找回");
-  expect(html).toContain("会话到期不会删除资料");
+  expect(html).toContain("用邮箱认领这个本机身份");
+  expect(html).toContain("不会删除简历或配置");
   expect(html).not.toContain("当前本机身份将于");
+});
+
+it("shows automatic access and recovery controls for local persistent guests without requiring email", () => {
+  const data = scope("anonymous_ttl");
+  data.owner = {
+    ...data.owner,
+    retentionMode: "persistent_guest",
+    retentionExpiresAt: null,
+    accountId: null,
+  };
+  const html = renderScope(data, {
+    enabled: true,
+    browserRemembered: true,
+    recoveryCreatedAt: null,
+  });
+  expect(html).toContain("已记住此浏览器");
+  expect(html).toContain("下载恢复文件");
+  expect(html).toContain("用恢复文件找回资料");
+  expect(html).not.toContain("用邮箱认领这个本机身份");
 });

@@ -102,6 +102,8 @@ ADR-0037 已替代生产浏览器禁令。`browser_required` 来源可在 collec
 
 ## 5. 邀请会话与对象授权
 
+本机网页版的日常续接与自助找回按 [ADR-0044](decisions/0044-local-web-session-recovery.md)：记住浏览器与恢复文件使用分离用途的随机凭据，服务端只存哈希，每次恢复重新验证 owner/epoch、撤销和留存状态。退出撤销该浏览器访问；全部数据删除同时使恢复文件失效。文件不含资料或 API Key，不等于数据库备份。以下邀请交换约束继续适用于对应邀请流程，不要求本机用户配置邮箱。
+
 ### 5.1 公开和私有边界
 
 - 公开/Alpha 岗位列表与详情允许匿名读取，只返回 `publication_state=published` 的版本。本机 `dev/test` 可由服务端固定启用 `local_mvp` 目录展示明确标识的 `pending_review` 岗位；客户端参数不能提升目录范围。

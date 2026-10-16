@@ -1,6 +1,8 @@
 import {
   type EmailVerificationChallenge,
   EmailVerificationChallengeSchema,
+  LocalAccessStatusSchema,
+  LocalRecoveryFileSchema,
   type SessionStatus,
   SessionStatusSchema,
 } from "@aijob/contracts";
@@ -70,7 +72,9 @@ function currentCsrfToken(): string | null {
 let sessionBootstrapPromise: Promise<SessionStatus> | null = null;
 let sessionBootstrapSuppressedAfterDeletion = false;
 let knownOwnerKey: string | null = null;
-export function currentWorkspaceOwnerKey() { return knownOwnerKey; }
+export function currentWorkspaceOwnerKey() {
+  return knownOwnerKey;
+}
 const sessionBoundaryListeners = new Set<() => void>();
 const sessionMutationRecoveryListeners = new Set<(message: string) => void>();
 let sessionBoundaryGeneration = 0;
@@ -202,7 +206,8 @@ function isSessionBoundaryProblem(error: ProductApiError): boolean {
 async function recoverSessionBoundary(forceNotify: boolean): Promise<boolean> {
   try {
     const status = await requestSessionStatus();
-    recordSessionStatus(status, forceNotify);
+    // Renewing the same owner is not a workspace change: keep unsaved editor input.
+    recordSessionStatus(status, forceNotify && knownOwnerKey === null);
     return status.authenticated;
   } catch {
     recordSessionStatus({ authenticated: false }, forceNotify);
@@ -259,8 +264,7 @@ async function apiRequestInternal<T>(
         return apiRequestInternal<T>(path, options, true);
       }
       if (recovered && isMutation(method)) {
-        const message =
-          "本机会话已经更新。系统没有自动重放刚才的修改，请核对页面内容后再次提交。";
+        const message = "本机会话已经更新。系统没有自动重放刚才的修改，请核对页面内容后再次提交。";
         notifySessionMutationRecovery(message);
         throw new ProductApiError(
           message,
@@ -418,4 +422,30 @@ export function completeOwnerClaim(
 
 export function fileDownloadUrl(path: string): string {
   return `${baseUrl}${path}`;
+}
+
+export function getLocalAccessStatus(signal?: AbortSignal) {
+  return apiRequest("/v1/local-access", { signal, responseSchema: LocalAccessStatusSchema });
+}
+
+export function createLocalRecoveryFile() {
+  return apiRequest("/v1/local-access/recovery-file", {
+    method: "POST",
+    responseSchema: LocalRecoveryFileSchema,
+  });
+}
+
+export async function restoreLocalAccess(recoveryKey: string): Promise<SessionStatus> {
+  // The recovery file supplies authentication. Do not create an empty owner first.
+  const response = await fetch(`${baseUrl}/v1/local-access/restore`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ recoveryKey }),
+  });
+  if (!response.ok) throw await readProblem(response);
+  const status = await readValidatedJson(response, SessionStatusSchema);
+  resumeSessionBootstrapAfterOwnerDeletion();
+  recordSessionStatus(status, true);
+  return status;
 }

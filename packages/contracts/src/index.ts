@@ -8,6 +8,7 @@ export * from "./discovery-settings.js";
 export * from "./enums.js";
 export * from "./field-value.js";
 export * from "./identity.js";
+export * from "./local-access.js";
 export * from "./insights.js";
 export * from "./interview-debrief-knowledge.js";
 export * from "./job-directions.js";

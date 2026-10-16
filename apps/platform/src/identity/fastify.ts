@@ -2,6 +2,7 @@ import type { AppEnvironment } from "@aijob/config";
 import {
   CompleteEmailVerificationRequestSchema,
   CreateEmailVerificationChallengeRequestSchema,
+  LocalRecoveryFileSchema,
 } from "@aijob/contracts";
 import type { Database } from "@aijob/database";
 import cookie from "@fastify/cookie";
@@ -16,6 +17,7 @@ import {
 import { secureHexEqual } from "./email-crypto.js";
 import { EmailVerificationService } from "./email-verification-service.js";
 import { ApiProblem, sendApiProblem } from "./http.js";
+import { BROWSER_ACCESS_TTL_MS, LocalWebAccess } from "./local-web-access.js";
 import {
   createAnonymousSession,
   findActiveSession,
@@ -28,10 +30,12 @@ export const SESSION_COOKIE_NAME = "aijob_session";
 export const CSRF_COOKIE_NAME = "aijob_csrf";
 export const CSRF_HEADER_NAME = "x-csrf-token";
 export const OWNER_CONTEXT_HEADER_NAME = "x-aijob-owner-context";
+export const BROWSER_ACCESS_COOKIE_NAME = "aijob_browser_access";
 
 declare module "fastify" {
   interface FastifyRequest {
     ownerContext: OwnerContext | null;
+    localBrowserRemembered: boolean;
   }
 }
 
@@ -45,6 +49,7 @@ export interface AnonymousIdentityOptions {
   emailDelivery?: EmailVerificationDelivery;
   fixedVerificationCode?: string;
   now?: () => Date;
+  localBrowserAccess?: boolean;
 }
 
 const IdempotencyKeySchema = z.string().trim().min(1).max(200);
@@ -110,7 +115,15 @@ function isEmailIdentityMutation(request: FastifyRequest): boolean {
 }
 
 function shouldSkipAutomaticBootstrap(request: FastifyRequest): boolean {
-  return isDeletionReceiptStatusRequest(request) || isEmailIdentityMutation(request);
+  return (
+    isDeletionReceiptStatusRequest(request) ||
+    isEmailIdentityMutation(request) ||
+    isLocalRecoveryRequest(request)
+  );
+}
+
+function isLocalRecoveryRequest(request: FastifyRequest): boolean {
+  return request.method === "POST" && request.url === "/v1/local-access/restore";
 }
 
 function isAlphaAnonymousReadAllowed(request: FastifyRequest): boolean {
@@ -149,7 +162,7 @@ function setIdentityCookies(
   );
 }
 
-export function clearIdentityCookies(reply: FastifyReply, appEnv: AppEnvironment): void {
+function clearSessionCookies(reply: FastifyReply, appEnv: AppEnvironment): void {
   const secure = cookieSecurity(appEnv);
   reply.clearCookie(SESSION_COOKIE_NAME, {
     path: "/",
@@ -162,6 +175,25 @@ export function clearIdentityCookies(reply: FastifyReply, appEnv: AppEnvironment
     httpOnly: false,
     sameSite: "strict",
     secure,
+  });
+}
+
+export function clearIdentityCookies(reply: FastifyReply, appEnv: AppEnvironment): void {
+  clearSessionCookies(reply, appEnv);
+  reply.clearCookie(BROWSER_ACCESS_COOKIE_NAME, {
+    path: "/",
+    httpOnly: true,
+    sameSite: "strict",
+    secure: cookieSecurity(appEnv),
+  });
+}
+
+function setBrowserCookie(reply: FastifyReply, credential: string, now: Date) {
+  reply.setCookie(BROWSER_ACCESS_COOKIE_NAME, credential, {
+    path: "/",
+    httpOnly: true,
+    sameSite: "strict",
+    expires: new Date(now.valueOf() + BROWSER_ACCESS_TTL_MS),
   });
 }
 
@@ -190,11 +222,7 @@ function assertCsrfToken(request: FastifyRequest): void {
   }
 }
 
-function handleIdentityRouteError(
-  error: unknown,
-  request: FastifyRequest,
-  reply: FastifyReply,
-) {
+function handleIdentityRouteError(error: unknown, request: FastifyRequest, reply: FastifyReply) {
   if (error instanceof ApiProblem) return sendApiProblem(request, reply, error);
   if (error instanceof ServiceError) {
     return sendApiProblem(
@@ -246,8 +274,14 @@ export function installAnonymousIdentity(
   });
   app.register(cookie);
   app.decorateRequest("ownerContext", null);
-  const allowLoopbackOriginFallback =
-    options.appEnv === "local" || options.appEnv === "test";
+  app.decorateRequest("localBrowserRemembered", false);
+  const allowLoopbackOriginFallback = options.appEnv === "local" || options.appEnv === "test";
+  const localAccess =
+    options.appEnv === "local" &&
+    isLoopbackHostname(options.host) &&
+    options.localBrowserAccess !== false
+      ? new LocalWebAccess(options.db)
+      : null;
 
   app.addHook("onRequest", async (request, reply) => {
     if (!shouldHandleIdentity(request)) return;
@@ -259,7 +293,16 @@ export function installAnonymousIdentity(
       : null;
 
     if (!context && sessionToken) {
-      clearIdentityCookies(reply, options.appEnv);
+      clearSessionCookies(reply, options.appEnv);
+    }
+    if (!context && localAccess && !shouldSkipAutomaticBootstrap(request)) {
+      const credential = request.cookies[BROWSER_ACCESS_COOKIE_NAME];
+      const restored = credential ? await localAccess.restore(credential, "browser", now) : null;
+      if (restored && credential) {
+        context = restored.context;
+        setIdentityCookies(reply, options.appEnv, restored);
+        setBrowserCookie(reply, credential, now);
+      }
     }
 
     const mayBootstrap =
@@ -270,6 +313,20 @@ export function installAnonymousIdentity(
       const created = await createAnonymousSession({ db: options.db, now });
       context = created.context;
       setIdentityCookies(reply, options.appEnv, created);
+    }
+    if (
+      context &&
+      localAccess &&
+      !shouldSkipAutomaticBootstrap(request) &&
+      request.method !== "DELETE"
+    ) {
+      const credential = await localAccess.remember(
+        context,
+        request.cookies[BROWSER_ACCESS_COOKIE_NAME],
+        now,
+      );
+      if (credential) setBrowserCookie(reply, credential, now);
+      request.localBrowserRemembered = true;
     }
     request.ownerContext = context;
     if (context) {
@@ -294,13 +351,9 @@ export function installAnonymousIdentity(
       );
     }
     if (isSafeMethod(request.method)) return;
-    if (isEmailIdentityMutation(request)) {
+    if (isEmailIdentityMutation(request) || isLocalRecoveryRequest(request)) {
       if (
-        !requestOriginAllowed(
-          request,
-          options.acceptedOrigins ?? [],
-          allowLoopbackOriginFallback,
-        )
+        !requestOriginAllowed(request, options.acceptedOrigins ?? [], allowLoopbackOriginFallback)
       ) {
         return sendApiProblem(
           request,
@@ -323,11 +376,7 @@ export function installAnonymousIdentity(
       );
     }
     if (
-      !requestOriginAllowed(
-        request,
-        options.acceptedOrigins ?? [],
-        allowLoopbackOriginFallback,
-      )
+      !requestOriginAllowed(request, options.acceptedOrigins ?? [], allowLoopbackOriginFallback)
     ) {
       return sendApiProblem(
         request,
@@ -355,6 +404,53 @@ export function installAnonymousIdentity(
     reply.header("Pragma", "no-cache");
     return projectSessionStatus({ db: options.db, context: request.ownerContext });
   });
+
+  app.get("/v1/local-access", async (request, reply) => {
+    reply.header("Cache-Control", "no-store");
+    if (!localAccess) return { enabled: false };
+    return {
+      enabled: true,
+      browserRemembered: request.localBrowserRemembered,
+      recoveryCreatedAt: request.ownerContext
+        ? await localAccess.recoveryCreatedAt(request.ownerContext)
+        : null,
+    };
+  });
+
+  if (localAccess) {
+    app.post("/v1/local-access/recovery-file", async (request, reply) => {
+      reply.header("Cache-Control", "no-store");
+      return localAccess.createRecoveryFile(
+        requireOwnerContext(request),
+        options.now?.() ?? new Date(),
+      );
+    });
+    app.post("/v1/local-access/restore", { bodyLimit: 2048 }, async (request, reply) => {
+      reply.header("Cache-Control", "no-store");
+      const parsed = LocalRecoveryFileSchema.pick({ recoveryKey: true }).safeParse(request.body);
+      const now = options.now?.() ?? new Date();
+      const restored = parsed.success
+        ? await localAccess.restore(parsed.data.recoveryKey, "recovery", now)
+        : null;
+      if (!restored)
+        return sendApiProblem(
+          request,
+          reply,
+          new ApiProblem(
+            401,
+            "LOCAL_RECOVERY_INVALID",
+            "无法恢复资料",
+            "恢复文件无效、已被重新生成，或对应资料已删除。请使用最新的恢复文件。",
+          ),
+        );
+      // A successful explicit sign-in replaces this browser's remembered identity only.
+      await localAccess.forgetBrowser(request.cookies[BROWSER_ACCESS_COOKIE_NAME], now);
+      const credential = await localAccess.remember(restored.context, undefined, now);
+      setIdentityCookies(reply, options.appEnv, restored);
+      if (credential) setBrowserCookie(reply, credential, now);
+      return projectSessionStatus({ db: options.db, context: restored.context });
+    });
+  }
 
   app.post("/v1/email-verification-challenges", async (request, reply) => {
     reply.header("Cache-Control", "no-store");
@@ -392,6 +488,16 @@ export function installAnonymousIdentity(
       });
       request.ownerContext = completed.credentials.context;
       setIdentityCookies(reply, options.appEnv, completed.credentials);
+      if (localAccess) {
+        const now = options.now?.() ?? new Date();
+        await localAccess.forgetBrowser(request.cookies[BROWSER_ACCESS_COOKIE_NAME], now);
+        const credential = await localAccess.remember(
+          completed.credentials.context,
+          undefined,
+          now,
+        );
+        if (credential) setBrowserCookie(reply, credential, now);
+      }
       return reply.code(200).send(completed.session);
     } catch (error) {
       return handleIdentityRouteError(error, request, reply);
@@ -400,6 +506,11 @@ export function installAnonymousIdentity(
 
   app.delete("/v1/session", async (request, reply) => {
     const context = requireOwnerContext(request);
+    if (localAccess)
+      await localAccess.forgetBrowser(
+        request.cookies[BROWSER_ACCESS_COOKIE_NAME],
+        options.now?.() ?? new Date(),
+      );
     await options.db
       .updateTable("identity.owner_sessions")
       .set({ revoked_at: options.now?.() ?? new Date() })

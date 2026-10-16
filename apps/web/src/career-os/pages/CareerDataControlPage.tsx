@@ -1,20 +1,25 @@
 import type { DetachedCareerAsset } from "@aijob/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   careerOsQueryKeys,
   deleteDebrief,
   deleteInterviewSession,
   getCareerDataScope,
 } from "../../api/career-os";
-import { ProductApiError, suppressSessionBootstrapAfterOwnerDeletion } from "../../api/client";
+import {
+  getLocalAccessStatus,
+  ProductApiError,
+  suppressSessionBootstrapAfterOwnerDeletion,
+} from "../../api/client";
 import { deleteProfile } from "../../api/product";
 import { clearDeletedOwnerCache } from "../../product/privacy-cache";
 import { clearJourneyState } from "../../product/session-state";
 import { AssetDeletionDialog } from "../components/AssetDeletionDialog";
 import { Icon } from "../components/Icon";
 import { OwnerClaimPanel } from "../components/OwnerClaimPanel";
+import { LocalAccessPanel } from "../components/LocalAccessPanel";
 
 function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat("zh-CN", {
@@ -64,12 +69,17 @@ export async function publishAssetDeletionAfterRefresh(
 }
 
 export function CareerDataControlPage() {
+  const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [confirmation, setConfirmation] = useState("");
   const [understood, setUnderstood] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<DetachedCareerAsset | null>(null);
   const [assetNotice, setAssetNotice] = useState<string | null>(null);
+  const localAccessQuery = useQuery({
+    queryKey: ["career-os", "local-access"],
+    queryFn: ({ signal }) => getLocalAccessStatus(signal),
+  });
   const scopeQuery = useQuery({
     queryKey: careerOsQueryKeys.dataScope,
     queryFn: ({ signal }) => getCareerDataScope(signal),
@@ -167,6 +177,10 @@ export function CareerDataControlPage() {
     <section className="career-data-page" aria-labelledby="career-data-title">
       <DataPageHeading />
 
+      {new URLSearchParams(location.search).get("restored") === "1" ? (
+        <output className="career-data-notice">已恢复原资料，当前浏览器已记住这份资料。</output>
+      ) : null}
+
       {assetNotice ? (
         <output className="career-data-notice">
           <Icon name="check" size={18} />
@@ -187,7 +201,7 @@ export function CareerDataControlPage() {
             <span>资料与上传原件保留至你主动删除，可以随时删除单项或全部资料。</span>
           ) : persistentGuest ? (
             <span>
-              资料与上传原件保留至你主动删除。当前浏览器可继续使用；绑定邮箱后可跨设备找回。清除浏览器凭据或会话到期不会删除资料，但未绑定邮箱时无法恢复访问。
+              资料与上传原件保留至你主动删除。会话期限只影响访问，不会删除简历或配置。你可以在下方管理找回方式。
             </span>
           ) : (
             <span>
@@ -198,11 +212,32 @@ export function CareerDataControlPage() {
               到期。你可以在到期前验证邮箱并认领当前 owner；认领不会复制或替换已有职业资产。
             </span>
           )}
-          <small>当前会话到期：{formatDateTime(scope.sessionExpiresAt)}</small>
+          <small>
+            {localAccessQuery.data?.enabled && (persistentGuest || accountManaged)
+              ? "当前短期会话有效至（届时自动续接）"
+              : "当前会话到期"}
+            ：{formatDateTime(scope.sessionExpiresAt)}
+          </small>
         </div>
       </section>
 
-      {!accountManaged ? (
+      {localAccessQuery.data?.enabled ? (
+        <LocalAccessPanel
+          access={localAccessQuery.data}
+          temporaryOwner={!persistentGuest && !accountManaged}
+          onGenerated={() => localAccessQuery.refetch()}
+        />
+      ) : null}
+      {localAccessQuery.isError ? (
+        <p className="career-inline-error" role="alert">
+          找回设置暂时无法读取。
+          <button type="button" onClick={() => void localAccessQuery.refetch()}>
+            重试
+          </button>
+        </p>
+      ) : null}
+
+      {!accountManaged && (!persistentGuest || localAccessQuery.data?.enabled === false) ? (
         <OwnerClaimPanel
           ownerEpoch={scope.owner.epoch}
           onClaimed={() => queryClient.invalidateQueries({ queryKey: careerOsQueryKeys.dataScope })}

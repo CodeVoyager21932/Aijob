@@ -73,6 +73,7 @@ export function buildApp(input: { config: AppConfig; db: Kysely<Database> }): Fa
     db: input.db,
     appEnv: input.config.appEnv,
     host: input.config.host,
+    localBrowserAccess: process.env.AIJOB_DESKTOP_CHILD !== "1",
     acceptedOrigins: input.config.identity.acceptedOrigins,
     identityMasterKey:
       input.config.identity.masterKey ??
